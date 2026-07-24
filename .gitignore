@@ -10,3 +10,7 @@ coverage.json
 *.egg-info/
 dist/
 build/
+.kg-session-lock
+.kg-reconcile-state.json
+.kg-ground-audit.jsonl*
+.tmp-*
