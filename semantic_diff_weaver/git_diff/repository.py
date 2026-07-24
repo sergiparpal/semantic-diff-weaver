@@ -25,7 +25,7 @@ def _git_diff_api() -> Any:
     """Resolve the public package so tests can monkeypatch facade attributes."""
     global _GIT_DIFF_API
     if _GIT_DIFF_API is None:
-        from hermes_semantic_diff_weaver import git_diff as api
+        from semantic_diff_weaver import git_diff as api
 
         _GIT_DIFF_API = api
     return _GIT_DIFF_API

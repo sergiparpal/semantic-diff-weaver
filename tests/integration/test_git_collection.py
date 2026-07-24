@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from hermes_semantic_diff_weaver.ast_diff import analyze_ast
-from hermes_semantic_diff_weaver.git_diff import GitRepository, collect_diff
-from hermes_semantic_diff_weaver.models import WeaverConfig
+from semantic_diff_weaver.ast_diff import analyze_ast
+from semantic_diff_weaver.git_diff import GitRepository, collect_diff
+from semantic_diff_weaver.models import WeaverConfig
 
 
 def test_add_delete_and_no_change_paths(repo_factory) -> None:

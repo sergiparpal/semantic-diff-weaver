@@ -4,9 +4,9 @@ import json
 
 import pytest
 
-import hermes_semantic_diff_weaver.service as service
-from hermes_semantic_diff_weaver.errors import ErrorCode, WeaverError, internal_error
-from hermes_semantic_diff_weaver.plugin import handle_analyze_semantic_diff
+import semantic_diff_weaver.service as service
+from semantic_diff_weaver.errors import ErrorCode, WeaverError, internal_error
+from semantic_diff_weaver.plugin import handle_analyze_semantic_diff
 
 
 def test_every_public_error_code_is_stable() -> None:

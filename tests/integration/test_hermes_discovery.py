@@ -15,7 +15,7 @@ def test_manifest_and_entry_point_agree() -> None:
     manifest = yaml.safe_load((root / "plugin.yaml").read_text(encoding="utf-8"))
     project = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
     configured = project["project"]["entry-points"]["hermes_agent.plugins"]
-    assert configured[manifest["name"]] == "hermes_semantic_diff_weaver.plugin"
+    assert configured[manifest["name"]] == "semantic_diff_weaver.plugin"
     entry_points = importlib.metadata.entry_points().select(group="hermes_agent.plugins")
     matches = [item for item in entry_points if item.name == manifest["name"]]
     if matches:

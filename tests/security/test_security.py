@@ -6,11 +6,11 @@ from pathlib import Path
 
 import pytest
 
-import hermes_semantic_diff_weaver.git_diff as git_diff
-from hermes_semantic_diff_weaver.errors import ErrorCode, WeaverError
-from hermes_semantic_diff_weaver.git_diff import GitRepository
-from hermes_semantic_diff_weaver.path_policy import ALLOWED_ROOTS_ENV
-from hermes_semantic_diff_weaver.plugin import handle_analyze_semantic_diff
+import semantic_diff_weaver.git_diff as git_diff
+from semantic_diff_weaver.errors import ErrorCode, WeaverError
+from semantic_diff_weaver.git_diff import GitRepository
+from semantic_diff_weaver.path_policy import ALLOWED_ROOTS_ENV
+from semantic_diff_weaver.plugin import handle_analyze_semantic_diff
 
 
 def test_inline_and_filename_secrets_never_appear_in_output(repo_factory) -> None:

@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-import hermes_semantic_diff_weaver.path_policy as path_policy
-from hermes_semantic_diff_weaver.errors import WeaverError
-from hermes_semantic_diff_weaver.path_policy import (
+import semantic_diff_weaver.path_policy as path_policy
+from semantic_diff_weaver.errors import WeaverError
+from semantic_diff_weaver.path_policy import (
     ALLOWED_ROOTS_ENV,
     ensure_authorized_path,
     ensure_contained,

@@ -35,7 +35,7 @@ jobs:
       - run: python -m pip install . --no-deps
       - run: >-
           python -m pytest
-          --cov=hermes_semantic_diff_weaver
+          --cov=semantic_diff_weaver
           --cov-branch
           --cov-report=json:coverage.json
           --cov-report=term-missing
@@ -62,5 +62,5 @@ jobs:
       - run: python -m pip install -r requirements-dev.lock
       - run: python -m pip install "hermes-agent==${{ matrix.hermes-version }}"
       - run: python -m build
-      - run: python -m pip install dist/hermes_semantic_diff_weaver-*.whl
+      - run: python -m pip install dist/semantic_diff_weaver-*.whl
       - run: python scripts/verify_hermes.py

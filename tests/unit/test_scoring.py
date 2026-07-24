@@ -2,15 +2,15 @@ from __future__ import annotations
 
 import pytest
 
-from hermes_semantic_diff_weaver.ast_diff import StructuralDelta
-from hermes_semantic_diff_weaver.models import CandidateTest, LineRange, RiskLabel, WeaverConfig
-from hermes_semantic_diff_weaver.scoring import (
+from semantic_diff_weaver.ast_diff import StructuralDelta
+from semantic_diff_weaver.models import CandidateTest, LineRange, RiskLabel, WeaverConfig
+from semantic_diff_weaver.scoring import (
     confidence_score,
     obligation_priority,
     risk_label,
     score_risk,
 )
-from hermes_semantic_diff_weaver.semantic_candidates import build_candidates
+from semantic_diff_weaver.semantic_candidates import build_candidates
 
 
 def authorization_candidate():

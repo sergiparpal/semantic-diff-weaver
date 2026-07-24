@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from hermes_semantic_diff_weaver.models import (
+from semantic_diff_weaver.models import (
     BehaviorCategory,
     BehaviorChange,
     CandidateTest,
@@ -14,8 +14,8 @@ from hermes_semantic_diff_weaver.models import (
     ScoreExplanation,
     WeaverConfig,
 )
-from hermes_semantic_diff_weaver.obligations import generate_obligations
-from hermes_semantic_diff_weaver.semantic_interpreter import SuggestedScenario
+from semantic_diff_weaver.obligations import generate_obligations
+from semantic_diff_weaver.semantic_interpreter import SuggestedScenario
 
 
 def behavior(category: BehaviorCategory, index: int = 1, risk: RiskLabel = RiskLabel.HIGH):

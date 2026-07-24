@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-Production code lives in `hermes_semantic_diff_weaver/`. `git_diff.py` collects committed Git data, `ast_diff.py` extracts structural changes, and `service.py` orchestrates the pipeline. `plugin.py`, root `__init__.py`, and `plugin.yaml` provide Hermes registration.
+Production code lives in `semantic_diff_weaver/`. `git_diff.py` collects committed Git data, `ast_diff.py` extracts structural changes, and `service.py` orchestrates the pipeline. `plugin.py`, root `__init__.py`, and `plugin.yaml` provide Hermes registration.
 
 Tests are grouped under `tests/unit`, `contract`, `integration`, `security`, `performance`, and `evaluation`; reusable inputs belong in `tests/fixtures`. User-facing design and operational notes belong in `docs/`.
 
@@ -12,7 +12,7 @@ Tests are grouped under `tests/unit`, `contract`, `integration`, `security`, `pe
 - `python -m pytest tests/unit tests/contract`: run fast model and interface checks.
 - `python -m pytest tests/integration`: exercise temporary Git repositories and transports.
 - `python -m pytest tests/security tests/performance`: verify security and resource budgets.
-- `python -m pytest --cov=hermes_semantic_diff_weaver --cov-branch`: produce branch coverage.
+- `python -m pytest --cov=semantic_diff_weaver --cov-branch`: produce branch coverage.
 - `python -m ruff check .`: lint for correctness and imports.
 - `python -m ruff format --check .`: verify formatting; omit `--check` to reformat.
 - `python -m build`: create wheel and source distributions in `dist/`.

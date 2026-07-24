@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from hermes_semantic_diff_weaver.ast_diff import StructuralDelta
-from hermes_semantic_diff_weaver.git_diff import GitRepository
-from hermes_semantic_diff_weaver.models import LineRange, WeaverConfig
-from hermes_semantic_diff_weaver.semantic_candidates import build_candidates
-from hermes_semantic_diff_weaver.test_mapper import build_test_index, map_candidate_tests
+from semantic_diff_weaver.ast_diff import StructuralDelta
+from semantic_diff_weaver.git_diff import GitRepository
+from semantic_diff_weaver.models import LineRange, WeaverConfig
+from semantic_diff_weaver.semantic_candidates import build_candidates
+from semantic_diff_weaver.test_mapper import build_test_index, map_candidate_tests
 
 
 def test_committed_test_index_maps_import_name_and_path(repo_factory) -> None:

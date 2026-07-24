@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from hermes_semantic_diff_weaver.ast_diff import analyze_ast
-from hermes_semantic_diff_weaver.git_diff import ChangedFile, Hunk
-from hermes_semantic_diff_weaver.semantic_candidates import build_candidates
+from semantic_diff_weaver.ast_diff import analyze_ast
+from semantic_diff_weaver.git_diff import ChangedFile, Hunk
+from semantic_diff_weaver.semantic_candidates import build_candidates
 
 
 def file(old: str, new: str) -> ChangedFile:

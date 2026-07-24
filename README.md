@@ -1,6 +1,6 @@
-# Hermes Semantic Diff Weaver
+# Semantic Diff Weaver
 
-Hermes Semantic Diff Weaver is an advisory, read-only Hermes Agent plugin for reviewing a bounded
+Semantic Diff Weaver is an advisory, read-only Hermes Agent plugin for reviewing a bounded
 Git diff between two committed revisions. It statically extracts Python structural changes, infers
 evidence-backed behavior changes, ranks risk separately from confidence, and produces concrete test
 obligations plus unverified candidate existing tests.
@@ -22,10 +22,10 @@ degrades to deterministic structural findings when the Hermes-hosted model is un
 For development as a user directory plugin, copy this repository directory to:
 
 ```text
-~/.hermes/plugins/hermes-semantic-diff-weaver/
+~/.hermes/plugins/semantic-diff-weaver/
 ```
 
-For a project plugin, copy it to `.hermes/plugins/hermes-semantic-diff-weaver/` and explicitly trust
+For a project plugin, copy it to `.hermes/plugins/semantic-diff-weaver/` and explicitly trust
 project plugin discovery:
 
 ```text
@@ -36,7 +36,7 @@ For package installation:
 
 ```text
 python -m pip install .
-hermes plugins enable hermes-semantic-diff-weaver
+hermes plugins enable semantic-diff-weaver
 hermes plugins list
 ```
 
@@ -112,7 +112,7 @@ python -m pytest tests/integration
 python -m pytest tests/security
 python -m pytest tests/evaluation
 python -m pytest tests/performance
-python -m pytest --cov=hermes_semantic_diff_weaver --cov-branch --cov-report=json:coverage.json
+python -m pytest --cov=semantic_diff_weaver --cov-branch --cov-report=json:coverage.json
 python scripts/check_coverage.py coverage.json
 python -m ruff check .
 python -m ruff format --check .

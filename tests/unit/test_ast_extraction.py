@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from hermes_semantic_diff_weaver.ast_diff import extract_symbols
+from semantic_diff_weaver.ast_diff import extract_symbols
 
 
 def test_extracts_nested_async_decorated_symbols() -> None:

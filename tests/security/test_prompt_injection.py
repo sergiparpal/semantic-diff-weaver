@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from hermes_semantic_diff_weaver.models import WeaverConfig
-from hermes_semantic_diff_weaver.semantic_interpreter import INPUT_SUFFIX, interpret_candidates
+from semantic_diff_weaver.models import WeaverConfig
+from semantic_diff_weaver.semantic_interpreter import INPUT_SUFFIX, interpret_candidates
 from tests.contract.test_llm_call import FakeLlm, Result, candidate
 
 

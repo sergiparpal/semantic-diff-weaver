@@ -7,16 +7,16 @@ from pathlib import Path
 
 import pytest
 
-import hermes_semantic_diff_weaver.git_diff as git_diff
-from hermes_semantic_diff_weaver.errors import ErrorCode, WeaverError
-from hermes_semantic_diff_weaver.git_diff import (
+import semantic_diff_weaver.git_diff as git_diff
+from semantic_diff_weaver.errors import ErrorCode, WeaverError
+from semantic_diff_weaver.git_diff import (
     MAX_GIT_INPUT_BYTES,
     GitRepository,
     _parse_name_status,
     _parse_numstat,
     collect_diff,
 )
-from hermes_semantic_diff_weaver.models import CriticalPath, WeaverConfig
+from semantic_diff_weaver.models import CriticalPath, WeaverConfig
 
 
 def test_open_resolve_and_collect(repo_factory) -> None:

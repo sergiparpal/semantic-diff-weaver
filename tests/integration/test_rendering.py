@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from hermes_semantic_diff_weaver.models import AnalysisResult
-from hermes_semantic_diff_weaver.renderer import render_markdown
-from hermes_semantic_diff_weaver.service import analyze
+from semantic_diff_weaver.models import AnalysisResult
+from semantic_diff_weaver.renderer import render_markdown
+from semantic_diff_weaver.service import analyze
 
 
 def test_markdown_is_pr_ready_and_uses_candidate_disclaimer(repo_factory) -> None:

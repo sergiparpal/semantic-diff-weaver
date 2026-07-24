@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from hermes_semantic_diff_weaver.ast_diff import StructuralDelta
-from hermes_semantic_diff_weaver.models import BehaviorCategory, Evidence, LineRange, Origin
-from hermes_semantic_diff_weaver.scoring import confidence_score
-from hermes_semantic_diff_weaver.semantic_candidates import SemanticCandidate, build_candidates
-from hermes_semantic_diff_weaver.service import _deduplicate_candidates
+from semantic_diff_weaver.ast_diff import StructuralDelta
+from semantic_diff_weaver.models import BehaviorCategory, Evidence, LineRange, Origin
+from semantic_diff_weaver.scoring import confidence_score
+from semantic_diff_weaver.semantic_candidates import SemanticCandidate, build_candidates
+from semantic_diff_weaver.service import _deduplicate_candidates
 
 
 def delta(kind: str, old: str | None, new: str | None) -> StructuralDelta:

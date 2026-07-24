@@ -4,9 +4,9 @@ import time
 
 import pytest
 
-from hermes_semantic_diff_weaver.ast_diff import analyze_ast
-from hermes_semantic_diff_weaver.git_diff import ChangedFile, Hunk
-from hermes_semantic_diff_weaver.service import analyze
+from semantic_diff_weaver.ast_diff import analyze_ast
+from semantic_diff_weaver.git_diff import ChangedFile, Hunk
+from semantic_diff_weaver.service import analyze
 
 
 @pytest.mark.performance

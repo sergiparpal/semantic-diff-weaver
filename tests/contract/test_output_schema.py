@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from hermes_semantic_diff_weaver.models import AnalysisResult, BothEnvelope, MarkdownEnvelope
-from hermes_semantic_diff_weaver.service import analyze
+from semantic_diff_weaver.models import AnalysisResult, BothEnvelope, MarkdownEnvelope
+from semantic_diff_weaver.service import analyze
 
 
 def test_json_and_envelopes_validate_against_local_models(repo_factory) -> None:

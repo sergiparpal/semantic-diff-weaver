@@ -9,7 +9,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
-PLUGIN_NAME = "hermes-semantic-diff-weaver"
+PLUGIN_NAME = "semantic-diff-weaver"
 TOOL_NAME = "analyze_semantic_diff"
 
 

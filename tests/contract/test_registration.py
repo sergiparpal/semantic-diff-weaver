@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
-from hermes_semantic_diff_weaver.plugin import register
+from semantic_diff_weaver.plugin import register
 
 
 @dataclass

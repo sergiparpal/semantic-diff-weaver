@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from hermes_semantic_diff_weaver.models import AnalysisResult
-from hermes_semantic_diff_weaver.service import analyze
+from semantic_diff_weaver.models import AnalysisResult
+from semantic_diff_weaver.service import analyze
 
 
 def test_boundary_vertical_slice_produces_evidence_and_obligations(repo_factory) -> None:

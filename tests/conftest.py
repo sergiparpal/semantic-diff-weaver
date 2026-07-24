@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from hermes_semantic_diff_weaver.path_policy import ALLOWED_ROOTS_ENV
+from semantic_diff_weaver.path_policy import ALLOWED_ROOTS_ENV
 
 # Identity supplied through the environment so repositories need no `git config` child processes.
 GIT_ENVIRONMENT = {

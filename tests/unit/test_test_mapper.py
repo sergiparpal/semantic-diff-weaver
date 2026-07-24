@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import hermes_semantic_diff_weaver.test_mapper as test_mapper
-from hermes_semantic_diff_weaver.ast_diff import StructuralDelta
-from hermes_semantic_diff_weaver.errors import ErrorCode, WeaverError
-from hermes_semantic_diff_weaver.git_diff import GitTreeEntry
-from hermes_semantic_diff_weaver.models import LineRange, WeaverConfig
-from hermes_semantic_diff_weaver.semantic_candidates import build_candidates
-from hermes_semantic_diff_weaver.test_mapper import (
+import semantic_diff_weaver.test_mapper as test_mapper
+from semantic_diff_weaver.ast_diff import StructuralDelta
+from semantic_diff_weaver.errors import ErrorCode, WeaverError
+from semantic_diff_weaver.git_diff import GitTreeEntry
+from semantic_diff_weaver.models import LineRange, WeaverConfig
+from semantic_diff_weaver.semantic_candidates import build_candidates
+from semantic_diff_weaver.test_mapper import (
     IndexedTest,
     TestIndex,
     _index_source,

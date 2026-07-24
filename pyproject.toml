@@ -3,12 +3,12 @@ requires = ["hatchling==1.31.0"]
 build-backend = "hatchling.build"
 
 [project]
-name = "hermes-semantic-diff-weaver"
+name = "semantic-diff-weaver"
 version = "0.1.0"
 description = "Read-only semantic Git diff analysis and risk-ranked test obligations for Hermes Agent."
 readme = "README.md"
 requires-python = ">=3.11"
-authors = [{ name = "Hermes Semantic Diff Weaver contributors" }]
+authors = [{ name = "Semantic Diff Weaver contributors" }]
 license = "MIT"
 license-files = ["LICENSE"]
 dependencies = [
@@ -17,10 +17,10 @@ dependencies = [
 ]
 
 [project.entry-points."hermes_agent.plugins"]
-hermes-semantic-diff-weaver = "hermes_semantic_diff_weaver.plugin"
+semantic-diff-weaver = "semantic_diff_weaver.plugin"
 
 [tool.hatch.build.targets.wheel]
-packages = ["hermes_semantic_diff_weaver"]
+packages = ["semantic_diff_weaver"]
 
 [tool.hatch.build.targets.sdist]
 exclude = [
@@ -42,7 +42,7 @@ markers = [
 
 [tool.coverage.run]
 branch = true
-source = ["hermes_semantic_diff_weaver"]
+source = ["semantic_diff_weaver"]
 
 [tool.coverage.report]
 fail_under = 85
@@ -63,7 +63,7 @@ ignore = ["E501"]
 
 [tool.mypy]
 python_version = "3.11"
-files = ["hermes_semantic_diff_weaver"]
+files = ["semantic_diff_weaver"]
 explicit_package_bases = true
 check_untyped_defs = true
 disallow_untyped_defs = true

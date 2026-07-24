@@ -5,9 +5,9 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from hermes_semantic_diff_weaver.config import _read_yaml, _validate_config_paths, load_config
-from hermes_semantic_diff_weaver.errors import ErrorCode, WeaverError
-from hermes_semantic_diff_weaver.models import AnalyzeRequest
+from semantic_diff_weaver.config import _read_yaml, _validate_config_paths, load_config
+from semantic_diff_weaver.errors import ErrorCode, WeaverError
+from semantic_diff_weaver.models import AnalyzeRequest
 
 
 def request(repo: Path, **kwargs: object) -> AnalyzeRequest:

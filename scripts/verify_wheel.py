@@ -18,11 +18,11 @@ def _environment_python(root: Path) -> Path:
 
 def main() -> int:
     artifact_dir = Path(sys.argv[1] if len(sys.argv) > 1 else "dist").resolve(strict=True)
-    wheels = sorted(artifact_dir.glob("hermes_semantic_diff_weaver-*.whl"))
+    wheels = sorted(artifact_dir.glob("semantic_diff_weaver-*.whl"))
     if len(wheels) != 1:
         print(f"expected exactly one wheel in {artifact_dir}, found {len(wheels)}", file=sys.stderr)
         return 2
-    source_distributions = sorted(artifact_dir.glob("hermes_semantic_diff_weaver-*.tar.gz"))
+    source_distributions = sorted(artifact_dir.glob("semantic_diff_weaver-*.tar.gz"))
     if len(source_distributions) != 1:
         print(
             f"expected exactly one sdist in {artifact_dir}, found {len(source_distributions)}",
@@ -63,7 +63,7 @@ def main() -> int:
         check = (
             "import importlib.metadata as m; "
             "eps=list(m.entry_points().select(group='hermes_agent.plugins', "
-            "name='hermes-semantic-diff-weaver')); "
+            "name='semantic-diff-weaver')); "
             "assert len(eps)==1; module=eps[0].load(); assert callable(module.register); "
             "print(eps[0].value)"
         )

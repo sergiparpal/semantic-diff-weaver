@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from hermes_semantic_diff_weaver.schemas import (
+from semantic_diff_weaver.schemas import (
     ANALYZE_SEMANTIC_DIFF_SCHEMA,
     LLM_RESPONSE_SCHEMA,
     LLM_SCHEMA_NAME,

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import hermes_semantic_diff_weaver.ast_diff as ast_diff
-from hermes_semantic_diff_weaver.ast_diff import analyze_ast
-from hermes_semantic_diff_weaver.git_diff import ChangedFile, Hunk
+import semantic_diff_weaver.ast_diff as ast_diff
+from semantic_diff_weaver.ast_diff import analyze_ast
+from semantic_diff_weaver.git_diff import ChangedFile, Hunk
 
 
 def changed(old: str, new: str) -> ChangedFile:

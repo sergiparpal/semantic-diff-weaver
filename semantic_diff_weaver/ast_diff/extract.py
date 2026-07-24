@@ -46,7 +46,7 @@ _AST_API: Any | None = None
 def _ast_api() -> Any:
     global _AST_API
     if _AST_API is None:
-        from hermes_semantic_diff_weaver import ast_diff as api
+        from semantic_diff_weaver import ast_diff as api
 
         _AST_API = api
     return _AST_API

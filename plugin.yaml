@@ -1,7 +1,7 @@
-name: hermes-semantic-diff-weaver
+name: semantic-diff-weaver
 kind: standalone
 version: 0.1.0
 description: Analyze Git diffs and produce evidence-backed, risk-ranked test obligations.
-author: Hermes Semantic Diff Weaver contributors
+author: Semantic Diff Weaver contributors
 provides_tools:
   - analyze_semantic_diff

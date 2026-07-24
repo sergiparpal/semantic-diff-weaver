@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from hermes_semantic_diff_weaver.ast_diff import StructuralDelta
-from hermes_semantic_diff_weaver.models import BehaviorCategory, LineRange, WeaverConfig
-from hermes_semantic_diff_weaver.semantic_candidates import build_candidates
+from semantic_diff_weaver.ast_diff import StructuralDelta
+from semantic_diff_weaver.models import BehaviorCategory, LineRange, WeaverConfig
+from semantic_diff_weaver.semantic_candidates import build_candidates
 
 
 def candidate(kind: str, old: str, new: str):

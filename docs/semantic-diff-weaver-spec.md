@@ -1,14 +1,14 @@
-# Hermes Semantic Diff Weaver
+# Semantic Diff Weaver
 
 > **Product and Technical Specification**  
 > English name for **“Tejedor por Diff Semántico”**  
-> Proposed repository: `hermes-semantic-diff-weaver`  
+> Proposed repository: `semantic-diff-weaver`  
 > Document status: Draft v0.1  
 > Date: 2026-07-11
 
 ## 1. Executive Summary
 
-**Hermes Semantic Diff Weaver** analyzes a pull request at the behavioral level and produces a traceable, risk-ranked set of test obligations.
+**Semantic Diff Weaver** analyzes a pull request at the behavioral level and produces a traceable, risk-ranked set of test obligations.
 
 Traditional diff tools answer **what lines changed**. Semantic Diff Weaver answers:
 
@@ -593,7 +593,7 @@ It must not modify Hermes core files.
 ### Proposed package layout
 
 ```text
-hermes-semantic-diff-weaver/
+semantic-diff-weaver/
 ├── plugin.yaml
 ├── __init__.py
 ├── README.md

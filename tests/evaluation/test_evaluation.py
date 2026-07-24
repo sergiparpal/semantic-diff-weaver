@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from hermes_semantic_diff_weaver.path_policy import ALLOWED_ROOTS_ENV
-from hermes_semantic_diff_weaver.service import analyze
+from semantic_diff_weaver.path_policy import ALLOWED_ROOTS_ENV
+from semantic_diff_weaver.service import analyze
 
 # One Git repository and one analysis per corpus case still costs hundreds of child
 # processes, which dominate the runtime on Windows runners.

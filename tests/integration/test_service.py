@@ -5,10 +5,10 @@ from typing import Any
 
 import pytest
 
-import hermes_semantic_diff_weaver.ast_diff as ast_diff
-import hermes_semantic_diff_weaver.service as service
-from hermes_semantic_diff_weaver.plugin import handle_analyze_semantic_diff
-from hermes_semantic_diff_weaver.service import _read_readme_excerpt, analyze
+import semantic_diff_weaver.ast_diff as ast_diff
+import semantic_diff_weaver.service as service
+from semantic_diff_weaver.plugin import handle_analyze_semantic_diff
+from semantic_diff_weaver.service import _read_readme_excerpt, analyze
 
 
 @pytest.mark.parametrize("output_format", ["json", "markdown", "both"])

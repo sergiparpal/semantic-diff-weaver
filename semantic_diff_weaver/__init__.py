@@ -1,4 +1,4 @@
-"""Hermes Semantic Diff Weaver public package."""
+"""Semantic Diff Weaver public package."""
 
 from .plugin import register
 

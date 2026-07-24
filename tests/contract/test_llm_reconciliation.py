@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from hermes_semantic_diff_weaver.models import BehaviorCategory, WeaverConfig
-from hermes_semantic_diff_weaver.semantic_interpreter import interpret_candidates
+from semantic_diff_weaver.models import BehaviorCategory, WeaverConfig
+from semantic_diff_weaver.semantic_interpreter import interpret_candidates
 from tests.contract.test_llm_call import FakeLlm, Result, candidate, valid_payload
 
 

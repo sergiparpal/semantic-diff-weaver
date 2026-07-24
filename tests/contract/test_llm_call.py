@@ -5,16 +5,16 @@ from typing import Any
 
 import pytest
 
-from hermes_semantic_diff_weaver.ast_diff import StructuralDelta
-from hermes_semantic_diff_weaver.errors import ErrorCode, WeaverError
-from hermes_semantic_diff_weaver.models import (
+from semantic_diff_weaver.ast_diff import StructuralDelta
+from semantic_diff_weaver.errors import ErrorCode, WeaverError
+from semantic_diff_weaver.models import (
     CriticalPath,
     LineRange,
     LlmBatchResponse,
     WeaverConfig,
 )
-from hermes_semantic_diff_weaver.semantic_candidates import build_candidates
-from hermes_semantic_diff_weaver.semantic_interpreter import (
+from semantic_diff_weaver.semantic_candidates import build_candidates
+from semantic_diff_weaver.semantic_interpreter import (
     _accumulate_usage,
     _batch_candidates,
     _evidence_payload,

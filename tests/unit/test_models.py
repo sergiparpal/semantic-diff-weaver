@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from hermes_semantic_diff_weaver.models import (
+from semantic_diff_weaver.models import (
     MAX_PATH_PATTERNS,
     AnalysisResult,
     AnalyzeRequest,
