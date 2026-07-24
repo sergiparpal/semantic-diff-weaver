@@ -73,8 +73,6 @@ def test_committed_symlink_is_metadata_and_is_not_read(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
     git(repo, "init", "-q")
-    git(repo, "config", "user.email", "tests@example.invalid")
-    git(repo, "config", "user.name", "Semantic Diff Tests")
     link = repo / "outside.py"
     try:
         link.symlink_to("../first-secret.py")

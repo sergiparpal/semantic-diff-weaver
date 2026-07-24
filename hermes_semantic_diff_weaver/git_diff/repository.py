@@ -18,11 +18,17 @@ def _git_error(code: ErrorCode, message: str, remediation: str) -> WeaverError:
     return WeaverError(code, message, remediation)
 
 
+_GIT_DIFF_API: Any | None = None
+
+
 def _git_diff_api() -> Any:
     """Resolve the public package so tests can monkeypatch facade attributes."""
-    from hermes_semantic_diff_weaver import git_diff as api
+    global _GIT_DIFF_API
+    if _GIT_DIFF_API is None:
+        from hermes_semantic_diff_weaver import git_diff as api
 
-    return api
+        _GIT_DIFF_API = api
+    return _GIT_DIFF_API
 
 
 class GitRepository:

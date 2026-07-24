@@ -40,10 +40,16 @@ def _validate_ast_budget(tree: ast.AST) -> None:
         pending.extend((child, depth + 1) for child in ast.iter_child_nodes(node))
 
 
-def _ast_api() -> Any:
-    from hermes_semantic_diff_weaver import ast_diff as api
+_AST_API: Any | None = None
 
-    return api
+
+def _ast_api() -> Any:
+    global _AST_API
+    if _AST_API is None:
+        from hermes_semantic_diff_weaver import ast_diff as api
+
+        _AST_API = api
+    return _AST_API
 
 
 def call_name(node: ast.AST) -> str:

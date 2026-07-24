@@ -14,9 +14,9 @@ from .types import AstAnalysis, StructuralDelta, SymbolSnapshot
 
 
 def _ast_api() -> Any:
-    from hermes_semantic_diff_weaver import ast_diff as api
+    from .extract import _ast_api as resolve_ast_api
 
-    return api
+    return resolve_ast_api()
 
 
 def _hunk_line_range(hunk: Hunk | None, *, side: str) -> LineRange | None:

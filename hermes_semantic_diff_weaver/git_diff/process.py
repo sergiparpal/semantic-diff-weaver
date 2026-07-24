@@ -90,12 +90,14 @@ def run_bounded_process(
         while process.poll() is None:
             if overflow.is_set():
                 process.kill()
+                break
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 process.kill()
                 raise subprocess.TimeoutExpired(command, GIT_TIMEOUT_SECONDS)
             try:
-                process.wait(timeout=min(0.05, remaining))
+                # Prefer a longer wait so short Git commands are not paced by a 50ms poll.
+                process.wait(timeout=min(0.25, remaining))
             except subprocess.TimeoutExpired:
                 continue
     finally:

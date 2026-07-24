@@ -1,14 +1,46 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 
+import pytest
+
+from hermes_semantic_diff_weaver.path_policy import ALLOWED_ROOTS_ENV
 from hermes_semantic_diff_weaver.service import analyze
+
+# One Git repository and one analysis per corpus case still costs hundreds of child
+# processes, which dominate the runtime on Windows runners.
+pytestmark = pytest.mark.timeout(120)
 
 
 def _load_cases() -> list[dict[str, object]]:
     fixture = Path(__file__).parents[1] / "fixtures" / "evaluation_cases.json"
     return json.loads(fixture.read_text(encoding="utf-8"))
+
+
+@pytest.fixture(scope="module")
+def corpus_envelopes(
+    module_repo_factory: Callable[..., tuple[Path, str, str]],
+    tmp_path_factory: pytest.TempPathFactory,
+) -> dict[str, dict[str, object]]:
+    """Analyze every corpus case once and share the envelopes across this module."""
+    envelopes: dict[str, dict[str, object]] = {}
+    with pytest.MonkeyPatch.context() as patch:
+        # Module-scoped setup runs before the autouse per-test authorization fixture.
+        patch.setenv(ALLOWED_ROOTS_ENV, str(tmp_path_factory.getbasetemp().resolve()))
+        for case in _load_cases():
+            old_files, new_files, remove = _files(case)
+            repo, base, head = module_repo_factory(old_files, new_files, remove=remove)
+            envelopes[str(case["name"])] = analyze(
+                {
+                    "repo_path": str(repo),
+                    "base_ref": base,
+                    "head_ref": head,
+                    "output_format": "both",
+                }
+            )
+    return envelopes
 
 
 def test_fixture_labels_match_reviewed_golden() -> None:
@@ -31,22 +63,15 @@ def _normalize_analysis(result: dict[str, object]) -> dict[str, object]:
     return normalized
 
 
-def test_canonical_outputs_match_reviewed_goldens(repo_factory) -> None:
+def test_canonical_outputs_match_reviewed_goldens(
+    corpus_envelopes: dict[str, dict[str, object]],
+) -> None:
     golden_path = Path(__file__).parents[1] / "fixtures" / "golden" / "canonical_outputs.json"
     golden = json.loads(golden_path.read_text(encoding="utf-8"))
-    actual: dict[str, dict[str, object]] = {}
-    for case in _load_cases():
-        old_files, new_files, remove = _files(case)
-        repo, base, head = repo_factory(old_files, new_files, remove=remove)
-        result = analyze(
-            {
-                "repo_path": str(repo),
-                "base_ref": base,
-                "head_ref": head,
-                "output_format": "json",
-            }
-        )
-        actual[case["name"]] = _normalize_analysis(result)
+    actual = {
+        name: _normalize_analysis(envelope["analysis"])
+        for name, envelope in corpus_envelopes.items()
+    }
     assert actual == golden
 
 
@@ -77,7 +102,9 @@ def _files(case: dict[str, object]) -> tuple[dict[str, str], dict[str, str], tup
     )
 
 
-def test_material_metrics_evidence_anchors_and_obligation_concepts(repo_factory) -> None:
+def test_material_metrics_evidence_anchors_and_obligation_concepts(
+    corpus_envelopes: dict[str, dict[str, object]],
+) -> None:
     true_positive = 0
     predicted_total = 0
     expected_total = 0
@@ -88,16 +115,7 @@ def test_material_metrics_evidence_anchors_and_obligation_concepts(repo_factory)
     fabricated = 0
     unknowns = 0
     for case in _load_cases():
-        old_files, new_files, remove = _files(case)
-        repo, base, head = repo_factory(old_files, new_files, remove=remove)
-        envelope = analyze(
-            {
-                "repo_path": str(repo),
-                "base_ref": base,
-                "head_ref": head,
-                "output_format": "both",
-            }
-        )
+        envelope = corpus_envelopes[str(case["name"])]
         result = envelope["analysis"]
         predicted = {item["category"] for item in result["behavior_changes"]}
         expected = set(case["expected"])
