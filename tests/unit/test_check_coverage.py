@@ -27,11 +27,11 @@ def test_coverage_policy_accepts_platform_path_separators(
     for module in check_coverage.CRITICAL_MODULES:
         if module.endswith("/"):
             package = module.strip("/")
-            files[f"semantic_diff_weaver{separator}{package}{separator}collect.py"] = (
-                _file_entry(covered=92, total=100)
+            files[f"semantic_diff_weaver{separator}{package}{separator}collect.py"] = _file_entry(
+                covered=92, total=100
             )
-            files[f"semantic_diff_weaver{separator}{package}{separator}process.py"] = (
-                _file_entry(covered=90, total=100)
+            files[f"semantic_diff_weaver{separator}{package}{separator}process.py"] = _file_entry(
+                covered=90, total=100
             )
         else:
             files[f"semantic_diff_weaver{separator}{module}"] = _file_entry()

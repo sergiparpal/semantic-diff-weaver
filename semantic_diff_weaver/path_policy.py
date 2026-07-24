@@ -11,7 +11,7 @@ from typing import Any
 
 from .errors import ErrorCode, WeaverError
 
-ALLOWED_ROOTS_ENV = "HERMES_SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS"
+ALLOWED_ROOTS_ENV = "SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS"
 CONTROL_PARTS = {".git", ".hg", ".svn", ".bzr"}
 CACHE_PARTS = {
     ".cache",

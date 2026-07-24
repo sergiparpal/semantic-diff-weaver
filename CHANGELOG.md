@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Rename the project from `hermes-semantic-diff-weaver` to `semantic-diff-weaver`. The distribution,
+  the `semantic_diff_weaver` package, and the plugin entry-point name all drop the `hermes-` prefix.
+- **Breaking:** rename the `HERMES_SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS` environment variable to
+  `SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS`. The old name is no longer read; hosts that set it lose the
+  extra authorized roots and fall back to the process working directory.
 - Harden secret egress, model-data framing, terminal/control rendering, repository authorization,
   Git replacement-object handling, inherited Git environment isolation, configuration complexity,
   and adversarial AST resource limits.

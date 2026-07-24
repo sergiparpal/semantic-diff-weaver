@@ -50,7 +50,7 @@ every file it resolves through must remain inside the repository after symlink r
 explicitly named external `risk_profile` is the only exception to repository containment. It must
 still remain inside a host-authorized workspace root. The default authorized root is the process
 working directory; trusted operators can provide additional roots through the path-separator-delimited
-`HERMES_SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS` environment variable.
+`SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS` environment variable.
 
 `privacy.redact_patterns` must remain `true` and `privacy.allow_network` must remain `false`.
 Configured excludes are additive with mandatory control, credential, key, token, cache, environment,

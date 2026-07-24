@@ -66,10 +66,10 @@ Unknown arguments are rejected.
 Caller-selected local paths are authorized independently of repository containment. By default the
 tool may access only paths below the Hermes process working directory. A trusted host operator can
 authorize additional bounded roots with the platform-path-separator-delimited
-`HERMES_SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS` environment variable. For example, on Linux/macOS:
+`SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS` environment variable. For example, on Linux/macOS:
 
 ```text
-HERMES_SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS=/work/project:/work/shared-profiles
+SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS=/work/project:/work/shared-profiles
 ```
 
 Both `repo_path` and an external `risk_profile` must resolve below one of these roots. Filesystem
