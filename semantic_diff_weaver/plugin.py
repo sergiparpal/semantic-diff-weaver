@@ -8,6 +8,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from .errors import ErrorCode, WeaverError, internal_error
+from .llm_client import LlmClient
 from .schemas import ANALYZE_SEMANTIC_DIFF_SCHEMA
 
 DESCRIPTION = (
@@ -16,7 +17,9 @@ DESCRIPTION = (
 )
 
 
-def handle_analyze_semantic_diff(args: dict[str, Any], *, llm: Any = None, **kwargs: Any) -> str:
+def handle_analyze_semantic_diff(
+    args: dict[str, Any], *, llm: LlmClient | None = None, **kwargs: Any
+) -> str:
     """Run analysis and convert every result or expected failure to valid JSON."""
     del kwargs
     try:

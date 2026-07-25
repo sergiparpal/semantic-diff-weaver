@@ -10,6 +10,7 @@ from typing import Any
 from pydantic import BaseModel, ValidationError
 
 from .errors import ErrorCode, WeaverError
+from .llm_client import LlmClient
 from .models import (
     BehaviorCategory,
     LlmBatchResponse,
@@ -345,7 +346,7 @@ def _accumulate_usage(current: LlmUsage | None, result: Any) -> LlmUsage | None:
     )
 
 
-def _call(llm: Any, payload: str) -> Any:
+def _call(llm: LlmClient, payload: str) -> Any:
     return llm.complete_structured(
         instructions=INSTRUCTIONS,
         input=[
@@ -380,7 +381,7 @@ def _parse_structured_result(result: Any) -> LlmBatchResponse:
 
 
 def _invoke_batch(
-    llm: Any,
+    llm: LlmClient,
     payload: str,
     *,
     calls: int,
@@ -533,7 +534,7 @@ def _prepare_batch_payload(
 
 def interpret_candidates(
     candidates: list[SemanticCandidate],
-    llm: Any,
+    llm: LlmClient | None,
     config: WeaverConfig,
     *,
     readme_excerpt: str | None = None,

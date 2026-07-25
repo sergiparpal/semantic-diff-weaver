@@ -15,6 +15,7 @@ from .ast_diff import AstAnalysis, StructuralDelta, analyze_ast
 from .config import load_config
 from .errors import ErrorCode, WeaverError
 from .git_diff import DiffCollection, GitRepository, collect_diff
+from .llm_client import LlmClient
 from .models import (
     AnalysisResult,
     AnalyzeRequest,
@@ -441,7 +442,7 @@ def _build_limitations(
     return limitations
 
 
-def analyze(arguments: dict[str, Any], *, llm: Any = None) -> dict[str, Any]:
+def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[str, Any]:
     """Analyze committed Python changes and return the requested transport dictionary."""
     request, repo, base_commit, head_commit, config, config_warnings = _bootstrap(arguments)
     state = _PipelineState(warnings=list(config_warnings))
