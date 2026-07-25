@@ -1,7 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.1.1 - 2026-07-25
 
+- Rename the project from `hermes-semantic-diff-weaver` to `semantic-diff-weaver`. The distribution,
+  the `semantic_diff_weaver` package, and the plugin entry-point name all drop the `hermes-` prefix.
+  Existing installations must uninstall the old distribution and re-enable the plugin under its new
+  name.
+- **Breaking:** rename the `HERMES_SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS` environment variable to
+  `SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS`. The old name is no longer read; hosts that set it lose the
+  extra authorized roots and fall back to the process working directory.
 - **Fix:** classify module-scope and unparsed condition changes by their changed expressions
   instead of their symbol name. The synthetic names `<module>` and `<unparsed>` contain angle
   brackets, which the comparison-operator probe read as `<` and `>`, so every such condition was
@@ -36,14 +43,6 @@
   taxonomy fails with its named error rather than a bare `KeyError`.
 - Enable the `S` (flake8-bandit) lint rules, and hold `ast_diff/` to the 90% critical-module
   branch-coverage bar.
-- Rename the project from `hermes-semantic-diff-weaver` to `semantic-diff-weaver`. The distribution,
-  the `semantic_diff_weaver` package, and the plugin entry-point name all drop the `hermes-` prefix.
-- **Breaking:** rename the `HERMES_SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS` environment variable to
-  `SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS`. The old name is no longer read; hosts that set it lose the
-  extra authorized roots and fall back to the process working directory.
-- Harden secret egress, model-data framing, terminal/control rendering, repository authorization,
-  Git replacement-object handling, inherited Git environment isolation, configuration complexity,
-  and adversarial AST resource limits.
 - Read per-file hunks with one bounded Git command per path chunk instead of one process per
   changed file, keeping the previous single-path semantics via `--no-renames` and falling back to
   the per-file reader for any path Git does not report. Analysis output is unchanged.
@@ -64,6 +63,10 @@
 - Narrow `score_risk`, `generate_obligations`, and the candidate classifiers to the configuration
   they actually read, and trim both package `__init__` exports to the pipeline-facing surface,
   removing nine backward-compatible aliases that existed only for tests.
+- Bring the documentation current with the above and correct the evaluation record. The reviewed
+  17-case corpus measures 88.24% material precision (15 of 17 predicted categories), not the 100%
+  the 2026-07-19 note claimed; that figure never held for this corpus, and the two extra
+  `ordering_change` findings are present in the reviewed goldens from the corpus's first commit.
 
 ## 0.1.0 - 2026-07-18
 
@@ -81,4 +84,7 @@
 - Complete return-annotation signature detection, method/module inventory, overload preservation,
   cross-file symbol moves, semantic obligation merging, shared-call LLM batching, and aggregate
   candidate-test index bounds; expand the reviewed corpus to 17 cases.
+- Harden secret egress, model-data framing, terminal/control rendering, repository authorization,
+  Git replacement-object handling, inherited Git environment isolation, configuration complexity,
+  and adversarial AST resource limits.
 - License the project under MIT.
