@@ -21,6 +21,7 @@ ANALYZE_SEMANTIC_DIFF_SCHEMA = {
             "base_ref": {"type": "string", "minLength": 1},
             "head_ref": {"type": "string", "minLength": 1, "default": "HEAD"},
             "risk_profile": {"type": "string", "minLength": 1},
+            "coverage_report": {"type": "string", "minLength": 1},
             "include": {"type": "array", "items": {"type": "string", "minLength": 1}},
             "exclude": {"type": "array", "items": {"type": "string", "minLength": 1}},
             "output_format": {

@@ -55,6 +55,32 @@ def _fenced_summary(label: str, text: str) -> list[str]:
     return [f"    {label}: {line}" for line in safe.splitlines() or [""]]
 
 
+def _coverage_lines(result: AnalysisResult) -> list[str]:
+    """One line describing an ingested coverage report, and nothing at all without one.
+
+    States plainly that the report was consumed, not produced, and that unmatched files are
+    unknown rather than uncovered — so a reader can tell a coverage gap from a path-prefix
+    mismatch.
+    """
+    coverage = result.coverage
+    if coverage is None:
+        return []
+    unmatched = (
+        f", {coverage.unmatched_files} changed file(s) absent from the report (reported as "
+        "unknown, not uncovered)"
+        if coverage.unmatched_files
+        else ""
+    )
+    return [
+        (
+            f"**Coverage (ingested {coverage.source} report, not produced by this tool):** "
+            f"{coverage.covered_lines} covered and {coverage.uncovered_lines} uncovered of "
+            f"{coverage.changed_lines} changed line(s) across {coverage.matched_files} matched "
+            f"file(s){unmatched}."
+        )
+    ]
+
+
 def render_markdown(result: AnalysisResult) -> str:
     lines = [
         "## Semantic Diff Test Brief",
@@ -72,6 +98,7 @@ def render_markdown(result: AnalysisResult) -> str:
             f"{sum(result.scope.excluded_counts.values())} excluded file(s)"
             f"{' (truncated)' if result.scope.truncated else ''}."
         ),
+        *_coverage_lines(result),
         "",
         "### Inferred behavior changes",
         "",

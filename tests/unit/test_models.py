@@ -64,7 +64,7 @@ def test_candidate_tests_are_explicitly_unverified() -> None:
 
 
 def test_transport_schemas_are_versioned() -> None:
-    assert AnalysisResult.model_json_schema()["properties"]["schema_version"]["const"] == "1.0"
+    assert AnalysisResult.model_json_schema()["properties"]["schema_version"]["const"] == "1.1"
     assert ErrorResponse(success=False, error="invalid_ref", message="bad", remediation="fix")
 
 

@@ -167,6 +167,8 @@ def load_config(repo_root: Path, request: AnalyzeRequest) -> tuple[WeaverConfig,
         ]
     if request_override["paths"]:
         data = _merge(data, request_override)
+    if request.coverage_report:
+        data = _merge(data, {"coverage": {"report_path": request.coverage_report}})
     language = data.get("language", {})
     if not isinstance(language, dict):
         raise _configuration_error("The language section must be a mapping.")

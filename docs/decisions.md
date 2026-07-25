@@ -96,6 +96,59 @@ recorded here alongside the corrections above.
   labels in `evaluation_expected.json` were not touched. Schema version, taxonomy values, error
   codes, and evidence IDs are unchanged.
 
+## Coverage-artifact grounding (2026-07-25)
+
+### Schema version bumped to 1.1
+
+`CoverageStatus` gains two members, `covered_by_existing_tests` and `changed_lines_uncovered`,
+and `AnalysisResult` gains an optional `coverage` object. Every existing member, value, error
+code, taxonomy value, and evidence ID is unchanged, and `coverage` is `null` when no report is
+supplied — so the addition is backward-compatible in the loose sense.
+
+It is still a bump, because a consumer that exhaustively matches on `coverage_status` now sees
+values it has never seen, and would do so with no version signal to key on. `SCHEMA_VERSION` is
+therefore `"1.1"`, the `Literal["1.0"]` annotations on `AnalysisResult`, `MarkdownEnvelope`, and
+`BothEnvelope` moved with it, and `tests/contract/` plus the canonical goldens were updated
+intentionally. The golden diff is exactly 17 `schema_version` lines and 17 additive
+`"coverage": null` lines; no finding, risk, confidence, or obligation changed.
+
+`ErrorCode.COVERAGE_UNREADABLE` (`coverage_unreadable`) is new and additive. `coverage_report`
+is a new optional tool argument and CLI flag.
+
+### Cobertura and JaCoCo XML are excluded on purpose
+
+Only coverage.py's native JSON and lcov `.info` are supported. Both parse with the standard
+library, and neither carries an entity-expansion surface.
+
+Supporting Cobertura or JaCoCo would mean parsing untrusted XML, which leaves two options and
+no third: add a `defusedxml` dependency, or accept a billion-laughs surface. Adding a
+dependency to the base install to read an optional artifact is a poor trade for a tool whose
+selling point is safety when pointed at a hostile repository, and accepting the surface is
+simply the thing this project exists not to do. `tests/security/test_coverage_inputs.py`
+pins the outcome: an entity-expansion payload is refused as unreadable input, not expanded.
+
+This is recorded so the exclusion is not silently revisited. If XML support is ever wanted, the
+decision to revisit is the dependency question, not the parser.
+
+### What a coverage claim is allowed to mean
+
+- A changed file absent from the report is `unknown`, never `uncovered`. The opposite choice
+  would make a misconfigured CI path prefix indistinguishable from a repository with no tests,
+  which is the single most damaging thing this feature could get wrong. Unmatched files are
+  counted in the output and named in a warning.
+- A grounded verdict requires unanimity across the changed lines a finding rests on, and a
+  merged obligation keeps one only when every behavior it stands for agrees.
+- `CandidateTest.verified` stays `Literal[False]`. Coverage says a *line* was executed by the
+  suite, not that a specific candidate test asserts the changed behavior. The README's
+  "does not claim runtime coverage" wording was revised precisely rather than deleted.
+- Scoring is nudged, not driven: the grounded state adjusts the existing test-gap axis by +10
+  when uncovered and −15 when covered, leaving behavioral impact and critical-path weight
+  untouched. See `docs/architecture.md`.
+
+The no-execute invariant is unchanged. The tool ingests a report the user's own CI already
+produced, as untrusted input data, and runs nothing to obtain one. Report entries are lookup
+keys; none is ever opened or resolved against the filesystem.
+
 ## Release note
 
 The repository is licensed under MIT. Publishing or pushing remains a separately authorized action.

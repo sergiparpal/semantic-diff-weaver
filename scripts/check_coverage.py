@@ -19,6 +19,9 @@ CRITICAL_MODULES = (
     # which is the same boundary rationale that puts path_policy and plugin on this list.
     "cli.py",
     "config.py",
+    # Parses an untrusted third-party artifact and decides what the tool may claim
+    # about test coverage; both halves of that make it a boundary module.
+    "coverage_map.py",
     "errors.py",
     "git_diff/",
     "obligations.py",

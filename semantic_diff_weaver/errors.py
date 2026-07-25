@@ -17,6 +17,7 @@ class ErrorCode(StrEnum):
     PARSE_FAILURE = "parse_failure"
     LLM_UNAVAILABLE = "llm_unavailable"
     LLM_SCHEMA_FAILURE = "llm_schema_failure"
+    COVERAGE_UNREADABLE = "coverage_unreadable"
     CONFIGURATION_ERROR = "configuration_error"
     INTERNAL_ERROR = "internal_error"
 

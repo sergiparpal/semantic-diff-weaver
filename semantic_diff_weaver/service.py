@@ -13,6 +13,7 @@ from pydantic import ValidationError
 
 from .ast_diff import AstAnalysis, StructuralDelta, analyze_ast
 from .config import load_config
+from .coverage_map import CoverageMap, load_coverage, summarize
 from .errors import ErrorCode, WeaverError
 from .git_diff import DiffCollection, GitRepository, collect_diff
 from .llm_client import LlmClient
@@ -22,6 +23,8 @@ from .models import (
     BehaviorCategory,
     BehaviorChange,
     CandidateTest,
+    CoverageSummary,
+    LineRange,
     LlmStatus,
     OmittedScope,
     Origin,
@@ -303,18 +306,60 @@ def _filter_reportable(
     return reportable, low_confidence_omitted
 
 
+def _load_coverage(config: WeaverConfig, state: _PipelineState) -> CoverageMap | None:
+    """Ingest the configured coverage report, if any.
+
+    The report is untrusted input data: bounded, parsed with the standard library, and never
+    executed. An unreadable report is a hard `COVERAGE_UNREADABLE` error rather than a silent
+    downgrade — a reviewer who asked for grounded coverage should not be handed ungrounded
+    output that looks identical.
+    """
+    report_path = config.coverage.report_path
+    if not report_path:
+        return None
+    return load_coverage(ensure_authorized_path(Path(report_path)), config)
+
+
+def _coverage_ranges(candidate: SemanticCandidate) -> list[tuple[str, LineRange]]:
+    """The changed line ranges a finding rests on, on the head side."""
+    return [
+        (item.path, item.new_lines) for item in candidate.evidence if item.new_lines is not None
+    ]
+
+
+def _candidate_coverage_state(coverage: CoverageMap, candidate: SemanticCandidate) -> str:
+    """Grounded verdict for one finding: unanimous or nothing.
+
+    Any disagreement, or any range the report does not cover, yields `unknown`, which leaves
+    the existing static semantics in place.
+    """
+    states = {coverage.status_for(path, span) for path, span in _coverage_ranges(candidate)}
+    if states == {"covered"}:
+        return "covered"
+    if states == {"uncovered"}:
+        return "uncovered"
+    return "unknown"
+
+
 def _materialize_behaviors(
     reportable: list[_ScoredCandidate],
     config: WeaverConfig,
     *,
     fallback_mode: bool,
     partial_fallback: bool,
-) -> tuple[list[BehaviorChange], dict[str, list[CandidateTest]]]:
+    coverage: CoverageMap | None = None,
+) -> tuple[list[BehaviorChange], dict[str, list[CandidateTest]], dict[str, str]]:
     behaviors: list[BehaviorChange] = []
     tests_by_behavior: dict[str, list[CandidateTest]] = {}
+    coverage_states: dict[str, str] = {}
     for index, scored in enumerate(reportable, start=1):
         candidate = scored.candidate
-        risk_score, risk, explanation = score_risk(candidate, scored.tests, config.critical_paths)
+        coverage_state = (
+            _candidate_coverage_state(coverage, candidate) if coverage is not None else None
+        )
+        risk_score, risk, explanation = score_risk(
+            candidate, scored.tests, config.critical_paths, coverage_state
+        )
         presentation = (
             Presentation.REVIEW_QUESTION
             if risk in {RiskLabel.HIGH, RiskLabel.CRITICAL}
@@ -340,7 +385,9 @@ def _materialize_behaviors(
         )
         behaviors.append(behavior)
         tests_by_behavior[behavior.id] = scored.tests
-    return behaviors, tests_by_behavior
+        if coverage_state is not None:
+            coverage_states[behavior.id] = coverage_state
+    return behaviors, tests_by_behavior, coverage_states
 
 
 def _summary_metrics(
@@ -442,10 +489,42 @@ def _build_limitations(
     return limitations
 
 
+def _coverage_summary(
+    coverage: CoverageMap | None,
+    reportable: list[_ScoredCandidate],
+    state: _PipelineState,
+) -> CoverageSummary | None:
+    """Report what the ingested coverage report actually matched.
+
+    Unmatched files are surfaced as a warning rather than absorbed silently: a coverage report
+    written against a different working directory would otherwise look exactly like a
+    repository with no tests.
+    """
+    if coverage is None:
+        return None
+    ranges = [span for item in reportable for span in _coverage_ranges(item.candidate)]
+    changed, covered, uncovered = summarize(coverage, ranges)
+    if coverage.unmatched_files:
+        state.warnings.append(
+            f"Coverage report matched {coverage.matched_files} changed file(s) and did not "
+            f"match {coverage.unmatched_files}; unmatched files are reported as unknown, not "
+            "as uncovered. Check that the report's paths share a suffix with the repository's."
+        )
+    return CoverageSummary(
+        source=coverage.source,
+        matched_files=coverage.matched_files,
+        unmatched_files=coverage.unmatched_files,
+        changed_lines=changed,
+        covered_lines=covered,
+        uncovered_lines=uncovered,
+    )
+
+
 def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[str, Any]:
     """Analyze committed Python changes and return the requested transport dictionary."""
     request, repo, base_commit, head_commit, config, config_warnings = _bootstrap(arguments)
     state = _PipelineState(warnings=list(config_warnings))
+    coverage = _load_coverage(config, state)
     collection = collect_diff(repo, base_commit, head_commit, config)
     state.warnings.extend(collection.warnings)
     ast_result = analyze_ast([item.as_revision_pair() for item in collection.files])
@@ -491,11 +570,12 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
     ]
     fallback_mode = not interpreted.status.available
     partial_fallback = bool(interpreted.status.failures or interpreted.omitted_batches)
-    behaviors, tests_by_behavior = _materialize_behaviors(
+    behaviors, tests_by_behavior, coverage_states = _materialize_behaviors(
         reportable,
         config,
         fallback_mode=fallback_mode,
         partial_fallback=partial_fallback,
+        coverage=coverage,
     )
     obligations, omitted_obligations = generate_obligations(
         behaviors,
@@ -503,7 +583,9 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
         test_index.incomplete,
         config.rules,
         interpreted.suggestions,
+        coverage_states,
     )
+    coverage_summary = _coverage_summary(coverage, reportable, state)
     if omitted_obligations:
         state.record_omitted("global_obligation_limit", omitted_obligations, scope=True)
         state.warnings.append(
@@ -556,6 +638,7 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
         test_obligations=obligations,
         warnings=sorted(set(state.warnings)),
         limitations=limitations,
+        coverage=coverage_summary,
         llm=interpreted.status if deterministic else LlmStatus(),
         deterministic_mode=fallback_mode or partial_fallback,
     )

@@ -42,6 +42,12 @@ import.
   configuration changes.
 - Delimiter characters inside untrusted model data are JSON-escaped, and terminal/bidirectional
   controls are rendered visibly in Markdown.
+- An ingested coverage report is untrusted input data: bounded by `max_coverage_bytes`, read
+  as strict UTF-8, parsed with the standard library, and authorized like any other
+  caller-selected path. Its entries are lookup keys only — no path inside a report is ever
+  opened, resolved against the filesystem, or executed. Traversal, absolute, drive-relative,
+  and UNC prefixes are stripped from keys rather than followed, and a null byte discards the
+  entry. XML coverage formats are excluded so no entity-expansion surface exists.
 - The plugin makes no direct network request and emits no plugin telemetry.
 - Resource prioritization is deterministic and applies only to explicitly configured critical paths;
   it never expands the configured file, line, symbol, evidence, or model-input ceilings.

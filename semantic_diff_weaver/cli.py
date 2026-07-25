@@ -63,6 +63,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--risk-profile", metavar="PATH", help="additional configuration file")
     parser.add_argument(
+        "--coverage",
+        metavar="PATH",
+        help=(
+            "coverage.py JSON or lcov .info report to ground candidate coverage in; "
+            "read as untrusted data and never executed"
+        ),
+    )
+    parser.add_argument(
         "--format",
         default="markdown",
         choices=("json", "markdown", "both"),
@@ -161,6 +169,8 @@ def _request(namespace: argparse.Namespace) -> dict[str, Any]:
         request[name] = values
     if namespace.risk_profile is not None:
         request["risk_profile"] = namespace.risk_profile
+    if namespace.coverage is not None:
+        request["coverage_report"] = namespace.coverage
     return request
 
 

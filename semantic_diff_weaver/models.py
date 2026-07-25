@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from .errors import ErrorCode
 
-SCHEMA_VERSION: Literal["1.0"] = "1.0"
+SCHEMA_VERSION: Literal["1.1"] = "1.1"
 MAX_PATH_CHARS = 4096
 MAX_REF_CHARS = 1024
 MAX_PATTERN_CHARS = 512
@@ -79,6 +79,11 @@ class CoverageStatus(StrEnum):
     CANDIDATE_UNVERIFIED = "candidate_exists_unverified"
     NONE_FOUND = "no_candidate_found"
     INCOMPLETE = "mapping_incomplete"
+    # Grounded in an ingested coverage report rather than in static candidate matching.
+    # These say a changed *line* was or was not executed by the suite; they never claim a
+    # specific candidate test asserts the changed behavior.
+    COVERED = "covered_by_existing_tests"
+    UNCOVERED = "changed_lines_uncovered"
 
 
 class Origin(StrEnum):
@@ -97,6 +102,7 @@ class AnalyzeRequest(StrictModel):
     base_ref: str = Field(min_length=1, max_length=MAX_REF_CHARS)
     head_ref: str = Field(default="HEAD", min_length=1, max_length=MAX_REF_CHARS)
     risk_profile: str | None = Field(default=None, max_length=MAX_PATH_CHARS)
+    coverage_report: str | None = Field(default=None, max_length=MAX_PATH_CHARS)
     include: Annotated[list[RelativePattern], Field(max_length=MAX_PATH_PATTERNS)] | None = None
     exclude: Annotated[list[RelativePattern], Field(max_length=MAX_PATH_PATTERNS)] | None = None
     output_format: OutputFormat = OutputFormat.BOTH
@@ -137,6 +143,7 @@ class RulesConfig(StrictModel):
     max_evidence_chars_per_symbol: int = Field(default=6000, ge=256, le=100_000)
     max_model_input_chars_per_call: int = Field(default=48000, ge=1024, le=1_000_000)
     max_llm_calls: int = Field(default=8, ge=0, le=8)
+    max_coverage_bytes: int = Field(default=20_000_000, ge=1024, le=200_000_000)
     max_obligations_per_behavior: int = Field(default=6, ge=1, le=50)
     max_test_obligations: int = Field(default=100, ge=1, le=1000)
     max_candidate_tests_per_obligation: int = Field(default=5, ge=0, le=25)
@@ -145,6 +152,12 @@ class RulesConfig(StrictModel):
     refactor_materiality_threshold: float = Field(default=0.25, ge=0, le=1)
     emit_low_risk_refactors: bool = False
     deterministic_fallback: bool = True
+
+
+class CoverageConfig(StrictModel):
+    """An optional coverage report to ingest. The tool never produces one."""
+
+    report_path: str | None = Field(default=None, max_length=MAX_PATH_CHARS)
 
 
 class PrivacyConfig(StrictModel):
@@ -164,6 +177,7 @@ class WeaverConfig(StrictModel):
         default_factory=list
     )
     privacy: PrivacyConfig = Field(default_factory=PrivacyConfig)
+    coverage: CoverageConfig = Field(default_factory=CoverageConfig)
 
     @model_validator(mode="after")
     def unique_mappings(self) -> WeaverConfig:
@@ -252,6 +266,17 @@ class TestObligation(StrictModel):
     confidence: float = Field(ge=0, le=1)
 
 
+class CoverageSummary(StrictModel):
+    """What an ingested coverage report contributed, so the reader can audit the claim."""
+
+    source: str = Field(min_length=1, max_length=64)
+    matched_files: int = Field(ge=0)
+    unmatched_files: int = Field(ge=0)
+    changed_lines: int = Field(ge=0)
+    covered_lines: int = Field(ge=0)
+    uncovered_lines: int = Field(ge=0)
+
+
 class RepositoryIdentity(StrictModel):
     path: Literal["."] = "."
     base_ref: str
@@ -307,7 +332,7 @@ class LlmStatus(StrictModel):
 
 class AnalysisResult(StrictModel):
     success: Literal[True] = True
-    schema_version: Literal["1.0"] = SCHEMA_VERSION
+    schema_version: Literal["1.1"] = SCHEMA_VERSION
     analysis_id: str = Field(pattern=r"^sdw_[A-Za-z0-9_-]+$")
     repository: RepositoryIdentity
     summary: Summary
@@ -318,6 +343,7 @@ class AnalysisResult(StrictModel):
     limitations: list[str]
     llm: LlmStatus
     deterministic_mode: bool
+    coverage: CoverageSummary | None = None
 
     @model_validator(mode="after")
     def references_resolve(self) -> AnalysisResult:
@@ -379,14 +405,14 @@ class AnalysisResult(StrictModel):
 
 class MarkdownEnvelope(StrictModel):
     success: Literal[True] = True
-    schema_version: Literal["1.0"] = SCHEMA_VERSION
+    schema_version: Literal["1.1"] = SCHEMA_VERSION
     analysis_id: str = Field(pattern=r"^sdw_[A-Za-z0-9_-]+$")
     markdown: str
 
 
 class BothEnvelope(StrictModel):
     success: Literal[True] = True
-    schema_version: Literal["1.0"] = SCHEMA_VERSION
+    schema_version: Literal["1.1"] = SCHEMA_VERSION
     analysis: AnalysisResult
     markdown: str
 

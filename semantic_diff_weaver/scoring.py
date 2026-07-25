@@ -56,16 +56,28 @@ def confidence_score(candidate: SemanticCandidate, *, truncated: bool = False) -
     return round(max(0.0, min(1.0, value)), 3)
 
 
+# Grounded-coverage adjustments to the static test-gap axis. Deliberately small: an
+# ingested report says a changed *line* was executed, which is real evidence but is weaker
+# than a test that asserts the changed behavior. Uncovered widens the gap, covered narrows
+# it, and an unmatched file leaves the static estimate alone.
+COVERAGE_GAP_ADJUSTMENT = {"uncovered": 10, "covered": -15, "unknown": 0}
+
+
 def score_risk(
     candidate: SemanticCandidate,
     candidate_tests: list[CandidateTest],
     critical_paths: Sequence[WeightedPattern],
+    coverage_state: str | None = None,
 ) -> tuple[int, RiskLabel, ScoreExplanation]:
     """Score one candidate's risk from its own evidence and the configured critical paths.
 
     The critical-path axis defaults to 10 for an unmatched path, so an explicit ``weight: 0``
     entry scores *below* leaving a path unconfigured. That asymmetry is deliberate — listing a
     path at zero is a statement that it is not critical, which is stronger than saying nothing.
+
+    ``coverage_state`` is the grounded result from an ingested coverage report, when one was
+    supplied. It adjusts the test-gap axis only, so an uncovered change on a critical path
+    ranks above a covered one without letting coverage override behavioral impact.
     """
     impact = CATEGORY_PROFILES[candidate.category].impact
     if candidate.symbol.rsplit(".", 1)[-1].startswith("_"):
@@ -77,6 +89,7 @@ def score_risk(
         test_gap = 65
     else:
         test_gap = 45
+    test_gap = max(0, min(100, test_gap + COVERAGE_GAP_ADJUSTMENT.get(coverage_state or "", 0)))
     surface = min(
         100,
         20

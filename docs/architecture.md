@@ -5,7 +5,8 @@ The plugin follows a typed, bounded pipeline:
 ```text
 request/config -> repository + resolved refs -> changed committed blobs -> AST deltas
 -> deterministic evidence/candidates -> static candidate-test index -> optional structured LLM
--> reconciliation -> risk/confidence -> obligations -> canonical JSON -> optional Markdown
+-> reconciliation -> optional ingested coverage report -> risk/confidence -> obligations
+-> canonical JSON -> optional Markdown
 ```
 
 `plugin.py` is the only Hermes adapter. Registration closes over `ctx.llm` but performs no Git or LLM
@@ -57,3 +58,36 @@ on a `_ScoredCandidate` rather than in dictionaries keyed separately by identity
 Per-category behavior knowledge lives once, in `taxonomy.py`: impact weight, obligation scenario
 templates, and candidate-test terminology. Completeness over `BehaviorCategory` is enforced at import
 and pinned by a contract test, so extending the taxonomy cannot half-land.
+
+## Coverage grounding
+
+`coverage_map.py` sits between reconciliation and scoring. It is loaded once per analysis, in
+`service._load_coverage`, only when a report path is configured, and it never reaches the
+filesystem for anything except that one bounded read. Report entries are lookup keys; none of
+them is ever opened, so the no-execute invariant is untouched.
+
+Two hooks consume it:
+
+**Scoring.** `score_risk` takes an optional grounded state and adjusts the existing test-gap
+axis only:
+
+```text
+test_gap = clamp(static_gap + {uncovered: +10, covered: -15, unknown: 0}, 0, 100)
+risk_score = impact*0.35 + critical_path*0.25 + test_gap*0.25 + change_surface*0.15
+```
+
+The adjustment is deliberately small. An executed line is real evidence but weaker than a test
+that asserts the changed behavior, so coverage nudges the ranking without being able to
+override behavioral impact or the critical-path weight. Because the critical-path axis is
+scored independently, an uncovered change on a critical path ranks above a covered one on the
+same path, and above an uncovered one off it.
+
+**Obligations.** `generate_obligations` receives a per-behavior grounded state and prefers it
+over static candidate matching. Obligations merge by normalized Given/When/Then semantics, so
+one obligation can stand for several behaviors; a merged obligation keeps a grounded verdict
+only when every behavior it covers agrees, and otherwise falls back to the static semantics.
+
+`AnalysisResult.coverage` reports what the report actually matched — source format, matched and
+unmatched file counts, and changed/covered/uncovered line counts — so a reader can audit the
+claim rather than take it on faith.
+

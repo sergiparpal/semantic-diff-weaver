@@ -43,6 +43,7 @@
         "summary": "A material structural change cannot be classified reliably from local evidence."
       }
     ],
+    "coverage": null,
     "deterministic_mode": true,
     "limitations": [
       "Candidate test mapping is static and does not prove runtime coverage.",
@@ -64,7 +65,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.0",
+    "schema_version": "1.1",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -158,6 +159,7 @@
         "summary": "An authorization-related guard appears to have changed."
       }
     ],
+    "coverage": null,
     "deterministic_mode": true,
     "limitations": [
       "Candidate test mapping is static and does not prove runtime coverage.",
@@ -179,7 +181,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.0",
+    "schema_version": "1.1",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -287,6 +289,7 @@
         "summary": "Execution or call ordering appears to have changed."
       }
     ],
+    "coverage": null,
     "deterministic_mode": true,
     "limitations": [
       "Candidate test mapping is static and does not prove runtime coverage.",
@@ -308,7 +311,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.0",
+    "schema_version": "1.1",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -416,6 +419,7 @@
         "summary": "A callable default argument appears to have changed."
       }
     ],
+    "coverage": null,
     "deterministic_mode": true,
     "limitations": [
       "Candidate test mapping is static and does not prove runtime coverage.",
@@ -437,7 +441,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.0",
+    "schema_version": "1.1",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -563,6 +567,7 @@
         "summary": "A dependency call or its arguments appear to have changed."
       }
     ],
+    "coverage": null,
     "deterministic_mode": true,
     "limitations": [
       "Candidate test mapping is static and does not prove runtime coverage.",
@@ -584,7 +589,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.0",
+    "schema_version": "1.1",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -708,6 +713,7 @@
         "summary": "An exception or error-handling path appears to have changed."
       }
     ],
+    "coverage": null,
     "deterministic_mode": true,
     "limitations": [
       "Candidate test mapping is static and does not prove runtime coverage.",
@@ -729,7 +735,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.0",
+    "schema_version": "1.1",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -837,6 +843,7 @@
         "summary": "A comparison boundary appears to have changed."
       }
     ],
+    "coverage": null,
     "deterministic_mode": true,
     "limitations": [
       "Candidate test mapping is static and does not prove runtime coverage.",
@@ -858,7 +865,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.0",
+    "schema_version": "1.1",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -1022,6 +1029,7 @@
         "summary": "A comparison boundary appears to have changed."
       }
     ],
+    "coverage": null,
     "deterministic_mode": true,
     "limitations": [
       "Candidate test mapping is static and does not prove runtime coverage.",
@@ -1044,7 +1052,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.0",
+    "schema_version": "1.1",
     "scope": {
       "analyzed_files": [
         "src/bad.py",
@@ -1152,6 +1160,7 @@
   "moved renamed function": {
     "analysis_id": "<analysis-id>",
     "behavior_changes": [],
+    "coverage": null,
     "deterministic_mode": true,
     "limitations": [
       "Candidate test mapping is static and does not prove runtime coverage.",
@@ -1173,7 +1182,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.0",
+    "schema_version": "1.1",
     "scope": {
       "analyzed_files": [
         "src/new.py",
@@ -1215,6 +1224,7 @@
   "no changed Python source": {
     "analysis_id": "<analysis-id>",
     "behavior_changes": [],
+    "coverage": null,
     "deterministic_mode": true,
     "limitations": [
       "Candidate test mapping is static and does not prove runtime coverage.",
@@ -1236,7 +1246,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.0",
+    "schema_version": "1.1",
     "scope": {
       "analyzed_files": [],
       "changed_files_total": 1,
@@ -1309,6 +1319,7 @@
         "summary": "A visible return expression or shape appears to have changed."
       }
     ],
+    "coverage": null,
     "deterministic_mode": true,
     "limitations": [
       "Candidate test mapping is static and does not prove runtime coverage.",
@@ -1330,7 +1341,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.0",
+    "schema_version": "1.1",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -1438,6 +1449,7 @@
         "summary": "A comparison boundary appears to have changed."
       }
     ],
+    "coverage": null,
     "deterministic_mode": true,
     "limitations": [
       "Candidate test mapping is static and does not prove runtime coverage.",
@@ -1460,7 +1472,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.0",
+    "schema_version": "1.1",
     "scope": {
       "analyzed_files": [
         "critical.py"
@@ -1626,6 +1638,7 @@
         "summary": "A retry, timeout, or limit boundary appears to have changed."
       }
     ],
+    "coverage": null,
     "deterministic_mode": true,
     "limitations": [
       "Candidate test mapping is static and does not prove runtime coverage.",
@@ -1647,7 +1660,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.0",
+    "schema_version": "1.1",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -1771,6 +1784,7 @@
         "summary": "A callable signature appears to have changed."
       }
     ],
+    "coverage": null,
     "deterministic_mode": true,
     "limitations": [
       "Candidate test mapping is static and does not prove runtime coverage.",
@@ -1792,7 +1806,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.0",
+    "schema_version": "1.1",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -1902,6 +1916,7 @@
         "summary": "An external or persistent side-effect call appears to have changed."
       }
     ],
+    "coverage": null,
     "deterministic_mode": true,
     "limitations": [
       "Candidate test mapping is static and does not prove runtime coverage.",
@@ -1923,7 +1938,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.0",
+    "schema_version": "1.1",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -2008,6 +2023,7 @@
   "stable refactor": {
     "analysis_id": "<analysis-id>",
     "behavior_changes": [],
+    "coverage": null,
     "deterministic_mode": true,
     "limitations": [
       "Candidate test mapping is static and does not prove runtime coverage.",
@@ -2029,7 +2045,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.0",
+    "schema_version": "1.1",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -2109,6 +2125,7 @@
         "summary": "A state assignment or transition appears to have changed."
       }
     ],
+    "coverage": null,
     "deterministic_mode": true,
     "limitations": [
       "Candidate test mapping is static and does not prove runtime coverage.",
@@ -2130,7 +2147,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.0",
+    "schema_version": "1.1",
     "scope": {
       "analyzed_files": [
         "src/case.py"

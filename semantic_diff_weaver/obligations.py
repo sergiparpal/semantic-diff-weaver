@@ -45,12 +45,38 @@ def _merge_candidate_tests(
     return sorted(merged.values(), key=lambda item: (-item.match_score, item.path, item.symbol))
 
 
-def _coverage_status(candidates: list[CandidateTest], mapping_incomplete: bool) -> CoverageStatus:
+def _coverage_status(
+    candidates: list[CandidateTest],
+    mapping_incomplete: bool,
+    grounded: str | None = None,
+) -> CoverageStatus:
+    """Prefer a grounded verdict from an ingested report over static candidate matching.
+
+    A grounded verdict is only produced when every changed line the behavior rests on agrees;
+    a mixed or unmatched range falls through to the static semantics unchanged. Coverage says
+    a line was executed, never that a candidate test asserts the changed behavior — which is
+    why ``CandidateTest.verified`` stays ``False`` regardless of what is returned here.
+    """
+    if grounded == "uncovered":
+        return CoverageStatus.UNCOVERED
+    if grounded == "covered":
+        return CoverageStatus.COVERED
     if candidates:
         return CoverageStatus.CANDIDATE_UNVERIFIED
     if mapping_incomplete:
         return CoverageStatus.INCOMPLETE
     return CoverageStatus.NONE_FOUND
+
+
+def _merge_grounded(behavior_ids: list[str], states: dict[str, str] | None) -> str | None:
+    """A grouped obligation keeps a grounded verdict only when every behavior agrees."""
+    if not states:
+        return None
+    verdicts = {states.get(behavior_id) for behavior_id in behavior_ids}
+    if len(verdicts) != 1:
+        return None
+    single = verdicts.pop()
+    return single if single in {"covered", "uncovered"} else None
 
 
 def _overflow_origin(behaviors: list[BehaviorChange]) -> Origin:
@@ -105,12 +131,14 @@ def generate_obligations(
     mapping_incomplete: bool,
     rules: RulesConfig,
     llm_suggestions: list[SuggestedScenario] | None = None,
+    coverage_states: dict[str, str] | None = None,
 ) -> tuple[list[TestObligation], int]:
     generated: list[TestObligation] = []
     by_semantics: dict[tuple[str, str, str], TestObligation] = {}
     for behavior in behaviors:
         candidates = candidate_tests.get(behavior.id, [])
-        coverage = _coverage_status(candidates, mapping_incomplete)
+        grounded = (coverage_states or {}).get(behavior.id)
+        coverage = _coverage_status(candidates, mapping_incomplete, grounded)
         gap = TEST_GAP_WITH_CANDIDATES if candidates else TEST_GAP_WITHOUT_CANDIDATES
         scenarios: tuple[Scenario, ...] = CATEGORY_PROFILES[behavior.category].scenarios
         behavior_evidence_ids = {item.id for item in behavior.evidence}
@@ -160,7 +188,9 @@ def generate_obligations(
                     existing.candidate_existing_tests, candidates
                 )[: rules.max_candidate_tests_per_obligation]
                 existing.coverage_status = _coverage_status(
-                    existing.candidate_existing_tests, mapping_incomplete
+                    existing.candidate_existing_tests,
+                    mapping_incomplete,
+                    _merge_grounded(existing.behavior_change_ids, coverage_states),
                 )
                 if behavior.confidence > existing.confidence:
                     existing.type = scenario.type

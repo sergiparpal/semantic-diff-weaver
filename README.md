@@ -6,8 +6,10 @@ ranks risk separately from confidence, and produces concrete test obligations pl
 candidate existing tests. Run it from the command line, or as a Hermes Agent plugin.
 
 It never imports, executes, builds, installs, tests, or modifies the analyzed repository. It does not
-claim runtime coverage. Repository content is treated as untrusted data, and the analysis degrades to
-deterministic structural findings when no model is available.
+run your tests or measure coverage itself — it can *ingest* a coverage report your own CI already
+produced, and reports what that report says about the changed lines. Repository content is treated as
+untrusted data, and the analysis degrades to deterministic structural findings when no model is
+available.
 
 ## Requirements
 
@@ -39,6 +41,9 @@ python -m pip install . && semantic-diff-weaver --repo . --base main --head HEAD
 | `--include GLOB` | repeatable include pattern |
 | `--exclude GLOB` | repeatable exclude pattern |
 | `--risk-profile PATH` | additional bounded YAML configuration file |
+| `--coverage PATH` | coverage.py JSON or lcov `.info` report to ground coverage in |
+| `--model ID` | inference model; overrides `SEMANTIC_DIFF_WEAVER_MODEL` |
+| `--no-llm` | skip inference; deterministic structural findings only |
 | `--format {json,markdown,both}` | defaults to `markdown` |
 | `--allow-root PATH` | repeatable additional authorized root |
 | `--fail-on {none,low,medium,high,critical}` | defaults to `none` |
@@ -62,6 +67,20 @@ What it does not add is the inference layer: findings are marked `deterministic_
 than `llm_supported`, descriptions are drawn from the built-in per-category templates instead of
 being written against the specific diff, and no review questions are raised beyond those the
 deterministic rules produce. See [the provider section](#model-provider) to enable inference.
+
+### Grounding coverage
+
+Point the tool at a coverage report your CI already produced and it will report which changed
+lines the suite actually executed:
+
+```bash
+semantic-diff-weaver --repo . --base main --coverage coverage.json
+```
+
+coverage.py JSON and lcov `.info` are both accepted, sniffed by content. A changed file absent
+from the report is reported as **unknown, never uncovered**, so a path-prefix mismatch shows up
+as a warning rather than as a fake coverage gap. See
+[configuration](docs/configuration.md#coverage-grounding).
 
 ### Model provider
 
@@ -214,7 +233,12 @@ Hermes home and do not require a paid or live LLM.
 
 - Python source and common pytest/unittest layouts only.
 - Committed base/head content only; staged and working-tree changes are outside the MVP.
-- Static candidates are not verified coverage.
+- Static candidate tests are not verified coverage: they are name and import matches, never a
+  claim that a test asserts the changed behavior. This holds even with a coverage report
+  supplied — an ingested report says a changed *line* was executed by the suite, which is a
+  different and weaker claim.
+- The tool consumes a coverage report and never produces one; a changed file absent from the
+  report is reported as unknown, never as uncovered.
 - Dynamic metaprogramming and external contracts may produce review questions or unknown semantic
   changes.
 - No network ref lookup, pull-request API integration, test execution, or test generation.
