@@ -25,6 +25,12 @@ inference provider, and coverage grounding. The Hermes plugin path is unchanged.
   the report is reported as **unknown, never uncovered**, and unmatched files are counted and
   warned about. `CandidateTest.verified` stays `false`: coverage says a line ran, not that a test
   asserts the change. Cobertura/JaCoCo XML is excluded deliberately — see `docs/decisions.md`.
+- **Fix (Windows):** the CLI writes UTF-8 regardless of the platform locale encoding. The
+  brief contains U+00B7, U+2014, and U+2205, and Python selects the *locale* encoding for
+  stdout — cp1252 on a default Windows install, where U+2205 has no mapping. A diff that added
+  or removed a symbol therefore died mid-report with an unhandled `UnicodeEncodeError`, and
+  redirected output was undecodable even when the run survived. The output encoding is the
+  CLI's contract, so it now sets it rather than inheriting it.
 - **Feature:** add a standalone command line, `semantic-diff-weaver` and
   `python -m semantic_diff_weaver`, with `--repo`, `--base`, `--head`, `--include`, `--exclude`,
   `--risk-profile`, `--coverage`, `--format`, `--allow-root`, `--fail-on`, `--model`, and

@@ -76,3 +76,22 @@ def test_the_default_provider_resolution_is_deterministic_mode() -> None:
     client, notice = cli.load_llm(argparse.Namespace())
     assert client is None or callable(getattr(client, "complete_structured", None))
     assert notice is None or isinstance(notice, str)
+
+
+def test_use_utf8_sets_the_encoding_when_the_stream_supports_it() -> None:
+    import io
+
+    stream = io.TextIOWrapper(io.BytesIO(), encoding="cp1252")
+    assert stream.encoding.lower().replace("-", "") == "cp1252"
+    cli.use_utf8(stream)
+    assert stream.encoding.lower().replace("-", "") == "utf8"
+
+
+def test_use_utf8_leaves_a_stream_that_cannot_be_reconfigured_alone() -> None:
+    """pytest's capture object and already-wrapped pipes have no `reconfigure`."""
+
+    class Plain:
+        def write(self, text: str) -> int:
+            return len(text)
+
+    cli.use_utf8(Plain())  # must not raise

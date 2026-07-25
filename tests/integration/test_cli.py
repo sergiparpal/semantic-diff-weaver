@@ -7,6 +7,7 @@ operator-set case. Tests that need the CLI's own authorization path delete it fi
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -200,6 +201,55 @@ def test_risk_profile_is_applied(repo_factory, capsys, monkeypatch) -> None:
     payload = json.loads(capsys.readouterr().out)
     assert code == EXIT_SUCCESS
     assert payload["summary"]["overall_risk"] in {"high", "critical"}
+
+
+# The brief is not ASCII: the renderer emits U+00B7, U+2014, and U+2205. A diff that adds a
+# symbol renders "old: ∅", and U+2205 has no mapping in Windows' default cp1252 stdout.
+ADDED_SYMBOL_OLD = {"api.py": "def allowed(x):\n    return x < 5\n"}
+ADDED_SYMBOL_NEW = {
+    "api.py": "def allowed(x):\n    return x <= 5\n\n\ndef added(y):\n    return y\n"
+}
+
+
+@pytest.mark.parametrize("output_format", ["markdown", "both"])
+def test_output_is_utf8_under_a_hostile_locale_encoding(repo_factory, output_format: str) -> None:
+    """The CLI sets its own output encoding instead of inheriting the platform locale.
+
+    Regression for a Windows failure: with cp1252 stdout the run died mid-report with an
+    unhandled UnicodeEncodeError on U+2205, and emitted undecodable bytes before that.
+    """
+    import subprocess
+    import sys
+
+    repo, base, head = repo_factory(ADDED_SYMBOL_OLD, ADDED_SYMBOL_NEW)
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "semantic_diff_weaver",
+            "--repo",
+            str(repo),
+            "--base",
+            base,
+            "--head",
+            head,
+            "--format",
+            output_format,
+            "--no-llm",
+        ],
+        capture_output=True,
+        check=False,
+        cwd=Path(__file__).parents[2],
+        env={**os.environ, "PYTHONIOENCODING": "cp1252"},
+        shell=False,
+    )
+    assert completed.returncode == EXIT_SUCCESS, completed.stderr.decode("utf-8", "replace")
+    assert b"UnicodeEncodeError" not in completed.stderr
+    # Bytes, decoded explicitly: the point is what the CLI actually wrote, not what a
+    # convenience wrapper managed to salvage.
+    text = completed.stdout.decode("utf-8")
+    assert "\u2205" in text, "the added symbol should render as the empty-set marker"
+    assert "\u00b7" in text
 
 
 def test_python_dash_m_entry_point_is_wired(repo_factory) -> None:

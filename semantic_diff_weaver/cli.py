@@ -182,10 +182,34 @@ def _emit(envelope: dict[str, Any], output_format: str, stream: Any) -> None:
     print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True), file=stream)
 
 
+def use_utf8(stream: Any) -> None:
+    """Write UTF-8 regardless of the platform's locale encoding.
+
+    The brief is not ASCII: `renderer.py` emits U+00B7, U+2014, and U+2205, and repository
+    content can contribute anything. Python picks the *locale* encoding for stdout, which is
+    cp1252 on a default Windows install — where U+2205 has no mapping at all. Inheriting that
+    made the CLI die mid-report with an unhandled `UnicodeEncodeError` on any diff that added
+    or removed a symbol, and produced undecodable bytes for consumers even when it survived.
+
+    The output encoding is the CLI's own contract, so it sets it rather than inheriting it.
+    Streams that cannot be reconfigured — pytest's capture object, an already-wrapped pipe —
+    are left alone; they are not the case this protects against.
+    """
+    reconfigure = getattr(stream, "reconfigure", None)
+    if reconfigure is None:
+        return
+    try:
+        reconfigure(encoding="utf-8")
+    except (AttributeError, OSError, ValueError):  # pragma: no cover - platform dependent
+        pass
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run one analysis. See the module docstring for the authorization rule."""
     import sys
 
+    use_utf8(sys.stdout)
+    use_utf8(sys.stderr)
     parser = build_parser()
     try:
         namespace = parser.parse_args(argv)
