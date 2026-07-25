@@ -84,6 +84,20 @@ def build_parser() -> argparse.ArgumentParser:
         choices=FAIL_ON_CHOICES,
         help=f"exit {EXIT_RISK_THRESHOLD} when overall risk reaches this level",
     )
+    parser.add_argument(
+        "--model",
+        metavar="ID",
+        default=None,
+        help=(
+            "inference model; overrides SEMANTIC_DIFF_WEAVER_MODEL. Without a provider the "
+            "analysis runs in deterministic mode"
+        ),
+    )
+    parser.add_argument(
+        "--no-llm",
+        action="store_true",
+        help="skip inference entirely and report deterministic structural findings only",
+    )
     return parser
 
 
@@ -205,6 +219,13 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def load_llm(namespace: argparse.Namespace) -> tuple[LlmClient | None, str | None]:
-    """Resolve an optional inference provider. Deterministic mode is never a failure."""
-    del namespace
-    return None, None
+    """Resolve an optional inference provider. Deterministic mode is never a failure.
+
+    Imported lazily so the base install stays dependency-light: a missing package or a
+    missing credential returns a notice, never an exception.
+    """
+    if getattr(namespace, "no_llm", False):
+        return None, None
+    from .providers.anthropic_client import AnthropicClient
+
+    return AnthropicClient.from_environment(model=getattr(namespace, "model", None))

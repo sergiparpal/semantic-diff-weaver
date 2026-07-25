@@ -108,14 +108,27 @@ def test_no_python_change_succeeds(repo_factory, capsys) -> None:
 
 def test_invalid_ref_is_an_analysis_error(repo_factory, capsys) -> None:
     repo, base, _ = repo_factory(BOUNDARY_OLD, BOUNDARY_NEW)
-    code = main(["--repo", str(repo), "--base", base, "--head", "no-such-ref"])
+    code = main(["--repo", str(repo), "--base", base, "--head", "no-such-ref", "--no-llm"])
     captured = capsys.readouterr()
     assert code == EXIT_ANALYSIS_ERROR
     assert captured.out == ""
     assert "invalid_ref" in captured.err
-    # The remediation is printed alongside the message, never a traceback.
+    # Exactly the message and its remediation — never a traceback.
     assert "Traceback" not in captured.err
     assert len(captured.err.strip().splitlines()) == 2
+
+
+def test_no_llm_skips_provider_resolution_entirely(repo_factory, capsys, monkeypatch) -> None:
+    """`--no-llm` must emit no provider notice, even with a key present."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-not-real")
+    repo, base, head = repo_factory(BOUNDARY_OLD, BOUNDARY_NEW)
+    code = main(
+        ["--repo", str(repo), "--base", base, "--head", head, "--format", "json", "--no-llm"]
+    )
+    captured = capsys.readouterr()
+    assert code == EXIT_SUCCESS
+    assert captured.err == ""
+    assert json.loads(captured.out)["deterministic_mode"] is True
 
 
 def test_missing_required_base_is_an_argument_error(capsys) -> None:

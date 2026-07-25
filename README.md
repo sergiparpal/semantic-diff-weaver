@@ -63,6 +63,29 @@ than `llm_supported`, descriptions are drawn from the built-in per-category temp
 being written against the specific diff, and no review questions are raised beyond those the
 deterministic rules produce. See [the provider section](#model-provider) to enable inference.
 
+### Model provider
+
+Inference is optional and never required. Install the extra and export a key to enable it:
+
+```bash
+python -m pip install '.[anthropic]' && export ANTHROPIC_API_KEY=...
+```
+
+The CLI then adds the evidence-backed inference layer to the deterministic findings. The model
+defaults to the latest capable Claude model and is overridable with `--model ID` or
+`SEMANTIC_DIFF_WEAVER_MODEL`. `--no-llm` skips provider resolution entirely.
+
+When the package or the key is missing, the CLI prints a one-line notice to stderr and
+continues in deterministic mode — **missing credentials are never a hard failure**, and neither
+is a provider that errors, times out, or returns output the schema rejects. Every one of those
+degrades to the same deterministic structural findings, which is the behavior the Hermes path
+already had.
+
+The key is read from the environment only. It is never logged, never included in an error
+path, and never written to output; `tests/security/test_provider_secrets.py` asserts it cannot
+reach a rendered brief or a `WeaverError` payload even when the provider embeds it in an
+exception message.
+
 ### CLI authorization
 
 Caller-selected local paths are authorized independently of repository containment, and the CLI

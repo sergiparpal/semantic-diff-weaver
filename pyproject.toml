@@ -16,6 +16,9 @@ dependencies = [
   "PyYAML>=6.0.2,<7",
 ]
 
+[project.optional-dependencies]
+anthropic = ["anthropic>=0.40,<1"]
+
 [project.scripts]
 semantic-diff-weaver = "semantic_diff_weaver.cli:main"
 
@@ -78,3 +81,10 @@ warn_redundant_casts = true
 warn_unreachable = true
 warn_unused_ignores = true
 disable_error_code = ["import-untyped"]
+
+# `anthropic` is an optional extra, so it is absent from the base development environment
+# and from the type-check job. The adapter imports it lazily inside a try/except and treats
+# its absence as a notice, so an unresolved import here is expected rather than a defect.
+[[tool.mypy.overrides]]
+module = ["anthropic", "anthropic.*"]
+ignore_missing_imports = true
