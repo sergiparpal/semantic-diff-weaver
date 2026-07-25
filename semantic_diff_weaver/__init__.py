@@ -3,4 +3,5 @@
 from .plugin import register
 
 __all__ = ["register"]
-__version__ = "0.1.1"
+# Kept in step with pyproject.toml and plugin.yaml by tests/unit/test_regressions.py.
+__version__ = "0.2.0"

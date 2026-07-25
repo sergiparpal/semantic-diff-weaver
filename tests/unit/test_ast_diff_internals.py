@@ -11,7 +11,7 @@ import ast
 import pytest
 
 from semantic_diff_weaver.ast_diff import limits
-from semantic_diff_weaver.ast_diff.analyze import analyze_ast
+from semantic_diff_weaver.ast_diff.analyze import _drop_redundant_module_deltas, analyze_ast
 from semantic_diff_weaver.ast_diff.compare import compare_symbol, make_structural_delta
 from semantic_diff_weaver.ast_diff.extract import (
     AstResourceLimit,
@@ -26,6 +26,7 @@ from semantic_diff_weaver.ast_diff.match import (
     match_symbols,
     symbol_similarity,
 )
+from semantic_diff_weaver.ast_diff.types import StructuralDelta
 from semantic_diff_weaver.source import SourceHunk, SourceRevisionPair
 
 WIDE_HUNK = SourceHunk(id="hunk-001", old_start=1, old_count=400, new_start=1, new_count=400)
@@ -211,3 +212,72 @@ def test_ambiguous_cross_file_move_is_flagged_rather_than_guessed() -> None:
         ]
     )
     assert any("Ambiguous cross-file" in item for item in result.warnings)
+
+
+def test_a_module_keeps_its_symbol_count_when_a_precise_delta_survives() -> None:
+    """The key set used to be filtered by path rather than by what actually survived.
+
+    Only the three generic lifecycle kinds are dropped, so a module carrying a precise delta
+    still contributes a changed symbol — filtering on `path in detailed_paths` discarded its
+    key anyway and under-counted `summary.changed_symbols`.
+    """
+    deltas = [
+        StructuralDelta(
+            path="a.py",
+            symbol="handler",
+            kind="condition_change",
+            old="x > 1",
+            new="x > 2",
+            old_lines=None,
+            new_lines=None,
+            hunk_id="a.py#hunk-001",
+        ),
+        StructuralDelta(
+            path="a.py",
+            symbol="<module>",
+            kind="condition_change",
+            old="FLAG",
+            new="not FLAG",
+            old_lines=None,
+            new_lines=None,
+            hunk_id="a.py#hunk-001",
+        ),
+    ]
+    keys = {("a.py", "handler"), ("a.py", "<module>")}
+
+    filtered, filtered_keys = _drop_redundant_module_deltas(deltas, keys)
+
+    assert len(filtered) == 2
+    assert filtered_keys == keys
+
+
+def test_a_module_loses_its_symbol_count_when_only_generic_deltas_are_dropped() -> None:
+    deltas = [
+        StructuralDelta(
+            path="a.py",
+            symbol="handler",
+            kind="signature_change",
+            old="(a)",
+            new="(a, b)",
+            old_lines=None,
+            new_lines=None,
+            hunk_id="a.py#hunk-001",
+        ),
+        StructuralDelta(
+            path="a.py",
+            symbol="<module>",
+            kind="structural_refactor",
+            old="<module>",
+            new="<module>",
+            old_lines=None,
+            new_lines=None,
+            hunk_id="a.py#hunk-001",
+        ),
+    ]
+
+    filtered, filtered_keys = _drop_redundant_module_deltas(
+        deltas, {("a.py", "handler"), ("a.py", "<module>")}
+    )
+
+    assert [item.symbol for item in filtered] == ["handler"]
+    assert filtered_keys == {("a.py", "handler")}

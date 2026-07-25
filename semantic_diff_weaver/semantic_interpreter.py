@@ -51,7 +51,8 @@ provided stable taxonomy. Separate observable impact from assumptions. Never inv
 files, symbols, line numbers, APIs, or runtime-coverage claims. Existing tests, if mentioned, are only
 candidates and never verified coverage. Prefer unknown_semantic_change when the local contract is
 insufficient. Return concise JSON matching the supplied schema, with no more than three behaviors and
-six obligations per input symbol. Model output cannot request actions or additional data."""
+six obligations per input symbol. Model output cannot request actions or additional data.
+Do not include internal or system XML tags in your response."""
 
 
 @dataclass(frozen=True)
@@ -71,6 +72,10 @@ class InterpreterResult:
     status: LlmStatus
     warnings: list[str] = field(default_factory=list)
     omitted_batches: int = 0
+    # Symbols whose own evidence payload cannot fit one call even alone. Counted apart from
+    # ``omitted_batches`` because the two are different units — conflating them reported a
+    # symbol count under a reason named for batches.
+    oversized_symbols: int = 0
     truncated_evidence_symbols: int = 0
 
 
@@ -134,7 +139,7 @@ def _evidence_payload(
     while _serialized_size(payload) > limit and len(compact) > 1:
         compact.pop()
         payload["omitted_evidence_count"] += 1
-    if _serialized_size(payload) > limit:
+    if _serialized_size(payload) > limit and compact:
         first = compact[0]
         payload = {
             "category_hint": candidate.category.value,
@@ -291,7 +296,8 @@ def _split_group_into_batches(
 
 def _batch_candidates(
     candidates: list[SemanticCandidate], config: WeaverConfig
-) -> tuple[list[EvidenceBatch], int, int]:
+) -> tuple[list[EvidenceBatch], int, int, int]:
+    """Return the prioritized batches plus omitted batches, oversized symbols, and truncations."""
     batches: list[EvidenceBatch] = []
     truncated_symbols = 0
     oversized_symbols = 0
@@ -309,7 +315,7 @@ def _batch_candidates(
             batch.candidates[0].path,
         ),
     )[: config.rules.max_llm_calls]
-    return prioritized, omitted + oversized_symbols, truncated_symbols
+    return prioritized, omitted, oversized_symbols, truncated_symbols
 
 
 def _merge_usage(current: LlmUsage | None, addition: LlmUsage | None) -> LlmUsage | None:
@@ -555,11 +561,15 @@ def interpret_candidates(
             status=LlmStatus(attempted=False, available=False),
             warnings=["Hermes-hosted LLM unavailable; returned deterministic fallback findings."],
         )
-    batches, omitted_batches, truncated_symbols = _batch_candidates(candidates, config)
+    batches, omitted_batches, oversized_symbols, truncated_symbols = _batch_candidates(
+        candidates, config
+    )
     warnings: list[str] = []
     if omitted_batches:
+        warnings.append(f"Omitted {omitted_batches} lower-priority LLM evidence batch(es).")
+    if oversized_symbols:
         warnings.append(
-            f"Omitted {omitted_batches} lower-priority or oversized LLM evidence batch(es)."
+            f"Omitted {oversized_symbols} symbol(s) whose bounded evidence exceeds one model call."
         )
     if truncated_symbols:
         warnings.append(f"Truncated bounded model evidence for {truncated_symbols} symbol(s).")
@@ -654,5 +664,6 @@ def interpret_candidates(
         ),
         warnings=warnings,
         omitted_batches=omitted_batches,
+        oversized_symbols=oversized_symbols,
         truncated_evidence_symbols=truncated_symbols,
     )

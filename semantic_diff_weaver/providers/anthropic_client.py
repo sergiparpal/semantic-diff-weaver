@@ -13,10 +13,14 @@ model generation and a request carrying one returns HTTP 400. Forwarding the val
 would make every call fail on the default model, so it is forwarded only to models that still
 accept it.
 
-*Thinking is disabled.* `max_tokens` caps thinking and response text together, and the
-interpreter's budget is deliberately small. With thinking on by default on current models, a
-2000-token budget can be consumed before the JSON is emitted, truncating it. Disabling
-thinking keeps the caller's bound meaningful, and the response is schema-constrained anyway.
+*Thinking is disabled where the model allows it.* `max_tokens` caps thinking and response
+text together, and the interpreter's budget is deliberately small. With thinking on by default
+on current models, a 2000-token budget can be consumed before the JSON is emitted, truncating
+it. Disabling thinking keeps the caller's bound meaningful, and the response is
+schema-constrained anyway. On model families whose thinking is always on, an explicit
+`disabled` is rejected with HTTP 400, so the parameter is omitted for them rather than sent —
+forwarding it unconditionally failed *every* call on those models and silently collapsed the
+whole analysis into deterministic fallback.
 """
 
 from __future__ import annotations
@@ -39,6 +43,14 @@ SAMPLING_REMOVED_PREFIXES = (
     "claude-opus-4-8",
     "claude-opus-4-7",
     "claude-sonnet-5",
+)
+
+# Model families whose thinking is always on: an explicit `{"type": "disabled"}` returns HTTP
+# 400 at any effort level, and the parameter has to be omitted entirely. Matched as prefixes so
+# dated snapshots and aliases behave identically.
+THINKING_ALWAYS_ON_PREFIXES = (
+    "claude-fable-5",
+    "claude-mythos-5",
 )
 
 # The interpreter reads the structured payload out of a response shaped like this.
@@ -82,6 +94,11 @@ def resolve_model(override: str | None = None) -> str:
 
 def accepts_sampling_parameters(model: str) -> bool:
     return not model.startswith(SAMPLING_REMOVED_PREFIXES)
+
+
+def accepts_disabled_thinking(model: str) -> bool:
+    """Whether the model tolerates an explicit ``thinking: {"type": "disabled"}``."""
+    return not model.startswith(THINKING_ALWAYS_ON_PREFIXES)
 
 
 class AnthropicClient:
@@ -141,9 +158,10 @@ class AnthropicClient:
             "system": instructions,
             "messages": [{"role": "user", "content": self._content_blocks(input)}],
             "output_config": {"format": {"type": "json_schema", "schema": json_schema}},
-            # See the module docstring: keeps `max_tokens` a bound on the answer itself.
-            "thinking": {"type": "disabled"},
         }
+        if accepts_disabled_thinking(self.model):
+            # See the module docstring: keeps `max_tokens` a bound on the answer itself.
+            request["thinking"] = {"type": "disabled"}
         if accepts_sampling_parameters(self.model):
             request["temperature"] = temperature
 

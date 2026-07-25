@@ -23,6 +23,7 @@ from semantic_diff_weaver.providers.anthropic_client import (
     MODEL_ENV,
     AnthropicClient,
     ProviderUnavailable,
+    accepts_disabled_thinking,
     accepts_sampling_parameters,
     resolve_model,
 )
@@ -301,3 +302,22 @@ def test_a_present_key_builds_a_client(monkeypatch: MonkeyPatch) -> None:
     assert notice is None
     assert client is not None
     assert client.model == "claude-sonnet-5"
+
+
+def test_thinking_is_omitted_on_models_that_reject_disabling_it() -> None:
+    """Always-on-thinking families return HTTP 400 for an explicit `disabled`.
+
+    Sending it unconditionally failed every call on those models, and the interpreter mapped
+    that to `ProviderUnavailable` — so the analysis silently ran in deterministic mode with no
+    indication the model had been rejecting the request shape outright.
+    """
+    client, transport = _client(_json_response(), model="claude-fable-5")
+    _call(client)
+    assert "thinking" not in transport.messages.requests[0]
+
+
+def test_disabled_thinking_is_decided_by_model_family() -> None:
+    assert accepts_disabled_thinking("claude-opus-5") is True
+    assert accepts_disabled_thinking("claude-haiku-4-5") is True
+    assert accepts_disabled_thinking("claude-fable-5") is False
+    assert accepts_disabled_thinking("claude-mythos-5") is False

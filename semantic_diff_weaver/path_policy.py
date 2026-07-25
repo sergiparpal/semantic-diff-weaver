@@ -317,6 +317,10 @@ def redact_text(text: str, *, max_chars: int = 2000) -> str:
     identical, so the repeat rate is high and the cache is where the saving comes from.
     Repeats are temporally local, so a small cache reaches the same ~90% hit rate as a
     large one while retaining far less untrusted source text in memory.
+
+    Note that the cache *key* is the pre-redaction text, so up to ``maxsize`` unredacted
+    fragments stay resident for the life of the process. That is the reason the bound is small
+    rather than generous, and the reason it must stay bounded.
     """
     redacted = CREDENTIAL_URI.sub(lambda match: f"{match.group('label')}[REDACTED]", text)
     redacted = AUTHORIZATION_VALUE.sub(lambda match: f"{match.group('label')}[REDACTED]", redacted)

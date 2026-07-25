@@ -113,10 +113,14 @@ def _drop_redundant_module_deltas(
             and item.kind in {"symbol_added", "symbol_removed", "structural_refactor"}
         )
     ]
+    # Keyed off what actually survived, not off the path: only the three generic kinds above
+    # are dropped, so a module that still carries a precise delta — a changed module-scope
+    # condition, say — keeps contributing to the changed-symbol count.
+    retained_module_paths = {item.path for item in filtered if item.symbol == "<module>"}
     filtered_keys = {
         key
         for key in changed_symbol_keys
-        if not (key[1] == "<module>" and key[0] in detailed_paths)
+        if key[1] != "<module>" or key[0] in retained_module_paths
     }
     return filtered, filtered_keys
 

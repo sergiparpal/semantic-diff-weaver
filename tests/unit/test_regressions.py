@@ -228,3 +228,42 @@ def test_git_subprocess_boundary_never_uses_a_shell() -> None:
 def test_no_production_module_enables_a_shell() -> None:
     for path in Path("semantic_diff_weaver").rglob("*.py"):
         assert "shell=True" not in path.read_text(encoding="utf-8")
+
+
+def test_a_stray_type_comment_does_not_make_valid_source_unparseable() -> None:
+    """`type_comments=True` narrows the grammar; it must not decide parseability.
+
+    A module-level `# type:` comment after a function body is a SyntaxError under the flag and
+    valid Python without it. Treating that as a parse failure emitted a fabricated
+    `parse_incomplete` finding about source Python itself accepts.
+    """
+    source = "def handler(value):\n    return value\n# type: int\n"
+    ast.parse(source)  # the plain grammar accepts it
+    with pytest.raises(SyntaxError):
+        ast.parse(source, type_comments=True)
+
+    symbols = extract_symbols(source)
+
+    assert {item.qualified_name for item in symbols} == {"handler", "<module>"}
+
+
+def test_type_comments_are_still_read_when_the_source_allows_them() -> None:
+    """The fallback must not silently cost the signal it exists to preserve."""
+    source = "def handler(value):\n    # type: (int) -> str\n    return str(value)\n"
+
+    handler = next(item for item in extract_symbols(source) if item.qualified_name == "handler")
+
+    assert "# type: (int) -> str" in handler.signature
+
+
+def test_the_declared_version_matches_the_packaging_metadata() -> None:
+    """`__version__` drifted from pyproject.toml and plugin.yaml and reported a stale release."""
+    import tomllib
+
+    from semantic_diff_weaver import __version__
+
+    pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+    plugin = Path("plugin.yaml").read_text(encoding="utf-8")
+
+    assert __version__ == pyproject["project"]["version"]
+    assert f"version: {__version__}" in plugin or f'version: "{__version__}"' in plugin

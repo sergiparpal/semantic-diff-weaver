@@ -63,12 +63,24 @@ class CoverageMap:
     Coverage reports store paths relative to the CI working directory, which need not match
     the analyzer's repository-relative paths. Both sides are normalized to POSIX and resolved
     by longest matching suffix, with an exact match always winning.
+
+    ``files`` is treated as immutable once constructed — the parsers below build it in full
+    before the map exists, and the two caches are only sound because nothing mutates it after.
     """
 
     source: str
     files: Mapping[str, FileCoverage]
     _unmatched: set[str] = field(default_factory=set)
     _matched: set[str] = field(default_factory=set)
+    # Suffix resolution is pure, and the same few changed paths are asked about repeatedly:
+    # once by `status_for` per finding and again by `counts_for` in the summary. Splitting
+    # every candidate path on every call made a lookup O(report files) in `PurePosixPath`
+    # construction; splitting once per report and memoizing the answer makes it O(1) after
+    # the first ask for a path.
+    _candidate_parts: list[tuple[tuple[str, ...], FileCoverage]] = field(
+        default_factory=list, init=False, repr=False
+    )
+    _resolved: dict[str, FileCoverage | None] = field(default_factory=dict, init=False, repr=False)
 
     @property
     def matched_files(self) -> int:
@@ -82,11 +94,26 @@ class CoverageMap:
     def unmatched_paths(self) -> tuple[str, ...]:
         return tuple(sorted(self._unmatched))
 
+    def _candidates(self) -> list[tuple[tuple[str, ...], FileCoverage]]:
+        """The report's paths pre-split into POSIX components, built once per map."""
+        if not self._candidate_parts and self.files:
+            self._candidate_parts = [
+                (PurePosixPath(candidate).parts, entry) for candidate, entry in self.files.items()
+            ]
+        return self._candidate_parts
+
     def resolve(self, path: str) -> FileCoverage | None:
         """Find the report entry for a repository-relative path, or None."""
         query = _posix(path)
         if not query:
             return None
+        if query in self._resolved:
+            return self._resolved[query]
+        resolved = self._resolve_uncached(query)
+        self._resolved[query] = resolved
+        return resolved
+
+    def _resolve_uncached(self, query: str) -> FileCoverage | None:
         exact = self.files.get(query)
         if exact is not None:
             return exact
@@ -94,8 +121,8 @@ class CoverageMap:
         best: FileCoverage | None = None
         best_score = 0
         ambiguous = False
-        for candidate, entry in self.files.items():
-            score = _suffix_score(PurePosixPath(candidate).parts, query_parts)
+        for candidate_parts, entry in self._candidates():
+            score = _suffix_score(candidate_parts, query_parts)
             if score == 0:
                 continue
             if score > best_score:

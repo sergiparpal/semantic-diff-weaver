@@ -73,7 +73,10 @@ def _tokens(text: str) -> frozenset[str]:
 
 
 def _index_source(path: str, source: str) -> list[IndexedTest]:
-    tree = ast.parse(source, type_comments=True)
+    # No type comment is read here, and ``type_comments=True`` only narrows the accepted
+    # grammar, so requesting them would drop otherwise-indexable test files for a signal
+    # this function never uses.
+    tree = ast.parse(source)
     imports_visitor = _ImportVisitor()
     imports_visitor.visit(tree)
     imports = frozenset(item.casefold() for item in imports_visitor.imports)

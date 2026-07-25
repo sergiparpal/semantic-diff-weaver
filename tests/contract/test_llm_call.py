@@ -229,9 +229,12 @@ def test_connected_evidence_groups_split_at_the_call_boundary() -> None:
     ]
     config = WeaverConfig()
     config.rules.max_model_input_chars_per_call = 1024
-    batches, omitted, _ = _batch_candidates(items, config)
+    batches, omitted, oversized, _ = _batch_candidates(items, config)
     assert len(batches) >= 2
     assert omitted == 0
+    # Splitting a group across calls is not the same event as a symbol that cannot fit one
+    # call at all; the two counters must not be conflated.
+    assert oversized == 0
 
 
 def test_usage_helpers_accept_object_values_and_ignore_empty_usage() -> None:

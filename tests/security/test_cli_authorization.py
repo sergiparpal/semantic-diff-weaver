@@ -9,6 +9,7 @@ files and symlinks.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -213,3 +214,26 @@ def test_a_file_is_refused_as_a_repository_root(repo_factory, capsys, monkeypatc
     code = main(["--repo", str(Path(repo) / "api.py"), "--base", base, "--head", head])
     assert code == EXIT_ARGUMENT_ERROR
     assert "not a directory" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("configured", ["", os.pathsep, os.pathsep * 3])
+def test_an_empty_operator_bound_names_the_variable_that_caused_it(
+    repo_factory, capsys, monkeypatch, configured: str
+) -> None:
+    """A set-but-empty bound authorizes nothing, and must say so.
+
+    Falling through to `authorized_roots` reported "no authorized workspace root is
+    configured" — accurate, but it points at the invocation rather than at the variable that
+    actually emptied the bound. The bound is still never widened from `--repo`.
+    """
+    repo, base, head = repo_factory(BOUNDARY_OLD, BOUNDARY_NEW)
+    monkeypatch.setenv(ALLOWED_ROOTS_ENV, configured)
+
+    code = main(["--repo", str(repo), "--base", base, "--head", head])
+
+    captured = capsys.readouterr()
+    assert code == EXIT_ARGUMENT_ERROR
+    assert ALLOWED_ROOTS_ENV in captured.err
+    assert "set but empty" in captured.err
+    assert captured.out == ""
+    assert os.environ[ALLOWED_ROOTS_ENV] == configured

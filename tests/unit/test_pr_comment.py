@@ -30,6 +30,7 @@ from pr_comment import (
     read_markdown,
     truncate,
     upsert,
+    validated_target,
 )
 
 BRIEF = "## Semantic Diff Test Brief\n\n**Overall risk:** medium (51/100)\n"
@@ -350,3 +351,35 @@ def test_the_body_file_is_removed_even_when_gh_fails() -> None:
     with pytest.raises(CommentError):
         upsert("owner/repo", "7", compose(BRIEF), runner=failing)
     assert paths and all(not path.exists() for path in paths)
+
+
+@pytest.mark.parametrize(
+    "repository, pull_request",
+    [
+        ("owner/repo/../../other", "7"),
+        ("owner", "7"),
+        ("owner/repo", "7/comments/1"),
+        ("owner/repo", ".."),
+        ("owner/repo", ""),
+    ],
+)
+def test_the_api_path_components_are_validated_before_interpolation(
+    repository: str, pull_request: str
+) -> None:
+    """Both values land inside a `gh api` resource path.
+
+    The `gh` boundary is argument-list-only, so this is not shell injection — but an
+    unvalidated component containing `/` or `..` would silently retarget the request at a
+    different endpoint than the one the workflow intended.
+    """
+
+    def runner(arguments: list[str]) -> str:
+        raise AssertionError(f"gh must not be invoked for a rejected target: {arguments}")
+
+    with pytest.raises(CommentError):
+        upsert(repository, pull_request, compose(BRIEF), runner=runner)
+
+
+def test_a_well_formed_target_still_reaches_the_cli() -> None:
+    assert validated_target("owner/repo", "7") == ("owner/repo", "7")
+    assert validated_target("my-org.x/repo_name", "12345") == ("my-org.x/repo_name", "12345")

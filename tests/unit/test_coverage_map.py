@@ -386,3 +386,33 @@ def test_two_equal_entries_are_not_ambiguous() -> None:
     same = FileCoverage(covered=frozenset({1}), uncovered=frozenset())
     coverage = CoverageMap(source="test", files={"a/src/api.py": same, "b/src/api.py": same})
     assert coverage.status_for("src/api.py", LineRange(start=1, end=1)) == "covered"
+
+
+def test_suffix_resolution_is_memoized_per_path() -> None:
+    """Resolution used to rescan and re-split every report path on every single lookup.
+
+    `status_for` and `counts_for` each resolve independently, so a report with thousands of
+    files made every finding pay two full O(files) scans. The answer is pure, so it is cached.
+    """
+    entry = FileCoverage(covered=frozenset({1, 2, 3}), uncovered=frozenset())
+    files = {f"/ci/pkg/mod{index}/api.py": entry for index in range(50)}
+    coverage = CoverageMap(source="test", files=files)
+
+    first = coverage.resolve("pkg/mod7/api.py")
+    second = coverage.resolve("pkg/mod7/api.py")
+
+    assert first is second is entry
+    assert coverage._resolved["pkg/mod7/api.py"] is entry
+    # The split index is built once for the whole report, not once per lookup.
+    assert len(coverage._candidate_parts) == len(files)
+
+
+def test_a_memoized_miss_stays_a_miss_without_rescanning() -> None:
+    coverage = CoverageMap(
+        source="test",
+        files={"/ci/pkg/api.py": FileCoverage(covered=frozenset({1}), uncovered=frozenset())},
+    )
+
+    assert coverage.resolve("unrelated/other.py") is None
+    assert coverage.resolve("unrelated/other.py") is None
+    assert coverage._resolved["unrelated/other.py"] is None

@@ -25,6 +25,21 @@ def unparse_redacted(node: ast.AST | None, limit: int = 500) -> str:
         return type(node).__name__
 
 
+def parse_module(source: str) -> ast.Module:
+    """Parse committed source, preferring type comments but never failing because of them.
+
+    ``type_comments=True`` accepts a strictly narrower grammar than the default: a stray
+    module-level ``# type:`` comment is a ``SyntaxError`` under the flag and valid Python
+    without it. Type comments only enrich ``function_signature``, so the flag has to degrade
+    rather than decide parseability — reporting a valid file as unparsed would emit a
+    fabricated ``parse_incomplete`` finding about source that Python itself accepts.
+    """
+    try:
+        return ast.parse(source, type_comments=True)
+    except SyntaxError:
+        return ast.parse(source)
+
+
 def _validate_ast_budget(tree: ast.AST, budget: AstBudget) -> None:
     pending = [(tree, 1)]
     nodes = 0
@@ -284,7 +299,7 @@ def snapshot_symbol(node: ast.AST, qualified_name: str, kind: str) -> SymbolSnap
 
 def extract_symbols(source: str, budget: AstBudget | None = None) -> list[SymbolSnapshot]:
     effective_budget = budget or AstBudget.default()
-    tree = ast.parse(source, type_comments=True)
+    tree = parse_module(source)
     _validate_ast_budget(tree, effective_budget)
     symbols: list[SymbolSnapshot] = []
     max_symbols = effective_budget.max_symbols_per_file

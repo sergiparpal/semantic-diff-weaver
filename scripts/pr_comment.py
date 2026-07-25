@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -23,6 +24,12 @@ from pathlib import Path
 from typing import Any
 
 MARKER = "<!-- semantic-diff-weaver:v1 -->"
+
+# `repository` and `pull_request` are interpolated into `gh api` resource paths. The `gh`
+# boundary is argument-list-only, so this is not a shell-injection surface — but an
+# unvalidated value containing `/` or `..` would silently retarget the request at a different
+# endpoint, so both are constrained to their documented shapes before use.
+REPOSITORY_RE = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$")
 
 # GitHub rejects a comment body above 65,536 characters.
 MAX_COMMENT_CHARS = 65_536
@@ -97,6 +104,15 @@ def compose(markdown: str) -> str:
     return truncate(f"{MARKER}\n{markdown.strip()}\n")
 
 
+def validated_target(repository: str, pull_request: str) -> tuple[str, str]:
+    """Constrain both path components before they are interpolated into a `gh api` path."""
+    if not REPOSITORY_RE.match(repository):
+        raise CommentError("the repository must be given as 'owner/repo'")
+    if not pull_request.isdigit():
+        raise CommentError("the pull request must be given as a number")
+    return repository, pull_request
+
+
 def _gh() -> str:
     executable = shutil.which("gh")
     if executable is None:
@@ -164,6 +180,7 @@ def upsert(
 ) -> str:
     """Edit this tool's comment when one exists, otherwise create it. Never append."""
     runner = runner or run_gh
+    repository, pull_request = validated_target(repository, pull_request)
     existing = find_existing(repository, pull_request, runner=runner)
     # The body goes through a file: it contains untrusted repository content, and an
     # argument-list value that large is fragile besides.

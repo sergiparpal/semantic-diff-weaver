@@ -104,10 +104,11 @@ def _read_readme_excerpt(repo: GitRepository, head_commit: str, config: WeaverCo
         (
             path
             for path in repository_files
+            # Repository-root only, so the path is already its own basename.
             if "/" not in path
+            and path.casefold() in README_NAMES
             and not exclusion_reason(path)
             and not any(glob_matches(path, pattern) for pattern in config.paths.exclude)
-            if path.rsplit("/", 1)[-1].casefold() in README_NAMES
         ),
         None,
     )
@@ -470,7 +471,11 @@ def _build_limitations(
             "Only prioritized critical-path scope was analyzed due to resource limits.",
         ),
         (
-            lambda: bool(interpreted.omitted_batches or interpreted.truncated_evidence_symbols),
+            lambda: bool(
+                interpreted.omitted_batches
+                or interpreted.oversized_symbols
+                or interpreted.truncated_evidence_symbols
+            ),
             "Some optional model interpretation context was omitted or truncated.",
         ),
         (
@@ -547,6 +552,12 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
     state.warnings.extend(interpreted.warnings)
     state.record_omitted(
         "llm_batch_limit", interpreted.omitted_batches, scope=True, confidence=True
+    )
+    state.record_omitted(
+        "model_input_symbol_limit",
+        interpreted.oversized_symbols,
+        scope=True,
+        confidence=True,
     )
     state.record_omitted(
         "model_evidence_limit",

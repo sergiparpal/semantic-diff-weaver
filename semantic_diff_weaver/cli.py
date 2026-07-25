@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -136,6 +137,14 @@ def _authorization(repo: str, allow_roots: list[str]) -> Iterator[None]:
     """Populate the authorized roots from the invocation, never widening an operator's."""
     configured = os.environ.get(ALLOWED_ROOTS_ENV)
     if configured is not None:
+        # An empty or separator-only value authorizes nothing, and `authorized_roots` would
+        # report that as "no authorized workspace root is configured" — true, but it points at
+        # the invocation rather than at the variable that actually caused it.
+        if not any(value for value in configured.split(os.pathsep)):
+            raise ArgumentError(
+                f"{ALLOWED_ROOTS_ENV} is set but empty, so it authorizes no path. "
+                f"Unset it to authorize --repo, or set it to a readable directory."
+            )
         if allow_roots:
             raise ArgumentError(
                 f"--allow-root cannot widen {ALLOWED_ROOTS_ENV}, which is already set. "
@@ -206,8 +215,6 @@ def use_utf8(stream: Any) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     """Run one analysis. See the module docstring for the authorization rule."""
-    import sys
-
     use_utf8(sys.stdout)
     use_utf8(sys.stderr)
     parser = build_parser()

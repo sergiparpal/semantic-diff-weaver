@@ -42,6 +42,15 @@ class ChangedFile:
 
 @dataclass
 class DiffCollection:
+    """One bounded collection pass.
+
+    ``changed_files_total`` and ``changed_lines`` both describe the *whole* diff, before any
+    mandatory exclusion, path filter, or extension filter — they are the denominator that
+    ``files`` is the numerator of, which is why the brief renders them as ``analyzed/total``.
+    Resource prioritization deliberately budgets against the eligible subset instead; see
+    ``collect._resource_selection``.
+    """
+
     files: list[ChangedFile]
     changed_files_total: int
     changed_lines: int

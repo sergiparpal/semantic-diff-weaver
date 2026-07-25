@@ -322,6 +322,13 @@ _incomplete = sorted(
 if _incomplete:  # pragma: no cover - guards a taxonomy edit, not a runtime input
     raise RuntimeError(f"BehaviorCategory values without a complete profile: {_incomplete}")
 
+# A present-but-empty scenario tuple is the one incompleteness the check above cannot see, and
+# it would silently strip a high-risk behavior of the obligation the canonical schema requires
+# it to be linked to. Fail the import instead.
+_scenarioless = sorted(category.value for category in BehaviorCategory if not _SCENARIOS[category])
+if _scenarioless:  # pragma: no cover - guards a taxonomy edit, not a runtime input
+    raise RuntimeError(f"BehaviorCategory values with no obligation scenario: {_scenarioless}")
+
 CATEGORY_PROFILES: dict[BehaviorCategory, CategoryProfile] = {
     category: CategoryProfile(
         impact=_IMPACT[category],

@@ -227,10 +227,15 @@ def generate_obligations(
     required: list[TestObligation] = []
     required_ids: set[int] = set()
     for behavior in required_behaviors:
-        obligation = next(item for item in ordered if behavior.id in item.behavior_change_ids)
-        if id(obligation) not in required_ids:
-            required_ids.add(id(obligation))
-            required.append(obligation)
+        # Every behavior emits at least one scenario, so a match is expected — but a bare
+        # `next` would raise `StopIteration` rather than a `WeaverError` if that ever stopped
+        # holding, and the tool boundary can only report that as an opaque internal error.
+        linked = next((item for item in ordered if behavior.id in item.behavior_change_ids), None)
+        if linked is None:
+            continue
+        if id(linked) not in required_ids:
+            required_ids.add(id(linked))
+            required.append(linked)
     if len(required) > maximum:
         selected = [
             *required[: max(0, maximum - 1)],
