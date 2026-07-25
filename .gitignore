@@ -14,3 +14,7 @@ build/
 .kg-reconcile-state.json
 .kg-ground-audit.jsonl*
 .tmp-*
+# Empty scaffolding directories some local agent tooling recreates.
+.agents/
+.codex/
+canon/

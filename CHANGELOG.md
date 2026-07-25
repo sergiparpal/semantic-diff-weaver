@@ -1,5 +1,57 @@
 # Changelog
 
+## 0.2.0 - 2026-07-25
+
+The project becomes runnable without Hermes: a standalone CLI, a GitHub Action, an optional
+inference provider, and coverage grounding. The Hermes plugin path is unchanged.
+
+- **Fix:** define statement ordering as a permutation instead of content inequality.
+  `SymbolSnapshot.statement_order` entries embed unparsed expression content, not just sequence
+  identity, so comparing the tuples for inequality reported a phantom reordering on any pure
+  content edit — adding a keyword argument to `return client.fetch(x)` moved nothing yet emitted
+  `ordering_change`. Ordering now requires a permutation, mirroring the test `_append_call_delta`
+  already applied to call names. Material precision on the 17-case corpus rises from 88.24%
+  (15/17) to 100.00% (15/15) with recall unchanged at 100%; both removed findings were verified
+  non-genuine. See `docs/decisions.md`.
+- **Breaking (schema):** `SCHEMA_VERSION` is now `"1.1"`. `CoverageStatus` gains
+  `covered_by_existing_tests` and `changed_lines_uncovered`, and `AnalysisResult` gains an
+  optional `coverage` object. Every existing value is unchanged and `coverage` is `null` without a
+  report, but a consumer that exhaustively matches `coverage_status` now sees new values and needs
+  a version signal.
+- **Feature:** ground candidate coverage in an ingested coverage report. `--coverage PATH`,
+  `coverage_report`, or `coverage.report_path` accepts a coverage.py JSON or lcov `.info` report,
+  sniffed by content and bounded by the new `rules.max_coverage_bytes` (default 20 MB). The report
+  is untrusted input data and nothing in it is ever opened or executed. A changed file absent from
+  the report is reported as **unknown, never uncovered**, and unmatched files are counted and
+  warned about. `CandidateTest.verified` stays `false`: coverage says a line ran, not that a test
+  asserts the change. Cobertura/JaCoCo XML is excluded deliberately — see `docs/decisions.md`.
+- **Feature:** add a standalone command line, `semantic-diff-weaver` and
+  `python -m semantic_diff_weaver`, with `--repo`, `--base`, `--head`, `--include`, `--exclude`,
+  `--risk-profile`, `--coverage`, `--format`, `--allow-root`, `--fail-on`, `--model`, and
+  `--no-llm`. Exit codes are `0` success, `1` analysis error, `2` argument error, and `3` success
+  above the `--fail-on` risk threshold.
+- **Security:** the CLI populates `SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS` from `--repo` and
+  `--allow-root` when it is unset, because on a command line a person types the path and that is
+  the authorization. An operator-set value is never widened: `--allow-root` is refused and a
+  `--repo` outside the bound fails as before. See `docs/security.md`.
+- **Feature:** add a GitHub Action that posts the review brief as one pull-request comment,
+  upserted by hidden marker so re-runs edit rather than append, and truncated at a section
+  boundary with an explicit notice above GitHub's 65,536-character cap. No SARIF and no check
+  annotations, by decision. See `docs/github-action.md`.
+- **Feature:** add an optional Anthropic provider (`pip install 'semantic-diff-weaver[anthropic]'`)
+  so the CLI keeps the inference layer. A missing package, missing key, provider error, timeout,
+  or schema failure all degrade to deterministic findings; credentials are never a hard failure
+  and are never logged, echoed in an error, or written to output.
+- **Refactor:** name the structured-inference contract as an explicit `LlmClient` protocol.
+  `llm: Any` was threaded from the Hermes handler through the service into the interpreter, where
+  exactly one method is ever called. Hermes' `PluginLlm` satisfies it unchanged.
+- Add a new stable error code, `coverage_unreadable`, and a new optional tool argument,
+  `coverage_report`. All existing codes, taxonomy values, and evidence IDs are unchanged.
+- Widen the CI interpreter matrix with Python 3.12 and 3.13 on Linux. 3.12 is the local
+  development and `hermes-compatibility` interpreter and was previously never exercised by the
+  main test job.
+- Hold `cli.py` and `coverage_map.py` to the 90% critical-module branch bar; both are at 100%.
+
 ## 0.1.1 - 2026-07-25
 
 - Rename the project from `hermes-semantic-diff-weaver` to `semantic-diff-weaver`. The distribution,

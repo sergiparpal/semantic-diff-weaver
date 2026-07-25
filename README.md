@@ -121,6 +121,33 @@ root is never accepted as an authorization root, by either path.
 An external `--risk-profile` must resolve below an authorized root, so pass its directory with
 `--allow-root` when it lives outside the repository.
 
+## GitHub Action
+
+Post the brief as a single pull-request comment. The action wraps the CLI and contains no
+analysis logic of its own.
+
+```yaml
+name: pr-review
+on: [pull_request]
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0        # required: the analyzer reads committed objects and never fetches
+      - uses: your-org/semantic-diff-weaver@v0
+        with:
+          fail-on: none
+```
+
+Re-runs **edit** the existing comment rather than appending a new one, matched on a hidden
+marker. Inputs, the fork-pull-request caveat, and how to pass a coverage report from a prior
+job are in [docs/github-action.md](docs/github-action.md).
+
 ## Install and enable the Hermes plugin
 
 For development as a user directory plugin, copy this repository directory to:
@@ -164,8 +191,9 @@ Hermes registers exactly one tool, `analyze_semantic_diff`:
 ```
 
 `repo_path` and `base_ref` are required. `head_ref` defaults to `HEAD`; `output_format` may be
-`json`, `markdown`, or `both`. An optional `risk_profile` may name a bounded YAML file explicitly.
-Unknown arguments are rejected.
+`json`, `markdown`, or `both`. An optional `risk_profile` may name a bounded YAML file explicitly,
+and an optional `coverage_report` may name a coverage.py JSON or lcov `.info` report to ground
+coverage in. Unknown arguments are rejected.
 
 Caller-selected local paths are authorized independently of repository containment. By default the
 tool may access only paths below the Hermes process working directory. A trusted host operator can
@@ -176,8 +204,8 @@ authorize additional bounded roots with the platform-path-separator-delimited
 SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS=/work/project:/work/shared-profiles
 ```
 
-Both `repo_path` and an external `risk_profile` must resolve below one of these roots. Filesystem
-roots are never accepted as authorization roots.
+`repo_path`, an external `risk_profile`, and an external `coverage_report` must all resolve below
+one of these roots. Filesystem roots are never accepted as authorization roots.
 
 The handler always returns a JSON-encoded string. JSON mode returns the canonical schema-versioned
 analysis. Markdown mode returns a JSON envelope containing the PR-ready brief. Both mode returns the
@@ -241,7 +269,10 @@ Hermes home and do not require a paid or live LLM.
   report is reported as unknown, never as uncovered.
 - Dynamic metaprogramming and external contracts may produce review questions or unknown semantic
   changes.
-- No network ref lookup, pull-request API integration, test execution, or test generation.
+- No network ref lookup, test execution, or test generation. The GitHub Action posts a comment
+  through the `gh` CLI using the workflow's own token; the analyzer itself makes no network
+  request and reads no pull-request API.
+- Multi-language support is out of scope: `ast_diff/` is built on Python's own `ast`.
 
 ## License
 
