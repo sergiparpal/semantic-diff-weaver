@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -17,6 +18,7 @@ from .git_diff import DiffCollection, GitRepository, collect_diff
 from .models import (
     AnalysisResult,
     AnalyzeRequest,
+    BehaviorCategory,
     BehaviorChange,
     LlmStatus,
     OmittedScope,
@@ -115,29 +117,40 @@ def _read_readme_excerpt(repo: GitRepository, head_commit: str, config: WeaverCo
     return redact_text(source, max_chars=config.rules.max_readme_chars)
 
 
+@dataclass
+class _DedupEntry:
+    """A retained candidate with the derived keys the merge scan would otherwise recompute."""
+
+    candidate: SemanticCandidate
+    evidence_ids: set[str]
+    phrase: str
+
+
 def _deduplicate_candidates(candidates: list[SemanticCandidate]) -> list[SemanticCandidate]:
     output: list[SemanticCandidate] = []
+    # Bucketing by identity keeps the scan to same-symbol peers, and each entry carries its
+    # evidence set and normalized phrase so neither is rebuilt per comparison.
+    buckets: dict[tuple[str, str, BehaviorCategory], list[_DedupEntry]] = defaultdict(list)
     for candidate in candidates:
         candidate_evidence = {item.id for item in candidate.evidence}
-        existing = next(
+        candidate_phrase = canonical_phrase(candidate.observable_impact)
+        bucket = buckets[(candidate.path, candidate.symbol, candidate.category)]
+        entry = next(
             (
                 item
-                for item in output
-                if item.path == candidate.path
-                and item.symbol == candidate.symbol
-                and item.category is candidate.category
-                and (
-                    candidate_evidence & {evidence.id for evidence in item.evidence}
-                    or canonical_phrase(item.observable_impact)
-                    == canonical_phrase(candidate.observable_impact)
-                )
+                for item in bucket
+                if candidate_evidence & item.evidence_ids or item.phrase == candidate_phrase
             ),
             None,
         )
-        if existing is None:
+        if entry is None:
             output.append(candidate)
+            bucket.append(_DedupEntry(candidate, candidate_evidence, candidate_phrase))
             continue
+        existing = entry.candidate
+        entry.evidence_ids |= candidate_evidence
         if candidate.confidence_baseline > existing.confidence_baseline:
+            entry.phrase = candidate_phrase
             existing.summary = candidate.summary
             existing.observable_impact = candidate.observable_impact
             existing.confidence_baseline = candidate.confidence_baseline

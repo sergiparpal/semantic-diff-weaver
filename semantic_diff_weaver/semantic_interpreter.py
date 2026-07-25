@@ -162,6 +162,37 @@ def _batch_payload(items: tuple[dict[str, Any], ...], readme_excerpt: str | None
     return serialized.replace("&", r"\u0026").replace("<", r"\u003c").replace(">", r"\u003e")
 
 
+_BATCH_FRAME_LENGTH = len(_batch_payload(()))
+_BATCH_JOIN_LENGTH = 2  # json.dumps writes ", " between array items.
+_INPUT_FRAME_LENGTH = len(INPUT_PREFIX) + len(INPUT_SUFFIX)
+_ESCAPED_CHARACTERS = ("&", "<", ">")
+_ESCAPE_GROWTH = 5  # Each becomes a six-character \uXXXX escape.
+
+
+def _payload_metrics(payload: dict[str, Any]) -> tuple[int, int]:
+    """Return one symbol payload's serialized length and its escape-driven growth."""
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+    escapes = sum(encoded.count(character) for character in _ESCAPED_CHARACTERS)
+    return len(encoded) + escapes * _ESCAPE_GROWTH, escapes
+
+
+def _batch_input_length(item_length_total: int, item_count: int) -> int:
+    """Return ``len(_input_text(_batch_payload(items)))`` without re-encoding the whole batch.
+
+    ``json.dumps`` is compositional for fixed options, so a batch is exactly its frame plus each
+    item's own encoded length plus the ``", "`` separators. Pinned by a contract test rather than
+    trusted, because packing decisions depend on the value being exact and not merely close.
+    """
+    if item_count == 0:
+        return _INPUT_FRAME_LENGTH + _BATCH_FRAME_LENGTH
+    return (
+        _INPUT_FRAME_LENGTH
+        + _BATCH_FRAME_LENGTH
+        + item_length_total
+        + _BATCH_JOIN_LENGTH * (item_count - 1)
+    )
+
+
 def _generated_text(value: str, *, max_chars: int) -> str:
     """Redact provider prose again before it can enter canonical output."""
     return redact_text(value, max_chars=max_chars)
@@ -224,12 +255,17 @@ def _split_group_into_batches(
     oversized_symbols = 0
     current: list[SemanticCandidate] = []
     current_payloads: list[dict[str, Any]] = []
+    current_length = 0
+    limit = config.rules.max_model_input_chars_per_call
     for candidate in sorted(group, key=lambda item: (item.path, item.symbol, item.category.value)):
         payload, truncated = _evidence_payload(candidate, config)
         truncated_symbols += int(truncated)
-        proposed = (*current_payloads, payload)
-        encoded = _batch_payload(proposed)
-        if current and len(_input_text(encoded)) > config.rules.max_model_input_chars_per_call:
+        payload_length, _escapes = _payload_metrics(payload)
+        if (
+            current
+            and _batch_input_length(current_length + payload_length, len(current_payloads) + 1)
+            > limit
+        ):
             batches.append(
                 EvidenceBatch(
                     candidates=tuple(current),
@@ -239,12 +275,13 @@ def _split_group_into_batches(
             )
             current = []
             current_payloads = []
-            encoded = _batch_payload((payload,))
-        if len(_input_text(encoded)) > config.rules.max_model_input_chars_per_call:
+            current_length = 0
+        if _batch_input_length(payload_length, 1) > limit:
             oversized_symbols += 1
             continue
         current.append(candidate)
         current_payloads.append(payload)
+        current_length += payload_length
     if current:
         batches.append(
             EvidenceBatch(

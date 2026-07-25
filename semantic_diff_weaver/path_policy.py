@@ -6,6 +6,7 @@ import fnmatch
 import os
 import re
 from collections.abc import Iterable
+from functools import lru_cache
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
@@ -222,8 +223,13 @@ def exclusion_reason(path: str) -> str | None:
     return None
 
 
+@lru_cache(maxsize=16384)
 def glob_matches(path: str, pattern: str) -> bool:
-    """Match a repository path using segment-aware ``*`` and recursive ``**`` globs."""
+    """Match a repository path using segment-aware ``*`` and recursive ``**`` globs.
+
+    Pure and bounded, so the result is memoized: candidate mapping, include/exclude filtering,
+    and critical-path weighting all re-ask the same (path, pattern) questions many times.
+    """
     normalized_path = path.replace("\\", "/")
     normalized_pattern = pattern.replace("\\", "/")
     while normalized_pattern.startswith("./"):
@@ -280,8 +286,18 @@ def first_exclusion(paths: Iterable[str | None]) -> str | None:
     return None
 
 
+@lru_cache(maxsize=1024)
 def redact_text(text: str, *, max_chars: int = 2000) -> str:
-    """Bound and redact obvious credentials before evidence leaves preprocessing."""
+    """Bound and redact obvious credentials before evidence leaves preprocessing.
+
+    Memoized rather than simplified: every pattern here is load-bearing even for short
+    identifier-shaped text (a name like ``ghp_…`` or a JWT-shaped attribute chain still
+    redacts), so the nine passes cannot be skipped by inspecting the input. Extraction
+    redacts each AST feature of both the old and new version of a file, which are nearly
+    identical, so the repeat rate is high and the cache is where the saving comes from.
+    Repeats are temporally local, so a small cache reaches the same ~90% hit rate as a
+    large one while retaining far less untrusted source text in memory.
+    """
     redacted = CREDENTIAL_URI.sub(lambda match: f"{match.group('label')}[REDACTED]", text)
     redacted = AUTHORIZATION_VALUE.sub(lambda match: f"{match.group('label')}[REDACTED]", redacted)
     redacted = BEARER_VALUE.sub(lambda match: f"{match.group('label')}[REDACTED]", redacted)

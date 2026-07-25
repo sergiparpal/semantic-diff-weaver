@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import PurePosixPath
 from typing import ClassVar
 
@@ -182,6 +183,7 @@ def _module_name(path: str) -> str:
     return ".".join(parts)
 
 
+@lru_cache(maxsize=16384)
 def _mirrored(source_path: str, test_path: str) -> bool:
     source = PurePosixPath(source_path)
     test = PurePosixPath(test_path)
@@ -201,19 +203,34 @@ def map_candidate_tests(
 ) -> dict[int, list[CandidateTest]]:
     """Return capped static candidates; terminology alone can never create a match."""
     result: dict[int, list[CandidateTest]] = {}
+    # Configured mapping membership depends on one side at a time, so resolve each side once
+    # instead of re-globbing every (candidate, test, mapping) triple.
+    tests_by_mapping: list[set[int]] = [
+        {
+            position
+            for position, test in enumerate(index.tests)
+            if any(glob_matches(test.path, pattern) for pattern in mapping.tests)
+        }
+        for mapping in config.mapping
+    ]
+    all_tokens_by_test = [test.name_tokens | test.body_tokens for test in index.tests]
     for candidate_index, candidate in enumerate(candidates):
         symbol_token = candidate.symbol.rsplit(".", 1)[-1].casefold()
         module = _module_name(candidate.path).casefold()
+        module_prefix = f"{module}."
+        module_suffix = f".{module}"
+        symbol_suffix = f".{symbol_token}"
+        category_terms = CATEGORY_TERMS[candidate.category]
+        mapped_positions: set[int] = set()
+        for mapping_index, mapping in enumerate(config.mapping):
+            if glob_matches(candidate.path, mapping.source):
+                mapped_positions |= tests_by_mapping[mapping_index]
         ranked: list[CandidateTest] = []
-        for test in index.tests:
+        for test_position, test in enumerate(index.tests):
             score = 0.0
             reasons: list[str] = []
             structural = False
-            if any(
-                glob_matches(candidate.path, mapping.source)
-                and any(glob_matches(test.path, pattern) for pattern in mapping.tests)
-                for mapping in config.mapping
-            ):
+            if test_position in mapped_positions:
                 score += 0.30
                 reasons.append("explicit configured mapping")
                 structural = True
@@ -223,10 +240,10 @@ def map_candidate_tests(
                 structural = True
             if any(
                 imported == module
-                or imported.startswith(f"{module}.")
+                or imported.startswith(module_prefix)
                 or module.startswith(f"{imported}.")
-                or imported.endswith(f".{module}")
-                or imported.endswith(f".{symbol_token}")
+                or imported.endswith(module_suffix)
+                or imported.endswith(symbol_suffix)
                 for imported in test.imports
             ):
                 score += 0.25
@@ -240,7 +257,7 @@ def map_candidate_tests(
                 score += 0.10
                 reasons.append("changed symbol token in bounded test body")
                 structural = True
-            if CATEGORY_TERMS[candidate.category] & (test.name_tokens | test.body_tokens):
+            if category_terms & all_tokens_by_test[test_position]:
                 score += 0.10
                 reasons.append("behavior-category terminology")
             score = min(1.0, score)

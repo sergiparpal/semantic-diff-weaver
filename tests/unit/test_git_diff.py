@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 import semantic_diff_weaver.git_diff as git_diff
+import semantic_diff_weaver.git_diff.collect as collect_module
 from semantic_diff_weaver.errors import ErrorCode, WeaverError
 from semantic_diff_weaver.git_diff import (
     MAX_GIT_INPUT_BYTES,
@@ -15,6 +16,13 @@ from semantic_diff_weaver.git_diff import (
     _parse_name_status,
     _parse_numstat,
     collect_diff,
+)
+from semantic_diff_weaver.git_diff.collect import _file_hunks, _hunks_by_path
+from semantic_diff_weaver.git_diff.parse import (
+    parse_hunks_by_path as _parse_hunks_by_path,
+)
+from semantic_diff_weaver.git_diff.parse import (
+    unquote_git_path as _unquote_git_path,
 )
 from semantic_diff_weaver.models import CriticalPath, WeaverConfig
 
@@ -418,3 +426,81 @@ def test_aggregate_source_cap_is_immutable_and_visible(repo_factory, monkeypatch
     assert result.truncated is True
     assert result.excluded_counts["aggregate_source_limit"] == 1
     assert result.omitted_counts["aggregate_source_limit"] == 1
+
+
+def test_batched_hunk_split_keys_paths_and_ignores_content_lines() -> None:
+    """A ``--unified=0`` content line may look like a header; only real headers may count."""
+    output = (
+        "diff --git a/src/one.py b/src/one.py\n"
+        "index 111..222 100644\n"
+        "--- a/src/one.py\n"
+        "+++ b/src/one.py\n"
+        "@@ -3 +3,2 @@ def one():\n"
+        "-    return 1\n"
+        "+++ b/src/spoofed.py\n"
+        "+@@ -9 +9 @@\n"
+        "--- a/src/spoofed.py\n"
+        "@@ -20,0 +22,3 @@\n"
+        "+added\n"
+        "diff --git a/src/two.py b/src/two.py\n"
+        "--- a/src/two.py\n"
+        "+++ b/src/two.py\n"
+        "@@ -1 +1 @@\n"
+        "-x\n"
+        "+y\n"
+    )
+    requested = frozenset({"src/one.py", "src/two.py", "src/spoofed.py"})
+    hunks = _parse_hunks_by_path(output, requested)
+    assert set(hunks) == {"src/one.py", "src/two.py"}
+    assert [(item.old_start, item.new_start, item.new_count) for item in hunks["src/one.py"]] == [
+        (3, 3, 2),
+        (20, 22, 3),
+    ]
+    assert [item.id for item in hunks["src/one.py"]] == ["hunk-001", "hunk-002"]
+    assert [item.id for item in hunks["src/two.py"]] == ["hunk-001"]
+
+
+def test_batched_hunk_split_decodes_quoted_paths_and_skips_unrequested() -> None:
+    output = (
+        'diff --git "a/src/we\\"ird.py" "b/src/we\\"ird.py"\n'
+        '--- "a/src/we\\"ird.py"\n'
+        '+++ "b/src/we\\"ird.py"\n'
+        "@@ -1 +1 @@\n"
+        "diff --git a/src/elsewhere.py b/src/elsewhere.py\n"
+        "--- a/src/elsewhere.py\n"
+        "+++ b/src/elsewhere.py\n"
+        "@@ -1 +1 @@\n"
+    )
+    hunks = _parse_hunks_by_path(output, frozenset({'src/we"ird.py'}))
+    assert set(hunks) == {'src/we"ird.py'}
+    assert _unquote_git_path(r'"a/caf\303\251.py"') == "a/café.py"
+    assert _unquote_git_path("a/plain.py") == "a/plain.py"
+
+
+def test_batched_hunks_match_per_file_hunks(repo_factory) -> None:
+    """The batched reader must agree with the single-file reader it replaced."""
+    old = {
+        f"src/mod_{index}.py": f"def f_{index}(x):\n    return x < {index}\n" for index in range(6)
+    }
+    new = {
+        f"src/mod_{index}.py": f"def f_{index}(x):\n    return x <= {index}\n" for index in range(6)
+    }
+    repo_path, base, head = repo_factory(old, new)
+    repo = GitRepository.open(str(repo_path))
+    paths = sorted(old)
+    batched = _hunks_by_path(repo, base, head, paths)
+    assert set(batched) == set(paths)
+    for path in paths:
+        assert batched[path] == _file_hunks(repo, base, head, path)
+
+
+def test_missing_batch_entry_falls_back_to_the_per_file_reader(repo_factory, monkeypatch) -> None:
+    repo_path, base, head = repo_factory(
+        {"src/api.py": "def allowed(x):\n    return x < 5\n"},
+        {"src/api.py": "def allowed(x):\n    return x <= 5\n"},
+    )
+    monkeypatch.setattr(collect_module, "_hunks_by_path", lambda *a, **k: {})
+    repo = GitRepository.open(str(repo_path))
+    collection = collect_diff(repo, repo.resolve_ref(base), repo.resolve_ref(head), WeaverConfig())
+    assert [item.path for item in collection.files] == ["src/api.py"]
+    assert collection.files[0].hunks, "the fallback must still supply hunks"

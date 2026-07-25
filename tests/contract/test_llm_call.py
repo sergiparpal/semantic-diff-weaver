@@ -17,7 +17,11 @@ from semantic_diff_weaver.semantic_candidates import build_candidates
 from semantic_diff_weaver.semantic_interpreter import (
     _accumulate_usage,
     _batch_candidates,
+    _batch_input_length,
+    _batch_payload,
     _evidence_payload,
+    _input_text,
+    _payload_metrics,
     interpret_candidates,
 )
 
@@ -358,3 +362,18 @@ def test_disabled_fallback_uses_specific_public_llm_errors() -> None:
     with pytest.raises(WeaverError) as schema_failure:
         interpret_candidates([candidate()], FakeLlm([Result("text", None)]), config)
     assert schema_failure.value.code is ErrorCode.LLM_SCHEMA_FAILURE
+
+
+def test_incremental_batch_input_length_is_exact() -> None:
+    """Batch packing trusts arithmetic instead of re-encoding, so pin it to the real encoder."""
+    payloads = [
+        {"category_hint": "boundary", "symbol": "s", "evidence": [], "assumptions": []},
+        {"symbol": 'needs <escaping> & "quotes"', "evidence": [{"id": "ev-001"}]},
+        {"symbol": "unicode ✓ café", "evidence": [{"id": "ev-002", "old": "a > b"}]},
+        {"symbol": "plain", "evidence": [{"id": "ev-003"}], "truncated": True},
+    ]
+    for count in range(len(payloads) + 1):
+        items = tuple(payloads[:count])
+        expected = len(_input_text(_batch_payload(items)))
+        total = sum(_payload_metrics(item)[0] for item in items)
+        assert _batch_input_length(total, count) == expected, f"count={count}"

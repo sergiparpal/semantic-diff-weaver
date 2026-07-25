@@ -8,7 +8,7 @@ from ..errors import ErrorCode, WeaverError
 from ..models import WeaverConfig
 from ..path_policy import critical_weight, first_exclusion, is_included
 from . import limits
-from .parse import parse_hunks, parse_name_status, parse_numstat
+from .parse import parse_hunks, parse_hunks_by_path, parse_name_status, parse_numstat
 from .repository import GitRepository
 from .types import ChangedFile, DiffCollection, Hunk
 
@@ -17,23 +17,50 @@ def _git_error(code: ErrorCode, message: str, remediation: str) -> WeaverError:
     return WeaverError(code, message, remediation)
 
 
+_HUNK_DIFF_ARGUMENTS = (
+    "diff",
+    "--no-ext-diff",
+    "--no-textconv",
+    "--no-color",
+    "--text",
+    "--unified=0",
+    # Single-path diffs can never pair a rename, so batching must not start finding them.
+    "--no-renames",
+)
+
+
 def _file_hunks(repo: GitRepository, base: str, head: str, path: str) -> list[Hunk]:
     output = repo.run(
-        [
-            "diff",
-            "--no-ext-diff",
-            "--no-textconv",
-            "--no-color",
-            "--text",
-            "--unified=0",
-            base,
-            head,
-            "--",
-            f":(literal){path}",
-        ],
+        [*_HUNK_DIFF_ARGUMENTS, base, head, "--", f":(literal){path}"],
         max_bytes=4 * 1024 * 1024,
     )
     return parse_hunks(output)
+
+
+def _hunks_by_path(
+    repo: GitRepository, base: str, head: str, paths: list[str]
+) -> dict[str, list[Hunk]]:
+    """Read every file's hunks with one bounded command per path chunk instead of per file."""
+    result: dict[str, list[Hunk]] = {}
+    ordered = sorted(set(paths))
+    for start in range(0, len(ordered), limits.MAX_TREE_PATHS_PER_COMMAND):
+        chunk = ordered[start : start + limits.MAX_TREE_PATHS_PER_COMMAND]
+        try:
+            output = repo.run(
+                [
+                    *_HUNK_DIFF_ARGUMENTS,
+                    base,
+                    head,
+                    "--",
+                    *(f":(literal){path}" for path in chunk),
+                ],
+                max_bytes=limits.MAX_GIT_OUTPUT_BYTES,
+            )
+        except WeaverError:
+            # An oversized or failed chunk degrades to the per-file reader below.
+            continue
+        result.update(parse_hunks_by_path(output, frozenset(chunk)))
+    return result
 
 
 def _resource_selection(
@@ -234,9 +261,17 @@ def collect_diff(
                     new_count=max(1, len((changed.new_text or "").splitlines())),
                 )
             ]
-        else:
-            changed.hunks = _file_hunks(repo, base_commit, head_commit, changed.path)
         selected.append(changed)
+
+    pending = [item for item in selected if not item.status.startswith("C")]
+    hunks_by_path = _hunks_by_path(repo, base_commit, head_commit, [item.path for item in pending])
+    for changed in pending:
+        hunks = hunks_by_path.get(changed.path)
+        changed.hunks = (
+            hunks
+            if hunks is not None
+            else _file_hunks(repo, base_commit, head_commit, changed.path)
+        )
     return DiffCollection(
         files=selected,
         changed_files_total=len(files),

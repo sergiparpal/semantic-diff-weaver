@@ -10,6 +10,11 @@
 - Harden secret egress, model-data framing, terminal/control rendering, repository authorization,
   Git replacement-object handling, inherited Git environment isolation, configuration complexity,
   and adversarial AST resource limits.
+- Read per-file hunks with one bounded Git command per path chunk instead of one process per
+  changed file, keeping the previous single-path semantics via `--no-renames` and falling back to
+  the per-file reader for any path Git does not report. Analysis output is unchanged.
+- Remove redundant work from candidate-test mapping, candidate deduplication, and model batch
+  packing, and memoize the pure path-glob and redaction helpers.
 
 ## 0.1.0 - 2026-07-18
 
