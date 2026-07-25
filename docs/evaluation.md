@@ -64,3 +64,12 @@ surplus findings.
 The fixture-label review removed a state-transition expectation from the retry-predicate case because
 the assignment itself was unchanged; retaining it would have rewarded a false positive. These numbers
 describe only the bounded synthetic corpus and are not a claim about arbitrary repositories.
+
+## Real pull requests
+
+`docs/real-pr-validation.md` records what the analyzer says on real merged pull requests from
+public repositories, produced by the opt-in `scripts/validate_real_prs.py` harness. Those are
+**observations on unlabeled data, not precision measurements** — the diffs are not reviewed to
+the standard this corpus requires, and real-PR cases are deliberately not added to the goldens.
+The measured numbers are the ones above.
+
