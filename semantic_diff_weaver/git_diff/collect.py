@@ -26,6 +26,10 @@ _HUNK_DIFF_ARGUMENTS = (
     "--text",
     "--unified=0",
     # Single-path diffs can never pair a rename, so batching must not start finding them.
+    # Accepted cost: collection detects renames with RENAME_DETECTION_ARGUMENTS, but this
+    # stage does not, so a rename's new path diffs as a whole-file addition. Its symbols then
+    # all anchor to one file-sized hunk instead of the lines that actually moved. Scope and
+    # classification are unaffected; only hunk-level line attribution degrades for renames.
     "--no-renames",
 )
 

@@ -212,3 +212,47 @@ def test_unmatched_configured_mapping_leaves_candidates_unmapped() -> None:
     config = WeaverConfig()
     config.mapping = [MappingRule(source="src/nothing.py", tests=["tests/contract/**"])]
     assert map_candidate_tests([boundary_candidate()], index, config)[0] == []
+
+
+def test_symbol_suffix_import_is_matched_through_the_leaf_index() -> None:
+    """``from src.api import allowed`` indexes as a dotted import whose leaf is the symbol.
+
+    The import signal is resolved from a leaf index plus a per-module scan rather than a scan
+    per (module, symbol) pair, so this pins the leaf half of that split. Import (0.25) plus
+    category terminology (0.10) is exactly the 0.35 floor; the import is what makes it
+    structural, and terminology alone could never promote the same test.
+    """
+    index = TestIndex(
+        tests=[
+            IndexedTest(
+                path="tests/test_unrelated.py",
+                symbol="test_case",
+                imports=frozenset({"src.api.allowed"}),
+                name_tokens=frozenset({"test", "case"}),
+                body_tokens=frozenset({"boundary"}),
+            )
+        ],
+        incomplete=False,
+        warnings=[],
+    )
+    mapped = map_candidate_tests([boundary_candidate()], index, WeaverConfig())[0]
+    assert [item.path for item in mapped] == ["tests/test_unrelated.py"]
+    assert "direct module or symbol import" in mapped[0].match_reasons
+
+
+def test_a_bare_import_never_matches_on_the_symbol_alone() -> None:
+    """Identical to the case above except the import has no dot, so it has no leaf to match."""
+    index = TestIndex(
+        tests=[
+            IndexedTest(
+                path="tests/test_unrelated.py",
+                symbol="test_case",
+                imports=frozenset({"allowed"}),
+                name_tokens=frozenset({"test", "case"}),
+                body_tokens=frozenset({"boundary"}),
+            )
+        ],
+        incomplete=False,
+        warnings=[],
+    )
+    assert map_candidate_tests([boundary_candidate()], index, WeaverConfig())[0] == []

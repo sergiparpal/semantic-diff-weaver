@@ -11,6 +11,10 @@ OVERALL_MINIMUM = 85.0
 BRANCH_MINIMUM = 90.0
 # File paths end with ".py"; package paths end with "/" and aggregate member coverage.
 CRITICAL_MODULES = (
+    # ast_diff/ holds the densest algorithms in the project — similarity matching, the delta
+    # suppression cascade, and the immutable safety budgets — so it is held to the branch bar
+    # rather than only to the overall statement floor.
+    "ast_diff/",
     "config.py",
     "errors.py",
     "git_diff/",

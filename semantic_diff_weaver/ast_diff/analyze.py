@@ -110,6 +110,27 @@ def _drop_redundant_module_deltas(
     return filtered, filtered_keys
 
 
+def _record_incomplete_file(
+    changed: SourceRevisionPair,
+    *,
+    resource_limited: bool,
+    deltas: list[StructuralDelta],
+    warnings: list[str],
+    changed_symbol_keys: set[tuple[str, str]],
+) -> None:
+    """Account for one changed file that could not be analyzed to completion."""
+    path = changed.path
+    if resource_limited:
+        warnings.append(
+            f"Changed Python source {path!r} exceeded an immutable AST safety budget; "
+            "analysis is incomplete."
+        )
+    else:
+        warnings.append(f"Could not parse changed Python source {path!r}; analysis is incomplete.")
+    deltas.append(_parse_incomplete_delta(path, changed, resource_limited=resource_limited))
+    changed_symbol_keys.add((path, "<unparsed>"))
+
+
 def analyze_ast(files: list[SourceRevisionPair], budget: AstBudget | None = None) -> AstAnalysis:
     effective_budget = budget or AstBudget.default()
     deltas: list[StructuralDelta] = []
@@ -146,24 +167,34 @@ def analyze_ast(files: list[SourceRevisionPair], budget: AstBudget | None = None
             resource_limited = isinstance(exc, (AstResourceLimit, MemoryError, RecursionError))
             if resource_limited:
                 resource_limited_files += 1
-                warnings.append(
-                    f"Changed Python source {path!r} exceeded an immutable AST safety budget; "
-                    "analysis is incomplete."
-                )
-            else:
-                warnings.append(
-                    f"Could not parse changed Python source {path!r}; analysis is incomplete."
-                )
-            deltas.append(_parse_incomplete_delta(path, changed, resource_limited=resource_limited))
-            changed_symbol_keys.add((path, "<unparsed>"))
+            _record_incomplete_file(
+                changed,
+                resource_limited=resource_limited,
+                deltas=deltas,
+                warnings=warnings,
+                changed_symbol_keys=changed_symbol_keys,
+            )
             continue
-        parsed_files += 1
         parsed.append((changed, old_symbols, new_symbols))
 
     removed: list[tuple[SymbolSnapshot, SourceRevisionPair]] = []
     added: list[tuple[SymbolSnapshot, SourceRevisionPair]] = []
     for changed, old_symbols, new_symbols in parsed:
         path = changed.path
+        # Matching and comparison are the other half of the cost, and symbol budgets alone do
+        # not bound them in time. Without this the deadline covered only the parse phase.
+        if time.monotonic() > deadline:
+            failed_files += 1
+            resource_limited_files += 1
+            _record_incomplete_file(
+                changed,
+                resource_limited=True,
+                deltas=deltas,
+                warnings=warnings,
+                changed_symbol_keys=changed_symbol_keys,
+            )
+            continue
+        parsed_files += 1
         pairs, match_warnings = match_symbols(old_symbols, new_symbols)
         warnings.extend(match_warnings)
         for pair in pairs:

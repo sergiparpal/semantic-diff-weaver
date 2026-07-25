@@ -209,6 +209,8 @@ def ensure_authorized_path(candidate: Path) -> Path:
 def exclusion_reason(path: str) -> str | None:
     """Return a mandatory exclusion class without echoing a sensitive filename."""
     parts = [part.casefold() for part in PurePosixPath(path).parts]
+    if not parts:
+        return None
     name = parts[-1]
     suffix = PurePosixPath(name).suffix.casefold()
     if any(part in CONTROL_PARTS for part in parts):

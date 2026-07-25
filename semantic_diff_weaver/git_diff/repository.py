@@ -334,8 +334,7 @@ class GitRepository:
             if size > effective_max_bytes:
                 failures[object_id] = "oversized"
                 continue
-            max_blob_bytes = limits.MAX_SOURCE_BLOB_BYTES
-            if aggregate_bytes + size > min(max_total_bytes, max_blob_bytes):
+            if aggregate_bytes + size > min(max_total_bytes, limits.MAX_SOURCE_BLOB_BYTES):
                 failures[object_id] = "aggregate_source_limit"
                 continue
             eligible.append((object_id, size))

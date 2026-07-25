@@ -4,14 +4,15 @@ from __future__ import annotations
 
 import ast
 import re
+from collections import defaultdict
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import cache, lru_cache
 from pathlib import PurePosixPath
 from typing import ClassVar
 
 from .errors import WeaverError
 from .git_diff import GitRepository
-from .models import CandidateTest, WeaverConfig
+from .models import BehaviorCategory, CandidateTest, WeaverConfig
 from .path_policy import exclusion_reason, glob_matches, redact_text
 from .semantic_candidates import SemanticCandidate
 from .taxonomy import CATEGORY_PROFILES
@@ -189,65 +190,113 @@ def map_candidate_tests(
 ) -> dict[int, list[CandidateTest]]:
     """Return capped static candidates; terminology alone can never create a match."""
     result: dict[int, list[CandidateTest]] = {}
-    # Configured mapping membership depends on one side at a time, so resolve each side once
-    # instead of re-globbing every (candidate, test, mapping) triple.
-    tests_by_mapping: list[set[int]] = [
-        {
+    tests = index.tests
+    # Every signal below is resolved into a set of test positions, memoized on the only input
+    # it actually depends on. A candidate then scores just the union of its structural hits
+    # instead of the whole index, and repeated paths, modules, symbols, and categories — which
+    # dominate a real diff — each cost one pass rather than one per (candidate, test) pair.
+    tests_by_mapping: list[frozenset[int]] = [
+        frozenset(
             position
-            for position, test in enumerate(index.tests)
+            for position, test in enumerate(tests)
             if any(glob_matches(test.path, pattern) for pattern in mapping.tests)
-        }
+        )
         for mapping in config.mapping
     ]
-    all_tokens_by_test = [test.name_tokens | test.body_tokens for test in index.tests]
-    for candidate_index, candidate in enumerate(candidates):
-        symbol_token = candidate.symbol.rsplit(".", 1)[-1].casefold()
-        module = _module_name(candidate.path).casefold()
+    name_token_positions: dict[str, set[int]] = defaultdict(set)
+    body_token_positions: dict[str, set[int]] = defaultdict(set)
+    # ``imported.endswith(f".{symbol}")`` is an exact match on a dotted import's last segment,
+    # so it indexes directly. Keeping it out of the module scan below means the import signal
+    # costs one pass per distinct module rather than one per distinct (module, symbol) pair.
+    import_leaf_positions: dict[str, set[int]] = defaultdict(set)
+    all_tokens_by_test: list[frozenset[str]] = []
+    for position, test in enumerate(tests):
+        all_tokens_by_test.append(test.name_tokens | test.body_tokens)
+        for token in test.name_tokens:
+            name_token_positions[token].add(position)
+        for token in test.body_tokens:
+            body_token_positions[token].add(position)
+        for import_path in test.imports:
+            _, dot, leaf = import_path.rpartition(".")
+            if dot:
+                import_leaf_positions[leaf].add(position)
+
+    @cache
+    def mapped_for(source_path: str) -> frozenset[int]:
+        matched: set[int] = set()
+        for mapping_index, mapping in enumerate(config.mapping):
+            if glob_matches(source_path, mapping.source):
+                matched |= tests_by_mapping[mapping_index]
+        return frozenset(matched)
+
+    @cache
+    def mirrored_for(source_path: str) -> frozenset[int]:
+        return frozenset(
+            position for position, test in enumerate(tests) if _mirrored(source_path, test.path)
+        )
+
+    @cache
+    def module_imported_for(module: str) -> frozenset[int]:
         module_prefix = f"{module}."
         module_suffix = f".{module}"
-        symbol_suffix = f".{symbol_token}"
-        category_terms = CATEGORY_PROFILES[candidate.category].test_terms
-        mapped_positions: set[int] = set()
-        for mapping_index, mapping in enumerate(config.mapping):
-            if glob_matches(candidate.path, mapping.source):
-                mapped_positions |= tests_by_mapping[mapping_index]
-        ranked: list[CandidateTest] = []
-        for test_position, test in enumerate(index.tests):
-            score = 0.0
-            reasons: list[str] = []
-            structural = False
-            if test_position in mapped_positions:
-                score += 0.30
-                reasons.append("explicit configured mapping")
-                structural = True
-            if _mirrored(candidate.path, test.path):
-                score += 0.25
-                reasons.append("mirrored source/test path")
-                structural = True
+        return frozenset(
+            position
+            for position, test in enumerate(tests)
             if any(
                 imported == module
                 or imported.startswith(module_prefix)
                 or module.startswith(f"{imported}.")
                 or imported.endswith(module_suffix)
-                or imported.endswith(symbol_suffix)
                 for imported in test.imports
-            ):
+            )
+        )
+
+    @cache
+    def terminology_for(category: BehaviorCategory) -> frozenset[int]:
+        terms = CATEGORY_PROFILES[category].test_terms
+        return frozenset(
+            position for position, tokens in enumerate(all_tokens_by_test) if terms & tokens
+        )
+
+    for candidate_index, candidate in enumerate(candidates):
+        symbol_token = candidate.symbol.rsplit(".", 1)[-1].casefold()
+        module = _module_name(candidate.path).casefold()
+        mapped = mapped_for(candidate.path)
+        mirrored = mirrored_for(candidate.path)
+        empty: set[int] = set()
+        imported = module_imported_for(module) | (
+            import_leaf_positions.get(symbol_token, empty) if symbol_token else empty
+        )
+        named = name_token_positions.get(symbol_token, empty) if symbol_token else empty
+        bodied = body_token_positions.get(symbol_token, empty) if symbol_token else empty
+        terminology = terminology_for(candidate.category)
+        ranked: list[CandidateTest] = []
+        # Only a structural hit can produce a candidate, so tests outside this union would
+        # score identically to being skipped. Terminology alone never clears the threshold.
+        for test_position in sorted(mapped | mirrored | imported | named | bodied):
+            test = tests[test_position]
+            score = 0.0
+            reasons: list[str] = []
+            if test_position in mapped:
+                score += 0.30
+                reasons.append("explicit configured mapping")
+            if test_position in mirrored:
+                score += 0.25
+                reasons.append("mirrored source/test path")
+            if test_position in imported:
                 score += 0.25
                 reasons.append("direct module or symbol import")
-                structural = True
-            if symbol_token and symbol_token in test.name_tokens:
+            if test_position in named:
                 score += 0.20
                 reasons.append("changed symbol token in test name")
-                structural = True
-            if symbol_token and symbol_token in test.body_tokens:
+            if test_position in bodied:
                 score += 0.10
                 reasons.append("changed symbol token in bounded test body")
-                structural = True
-            if category_terms & all_tokens_by_test[test_position]:
+            if test_position in terminology:
                 score += 0.10
                 reasons.append("behavior-category terminology")
             score = min(1.0, score)
-            if structural and score >= 0.35:
+            if score >= 0.35:
                 ranked.append(
                     CandidateTest(
                         path=test.path,

@@ -55,11 +55,15 @@ line-length = 100
 extend-exclude = [".venv", ".pytest_tmp", "dist", "tests/fixtures/repositories"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "B", "UP", "PTH", "RUF"]
+select = ["E", "F", "W", "I", "B", "UP", "PTH", "RUF", "S"]
 ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["S101", "PLR2004"]
+# Asserts are the point of a test. S105/S108 are deliberately fake credentials and path
+# literals used as redaction and path-validation fixtures; S603 is the shell-free, argument-
+# list-only subprocess boundary these harnesses build by hand, as production code does.
+"tests/**/*.py" = ["S101", "S105", "S108", "S603"]
+"scripts/*.py" = ["S101", "S603"]
 
 [tool.mypy]
 python_version = "3.11"

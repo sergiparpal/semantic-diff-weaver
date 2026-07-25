@@ -57,6 +57,7 @@ SIDE_EFFECT_TERMS = (
     "enqueue",
 )
 
+COMPARISON_OPERATORS = ("<", ">", "==", "!=")
 Classification = tuple[BehaviorCategory, str, str, float, list[str], str]
 Classifier = Callable[[StructuralDelta, RulesConfig, str], Classification | None]
 
@@ -248,7 +249,11 @@ def _classify_condition(
 ) -> Classification | None:
     if delta.kind != "condition_change":
         return None
-    if any(operator in combined for operator in ("<", ">", "==", "!=")):
+    # Probe only the changed expressions, never the symbol name. Synthetic names such as
+    # ``<module>`` and ``<unparsed>`` contain angle brackets, so including them here made every
+    # module-scope condition look like a comparison and shadowed the auth and validation rules.
+    expressions = " ".join(filter(None, (delta.old, delta.new)))
+    if any(operator in expressions for operator in COMPARISON_OPERATORS):
         category = (
             BehaviorCategory.RETRY_TIMEOUT
             if _contains(combined, RETRY_TERMS)

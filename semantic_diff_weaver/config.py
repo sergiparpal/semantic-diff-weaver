@@ -20,6 +20,37 @@ MAX_YAML_DEPTH = 50
 MAX_YAML_ALIASES = 100
 
 
+class _BoundedSafeLoader(yaml.SafeLoader):
+    """A ``SafeLoader`` that enforces the node, depth, and alias budgets while composing.
+
+    The budgets used to be measured by a separate ``yaml.parse`` pass before ``safe_load``,
+    which parsed every configuration file twice. Composing is the single point every node
+    passes through, so counting here bounds the same untrusted input in one pass.
+    """
+
+    def __init__(self, stream: str) -> None:
+        super().__init__(stream)
+        self._depth = 0
+        self._nodes = 0
+        self._aliases = 0
+
+    def compose_node(self, parent: yaml.nodes.Node | None, index: object) -> yaml.nodes.Node:
+        self._nodes += 1
+        if self._nodes > MAX_YAML_EVENTS:
+            raise _configuration_error("The YAML configuration exceeds its event limit.")
+        if self.check_event(yaml.AliasEvent):
+            self._aliases += 1
+            if self._aliases > MAX_YAML_ALIASES:
+                raise _configuration_error("The YAML configuration exceeds its alias limit.")
+        self._depth += 1
+        if self._depth > MAX_YAML_DEPTH:
+            raise _configuration_error("The YAML configuration exceeds its depth limit.")
+        try:
+            return super().compose_node(parent, index)
+        finally:
+            self._depth -= 1
+
+
 def _configuration_error(message: str) -> WeaverError:
     return WeaverError(
         ErrorCode.CONFIGURATION_ERROR,
@@ -84,22 +115,9 @@ def _read_yaml(path: Path, *, containment_root: Path | None = None) -> dict[str,
         raise _configuration_error("The configuration file exceeds the 262144-byte limit.")
     try:
         content = resolved.read_text(encoding="utf-8")
-        depth = 0
-        aliases = 0
-        for event_count, event in enumerate(yaml.parse(content, Loader=yaml.SafeLoader), start=1):
-            if event_count > MAX_YAML_EVENTS:
-                raise _configuration_error("The YAML configuration exceeds its event limit.")
-            if isinstance(event, (yaml.MappingStartEvent, yaml.SequenceStartEvent)):
-                depth += 1
-                if depth > MAX_YAML_DEPTH:
-                    raise _configuration_error("The YAML configuration exceeds its depth limit.")
-            elif isinstance(event, (yaml.MappingEndEvent, yaml.SequenceEndEvent)):
-                depth -= 1
-            elif isinstance(event, yaml.AliasEvent):
-                aliases += 1
-                if aliases > MAX_YAML_ALIASES:
-                    raise _configuration_error("The YAML configuration exceeds its alias limit.")
-        loaded = yaml.safe_load(content)
+        # Bounded subclass of SafeLoader: it adds budget enforcement and no constructors,
+        # so it cannot instantiate arbitrary objects.
+        loaded = yaml.load(content, Loader=_BoundedSafeLoader)  # noqa: S506
     except WeaverError:
         raise
     except (MemoryError, OSError, RecursionError, UnicodeError, yaml.YAMLError) as exc:
@@ -149,7 +167,10 @@ def load_config(repo_root: Path, request: AnalyzeRequest) -> tuple[WeaverConfig,
         ]
     if request_override["paths"]:
         data = _merge(data, request_override)
-    if data.get("language", {}).get("primary") != "python":
+    language = data.get("language", {})
+    if not isinstance(language, dict):
+        raise _configuration_error("The language section must be a mapping.")
+    if language.get("primary") != "python":
         raise WeaverError(
             ErrorCode.UNSUPPORTED_LANGUAGE,
             "The configured primary language is not supported by this MVP.",

@@ -195,9 +195,11 @@ def generate_obligations(
         behavior for behavior in behaviors if behavior.risk in {RiskLabel.HIGH, RiskLabel.CRITICAL}
     ]
     required: list[TestObligation] = []
+    required_ids: set[int] = set()
     for behavior in required_behaviors:
         obligation = next(item for item in ordered if behavior.id in item.behavior_change_ids)
-        if obligation not in required:
+        if id(obligation) not in required_ids:
+            required_ids.add(id(obligation))
             required.append(obligation)
     if len(required) > maximum:
         selected = [
@@ -211,8 +213,11 @@ def generate_obligations(
             ),
         ]
     else:
+        # Identity, not value equality: obligations are Pydantic models whose comparison is
+        # field-wise, and reading a list while extend appends to it is too subtle to rely on.
         selected = list(required)
-        selected.extend(item for item in ordered if item not in selected)
+        taken = {id(item) for item in selected}
+        selected.extend(item for item in ordered if id(item) not in taken)
         selected = selected[:maximum]
     # Count what was generated and then dropped. The grouped overflow obligation is synthetic,
     # so it is deliberately not credited as having emitted the behaviors it merely links.

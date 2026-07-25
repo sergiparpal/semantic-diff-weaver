@@ -33,6 +33,9 @@ def parse_name_status(raw: bytes) -> list[ChangedFile]:
         old_path: str | None
         new_path: str | None
         if code in {"R", "C"}:
+            # A rename or copy record needs both paths; a truncated pair is not a usable record.
+            if index + 1 >= len(fields):
+                break
             old_path = normalize_repo_path(fields[index].decode("utf-8", errors="strict"))
             new_path = normalize_repo_path(fields[index + 1].decode("utf-8", errors="strict"))
             index += 2
@@ -58,8 +61,13 @@ def parse_numstat(raw: bytes) -> tuple[dict[str, tuple[int, int, bool]], int]:
             continue
         add_raw, delete_raw, path_raw = pieces
         binary = add_raw == b"-" or delete_raw == b"-"
-        additions = 0 if binary else int(add_raw)
-        deletions = 0 if binary else int(delete_raw)
+        try:
+            additions = 0 if binary else int(add_raw)
+            deletions = 0 if binary else int(delete_raw)
+        except ValueError:
+            # Git metadata is untrusted input; a malformed count must not escape as a bare
+            # ValueError, which the tool boundary can only report as an opaque internal error.
+            continue
         if path_raw:
             path = normalize_repo_path(path_raw.decode("utf-8", errors="strict"))
         else:

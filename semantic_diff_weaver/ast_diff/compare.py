@@ -296,6 +296,8 @@ def compare_symbol(
                 materiality=round(max(0.0, 1.0 - symbol_similarity(old, new)), 3),
             )
         )
+    # ``not result`` is load-bearing, not redundant with the branch above: that branch's own
+    # condition is a conjunction, so this one is reached whenever ``result`` is non-empty too.
     elif old.fingerprint != new.fingerprint and not result:
         result.append(
             make_structural_delta(

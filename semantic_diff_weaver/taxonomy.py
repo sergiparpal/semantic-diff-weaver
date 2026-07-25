@@ -312,6 +312,16 @@ class CategoryProfile:
     test_terms: frozenset[str]
 
 
+_incomplete = sorted(
+    category.value
+    for category in BehaviorCategory
+    if category not in _IMPACT or category not in _SCENARIOS or category not in _TEST_TERMS
+)
+# Must precede the registry below: an incomplete taxonomy would otherwise surface as a bare
+# KeyError from the comprehension rather than as this named, actionable failure.
+if _incomplete:  # pragma: no cover - guards a taxonomy edit, not a runtime input
+    raise RuntimeError(f"BehaviorCategory values without a complete profile: {_incomplete}")
+
 CATEGORY_PROFILES: dict[BehaviorCategory, CategoryProfile] = {
     category: CategoryProfile(
         impact=_IMPACT[category],
@@ -320,11 +330,3 @@ CATEGORY_PROFILES: dict[BehaviorCategory, CategoryProfile] = {
     )
     for category in BehaviorCategory
 }
-
-_incomplete = sorted(
-    category.value
-    for category in BehaviorCategory
-    if category not in _IMPACT or category not in _SCENARIOS or category not in _TEST_TERMS
-)
-if _incomplete:  # pragma: no cover - guards a taxonomy edit, not a runtime input
-    raise RuntimeError(f"BehaviorCategory values without a complete profile: {_incomplete}")

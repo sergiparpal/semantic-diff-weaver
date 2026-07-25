@@ -55,9 +55,24 @@ def decorator_name(node: ast.AST) -> str:
     return redact_text(call_name(target), max_chars=120)
 
 
+TYPE_PARAMS_FIELD = "type_params"
+
+
+def type_parameters(node: ast.AST) -> str:
+    """Return a symbol's PEP 695 type parameters, which only exist on Python 3.12 and later.
+
+    Read dynamically rather than as an attribute so this module keeps parsing on 3.11, where
+    the field does not exist and the syntax cannot be written in the first place.
+    """
+    params = getattr(node, TYPE_PARAMS_FIELD, ())
+    if not params:
+        return ""
+    return f"[{', '.join(unparse_redacted(item, 120) for item in params)}]"
+
+
 def function_signature(node: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
     """Normalize the complete callable signature, including its return annotation."""
-    signature = f"({unparse_redacted(node.args, 900)})"
+    signature = f"{type_parameters(node)}({unparse_redacted(node.args, 900)})"
     if node.returns is not None:
         signature += f" -> {unparse_redacted(node.returns, 300)}"
     if node.type_comment:
@@ -244,7 +259,8 @@ def snapshot_symbol(node: ast.AST, qualified_name: str, kind: str) -> SymbolSnap
         defaults = default_map(node)
         decorators = tuple(decorator_name(item) for item in node.decorator_list)
     elif isinstance(node, ast.ClassDef):
-        signature = f"bases({', '.join(unparse_redacted(item, 120) for item in node.bases)})"
+        bases = ", ".join(unparse_redacted(item, 120) for item in node.bases)
+        signature = f"{type_parameters(node)}bases({bases})"
         defaults = {}
         decorators = tuple(decorator_name(item) for item in node.decorator_list)
     else:
@@ -298,6 +314,10 @@ def extract_symbols(source: str, budget: AstBudget | None = None) -> list[Symbol
                 )
                 ast.copy_location(class_shell, statement)
                 class_shell.end_lineno = statement.end_lineno
+                # The shell exists only to drop nested definitions from the body fingerprint,
+                # so every other behavior-bearing field must survive the rebuild.
+                if hasattr(statement, TYPE_PARAMS_FIELD):
+                    setattr(class_shell, TYPE_PARAMS_FIELD, getattr(statement, TYPE_PARAMS_FIELD))
                 record(snapshot_symbol(class_shell, name, "class"))
                 walk(statement.body, name, parent_is_class=True)
             elif isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -330,7 +350,3 @@ def extract_symbols(source: str, budget: AstBudget | None = None) -> list[Symbol
 
     walk(tree.body, "")
     return symbols
-
-
-_call_name = call_name
-_validate_ast_budget = _validate_ast_budget

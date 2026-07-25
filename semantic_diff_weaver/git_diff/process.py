@@ -23,8 +23,16 @@ def run_bounded_process(
     input_data: bytes | None,
     max_bytes: int,
 ) -> subprocess.CompletedProcess[bytes]:
-    """Drain both pipes concurrently and stop the child as soon as either cap is exceeded."""
-    process = subprocess.Popen(
+    """Drain both pipes concurrently and stop the child as soon as either cap is exceeded.
+
+    The child is owned by a context manager so its pipes close deterministically. Without it
+    the reader ends stayed open until refcounting collected the ``Popen``, which leaked a
+    ``ResourceWarning`` per stream on every Git invocation.
+    """
+    # Audited subprocess boundary: shell=False with an argument list, never a string. The
+    # executable is resolved through shutil.which and every argument is built by repository.py
+    # from validated refs, object IDs, and literal pathspecs — never interpolated by a shell.
+    with subprocess.Popen(  # noqa: S603
         command,
         cwd=cwd,
         env=env,
@@ -33,7 +41,18 @@ def run_bounded_process(
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         bufsize=0,
-    )
+    ) as process:
+        return _drain_bounded_process(process, input_data=input_data, max_bytes=max_bytes)
+
+
+def _drain_bounded_process(
+    process: subprocess.Popen[bytes],
+    *,
+    input_data: bytes | None,
+    max_bytes: int,
+) -> subprocess.CompletedProcess[bytes]:
+    """Collect one already-started child's bounded output, killing it if a cap is exceeded."""
+    command = process.args
     stdout = bytearray()
     stderr = bytearray()
     overflow = threading.Event()

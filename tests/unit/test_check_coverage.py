@@ -47,6 +47,7 @@ def test_coverage_policy_aggregates_package_branch_coverage(tmp_path: Path, monk
     report = {
         "totals": {"percent_covered": 95.0},
         "files": {
+            "semantic_diff_weaver/ast_diff/match.py": _file_entry(),
             "semantic_diff_weaver/config.py": _file_entry(),
             "semantic_diff_weaver/errors.py": _file_entry(),
             "semantic_diff_weaver/git_diff/collect.py": _file_entry(covered=95, total=100),

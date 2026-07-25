@@ -42,8 +42,13 @@ privacy:
   allow_network: false
 ```
 
-Critical paths use `{pattern, weight}` entries. Mapping entries use `{source, tests}` and influence
-only static candidate ranking. YAML is size-bounded and loaded with `safe_load`. Unknown sections,
+Critical paths use `{pattern, weight}` entries. A path matched by no pattern contributes a
+default weight of 10 to the risk score, so an explicit `weight: 0` entry ranks a path *below* one
+that is not listed at all: listing a path at zero asserts it is not critical, which is a stronger
+statement than silence. Use it to deprioritize generated or legacy trees, and simply omit paths you
+have no opinion about. Mapping entries use `{source, tests}` and influence only static candidate
+ranking. YAML is size-bounded and loaded with a `SafeLoader` subclass that enforces node, depth, and
+alias budgets in a single composing pass. Unknown sections,
 custom tags, unsupported versions/languages, invalid ranges, duplicate mapping sources, absolute
 patterns, drive paths, NULs, and parent traversal are rejected. Repository-local configuration and
 every file it resolves through must remain inside the repository after symlink resolution; an

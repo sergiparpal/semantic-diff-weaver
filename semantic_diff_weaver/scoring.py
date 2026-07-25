@@ -61,7 +61,12 @@ def score_risk(
     candidate_tests: list[CandidateTest],
     critical_paths: Sequence[WeightedPattern],
 ) -> tuple[int, RiskLabel, ScoreExplanation]:
-    """Score one candidate's risk from its own evidence and the configured critical paths."""
+    """Score one candidate's risk from its own evidence and the configured critical paths.
+
+    The critical-path axis defaults to 10 for an unmatched path, so an explicit ``weight: 0``
+    entry scores *below* leaving a path unconfigured. That asymmetry is deliberate — listing a
+    path at zero is a statement that it is not critical, which is stronger than saying nothing.
+    """
     impact = CATEGORY_PROFILES[candidate.category].impact
     if candidate.symbol.rsplit(".", 1)[-1].startswith("_"):
         impact = max(0, impact - 8)

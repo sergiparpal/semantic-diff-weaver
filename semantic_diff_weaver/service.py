@@ -264,10 +264,12 @@ def _collect_scope(
     changed_symbols = ast_result.changed_symbols
     if changed_symbols > config.rules.max_changed_symbols:
         deltas, omitted_count = _prioritize_deltas(deltas, config.rules.max_changed_symbols, config)
-        state.record_omitted("changed_symbol_limit", omitted_count, scope=True, confidence=True)
-        changed_symbols = config.rules.max_changed_symbols
+        # Reaching the cap is itself the truncation, independently of how many symbol groups
+        # the prioritization happened to shed, so the flags are not conditional on the count.
         state.scope_truncated = True
         state.confidence_truncated = True
+        state.record_omitted("changed_symbol_limit", omitted_count)
+        changed_symbols = config.rules.max_changed_symbols
     return deltas, changed_symbols, incomplete_exclusions
 
 
@@ -280,13 +282,13 @@ def _filter_reportable(
     low_confidence_omitted = 0
     refactors_omitted = 0
     for candidate in candidates:
-        confidence = confidence_score(candidate, truncated=state.confidence_truncated)
         if (
             candidate.category is BehaviorCategory.REFACTOR
             and not config.rules.emit_low_risk_refactors
         ):
             refactors_omitted += 1
             continue
+        confidence = confidence_score(candidate, truncated=state.confidence_truncated)
         if confidence < config.rules.minimum_report_confidence:
             low_confidence_omitted += 1
             continue

@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+- **Fix:** classify module-scope and unparsed condition changes by their changed expressions
+  instead of their symbol name. The synthetic names `<module>` and `<unparsed>` contain angle
+  brackets, which the comparison-operator probe read as `<` and `>`, so every such condition was
+  forced to `boundary_change` or `retry_timeout_change` and could never reach the authorization,
+  validation, or retry-guard rules. A module-scope authorization guard now scores at impact 92
+  rather than 64, with the matching obligation scenarios and candidate-test terminology.
+- **Fix:** report PEP 695 type parameters as part of a callable or class signature. Changing
+  `def f[T]` to `def f[T, U]`, or adding a bound such as `[T: int]`, previously fingerprinted
+  identically, was labelled `structural_refactor`, and was then dropped entirely under the default
+  `emit_low_risk_refactors: false`. Such changes are now `signature_change`.
+- **Fix:** raise a `configuration_error` for a scalar `language:` section. `language: python`
+  previously raised `AttributeError` and surfaced as an opaque `internal_error` with no
+  remediation.
+- **Fix:** own Git child processes with a context manager so their pipes close deterministically.
+  Every Git invocation previously leaked a `ResourceWarning` per stream until refcounting
+  collected the `Popen`.
+- **Fix:** skip malformed `--numstat` counts and truncated rename records instead of raising bare
+  `ValueError`/`IndexError` past the error contract, and tolerate an empty path in
+  `exclusion_reason`.
+- Bound the AST analysis deadline across matching and comparison, not only parsing. Files reached
+  after the deadline are now reported as resource-limited rather than analyzed unbounded.
+- Resolve candidate-test signals into memoized position sets and score only a candidate's
+  structural hits instead of the whole index; dotted imports are matched through a leaf index.
+  Output is unchanged (verified against the previous algorithm over randomized inputs) and the
+  mapping stage is ~2.5x faster at the documented caps.
+- Load configuration YAML through a `SafeLoader` subclass that enforces the node, depth, and alias
+  budgets while composing, replacing a separate counting pass over every file.
+- Move the taxonomy completeness guard ahead of the registry it protects, so an incomplete
+  taxonomy fails with its named error rather than a bare `KeyError`.
+- Enable the `S` (flake8-bandit) lint rules, and hold `ast_diff/` to the 90% critical-module
+  branch-coverage bar.
+
 - Rename the project from `hermes-semantic-diff-weaver` to `semantic-diff-weaver`. The distribution,
   the `semantic_diff_weaver` package, and the plugin entry-point name all drop the `hermes-` prefix.
 - **Breaking:** rename the `HERMES_SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS` environment variable to
