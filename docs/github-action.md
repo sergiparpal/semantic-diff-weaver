@@ -24,7 +24,7 @@ jobs:
   review:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0        # required — see below
       - uses: your-org/semantic-diff-weaver@v0
@@ -38,12 +38,11 @@ jobs:
 `pull-requests: write` to post the comment. Grant nothing more. If `comment: false`, drop
 `pull-requests: write` as well.
 
-Pin third-party actions to a full commit SHA with a version comment, as
-`.github/workflows/ci.yml` in this repository does:
-
-```yaml
-- uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-```
+Every example on this page pins third-party actions to a full commit SHA with a version
+comment, as `.github/workflows/ci.yml` and `.github/workflows/pr-review.yml` in this repository
+do. A moving tag such as `@v7` is a mutable reference: whoever controls it can change what runs
+inside a job that holds `pull-requests: write`. Copy the examples as written, and update the
+SHAs deliberately.
 
 ## `fetch-depth: 0` is required
 
@@ -83,10 +82,10 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - run: pip install -e . pytest pytest-cov
       - run: pytest --cov --cov-report=json:coverage.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: coverage
           path: coverage.json
@@ -95,10 +94,10 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           name: coverage
       - uses: your-org/semantic-diff-weaver@v0

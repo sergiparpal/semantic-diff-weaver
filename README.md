@@ -136,7 +136,7 @@ jobs:
   review:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0        # required: the analyzer reads committed objects and never fetches
       - uses: your-org/semantic-diff-weaver@v0
@@ -145,8 +145,9 @@ jobs:
 ```
 
 Re-runs **edit** the existing comment rather than appending a new one, matched on a hidden
-marker. Inputs, the fork-pull-request caveat, and how to pass a coverage report from a prior
-job are in [docs/github-action.md](docs/github-action.md).
+marker. Third-party actions are pinned to a full commit SHA because a moving tag is mutable and
+this job holds `pull-requests: write`. Inputs, the fork-pull-request caveat, and how to pass a
+coverage report from a prior job are in [docs/github-action.md](docs/github-action.md).
 
 ## Install and enable the Hermes plugin
 
