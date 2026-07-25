@@ -36,7 +36,6 @@
   taxonomy fails with its named error rather than a bare `KeyError`.
 - Enable the `S` (flake8-bandit) lint rules, and hold `ast_diff/` to the 90% critical-module
   branch-coverage bar.
-
 - Rename the project from `hermes-semantic-diff-weaver` to `semantic-diff-weaver`. The distribution,
   the `semantic_diff_weaver` package, and the plugin entry-point name all drop the `hermes-` prefix.
 - **Breaking:** rename the `HERMES_SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS` environment variable to

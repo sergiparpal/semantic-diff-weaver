@@ -48,10 +48,12 @@ that is not listed at all: listing a path at zero asserts it is not critical, wh
 statement than silence. Use it to deprioritize generated or legacy trees, and simply omit paths you
 have no opinion about. Mapping entries use `{source, tests}` and influence only static candidate
 ranking. YAML is size-bounded and loaded with a `SafeLoader` subclass that enforces node, depth, and
-alias budgets in a single composing pass. Unknown sections,
-custom tags, unsupported versions/languages, invalid ranges, duplicate mapping sources, absolute
-patterns, drive paths, NULs, and parent traversal are rejected. Repository-local configuration and
-every file it resolves through must remain inside the repository after symlink resolution; an
+alias budgets in a single composing pass. Unknown sections, custom tags, unsupported versions, a
+scalar where a section is expected (`language: python` rather than a `language:` mapping with
+`primary: python`), invalid ranges, duplicate mapping sources, absolute patterns, drive paths, NULs,
+and parent traversal are rejected as `configuration_error`; an unsupported `language.primary` is
+rejected as `unsupported_language`. Repository-local configuration and every file it resolves
+through must remain inside the repository after symlink resolution; an
 explicitly named external `risk_profile` is the only exception to repository containment. It must
 still remain inside a host-authorized workspace root. The default authorized root is the process
 working directory; trusted operators can provide additional roots through the path-separator-delimited
@@ -72,7 +74,9 @@ truncated.
 AST processing applies tighter independent ceilings before structural matching: 1,000,000 UTF-8
 bytes per file version, 16 MiB of aggregate source, 50,000 nodes and 2,000 symbols per file, 4,000
 retained symbols across the request, bounded similarity candidate windows, and a cooperative
-10-second analysis deadline. Exceeding one produces explicit `ast_resource_limit` scope.
+10-second analysis deadline that spans parsing, matching, and comparison. Reaching the deadline
+counts as spending it, so a zero budget bounds the run immediately. Exceeding any ceiling produces
+explicit `ast_resource_limit` scope.
 
 Candidate-test indexing also has non-configurable safety ceilings of 500 test files and 8 MiB of
 aggregate UTF-8 test source. These ceilings cannot be expanded by repository configuration. Reaching

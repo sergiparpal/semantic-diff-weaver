@@ -19,9 +19,18 @@ The `ast_diff/` package parses text with the Python AST without importing target
 the `SourceRevisionPair` contract in `source.py` rather than Git types, so structural analysis does not
 depend on Git and its safety budgets are passed in as an explicit `AstBudget`. It inventories module,
 class, function, async-function, method, and async-method symbols; normalizes complete signatures
-including return annotations; retains only decorator names; preserves overload-like duplicate
-definitions; and correlates conservative moves across files that both remain. Deterministic rules
-create evidence before model use. `semantic_interpreter.py` sends bounded, delimited evidence through
+including return annotations and PEP 695 type parameters on both callables and classes; retains only
+decorator names; preserves overload-like duplicate definitions; and correlates conservative moves
+across files that both remain. The `AstBudget` wall-clock deadline is checked between the parse,
+matching, and comparison phases and counts as spent once reached, so a coarse platform clock cannot
+let an exhausted budget read as live.
+
+Deterministic rules create evidence before model use. Their term-based probes read the changed
+expressions together with the symbol name, because names carry authorization, validation, and retry
+meaning. The comparison-operator probe is the exception: it reads the changed expressions alone,
+since the synthetic `<module>` and `<unparsed>` names contain angle brackets and would otherwise
+force every module-scope or unparsed condition into a boundary or retry finding ahead of the
+guard rules. `semantic_interpreter.py` sends bounded, delimited evidence through
 `ctx.llm.complete_structured`, locally validates output, rejects fabricated evidence IDs, and cannot
 initiate actions. Evidence is batched by module and shared changed dependency calls, prioritized by
 configured critical paths, bounded per symbol and per call, and retried once only for explicitly

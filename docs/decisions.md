@@ -39,6 +39,29 @@ The CI compatibility matrix installs Hermes 0.14.0 and 0.18.2 with the built plu
 repeats both real discovery paths for each version. The regular fake-context suite continues to
 validate registration without requiring Hermes or a live model.
 
+## Output-affecting corrections (2026-07-25)
+
+These change what an existing repository is reported as, so they are recorded here rather than only
+in the changelog.
+
+- Conditions are classified by their changed expressions, never by the enclosing symbol name. The
+  synthetic `<module>` and `<unparsed>` names were read as containing `<` and `>` comparison
+  operators, forcing every module-scope or unparsed condition to `boundary_change` or
+  `retry_timeout_change` ahead of the authorization, validation, and retry-guard rules. A
+  module-scope authorization guard now reports impact 92 instead of 64, with the obligation
+  scenarios and candidate-test terminology that follow from the corrected category.
+- PEP 695 type parameters are part of the signature contract for both callables and classes.
+  `def f[T]` to `def f[T, U]`, or an added bound such as `[T: int]`, previously fingerprinted
+  identically, was labelled `structural_refactor`, and was then dropped under the default
+  `emit_low_risk_refactors: false`. Such changes are now `signature_change`.
+- A scalar `language:` section is a `configuration_error` with remediation text instead of an
+  `AttributeError` surfacing as an opaque `internal_error`.
+- The AST analysis deadline bounds matching and comparison as well as parsing, and is reached
+  inclusively, so a spent or zero budget stops work on platforms with a coarse monotonic clock.
+- The reviewed evaluation goldens required no regeneration: no corpus case contains a module-scope
+  condition or PEP 695 syntax. Schema version, taxonomy values, error codes, and evidence IDs are
+  unchanged.
+
 ## Release note
 
 The repository is licensed under MIT. Publishing or pushing remains a separately authorized action.

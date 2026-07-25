@@ -23,11 +23,11 @@ Use Python 3.11 or newer and install the exact development versions from `requir
 
 ## Coding Style & Naming Conventions
 
-Use four-space indentation, explicit UTF-8 encodings, type annotations, and a 100-character line target. Ruff is authoritative. Use `snake_case` for modules and functions, `PascalCase` for classes and Pydantic models, and `UPPER_SNAKE_CASE` for constants. Preserve stable error codes, schemas, taxonomy values, and evidence IDs.
+Use four-space indentation, explicit UTF-8 encodings, type annotations, and a 100-character line target. Ruff is authoritative, and its lint set includes flake8-bandit (`S`); the only exemptions are the documented per-file ignores for tests and scripts in `pyproject.toml`. Use `snake_case` for modules and functions, `PascalCase` for classes and Pydantic models, and `UPPER_SNAKE_CASE` for constants. Preserve stable error codes, schemas, taxonomy values, and evidence IDs.
 
 ## Testing Guidelines
 
-Pytest files and functions use `test_*.py` and `test_*`. Add unit tests for algorithms, contract tests for interfaces, and integration tests for end-to-end behavior. Security-sensitive changes require adversarial regressions. Maintain at least 85% overall coverage and 90% branch coverage for critical boundary and transport modules. Tests must be offline and deterministic; use fake Hermes LLM responses.
+Pytest files and functions use `test_*.py` and `test_*`. Add unit tests for algorithms, contract tests for interfaces, and integration tests for end-to-end behavior. Security-sensitive changes require adversarial regressions. Maintain at least 85% overall coverage and 90% branch coverage for every critical module named in `scripts/check_coverage.py` — the boundary and transport modules plus the `ast_diff/` and `git_diff/` packages. Tests must be offline and deterministic; use fake Hermes LLM responses.
 
 ## Commit & Pull Request Guidelines
 

@@ -15,7 +15,11 @@ import.
 - Base/head refs are resolved to full commits before diff and blob commands.
 - Git uses argument arrays, `shell=False`, timeouts, bounded input/output, noninteractive operation,
   disabled lazy object fetching and replacement objects, a scrubbed Git-specific environment,
-  literal untrusted pathspecs, `--no-ext-diff`, and `--no-textconv` where relevant.
+  literal untrusted pathspecs, `--no-ext-diff`, and `--no-textconv` where relevant. Each child is
+  owned for the length of the call so its pipes close deterministically rather than at collection.
+- Malformed Git metadata is treated as untrusted input rather than raising past the declared error
+  contract: an unparseable `--numstat` count skips that record, and a truncated rename pair ends
+  the record stream.
 - Caller-selected repository and profile paths must resolve below bounded host-authorized workspace
   roots; the process working directory is the secure default.
 - Every Git/config path is normalized and checked; VCS metadata, traversal, absolute/drive/UNC paths,
@@ -27,8 +31,10 @@ import.
 - Sensitive assignments, authorization values, credential-bearing URIs, common tokens, and private
   keys are redacted before evidence, model input, generated prose, output, or errors.
 - Decorator arguments are never retained as evidence; only bounded decorator names are recorded.
-- AST node count, depth, extracted symbols, and similarity candidates have immutable budgets; files
-  exceeding a budget fail closed with explicit incomplete scope.
+- AST node count, depth, extracted symbols, similarity candidates, and a cooperative wall-clock
+  deadline covering parsing, matching, and comparison have immutable budgets; files exceeding a
+  budget fail closed with explicit incomplete scope. A deadline that has been reached is spent, so
+  platform clock granularity cannot extend the budget.
 - Candidate-test indexing is bounded by per-file size and aggregate file/byte ceilings; reaching an
   aggregate ceiling marks mapping incomplete instead of silently claiming a complete index.
 - Model input separates trusted instructions from delimited untrusted evidence. Output may reference
