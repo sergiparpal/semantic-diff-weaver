@@ -1,0 +1,151 @@
+name: Semantic Diff Weaver
+description: >-
+  Analyze the behavioral meaning of a pull request's committed diff and post evidence-backed,
+  risk-ranked test obligations as a single pull-request comment. Read-only: never executes,
+  imports, builds, installs, or modifies the analyzed repository.
+author: Semantic Diff Weaver contributors
+
+branding:
+  icon: git-pull-request
+  color: purple
+
+# Composite rather than Docker on purpose: no image to publish, a faster cold start, and the
+# dependency surface stays visible in this file instead of inside a registry artifact.
+inputs:
+  base-ref:
+    description: Base revision. Defaults to the pull request's base commit.
+    required: false
+    default: ${{ github.event.pull_request.base.sha }}
+  head-ref:
+    description: Head revision. Defaults to the pull request's head commit.
+    required: false
+    default: ${{ github.event.pull_request.head.sha }}
+  include:
+    description: Newline-separated include globs.
+    required: false
+    default: ""
+  exclude:
+    description: Newline-separated exclude globs.
+    required: false
+    default: ""
+  coverage-report:
+    description: >-
+      Path to a coverage.py JSON or lcov .info report produced by an earlier job. The action
+      consumes a report and never produces one.
+    required: false
+    default: ""
+  risk-profile:
+    description: Path to an additional bounded YAML configuration file.
+    required: false
+    default: ""
+  fail-on:
+    description: Fail the step when overall risk reaches this level (none, low, medium, high, critical).
+    required: false
+    default: "none"
+  comment:
+    description: Post or update the pull-request comment.
+    required: false
+    default: "true"
+  python-version:
+    description: Python version used to run the analyzer.
+    required: false
+    default: "3.12"
+
+outputs:
+  analysis:
+    description: Path to the canonical JSON envelope written under RUNNER_TEMP.
+    value: ${{ steps.analyze.outputs.analysis }}
+  overall-risk:
+    description: Overall risk label for the analyzed diff.
+    value: ${{ steps.analyze.outputs.overall-risk }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install the analyzer
+      shell: bash
+      run: python -m pip install --disable-pip-version-check "${{ github.action_path }}"
+
+    - name: Verify the base revision is present
+      shell: bash
+      env:
+        BASE_REF: ${{ inputs.base-ref }}
+        HEAD_REF: ${{ inputs.head-ref }}
+      run: |
+        set -euo pipefail
+        if [ -z "${BASE_REF}" ]; then
+          echo "::error::base-ref is empty. Set it explicitly when the event is not a pull_request." >&2
+          exit 1
+        fi
+        for ref in "${BASE_REF}" "${HEAD_REF}"; do
+          [ -z "${ref}" ] && continue
+          if ! git cat-file -e "${ref}^{commit}" 2>/dev/null; then
+            echo "::error::Revision '${ref}' is not present locally. Check out with actions/checkout and fetch-depth: 0 — the analyzer reads committed Git objects and never fetches." >&2
+            exit 1
+          fi
+        done
+
+    - name: Analyze the diff
+      id: analyze
+      shell: bash
+      env:
+        BASE_REF: ${{ inputs.base-ref }}
+        HEAD_REF: ${{ inputs.head-ref }}
+        INCLUDE_GLOBS: ${{ inputs.include }}
+        EXCLUDE_GLOBS: ${{ inputs.exclude }}
+        COVERAGE_REPORT: ${{ inputs.coverage-report }}
+        RISK_PROFILE: ${{ inputs.risk-profile }}
+        FAIL_ON: ${{ inputs.fail-on }}
+      run: |
+        set -uo pipefail
+        envelope="${RUNNER_TEMP}/semantic-diff-weaver.json"
+        args=(--repo . --base "${BASE_REF}" --format both --fail-on "${FAIL_ON}")
+        [ -n "${HEAD_REF}" ] && args+=(--head "${HEAD_REF}")
+        [ -n "${COVERAGE_REPORT}" ] && args+=(--coverage "${COVERAGE_REPORT}")
+        [ -n "${RISK_PROFILE}" ] && args+=(--risk-profile "${RISK_PROFILE}")
+        while IFS= read -r glob; do
+          [ -n "${glob}" ] && args+=(--include "${glob}")
+        done <<< "${INCLUDE_GLOBS}"
+        while IFS= read -r glob; do
+          [ -n "${glob}" ] && args+=(--exclude "${glob}")
+        done <<< "${EXCLUDE_GLOBS}"
+
+        semantic-diff-weaver "${args[@]}" > "${envelope}"
+        status=$?
+        # 0 success, 3 success but the risk threshold was reached. Both produce a report;
+        # anything else means no usable analysis was written.
+        if [ "${status}" -ne 0 ] && [ "${status}" -ne 3 ]; then
+          echo "::error::semantic-diff-weaver exited with status ${status}." >&2
+          exit "${status}"
+        fi
+        echo "analysis=${envelope}" >> "${GITHUB_OUTPUT}"
+        risk="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["analysis"]["summary"]["overall_risk"])' "${envelope}" 2>/dev/null || echo unknown)"
+        echo "overall-risk=${risk}" >> "${GITHUB_OUTPUT}"
+        echo "SDW_EXIT=${status}" >> "${GITHUB_ENV}"
+
+    - name: Upsert the pull-request comment
+      if: ${{ inputs.comment == 'true' && github.event.pull_request.number }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        ENVELOPE: ${{ steps.analyze.outputs.analysis }}
+      run: |
+        set -euo pipefail
+        python "${{ github.action_path }}/scripts/pr_comment.py" \
+          --envelope "${ENVELOPE}" \
+          --repository "${{ github.repository }}" \
+          --pull-request "${{ github.event.pull_request.number }}"
+
+    - name: Apply the risk threshold
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ "${SDW_EXIT:-0}" = "3" ]; then
+          echo "::error::Overall risk reached the configured fail-on threshold." >&2
+          exit 1
+        fi

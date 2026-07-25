@@ -149,6 +149,37 @@ The no-execute invariant is unchanged. The tool ingests a report the user's own 
 produced, as untrusted input data, and runs nothing to obtain one. Report entries are lookup
 keys; none is ever opened or resolved against the filesystem.
 
+## GitHub Action output format (2026-07-25)
+
+### No SARIF, and no check annotations
+
+The action posts one Markdown pull-request comment and nothing else. This is recorded so the
+choice is not silently revisited.
+
+SARIF's model is a flat list of results, each with a `ruleId`, a `level`, and a location. This
+tool's whole output shape is the opposite: `scoring.py` produces a risk score and a confidence
+score *separately and deliberately*, and `taxonomy.py` exists to keep behavior category,
+observable impact, and obligation type distinct from both. Flattening that into a single
+`level` per result would discard the distinction the analysis is built to express — a
+high-risk/low-confidence finding is presented as a review *question*, not as an error, and
+SARIF has nowhere to put that difference. Check annotations have the same problem plus a
+narrower one: they anchor to a line, and many findings here are about a symbol's contract
+rather than a line.
+
+The Markdown brief from `renderer.py` already carries the obligations, review questions,
+evidence anchors, and stated limitations, in the form they were designed to be read in.
+
+### The comment is upserted, never appended
+
+Idempotency is keyed on a hidden `<!-- semantic-diff-weaver:v1 -->` marker as the comment's
+first line, not on comment authorship or position. A re-run edits. The marker is versioned so a
+future format change can migrate rather than collide.
+
+### The action is composite, not Docker
+
+No image to publish or keep patched, faster cold start, and the dependency surface stays
+readable in `action.yml`. The action contains no analysis logic; it wraps the Stage 3 CLI.
+
 ## Release note
 
 The repository is licensed under MIT. Publishing or pushing remains a separately authorized action.
