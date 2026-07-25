@@ -40,6 +40,19 @@ def main() -> int:
         if "License-Expression: MIT" not in metadata:
             print("wheel metadata does not declare the MIT license", file=sys.stderr)
             return 2
+        entry_points_name = next(
+            (name for name in wheel_names if name.endswith(".dist-info/entry_points.txt")), None
+        )
+        if entry_points_name is None:
+            print("wheel does not declare any entry points", file=sys.stderr)
+            return 2
+        entry_points = archive.read(entry_points_name).decode("utf-8", errors="strict")
+        if "semantic-diff-weaver = semantic_diff_weaver.cli:main" not in entry_points:
+            print("wheel does not declare the semantic-diff-weaver console script", file=sys.stderr)
+            return 2
+        if "semantic-diff-weaver = semantic_diff_weaver.plugin" not in entry_points:
+            print("wheel does not declare the Hermes plugin entry point", file=sys.stderr)
+            return 2
         if not any(name.endswith(".dist-info/licenses/LICENSE") for name in wheel_names):
             print("wheel does not contain LICENSE", file=sys.stderr)
             return 2
@@ -68,6 +81,21 @@ def main() -> int:
             "print(eps[0].value)"
         )
         subprocess.run([str(python), "-c", check], check=True, shell=False)
+        console = (
+            "import importlib.metadata as m; "
+            "eps=list(m.entry_points().select(group='console_scripts', "
+            "name='semantic-diff-weaver')); "
+            "assert len(eps)==1; entry=eps[0].load(); assert callable(entry); "
+            "print(eps[0].value)"
+        )
+        subprocess.run([str(python), "-c", console], check=True, shell=False)
+        script = _environment_python(environment).parent / (
+            "semantic-diff-weaver.exe" if os.name == "nt" else "semantic-diff-weaver"
+        )
+        if not script.exists():
+            print(f"installed environment is missing {script.name}", file=sys.stderr)
+            return 2
+        subprocess.run([str(script), "--help"], check=True, shell=False, capture_output=True)
     return 0
 
 

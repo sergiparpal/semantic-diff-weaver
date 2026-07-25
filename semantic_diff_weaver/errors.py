@@ -5,6 +5,8 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Any
 
+from pydantic import ValidationError
+
 
 class ErrorCode(StrEnum):
     NOT_A_GIT_REPOSITORY = "not_a_git_repository"
@@ -44,3 +46,22 @@ def internal_error() -> WeaverError:
         "The semantic diff analysis failed unexpectedly.",
         "Retry with a narrower diff and enable Hermes plugin debug logs for stage-level details.",
     )
+
+
+def as_public_error(exc: BaseException) -> dict[str, Any]:
+    """Map any analysis failure onto the stable public error payload.
+
+    Shared by every transport — the Hermes handler and the command line — so a caller sees
+    the same code, message, and remediation regardless of how the analysis was started. An
+    unrecognized exception is deliberately flattened to `internal_error`, which never echoes
+    the original text.
+    """
+    if isinstance(exc, WeaverError):
+        return exc.as_dict()
+    if isinstance(exc, ValidationError):
+        return WeaverError(
+            ErrorCode.CONFIGURATION_ERROR,
+            "The tool arguments or generated result failed schema validation.",
+            "Check required fields, output_format, include/exclude patterns, and configuration values.",
+        ).as_dict()
+    return internal_error().as_dict()

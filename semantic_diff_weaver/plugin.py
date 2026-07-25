@@ -5,9 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from pydantic import ValidationError
-
-from .errors import ErrorCode, WeaverError, internal_error
+from .errors import as_public_error
 from .llm_client import LlmClient
 from .schemas import ANALYZE_SEMANTIC_DIFF_SCHEMA
 
@@ -27,17 +25,8 @@ def handle_analyze_semantic_diff(
 
         result = analyze(args, llm=llm)
         return json.dumps(result, ensure_ascii=False, sort_keys=True)
-    except WeaverError as exc:
-        return json.dumps(exc.as_dict(), ensure_ascii=False, sort_keys=True)
-    except ValidationError:
-        error = WeaverError(
-            ErrorCode.CONFIGURATION_ERROR,
-            "The tool arguments or generated result failed schema validation.",
-            "Check required fields, output_format, include/exclude patterns, and configuration values.",
-        )
-        return json.dumps(error.as_dict(), ensure_ascii=False, sort_keys=True)
-    except Exception:
-        return json.dumps(internal_error().as_dict(), ensure_ascii=False, sort_keys=True)
+    except Exception as exc:
+        return json.dumps(as_public_error(exc), ensure_ascii=False, sort_keys=True)
 
 
 def register(ctx: Any) -> None:

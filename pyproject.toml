@@ -16,6 +16,9 @@ dependencies = [
   "PyYAML>=6.0.2,<7",
 ]
 
+[project.scripts]
+semantic-diff-weaver = "semantic_diff_weaver.cli:main"
+
 [project.entry-points."hermes_agent.plugins"]
 semantic-diff-weaver = "semantic_diff_weaver.plugin"
 

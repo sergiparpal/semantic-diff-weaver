@@ -1,23 +1,85 @@
 # Semantic Diff Weaver
 
-Semantic Diff Weaver is an advisory, read-only Hermes Agent plugin for reviewing a bounded
-Git diff between two committed revisions. It statically extracts Python structural changes, infers
-evidence-backed behavior changes, ranks risk separately from confidence, and produces concrete test
-obligations plus unverified candidate existing tests.
+Semantic Diff Weaver is an advisory, read-only reviewer for a bounded Git diff between two committed
+revisions. It statically extracts Python structural changes, infers evidence-backed behavior changes,
+ranks risk separately from confidence, and produces concrete test obligations plus unverified
+candidate existing tests. Run it from the command line, or as a Hermes Agent plugin.
 
-The plugin never imports, executes, builds, installs, tests, or modifies the analyzed repository. It
-does not claim runtime coverage. Repository content is treated as untrusted data, and the analysis
-degrades to deterministic structural findings when the Hermes-hosted model is unavailable.
+It never imports, executes, builds, installs, tests, or modifies the analyzed repository. It does not
+claim runtime coverage. Repository content is treated as untrusted data, and the analysis degrades to
+deterministic structural findings when no model is available.
 
 ## Requirements
 
 - Python 3.11 or later.
 - Git available on `PATH`.
 - Pydantic 2 and PyYAML 6 (installed with the package).
-- Hermes Agent 0.14.0 or later for plugin discovery and optional structured LLM inference. The
-  package deliberately does not force-install Hermes or constrain its version in metadata.
+- Hermes Agent 0.14.0 or later *only* for the plugin path. The package deliberately does not
+  force-install Hermes or constrain its version in metadata.
 
-## Install and enable
+## Standalone CLI
+
+```bash
+pipx run --spec . semantic-diff-weaver --repo . --base main --head HEAD
+```
+
+Installed into the current environment instead, the same run is:
+
+```bash
+python -m pip install . && semantic-diff-weaver --repo . --base main --head HEAD
+```
+
+`python -m semantic_diff_weaver` is equivalent to the console script.
+
+| Flag | Meaning |
+| --- | --- |
+| `--repo PATH` | repository to analyze; defaults to `.` |
+| `--base REF` | base revision; **required** |
+| `--head REF` | head revision; defaults to `HEAD` |
+| `--include GLOB` | repeatable include pattern |
+| `--exclude GLOB` | repeatable exclude pattern |
+| `--risk-profile PATH` | additional bounded YAML configuration file |
+| `--format {json,markdown,both}` | defaults to `markdown` |
+| `--allow-root PATH` | repeatable additional authorized root |
+| `--fail-on {none,low,medium,high,critical}` | defaults to `none` |
+
+`markdown` prints the PR-ready brief, `json` prints the canonical schema-versioned analysis, and
+`both` prints the envelope carrying the analysis and the brief together. Exit codes are:
+
+| Code | Meaning |
+| --- | --- |
+| `0` | success, and overall risk is below `--fail-on` |
+| `1` | analysis error; the stable error code, message, and remediation go to stderr |
+| `2` | argument error |
+| `3` | success, but overall risk reached `--fail-on` |
+
+Exit code `3` still prints the full report — the threshold is a signal, not a reason to withhold the
+analysis.
+
+**Without a model provider the CLI runs in deterministic mode.** It reports structural findings,
+their taxonomy classification, risk, and obligations, all sourced from the AST comparison alone.
+What it does not add is the inference layer: findings are marked `deterministic_fallback` rather
+than `llm_supported`, descriptions are drawn from the built-in per-category templates instead of
+being written against the specific diff, and no review questions are raised beyond those the
+deterministic rules produce. See [the provider section](#model-provider) to enable inference.
+
+### CLI authorization
+
+Caller-selected local paths are authorized independently of repository containment, and the CLI
+resolves that authorization differently from the plugin **on purpose**. Under Hermes a *model*
+chooses `repo_path`, so the default authorized root is the process working directory and nothing
+else. On a command line a *person* types the path, and that is the authorization.
+
+So when `SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS` is **unset**, the CLI sets it for the analysis to the
+resolved `--repo` plus any `--allow-root` values, then restores the environment. When the variable
+is **already set** by an operator, the CLI never widens it: `--allow-root` is refused with exit code
+`2`, and a `--repo` outside the operator's bound fails exactly as it does under Hermes. A filesystem
+root is never accepted as an authorization root, by either path.
+
+An external `--risk-profile` must resolve below an authorized root, so pass its directory with
+`--allow-root` when it lives outside the repository.
+
+## Install and enable the Hermes plugin
 
 For development as a user directory plugin, copy this repository directory to:
 

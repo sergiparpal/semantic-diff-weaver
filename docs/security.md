@@ -48,3 +48,29 @@ import.
 
 Expected errors expose safe normalized counts or paths only. Raw source, prompts, provider responses,
 environment values, credentials, and absolute repository paths are not returned.
+
+## Authorization on the command line
+
+`path_policy.authorized_roots` defaults to the process working directory. That containment exists
+because of *who chooses the path*: under Hermes an instructed model supplies `repo_path`, and the
+default root is the only thing between a redirected model and the rest of the filesystem.
+
+On the command line a person types the path, and that typing is the authorization. The CLI therefore
+populates `SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS` from the resolved `--repo` plus any `--allow-root`
+values when the variable is unset, and restores the environment afterwards so the grant lasts only
+for that analysis.
+
+The concession stops there. When an operator has already set the variable, they have expressed a
+narrower intent than the invocation, and the CLI never widens it:
+
+- `--allow-root` is refused outright with a distinct argument-error exit code, not merged;
+- a `--repo` outside the operator's bound fails with `path_outside_repository`, as under Hermes;
+- a filesystem root (`/`, `C:\`) is refused as an authorization root by either path — the CLI names
+  the offending flag, and `authorized_roots` refuses it independently;
+- `--risk-profile` remains subject to `ensure_authorized_path`, so an external profile requires its
+  directory to be named with `--allow-root`, and a symlink out of the repository is refused after
+  resolution rather than before.
+
+Nothing else about the CLI differs from the plugin: the same analysis, the same read-only Git
+boundary, the same redaction, and the same stable error codes. `tests/security/test_cli_authorization.py`
+holds the adversarial regressions for each rule above.
