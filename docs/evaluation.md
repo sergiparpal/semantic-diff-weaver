@@ -49,11 +49,12 @@ went into the analyzer, consistent with the 2026-07-17 fixture-label review. See
 The deterministic performance suite covers a 100-symbol AST fixture, a 500-symbol mass-rename
 matching fixture, and a warmed full-service fixture with 40 files, 3,000 changed lines, and 100
 symbols, with five-, two-, and five-second ceilings respectively. They completed in approximately
-0.028, 1.047, and 0.275 seconds in the local timing run. The complete automated suite reports 94.96%
-overall branch-aware coverage across 302 passing tests and one skip, with at least 90% branch
-coverage in every critical module — the lowest is `renderer.py` at 90.48%, and the `ast_diff/`
-analysis package, added to the critical set on 2026-07-25, is at 91.47%. No live LLM call or
-credential was used.
+0.028, 1.047, and 0.275 seconds in the local timing run. The complete automated suite reports 95.61%
+overall branch-aware coverage across 494 passing tests and one skip, with at least 90% branch
+coverage in every critical module — the lowest is `renderer.py` at 90.91%, followed by the
+`ast_diff/` package at 91.47% and `git_diff/` at 91.75%. `cli.py` and `coverage_map.py`, added to
+the critical set on 2026-07-25, are both at 100%. The suite ran with no `ANTHROPIC_API_KEY` in the
+environment: no live LLM call or credential was used, and none is required.
 
 An earlier 2026-07-19 entry also recorded 100% material precision, but that figure was never measured
 on the reviewed 17-case corpus: the two `ordering_change` findings are present in the reviewed
