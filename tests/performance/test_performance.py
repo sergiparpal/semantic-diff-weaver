@@ -5,8 +5,8 @@ import time
 import pytest
 
 from semantic_diff_weaver.ast_diff import analyze_ast
-from semantic_diff_weaver.git_diff import ChangedFile, Hunk
 from semantic_diff_weaver.service import analyze
+from semantic_diff_weaver.source import SourceHunk, SourceRevisionPair
 
 
 @pytest.mark.performance
@@ -14,13 +14,15 @@ from semantic_diff_weaver.service import analyze
 def test_near_symbol_limit_preprocessing_is_under_reference_target() -> None:
     old = "\n\n".join(f"def function_{index}(x):\n    return x < {index}" for index in range(100))
     new = "\n\n".join(f"def function_{index}(x):\n    return x <= {index}" for index in range(100))
-    changed = ChangedFile(
-        status="M",
+    changed = SourceRevisionPair(
+        path="src/generated_fixture.py",
         old_path="src/generated_fixture.py",
         new_path="src/generated_fixture.py",
         old_text=old,
         new_text=new,
-        hunks=[Hunk(id="hunk-001", old_start=1, old_count=1000, new_start=1, new_count=1000)],
+        hunks=(
+            SourceHunk(id="hunk-001", old_start=1, old_count=1000, new_start=1, new_count=1000),
+        ),
     )
     started = time.perf_counter()
     result = analyze_ast([changed])
@@ -35,21 +37,21 @@ def test_mass_rename_matching_is_bounded() -> None:
     count = 500
     old = "".join(f"def old_{index}(x):\n    return x + {index}\n" for index in range(count))
     new = "".join(f"def new_{index}(x):\n    return x - {index}\n" for index in range(count))
-    changed = ChangedFile(
-        status="M",
+    changed = SourceRevisionPair(
+        path="src/many.py",
         old_path="src/many.py",
         new_path="src/many.py",
         old_text=old,
         new_text=new,
-        hunks=[
-            Hunk(
+        hunks=(
+            SourceHunk(
                 id="hunk-001",
                 old_start=1,
                 old_count=count * 2,
                 new_start=1,
                 new_count=count * 2,
-            )
-        ],
+            ),
+        ),
     )
     started = time.perf_counter()
     result = analyze_ast([changed])

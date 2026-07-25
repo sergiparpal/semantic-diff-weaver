@@ -2,32 +2,18 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from .models import (
     BehaviorCategory,
     CandidateTest,
     Origin,
     RiskLabel,
     ScoreExplanation,
-    WeaverConfig,
 )
-from .path_policy import critical_weight
+from .path_policy import WeightedPattern, critical_weight
 from .semantic_candidates import SemanticCandidate
-
-IMPACT = {
-    BehaviorCategory.AUTHORIZATION: 92,
-    BehaviorCategory.SIDE_EFFECT: 84,
-    BehaviorCategory.STATE_TRANSITION: 78,
-    BehaviorCategory.ERROR_HANDLING: 72,
-    BehaviorCategory.OUTPUT_CONTRACT: 70,
-    BehaviorCategory.RETRY_TIMEOUT: 68,
-    BehaviorCategory.VALIDATION: 65,
-    BehaviorCategory.BOUNDARY: 64,
-    BehaviorCategory.DEPENDENCY_INTERACTION: 62,
-    BehaviorCategory.ORDERING: 60,
-    BehaviorCategory.DEFAULT_BEHAVIOR: 58,
-    BehaviorCategory.UNKNOWN: 55,
-    BehaviorCategory.REFACTOR: 12,
-}
+from .taxonomy import CATEGORY_PROFILES
 
 
 def risk_label(score: int | float) -> RiskLabel:
@@ -73,12 +59,13 @@ def confidence_score(candidate: SemanticCandidate, *, truncated: bool = False) -
 def score_risk(
     candidate: SemanticCandidate,
     candidate_tests: list[CandidateTest],
-    config: WeaverConfig,
+    critical_paths: Sequence[WeightedPattern],
 ) -> tuple[int, RiskLabel, ScoreExplanation]:
-    impact = IMPACT[candidate.category]
+    """Score one candidate's risk from its own evidence and the configured critical paths."""
+    impact = CATEGORY_PROFILES[candidate.category].impact
     if candidate.symbol.rsplit(".", 1)[-1].startswith("_"):
         impact = max(0, impact - 8)
-    critical = critical_weight(candidate.path, config.critical_paths, default=10)
+    critical = critical_weight(candidate.path, critical_paths, default=10)
     if not candidate_tests:
         test_gap = 90
     elif max(item.match_score for item in candidate_tests) < 0.60:

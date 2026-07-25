@@ -7,10 +7,11 @@ from collections import Counter
 from ..errors import ErrorCode, WeaverError
 from ..models import WeaverConfig
 from ..path_policy import critical_weight, first_exclusion, is_included
+from ..source import SourceHunk
 from . import limits
 from .parse import parse_hunks, parse_hunks_by_path, parse_name_status, parse_numstat
 from .repository import GitRepository
-from .types import ChangedFile, DiffCollection, Hunk
+from .types import ChangedFile, DiffCollection
 
 
 def _git_error(code: ErrorCode, message: str, remediation: str) -> WeaverError:
@@ -29,7 +30,7 @@ _HUNK_DIFF_ARGUMENTS = (
 )
 
 
-def _file_hunks(repo: GitRepository, base: str, head: str, path: str) -> list[Hunk]:
+def _file_hunks(repo: GitRepository, base: str, head: str, path: str) -> list[SourceHunk]:
     output = repo.run(
         [*_HUNK_DIFF_ARGUMENTS, base, head, "--", f":(literal){path}"],
         max_bytes=4 * 1024 * 1024,
@@ -39,9 +40,9 @@ def _file_hunks(repo: GitRepository, base: str, head: str, path: str) -> list[Hu
 
 def _hunks_by_path(
     repo: GitRepository, base: str, head: str, paths: list[str]
-) -> dict[str, list[Hunk]]:
+) -> dict[str, list[SourceHunk]]:
     """Read every file's hunks with one bounded command per path chunk instead of per file."""
-    result: dict[str, list[Hunk]] = {}
+    result: dict[str, list[SourceHunk]] = {}
     ordered = sorted(set(paths))
     for start in range(0, len(ordered), limits.MAX_TREE_PATHS_PER_COMMAND):
         chunk = ordered[start : start + limits.MAX_TREE_PATHS_PER_COMMAND]
@@ -253,7 +254,7 @@ def collect_diff(
             continue
         if is_copy:
             changed.hunks = [
-                Hunk(
+                SourceHunk(
                     id="hunk-001",
                     old_start=0,
                     old_count=0,

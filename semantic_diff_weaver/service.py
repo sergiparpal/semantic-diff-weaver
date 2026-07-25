@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
 from pydantic import ValidationError
 
-from .ast_diff import StructuralDelta, analyze_ast
+from .ast_diff import AstAnalysis, StructuralDelta, analyze_ast
 from .config import load_config
 from .errors import ErrorCode, WeaverError
 from .git_diff import DiffCollection, GitRepository, collect_diff
@@ -20,6 +20,7 @@ from .models import (
     AnalyzeRequest,
     BehaviorCategory,
     BehaviorChange,
+    CandidateTest,
     LlmStatus,
     OmittedScope,
     Origin,
@@ -28,6 +29,7 @@ from .models import (
     RiskLabel,
     ScopeMetadata,
     Summary,
+    TestObligation,
     WeaverConfig,
 )
 from .obligations import generate_obligations
@@ -119,11 +121,37 @@ def _read_readme_excerpt(repo: GitRepository, head_commit: str, config: WeaverCo
 
 @dataclass
 class _DedupEntry:
-    """A retained candidate with the derived keys the merge scan would otherwise recompute."""
+    """A retained candidate's slot plus the derived keys the merge scan would otherwise recompute.
 
-    candidate: SemanticCandidate
+    Holds the output index rather than the candidate itself, because candidates are immutable
+    and merging therefore replaces the retained entry instead of editing it.
+    """
+
+    index: int
     evidence_ids: set[str]
     phrase: str
+
+
+def _merge_duplicate(existing: SemanticCandidate, incoming: SemanticCandidate) -> SemanticCandidate:
+    """Fold a duplicate into the retained candidate, keeping the retained ``(path, symbol)``."""
+    evidence_by_id = {item.id: item for item in existing.evidence}
+    for evidence in incoming.evidence:
+        evidence_by_id.setdefault(evidence.id, evidence)
+    stronger = incoming.confidence_baseline > existing.confidence_baseline
+    return replace(
+        existing,
+        summary=incoming.summary if stronger else existing.summary,
+        observable_impact=incoming.observable_impact if stronger else existing.observable_impact,
+        confidence_baseline=max(existing.confidence_baseline, incoming.confidence_baseline),
+        evidence=tuple(evidence_by_id[key] for key in sorted(evidence_by_id)),
+        assumptions=tuple(sorted({*existing.assumptions, *incoming.assumptions})),
+        rule_ids=tuple(sorted({*existing.rule_ids, *incoming.rule_ids})),
+        related_calls=existing.related_calls | incoming.related_calls,
+        related_paths=existing.related_paths | incoming.related_paths,
+        origin=(
+            Origin.LLM_SUPPORTED if incoming.origin is Origin.LLM_SUPPORTED else existing.origin
+        ),
+    )
 
 
 def _deduplicate_candidates(candidates: list[SemanticCandidate]) -> list[SemanticCandidate]:
@@ -144,26 +172,14 @@ def _deduplicate_candidates(candidates: list[SemanticCandidate]) -> list[Semanti
             None,
         )
         if entry is None:
+            bucket.append(_DedupEntry(len(output), candidate_evidence, candidate_phrase))
             output.append(candidate)
-            bucket.append(_DedupEntry(candidate, candidate_evidence, candidate_phrase))
             continue
-        existing = entry.candidate
+        existing = output[entry.index]
         entry.evidence_ids |= candidate_evidence
         if candidate.confidence_baseline > existing.confidence_baseline:
             entry.phrase = candidate_phrase
-            existing.summary = candidate.summary
-            existing.observable_impact = candidate.observable_impact
-            existing.confidence_baseline = candidate.confidence_baseline
-        evidence_by_id = {item.id: item for item in existing.evidence}
-        for evidence in candidate.evidence:
-            evidence_by_id.setdefault(evidence.id, evidence)
-        existing.evidence = [evidence_by_id[key] for key in sorted(evidence_by_id)]
-        existing.assumptions = sorted(set([*existing.assumptions, *candidate.assumptions]))
-        existing.rule_ids = sorted(set([*existing.rule_ids, *candidate.rule_ids]))
-        existing.related_calls.update(candidate.related_calls)
-        existing.related_paths.update(candidate.related_paths)
-        if candidate.origin is Origin.LLM_SUPPORTED:
-            existing.origin = Origin.LLM_SUPPORTED
+        output[entry.index] = _merge_duplicate(existing, candidate)
     return output
 
 
@@ -183,67 +199,90 @@ def _bootstrap(
     return request, repo, base_commit, head_commit, config, config_warnings
 
 
-def _record_omitted(omitted: list[OmittedScope], reason: str, count: int) -> None:
-    if count:
-        omitted.append(OmittedScope(reason=reason, count=count))
+@dataclass
+class _PipelineState:
+    """Cross-stage accounting every stage contributes to.
+
+    Scope omissions, warnings, and the two truncation flags used to be seven separate values
+    threaded through six-element return tuples. Collecting them here means a stage records what
+    it dropped at the point it drops it, and adding a new omission reason touches one call site.
+    """
+
+    omitted: list[OmittedScope] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    scope_truncated: bool = False
+    confidence_truncated: bool = False
+
+    def record_omitted(
+        self, reason: str, count: int, *, scope: bool = False, confidence: bool = False
+    ) -> None:
+        """Record a non-zero omission and, when asked, the truncation it implies."""
+        if not count:
+            return
+        self.omitted.append(OmittedScope(reason=reason, count=count))
+        self.scope_truncated |= scope
+        self.confidence_truncated |= confidence
+
+
+@dataclass(frozen=True)
+class _ScoredCandidate:
+    """A reportable candidate carried together with everything later stages derived for it.
+
+    Replaces two parallel dictionaries that were keyed differently — one by ``id(candidate)``
+    and one by list position — and could disagree the moment a candidate was copied.
+    """
+
+    candidate: SemanticCandidate
+    confidence: float
+    tests: list[CandidateTest] = field(default_factory=list)
 
 
 def _collect_scope(
     collection: DiffCollection,
-    ast_result: Any,
+    ast_result: AstAnalysis,
     config: WeaverConfig,
-) -> tuple[list[StructuralDelta], int, list[OmittedScope], bool, bool, int]:
+    state: _PipelineState,
+) -> tuple[list[StructuralDelta], int, int]:
     incomplete_exclusions = sum(
         collection.excluded_counts.get(reason, 0) for reason in INCOMPLETE_EXCLUSION_REASONS
     )
-    omitted: list[OmittedScope] = [
+    state.omitted.extend(
         OmittedScope(reason=reason, count=count)
         for reason, count in sorted(collection.omitted_counts.items())
         if count
-    ]
-    scope_truncated = collection.truncated or bool(incomplete_exclusions)
-    confidence_truncated = collection.truncated or bool(incomplete_exclusions)
-    syntax_failed_files = ast_result.failed_files - ast_result.resource_limited_files
-    if syntax_failed_files:
-        _record_omitted(omitted, "parse_incomplete_files", syntax_failed_files)
-        scope_truncated = True
-    if ast_result.resource_limited_files:
-        _record_omitted(omitted, "ast_resource_limit", ast_result.resource_limited_files)
-        scope_truncated = True
+    )
+    truncated_input = collection.truncated or bool(incomplete_exclusions)
+    state.scope_truncated |= truncated_input
+    state.confidence_truncated |= truncated_input
+    state.record_omitted(
+        "parse_incomplete_files",
+        ast_result.failed_files - ast_result.resource_limited_files,
+        scope=True,
+    )
+    state.record_omitted("ast_resource_limit", ast_result.resource_limited_files, scope=True)
     deltas = ast_result.deltas
     changed_symbols = ast_result.changed_symbols
     if changed_symbols > config.rules.max_changed_symbols:
         deltas, omitted_count = _prioritize_deltas(deltas, config.rules.max_changed_symbols, config)
-        _record_omitted(omitted, "changed_symbol_limit", omitted_count)
+        state.record_omitted("changed_symbol_limit", omitted_count, scope=True, confidence=True)
         changed_symbols = config.rules.max_changed_symbols
-        scope_truncated = True
-        confidence_truncated = True
-    return (
-        deltas,
-        changed_symbols,
-        omitted,
-        scope_truncated,
-        confidence_truncated,
-        incomplete_exclusions,
-    )
+        state.scope_truncated = True
+        state.confidence_truncated = True
+    return deltas, changed_symbols, incomplete_exclusions
 
 
 def _filter_reportable(
     candidates: list[SemanticCandidate],
     config: WeaverConfig,
-    *,
-    confidence_truncated: bool,
-) -> tuple[list[SemanticCandidate], dict[int, float], int, int, list[str], list[OmittedScope]]:
-    reportable: list[SemanticCandidate] = []
-    confidence_by_index: dict[int, float] = {}
-    warnings: list[str] = []
-    omitted: list[OmittedScope] = []
+    state: _PipelineState,
+) -> tuple[list[_ScoredCandidate], int]:
+    reportable: list[_ScoredCandidate] = []
     low_confidence_omitted = 0
     refactors_omitted = 0
     for candidate in candidates:
-        confidence = confidence_score(candidate, truncated=confidence_truncated)
+        confidence = confidence_score(candidate, truncated=state.confidence_truncated)
         if (
-            candidate.category.value == "refactor_likely_no_behavior_change"
+            candidate.category is BehaviorCategory.REFACTOR
             and not config.rules.emit_low_risk_refactors
         ):
             refactors_omitted += 1
@@ -251,44 +290,32 @@ def _filter_reportable(
         if confidence < config.rules.minimum_report_confidence:
             low_confidence_omitted += 1
             continue
-        confidence_by_index[id(candidate)] = confidence
-        reportable.append(candidate)
+        reportable.append(_ScoredCandidate(candidate=candidate, confidence=confidence))
     if low_confidence_omitted:
-        warnings.append(
+        state.warnings.append(
             f"Moved {low_confidence_omitted} finding(s) below the minimum confidence into limitations."
         )
-        _record_omitted(omitted, "minimum_confidence", low_confidence_omitted)
-    if refactors_omitted:
-        _record_omitted(omitted, "low_risk_refactor_policy", refactors_omitted)
-    return (
-        reportable,
-        confidence_by_index,
-        low_confidence_omitted,
-        refactors_omitted,
-        warnings,
-        omitted,
-    )
+        state.record_omitted("minimum_confidence", low_confidence_omitted)
+    state.record_omitted("low_risk_refactor_policy", refactors_omitted)
+    return reportable, low_confidence_omitted
 
 
 def _materialize_behaviors(
-    reportable: list[SemanticCandidate],
-    confidence_by_index: dict[int, float],
-    mapped_by_index: dict[int, list[Any]],
+    reportable: list[_ScoredCandidate],
     config: WeaverConfig,
     *,
     fallback_mode: bool,
     partial_fallback: bool,
-) -> tuple[list[BehaviorChange], dict[str, list[Any]]]:
+) -> tuple[list[BehaviorChange], dict[str, list[CandidateTest]]]:
     behaviors: list[BehaviorChange] = []
-    tests_by_behavior: dict[str, list[Any]] = {}
-    for index, candidate in enumerate(reportable, start=1):
-        candidate_tests = mapped_by_index.get(index - 1, [])
-        risk_score, risk, explanation = score_risk(candidate, candidate_tests, config)
-        confidence = confidence_by_index[id(candidate)]
+    tests_by_behavior: dict[str, list[CandidateTest]] = {}
+    for index, scored in enumerate(reportable, start=1):
+        candidate = scored.candidate
+        risk_score, risk, explanation = score_risk(candidate, scored.tests, config.critical_paths)
         presentation = (
             Presentation.REVIEW_QUESTION
             if risk in {RiskLabel.HIGH, RiskLabel.CRITICAL}
-            and confidence < config.rules.review_question_confidence
+            and scored.confidence < config.rules.review_question_confidence
             else Presentation.FINDING
         )
         origin = candidate.origin
@@ -301,21 +328,21 @@ def _materialize_behaviors(
             observable_impact=candidate.observable_impact,
             risk=risk,
             risk_score=risk_score,
-            confidence=confidence,
-            evidence=candidate.evidence,
-            assumptions=candidate.assumptions,
+            confidence=scored.confidence,
+            evidence=list(candidate.evidence),
+            assumptions=list(candidate.assumptions),
             presentation=presentation,
             origin=origin,
             score_explanation=explanation,
         )
         behaviors.append(behavior)
-        tests_by_behavior[behavior.id] = candidate_tests
+        tests_by_behavior[behavior.id] = scored.tests
     return behaviors, tests_by_behavior
 
 
 def _summary_metrics(
     behaviors: list[BehaviorChange],
-    obligations: list[Any],
+    obligations: list[TestObligation],
     *,
     scope_truncated: bool,
     failed_files: int,
@@ -348,7 +375,7 @@ def _summary_metrics(
 def _build_limitations(
     *,
     collection: DiffCollection,
-    ast_result: Any,
+    ast_result: AstAnalysis,
     incomplete_exclusions: int,
     low_confidence_omitted: int,
     interpreted: InterpreterResult,
@@ -415,16 +442,14 @@ def _build_limitations(
 def analyze(arguments: dict[str, Any], *, llm: Any = None) -> dict[str, Any]:
     """Analyze committed Python changes and return the requested transport dictionary."""
     request, repo, base_commit, head_commit, config, config_warnings = _bootstrap(arguments)
+    state = _PipelineState(warnings=list(config_warnings))
     collection = collect_diff(repo, base_commit, head_commit, config)
-    ast_result = analyze_ast(collection.files)
-    (
-        deltas,
-        changed_symbols,
-        omitted,
-        scope_truncated,
-        confidence_truncated,
-        incomplete_exclusions,
-    ) = _collect_scope(collection, ast_result, config)
+    state.warnings.extend(collection.warnings)
+    ast_result = analyze_ast([item.as_revision_pair() for item in collection.files])
+    state.warnings.extend(ast_result.warnings)
+    deltas, changed_symbols, incomplete_exclusions = _collect_scope(
+        collection, ast_result, config, state
+    )
     deterministic = build_candidates(deltas, config)
     readme_excerpt = (
         _read_readme_excerpt(repo, head_commit, config)
@@ -437,44 +462,34 @@ def analyze(arguments: dict[str, Any], *, llm: Any = None) -> dict[str, Any]:
         config,
         readme_excerpt=readme_excerpt,
     )
-    if interpreted.omitted_batches:
-        _record_omitted(omitted, "llm_batch_limit", interpreted.omitted_batches)
-        scope_truncated = True
-        confidence_truncated = True
-    if interpreted.truncated_evidence_symbols:
-        _record_omitted(omitted, "model_evidence_limit", interpreted.truncated_evidence_symbols)
-        scope_truncated = True
-        confidence_truncated = True
+    state.warnings.extend(interpreted.warnings)
+    state.record_omitted(
+        "llm_batch_limit", interpreted.omitted_batches, scope=True, confidence=True
+    )
+    state.record_omitted(
+        "model_evidence_limit",
+        interpreted.truncated_evidence_symbols,
+        scope=True,
+        confidence=True,
+    )
     candidates = _deduplicate_candidates(interpreted.candidates)
-    (
-        reportable,
-        confidence_by_index,
-        low_confidence_omitted,
-        _refactors_omitted,
-        filter_warnings,
-        filter_omitted,
-    ) = _filter_reportable(candidates, config, confidence_truncated=confidence_truncated)
-    omitted.extend(filter_omitted)
-    warnings = [
-        *config_warnings,
-        *collection.warnings,
-        *ast_result.warnings,
-        *interpreted.warnings,
-        *filter_warnings,
-    ]
+    reportable, low_confidence_omitted = _filter_reportable(candidates, config, state)
     test_index = (
         build_test_index(repo, head_commit, config)
         if reportable and config.rules.max_candidate_tests_per_obligation
         else TestIndex(tests=[], incomplete=False, warnings=[])
     )
-    warnings.extend(test_index.warnings)
-    mapped_by_index = map_candidate_tests(reportable, test_index, config)
+    state.warnings.extend(test_index.warnings)
+    mapped_by_index = map_candidate_tests(
+        [item.candidate for item in reportable], test_index, config
+    )
+    reportable = [
+        replace(item, tests=mapped_by_index.get(index, [])) for index, item in enumerate(reportable)
+    ]
     fallback_mode = not interpreted.status.available
     partial_fallback = bool(interpreted.status.failures or interpreted.omitted_batches)
     behaviors, tests_by_behavior = _materialize_behaviors(
         reportable,
-        confidence_by_index,
-        mapped_by_index,
         config,
         fallback_mode=fallback_mode,
         partial_fallback=partial_fallback,
@@ -483,18 +498,18 @@ def analyze(arguments: dict[str, Any], *, llm: Any = None) -> dict[str, Any]:
         behaviors,
         tests_by_behavior,
         test_index.incomplete,
-        config,
+        config.rules,
         interpreted.suggestions,
     )
     if omitted_obligations:
-        _record_omitted(omitted, "global_obligation_limit", omitted_obligations)
-        warnings.append(
+        state.record_omitted("global_obligation_limit", omitted_obligations, scope=True)
+        state.warnings.append(
             f"Omitted {omitted_obligations} lower-priority obligation(s) due to the global cap."
         )
     overall_risk, overall_score, overall_confidence, risk_counts = _summary_metrics(
         behaviors,
         obligations,
-        scope_truncated=scope_truncated,
+        scope_truncated=state.scope_truncated,
         failed_files=ast_result.failed_files,
     )
     limitations = _build_limitations(
@@ -529,14 +544,14 @@ def analyze(arguments: dict[str, Any], *, llm: Any = None) -> dict[str, Any]:
             changed_files_total=collection.changed_files_total,
             analyzed_files=sorted(item.path for item in collection.files),
             excluded_counts=collection.excluded_counts,
-            omitted=omitted,
+            omitted=state.omitted,
             changed_lines=collection.changed_lines,
             changed_symbols=changed_symbols,
-            truncated=scope_truncated or bool(omitted_obligations),
+            truncated=state.scope_truncated,
         ),
         behavior_changes=behaviors,
         test_obligations=obligations,
-        warnings=sorted(set(warnings)),
+        warnings=sorted(set(state.warnings)),
         limitations=limitations,
         llm=interpreted.status if deterministic else LlmStatus(),
         deterministic_mode=fallback_mode or partial_fallback,

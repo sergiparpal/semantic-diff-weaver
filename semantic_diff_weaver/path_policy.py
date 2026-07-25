@@ -5,12 +5,28 @@ from __future__ import annotations
 import fnmatch
 import os
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from functools import lru_cache
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import Any
+from typing import Protocol
 
 from .errors import ErrorCode, WeaverError
+
+
+class WeightedPattern(Protocol):
+    """A configured glob and its weight.
+
+    Structural rather than concrete so this policy module stays independent of ``models``,
+    which deliberately reimplements its own path validation to avoid the reverse dependency.
+    Read-only members keep the protocol covariant, so ``list[CriticalPath]`` is accepted.
+    """
+
+    @property
+    def pattern(self) -> str: ...
+
+    @property
+    def weight(self) -> int: ...
+
 
 ALLOWED_ROOTS_ENV = "SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS"
 CONTROL_PARTS = {".git", ".hg", ".svn", ".bzr"}
@@ -270,7 +286,9 @@ def is_included(path: str, includes: list[str], excludes: list[str]) -> bool:
     )
 
 
-def critical_weight(path: str, critical_paths: list[Any], *, default: int = 0) -> int:
+def critical_weight(
+    path: str, critical_paths: Sequence[WeightedPattern], *, default: int = 0
+) -> int:
     """Return the highest configured critical-path weight matching a repository path."""
     return max(
         (item.weight for item in critical_paths if glob_matches(path, item.pattern)),

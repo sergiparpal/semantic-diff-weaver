@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from semantic_diff_weaver.ast_diff import StructuralDelta
@@ -52,7 +54,7 @@ def test_risk_uses_exact_weighted_formula_and_static_gap() -> None:
         {"critical_paths": [{"pattern": "src/auth/**", "weight": 100}]}
     )
     candidate = authorization_candidate()
-    score, label, explanation = score_risk(candidate, [], config)
+    score, label, explanation = score_risk(candidate, [], config.critical_paths)
     expected = round(
         explanation.behavioral_impact * 0.35
         + explanation.critical_path_weight * 0.25
@@ -70,20 +72,19 @@ def test_candidate_never_removes_test_gap() -> None:
         match_score=1.0,
         match_reasons=["direct module or symbol import"],
     )
-    _, _, explanation = score_risk(authorization_candidate(), [test], WeaverConfig())
+    _, _, explanation = score_risk(authorization_candidate(), [test], WeaverConfig().critical_paths)
     assert explanation.test_gap_weight > 0
 
 
 def test_private_symbols_and_weak_candidates_adjust_risk_components() -> None:
-    candidate = authorization_candidate()
-    candidate.evidence[0].symbol = "_authorize"
+    candidate = replace(authorization_candidate(), symbol="_authorize")
     weak = CandidateTest(
         path="tests/auth/test_policy.py",
         symbol="test_authorize",
         match_score=0.5,
         match_reasons=["mirrored source/test path"],
     )
-    _, _, explanation = score_risk(candidate, [weak], WeaverConfig())
+    _, _, explanation = score_risk(candidate, [weak], WeaverConfig().critical_paths)
     assert explanation.behavioral_impact < 92
     assert explanation.test_gap_weight == 65
 

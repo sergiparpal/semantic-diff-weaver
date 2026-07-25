@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from typing import Any
 
-from ..git_diff import Hunk
 from ..models import LineRange
 from ..path_policy import redact_text
+from ..source import SourceHunk
 from .limits import FEATURE_DELTA_KINDS
 from .match import symbol_similarity
 from .types import StructuralDelta, SymbolSnapshot
@@ -34,8 +34,8 @@ def matching_hunk(
     old: SymbolSnapshot | None,
     new: SymbolSnapshot | None,
     *,
-    old_hunks: list[Hunk],
-    new_hunks: list[Hunk],
+    old_hunks: Sequence[SourceHunk],
+    new_hunks: Sequence[SourceHunk],
     old_path: str,
     new_path: str,
 ) -> str | None:
@@ -188,12 +188,12 @@ def compare_symbol(
     path: str,
     old: SymbolSnapshot | None,
     new: SymbolSnapshot | None,
-    hunks: list[Hunk],
+    hunks: Sequence[SourceHunk],
     *,
     old_path: str | None = None,
     new_path: str | None = None,
-    old_hunks: list[Hunk] | None = None,
-    new_hunks: list[Hunk] | None = None,
+    old_hunks: Sequence[SourceHunk] | None = None,
+    new_hunks: Sequence[SourceHunk] | None = None,
 ) -> list[StructuralDelta]:
     effective_old_path = old_path or path
     effective_new_path = new_path or path
@@ -306,12 +306,3 @@ def compare_symbol(
         for item in result:
             item.metadata.update(old_path=effective_old_path, new_path=effective_new_path)
     return result
-
-
-# Backward-compatible private aliases.
-_compare_symbol = compare_symbol
-_delta = make_structural_delta
-_overlaps = ranges_overlap
-_matching_hunk = matching_hunk
-_summary = join_feature_values
-_ranges = line_ranges

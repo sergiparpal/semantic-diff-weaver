@@ -9,13 +9,15 @@ request/config -> repository + resolved refs -> changed committed blobs -> AST d
 ```
 
 `plugin.py` is the only Hermes adapter. Registration closes over `ctx.llm` but performs no Git or LLM
-work. `service.py` orchestrates modules without importing Hermes internals. `git_diff.py` is the sole
+work. `service.py` orchestrates modules without importing Hermes internals. The `git_diff/` package is the sole
 subprocess boundary and invokes only Git with argument arrays, resolved commit IDs, timeouts, bounded
 captured input/output, disabled external diff/text conversion, and `shell=False`. Tree metadata is
 collected once per revision and eligible object IDs are read through bounded `cat-file` batches;
 per-file patch hunks retain literal path isolation.
 
-`ast_diff.py` parses text with the Python AST without importing target modules. It inventories module,
+The `ast_diff/` package parses text with the Python AST without importing target modules. It consumes
+the `SourceRevisionPair` contract in `source.py` rather than Git types, so structural analysis does not
+depend on Git and its safety budgets are passed in as an explicit `AstBudget`. It inventories module,
 class, function, async-function, method, and async-method symbols; normalizes complete signatures
 including return annotations; retains only decorator names; preserves overload-like duplicate
 definitions; and correlates conservative moves across files that both remain. Deterministic rules
@@ -36,3 +38,13 @@ near-ties and lowers confidence for the unmatched lifecycle findings.
 The canonical schema version is `1.0`. Markdown is derived entirely from the canonical analysis.
 Risk estimates impact and test gap; confidence estimates support strength. They are intentionally
 independent.
+
+Semantic candidates are immutable and carry their own `(path, symbol)` identity. The three stages that
+merge them — rule grouping, model reconciliation, and service deduplication — each return new values,
+so no stage can invalidate a key another stage already computed. `service.py` threads a single
+`_PipelineState` for omissions, warnings, and truncation, and carries confidence and candidate tests
+on a `_ScoredCandidate` rather than in dictionaries keyed separately by identity and position.
+
+Per-category behavior knowledge lives once, in `taxonomy.py`: impact weight, obligation scenario
+templates, and candidate-test terminology. Completeness over `BehaviorCategory` is enforced at import
+and pinned by a contract test, so extending the taxonomy cannot half-land.

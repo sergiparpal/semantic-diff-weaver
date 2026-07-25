@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from semantic_diff_weaver.ast_diff import StructuralDelta
@@ -62,9 +64,15 @@ def test_complete_taxonomy_rules(change: StructuralDelta, category: BehaviorCate
     assert candidates[0].category is category
     assert candidates[0].evidence[0].id == "ev-001"
     complete_confidence = confidence_score(candidates[0])
-    candidates[0].evidence[0].parser_complete = False
-    candidates[0].assumptions.append("An external runtime contract is unavailable.")
-    assert confidence_score(candidates[0], truncated=True) < complete_confidence
+    weakened = replace(
+        candidates[0],
+        evidence=(candidates[0].evidence[0].model_copy(update={"parser_complete": False}),),
+        assumptions=(
+            *candidates[0].assumptions,
+            "An external runtime contract is unavailable.",
+        ),
+    )
+    assert confidence_score(weakened, truncated=True) < complete_confidence
 
 
 def test_same_symbol_category_merges_evidence() -> None:
@@ -81,17 +89,19 @@ def test_same_symbol_category_merges_evidence() -> None:
 def test_overlapping_deterministic_and_llm_candidates_merge_evidence() -> None:
     deterministic = build_candidates([delta("comparison_change", "x < 1", "x <= 1")])[0]
     llm_supported = SemanticCandidate(
+        path=deterministic.path,
+        symbol=deterministic.symbol,
         category=deterministic.category,
         summary="The exact boundary is included.",
         observable_impact=deterministic.observable_impact,
-        evidence=[
+        evidence=(
             deterministic.evidence[0],
             Evidence(id="ev-999", path="src/policy.py", symbol="Policy.apply", kind="condition"),
-        ],
+        ),
         confidence_baseline=0.97,
         origin=Origin.LLM_SUPPORTED,
-        rule_ids=["SDW-LLM-SUPPORTED"],
-        related_paths={"src/policy.py"},
+        rule_ids=("SDW-LLM-SUPPORTED",),
+        related_paths=frozenset({"src/policy.py"}),
     )
     merged = _deduplicate_candidates([deterministic, llm_supported])
     assert len(merged) == 1
@@ -103,10 +113,12 @@ def test_overlapping_deterministic_and_llm_candidates_merge_evidence() -> None:
 def test_semantically_equal_candidate_impacts_deduplicate_without_shared_evidence() -> None:
     first = build_candidates([delta("comparison_change", "x < 1", "x <= 1")])[0]
     second = SemanticCandidate(
+        path=first.path,
+        symbol=first.symbol,
         category=first.category,
         summary=first.summary,
         observable_impact=f"  {first.observable_impact.upper()}  ",
-        evidence=[Evidence(id="ev-999", path=first.path, symbol=first.symbol, kind="condition")],
+        evidence=(Evidence(id="ev-999", path=first.path, symbol=first.symbol, kind="condition"),),
         confidence_baseline=first.confidence_baseline,
     )
     merged = _deduplicate_candidates([first, second])

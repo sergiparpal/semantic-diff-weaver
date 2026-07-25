@@ -11,28 +11,14 @@ from typing import ClassVar
 
 from .errors import WeaverError
 from .git_diff import GitRepository
-from .models import BehaviorCategory, CandidateTest, WeaverConfig
+from .models import CandidateTest, WeaverConfig
 from .path_policy import exclusion_reason, glob_matches, redact_text
 from .semantic_candidates import SemanticCandidate
+from .taxonomy import CATEGORY_PROFILES
 
 TOKEN_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 MAX_TEST_INDEX_FILES = 500
 MAX_TEST_INDEX_BYTES = 8 * 1024 * 1024
-CATEGORY_TERMS = {
-    BehaviorCategory.BOUNDARY: {"boundary", "limit", "threshold"},
-    BehaviorCategory.VALIDATION: {"valid", "invalid", "reject", "accept"},
-    BehaviorCategory.ERROR_HANDLING: {"error", "exception", "failure"},
-    BehaviorCategory.STATE_TRANSITION: {"state", "transition", "status"},
-    BehaviorCategory.AUTHORIZATION: {"auth", "permission", "allowed", "denied"},
-    BehaviorCategory.RETRY_TIMEOUT: {"retry", "timeout", "attempt", "limit"},
-    BehaviorCategory.OUTPUT_CONTRACT: {"return", "output", "response", "field"},
-    BehaviorCategory.SIDE_EFFECT: {"event", "notify", "persist", "write"},
-    BehaviorCategory.ORDERING: {"order", "sequence", "precedence"},
-    BehaviorCategory.DEFAULT_BEHAVIOR: {"default", "omitted"},
-    BehaviorCategory.DEPENDENCY_INTERACTION: {"dependency", "client", "service"},
-    BehaviorCategory.REFACTOR: {"regression", "characterization"},
-    BehaviorCategory.UNKNOWN: {"review", "behavior"},
-}
 
 
 @dataclass(frozen=True)
@@ -220,7 +206,7 @@ def map_candidate_tests(
         module_prefix = f"{module}."
         module_suffix = f".{module}"
         symbol_suffix = f".{symbol_token}"
-        category_terms = CATEGORY_TERMS[candidate.category]
+        category_terms = CATEGORY_PROFILES[candidate.category].test_terms
         mapped_positions: set[int] = set()
         for mapping_index, mapping in enumerate(config.mapping):
             if glob_matches(candidate.path, mapping.source):

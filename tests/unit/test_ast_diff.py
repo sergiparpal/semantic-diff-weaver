@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-import semantic_diff_weaver.ast_diff as ast_diff
+import semantic_diff_weaver.ast_diff.limits as ast_limits
 from semantic_diff_weaver.ast_diff import analyze_ast
-from semantic_diff_weaver.git_diff import ChangedFile, Hunk
+from semantic_diff_weaver.source import SourceHunk, SourceRevisionPair
 
 
-def changed(old: str, new: str) -> ChangedFile:
-    return ChangedFile(
-        status="M",
+def changed(old: str, new: str) -> SourceRevisionPair:
+    return SourceRevisionPair(
+        path="src/sample.py",
         old_path="src/sample.py",
         new_path="src/sample.py",
-        hunks=[Hunk(id="hunk-001", old_start=1, old_count=100, new_start=1, new_count=100)],
+        hunks=(SourceHunk(id="hunk-001", old_start=1, old_count=100, new_start=1, new_count=100),),
         old_text=old,
         new_text=new,
     )
@@ -21,7 +21,7 @@ def kinds(old: str, new: str) -> set[str]:
 
 
 def test_ast_symbol_budget_fails_closed(monkeypatch) -> None:
-    monkeypatch.setattr(ast_diff, "MAX_SYMBOLS_PER_FILE", 3)
+    monkeypatch.setattr(ast_limits, "MAX_SYMBOLS_PER_FILE", 3)
     source = "\n".join(f"def function_{index}():\n    return {index}\n" for index in range(4))
     result = analyze_ast([changed(source, source.replace("return", "return +"))])
     assert result.resource_limited_files == 1
@@ -58,11 +58,11 @@ def test_extracts_required_structural_delta_classes() -> None:
 
 
 def test_unchanged_symbol_outside_hunk_is_ignored() -> None:
-    file = ChangedFile(
-        status="M",
+    file = SourceRevisionPair(
+        path="src/sample.py",
         old_path="src/sample.py",
         new_path="src/sample.py",
-        hunks=[Hunk(id="hunk-001", old_start=5, old_count=1, new_start=5, new_count=1)],
+        hunks=(SourceHunk(id="hunk-001", old_start=5, old_count=1, new_start=5, new_count=1),),
         old_text="def unchanged(x):\n    return x < 5\n\nvalue = 1\n",
         new_text="def unchanged(x):\n    return x < 5\n\nvalue = 2\n",
     )
@@ -72,11 +72,11 @@ def test_unchanged_symbol_outside_hunk_is_ignored() -> None:
 
 def test_partial_parse_failure_preserves_other_file() -> None:
     good = changed("def f(x):\n    return x < 2\n", "def f(x):\n    return x <= 2\n")
-    bad = ChangedFile(
-        status="M",
+    bad = SourceRevisionPair(
+        path="src/bad.py",
         old_path="src/bad.py",
         new_path="src/bad.py",
-        hunks=[Hunk(id="hunk-001", old_start=1, old_count=1, new_start=1, new_count=1)],
+        hunks=(SourceHunk(id="hunk-001", old_start=1, old_count=1, new_start=1, new_count=1),),
         old_text="def broken(:\n",
         new_text="def still_broken(:\n",
     )
@@ -88,11 +88,12 @@ def test_partial_parse_failure_preserves_other_file() -> None:
 
 
 def test_copy_is_reported_as_added_surface_not_an_unchanged_rename() -> None:
-    copied = ChangedFile(
-        status="C100",
+    copied = SourceRevisionPair(
+        path="src/copied.py",
+        has_old_side=False,
         old_path="src/original.py",
         new_path="src/copied.py",
-        hunks=[Hunk(id="hunk-001", old_start=0, old_count=0, new_start=1, new_count=2)],
+        hunks=(SourceHunk(id="hunk-001", old_start=0, old_count=0, new_start=1, new_count=2),),
         old_text="def copied():\n    return 1\n",
         new_text="def copied():\n    return 1\n",
     )

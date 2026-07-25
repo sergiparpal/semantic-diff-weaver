@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
@@ -21,7 +21,7 @@ from .models import (
 )
 from .path_policy import critical_weight, redact_text
 from .schemas import LLM_RESPONSE_SCHEMA, LLM_SCHEMA_NAME
-from .semantic_candidates import SemanticCandidate
+from .semantic_candidates import SemanticCandidate, evidence_identity
 from .textutil import getattr_or_key
 
 MAX_LLM_RESPONSE_CHARS = 200_000
@@ -78,11 +78,6 @@ class EvidenceBatch:
     candidates: tuple[SemanticCandidate, ...]
     symbol_payloads: tuple[dict[str, Any], ...]
     evidence_ids: frozenset[str]
-
-    @property
-    def payload_items(self) -> tuple[dict[str, Any], ...]:
-        # Backward-compatible alias used by tests.
-        return self.symbol_payloads
 
 
 def _serialized_size(payload: dict[str, Any]) -> int:
@@ -316,6 +311,19 @@ def _batch_candidates(
     return prioritized, omitted + oversized_symbols, truncated_symbols
 
 
+def _merge_usage(current: LlmUsage | None, addition: LlmUsage | None) -> LlmUsage | None:
+    """Sum two optional usage records, preserving ``None`` as "the host reported nothing"."""
+    if addition is None:
+        return current
+    if current is None:
+        return addition
+    return LlmUsage(
+        input_tokens=(current.input_tokens or 0) + (addition.input_tokens or 0),
+        output_tokens=(current.output_tokens or 0) + (addition.output_tokens or 0),
+        cost=(current.cost or 0.0) + (addition.cost or 0.0),
+    )
+
+
 def _accumulate_usage(current: LlmUsage | None, result: Any) -> LlmUsage | None:
     usage = getattr_or_key(result, "usage")
     if usage is None:
@@ -331,11 +339,9 @@ def _accumulate_usage(current: LlmUsage | None, result: Any) -> LlmUsage | None:
         cost = getattr_or_key(usage, "cost")
     if input_tokens is None and output_tokens is None and cost is None:
         return current
-    current = current or LlmUsage()
-    return LlmUsage(
-        input_tokens=(current.input_tokens or 0) + (input_tokens or 0),
-        output_tokens=(current.output_tokens or 0) + (output_tokens or 0),
-        cost=(current.cost or 0.0) + (cost or 0.0),
+    return _merge_usage(
+        current or LlmUsage(),
+        LlmUsage(input_tokens=input_tokens, output_tokens=output_tokens, cost=cost),
     )
 
 
@@ -434,38 +440,43 @@ def _accept_behavior(
     if category not in supported_categories and category is not BehaviorCategory.UNKNOWN:
         category = BehaviorCategory.UNKNOWN
         warnings.append("Downgraded an unsupported LLM category to unknown_semantic_change.")
-    existing = next(
+    redacted_assumptions = [_generated_text(item, max_chars=1000) for item in behavior.assumptions]
+    existing_index = next(
         (
-            item
-            for item in candidates
+            index
+            for index, item in enumerate(candidates)
             if item.category is category
             and {ev.id for ev in item.evidence} == set(behavior.evidence_ids)
         ),
         None,
     )
-    if existing:
-        existing.origin = Origin.LLM_SUPPORTED
-        existing.confidence_baseline = max(
-            existing.confidence_baseline, min(behavior.confidence, LLM_CONFIDENCE_CAP_EXISTING)
+    if existing_index is not None:
+        # Candidates are immutable, so promotion replaces the entry in place rather than
+        # editing an object other batches and the caller's list already reference.
+        existing = candidates[existing_index]
+        promoted = replace(
+            existing,
+            origin=Origin.LLM_SUPPORTED,
+            confidence_baseline=max(
+                existing.confidence_baseline,
+                min(behavior.confidence, LLM_CONFIDENCE_CAP_EXISTING),
+            ),
+            assumptions=tuple(sorted({*existing.assumptions, *redacted_assumptions})),
         )
-        existing.assumptions = sorted(
-            set(
-                [
-                    *existing.assumptions,
-                    *(_generated_text(item, max_chars=1000) for item in behavior.assumptions),
-                ]
-            )
-        )
-        return existing
+        candidates[existing_index] = promoted
+        return promoted
+    path, symbol = evidence_identity(evidence)
     accepted = SemanticCandidate(
+        path=path,
+        symbol=symbol,
         category=category,
         summary=_generated_text(behavior.summary, max_chars=500),
         observable_impact=_generated_text(behavior.observable_impact, max_chars=1000),
-        evidence=evidence,
+        evidence=tuple(evidence),
         confidence_baseline=min(behavior.confidence, LLM_CONFIDENCE_CAP_NEW),
-        assumptions=[_generated_text(item, max_chars=1000) for item in behavior.assumptions],
+        assumptions=tuple(redacted_assumptions),
         origin=Origin.LLM_SUPPORTED,
-        rule_ids=["SDW-LLM-SUPPORTED"],
+        rule_ids=("SDW-LLM-SUPPORTED",),
     )
     candidates.append(accepted)
     return accepted
@@ -583,18 +594,7 @@ def interpret_candidates(
             max_calls=config.rules.max_llm_calls,
         )
         calls += used
-        if batch_usage is not None:
-            usage = LlmUsage(
-                input_tokens=(usage.input_tokens or 0) + (batch_usage.input_tokens or 0)
-                if usage is not None
-                else batch_usage.input_tokens,
-                output_tokens=(usage.output_tokens or 0) + (batch_usage.output_tokens or 0)
-                if usage is not None
-                else batch_usage.output_tokens,
-                cost=(usage.cost or 0.0) + (batch_usage.cost or 0.0)
-                if usage is not None
-                else batch_usage.cost,
-            )
+        usage = _merge_usage(usage, batch_usage)
         schema_failure_seen |= schema_fail
         if parsed is None:
             failures += 1

@@ -6,7 +6,7 @@ import re
 import unicodedata
 from typing import Any
 
-from .models import AnalysisResult, BothEnvelope, MarkdownEnvelope, OutputFormat
+from .models import AnalysisResult, BothEnvelope, MarkdownEnvelope, OutputFormat, Presentation
 
 BIDI_CONTROLS = frozenset(
     {
@@ -82,7 +82,9 @@ def render_markdown(result: AnalysisResult) -> str:
         )
     for behavior in result.behavior_changes:
         prefix = (
-            "Review question" if behavior.presentation.value == "review_question" else "Finding"
+            "Review question"
+            if behavior.presentation is Presentation.REVIEW_QUESTION
+            else "Finding"
         )
         lines.extend(
             [
@@ -127,7 +129,9 @@ def render_markdown(result: AnalysisResult) -> str:
         else:
             lines.append(f"  - Candidate existing tests: none ({obligation.coverage_status.value})")
     review = [
-        item for item in result.behavior_changes if item.presentation.value == "review_question"
+        item
+        for item in result.behavior_changes
+        if item.presentation is Presentation.REVIEW_QUESTION
     ]
     if review:
         lines.extend(["", "### Review questions", ""])

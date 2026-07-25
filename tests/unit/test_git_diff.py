@@ -7,23 +7,26 @@ from pathlib import Path
 
 import pytest
 
-import semantic_diff_weaver.git_diff as git_diff
 import semantic_diff_weaver.git_diff.collect as collect_module
+import semantic_diff_weaver.git_diff.limits as limits_module
+import semantic_diff_weaver.git_diff.repository as repository_module
 from semantic_diff_weaver.errors import ErrorCode, WeaverError
-from semantic_diff_weaver.git_diff import (
-    MAX_GIT_INPUT_BYTES,
-    GitRepository,
-    _parse_name_status,
-    _parse_numstat,
-    collect_diff,
-)
+from semantic_diff_weaver.git_diff import GitRepository, collect_diff
 from semantic_diff_weaver.git_diff.collect import _file_hunks, _hunks_by_path
+from semantic_diff_weaver.git_diff.limits import MAX_GIT_INPUT_BYTES
 from semantic_diff_weaver.git_diff.parse import (
     parse_hunks_by_path as _parse_hunks_by_path,
 )
 from semantic_diff_weaver.git_diff.parse import (
+    parse_name_status as _parse_name_status,
+)
+from semantic_diff_weaver.git_diff.parse import (
+    parse_numstat as _parse_numstat,
+)
+from semantic_diff_weaver.git_diff.parse import (
     unquote_git_path as _unquote_git_path,
 )
+from semantic_diff_weaver.git_diff.process import OutputLimitExceeded, run_bounded_process
 from semantic_diff_weaver.models import CriticalPath, WeaverConfig
 
 
@@ -125,9 +128,9 @@ def test_git_output_and_decode_limits_are_safe(tmp_path: Path, monkeypatch) -> N
     assert input_error.value.code is ErrorCode.DIFF_TOO_LARGE
 
     def huge(*args, **kwargs):
-        raise git_diff._OutputLimitExceeded
+        raise OutputLimitExceeded
 
-    monkeypatch.setattr(git_diff, "_run_bounded_process", huge)
+    monkeypatch.setattr(repository_module, "run_bounded_process", huge)
     with pytest.raises(WeaverError) as caught:
         repo.run(["status"], max_bytes=10)
     assert caught.value.code is ErrorCode.DIFF_TOO_LARGE
@@ -135,15 +138,15 @@ def test_git_output_and_decode_limits_are_safe(tmp_path: Path, monkeypatch) -> N
     def invalid_utf8(*args, **kwargs):
         return subprocess.CompletedProcess(args[0], 0, stdout=b"\xff", stderr=b"")
 
-    monkeypatch.setattr(git_diff, "_run_bounded_process", invalid_utf8)
+    monkeypatch.setattr(repository_module, "run_bounded_process", invalid_utf8)
     with pytest.raises(WeaverError) as decode_error:
         repo.run(["status"])
     assert decode_error.value.code is ErrorCode.PARSE_FAILURE
 
 
 def test_process_output_is_stopped_while_streaming(tmp_path: Path) -> None:
-    with pytest.raises(git_diff._OutputLimitExceeded):
-        git_diff._run_bounded_process(
+    with pytest.raises(OutputLimitExceeded):
+        run_bounded_process(
             [sys.executable, "-c", "import sys; sys.stdout.buffer.write(b'x' * 1000000)"],
             cwd=tmp_path,
             env={},
@@ -233,14 +236,14 @@ def test_collection_batches_tree_and_blob_commands(repo_factory, monkeypatch) ->
         {"one.py": "x = 2\n", "two.py": "y = 2\n"},
     )
     repo = GitRepository.open(str(repo_path))
-    real_run = git_diff._run_bounded_process
+    real_run = run_bounded_process
     commands: list[list[str]] = []
 
     def spy(*args, **kwargs):
         commands.append(args[0])
         return real_run(*args, **kwargs)
 
-    monkeypatch.setattr(git_diff, "_run_bounded_process", spy)
+    monkeypatch.setattr(repository_module, "run_bounded_process", spy)
     result = collect_diff(repo, base, head, WeaverConfig())
     assert len(result.files) == 2
     assert sum("ls-tree" in command for command in commands) == 2
@@ -420,7 +423,7 @@ def test_aggregate_source_cap_is_immutable_and_visible(repo_factory, monkeypatch
         {"bounded.py": "value = 1\n"},
         {"bounded.py": "value = 2\n"},
     )
-    monkeypatch.setattr(git_diff, "MAX_SOURCE_BLOB_BYTES", 12)
+    monkeypatch.setattr(limits_module, "MAX_SOURCE_BLOB_BYTES", 12)
     result = collect_diff(GitRepository.open(str(repo_path)), base, head, WeaverConfig())
     assert result.files == []
     assert result.truncated is True

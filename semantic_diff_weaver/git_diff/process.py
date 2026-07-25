@@ -15,10 +15,6 @@ class OutputLimitExceeded(Exception):
     """Raised when a Git child exceeds the configured stdout/stderr byte budget."""
 
 
-# Backward-compatible private alias for tests and existing imports.
-_OutputLimitExceeded = OutputLimitExceeded
-
-
 def run_bounded_process(
     command: list[str],
     *,
@@ -113,7 +109,3 @@ def run_bounded_process(
     if reader_errors:
         raise reader_errors[0]
     return subprocess.CompletedProcess(command, process.returncode, bytes(stdout), bytes(stderr))
-
-
-# Backward-compatible private alias.
-_run_bounded_process = run_bounded_process

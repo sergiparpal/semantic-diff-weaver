@@ -2,7 +2,9 @@
 
 ## Project Structure & Module Organization
 
-Production code lives in `semantic_diff_weaver/`. `git_diff.py` collects committed Git data, `ast_diff.py` extracts structural changes, and `service.py` orchestrates the pipeline. `plugin.py`, root `__init__.py`, and `plugin.yaml` provide Hermes registration.
+Production code lives in `semantic_diff_weaver/`. The `git_diff/` package collects committed Git data, the `ast_diff/` package extracts structural changes, and `service.py` orchestrates the pipeline. `source.py` holds the `SourceRevisionPair` contract between them, so `ast_diff/` never imports `git_diff/`. `taxonomy.py` is the single per-`BehaviorCategory` profile consumed by `scoring.py`, `obligations.py`, and `test_mapper.py`. `plugin.py`, root `__init__.py`, and `plugin.yaml` provide Hermes registration.
+
+Each package's `__init__.py` exports only its pipeline-facing surface. Import internals (parsers, the process runner, limit constants) from their defining module rather than widening the facade, and do not re-export private names.
 
 Tests are grouped under `tests/unit`, `contract`, `integration`, `security`, `performance`, and `evaluation`; reusable inputs belong in `tests/fixtures`. User-facing design and operational notes belong in `docs/`.
 

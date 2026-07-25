@@ -6,29 +6,17 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, Literal, overload
+from typing import Literal, overload
 
 from ..errors import ErrorCode, WeaverError
 from ..path_policy import normalize_repo_path
 from . import limits
+from .process import OutputLimitExceeded, run_bounded_process
 from .types import BlobBatch, GitTreeEntry
 
 
 def _git_error(code: ErrorCode, message: str, remediation: str) -> WeaverError:
     return WeaverError(code, message, remediation)
-
-
-_GIT_DIFF_API: Any | None = None
-
-
-def _git_diff_api() -> Any:
-    """Resolve the public package so tests can monkeypatch facade attributes."""
-    global _GIT_DIFF_API
-    if _GIT_DIFF_API is None:
-        from semantic_diff_weaver import git_diff as api
-
-        _GIT_DIFF_API = api
-    return _GIT_DIFF_API
 
 
 class GitRepository:
@@ -136,16 +124,15 @@ class GitRepository:
                 "Git input exceeded the bounded collection limit.",
                 "Narrow the include patterns or split the change.",
             )
-        api = _git_diff_api()
         try:
-            completed = api._run_bounded_process(
+            completed = run_bounded_process(
                 command,
                 cwd=self.root,
                 env=env,
                 input_data=input_data,
                 max_bytes=min(max_bytes, limits.HARD_MAX_GIT_OUTPUT_BYTES),
             )
-        except api._OutputLimitExceeded as exc:
+        except OutputLimitExceeded as exc:
             raise _git_error(
                 ErrorCode.DIFF_TOO_LARGE,
                 "Git output exceeded the bounded collection limit.",
@@ -347,7 +334,7 @@ class GitRepository:
             if size > effective_max_bytes:
                 failures[object_id] = "oversized"
                 continue
-            max_blob_bytes = _git_diff_api().MAX_SOURCE_BLOB_BYTES
+            max_blob_bytes = limits.MAX_SOURCE_BLOB_BYTES
             if aggregate_bytes + size > min(max_total_bytes, max_blob_bytes):
                 failures[object_id] = "aggregate_source_limit"
                 continue
@@ -415,9 +402,6 @@ class GitRepository:
                     continue
                 failures.pop(object_id, None)
         return BlobBatch(result, failures)
-
-    # Backward-compatible private alias.
-    _read_blob_objects = read_blob_batch
 
     def list_files(self, commit: str, max_bytes: int = limits.MAX_GIT_OUTPUT_BYTES) -> list[str]:
         raw = self.run(

@@ -8,7 +8,7 @@ from collections.abc import Iterable, Sequence
 from difflib import SequenceMatcher
 from typing import TypeVar
 
-from ..git_diff import ChangedFile
+from ..source import SourceRevisionPair
 from . import limits
 from .types import SymbolPair, SymbolSnapshot
 
@@ -230,33 +230,37 @@ def match_symbols(
 
 
 def match_cross_file_symbols(
-    removed: list[tuple[SymbolSnapshot, ChangedFile]],
-    added: list[tuple[SymbolSnapshot, ChangedFile]],
+    removed: list[tuple[SymbolSnapshot, SourceRevisionPair]],
+    added: list[tuple[SymbolSnapshot, SourceRevisionPair]],
 ) -> tuple[
-    list[tuple[SymbolSnapshot, ChangedFile, SymbolSnapshot, ChangedFile]],
-    list[tuple[SymbolSnapshot, ChangedFile]],
-    list[tuple[SymbolSnapshot, ChangedFile]],
+    list[tuple[SymbolSnapshot, SourceRevisionPair, SymbolSnapshot, SourceRevisionPair]],
+    list[tuple[SymbolSnapshot, SourceRevisionPair]],
+    list[tuple[SymbolSnapshot, SourceRevisionPair]],
     list[str],
 ]:
     """Correlate conservative symbol moves between distinct changed files."""
-    pairs: list[tuple[SymbolSnapshot, ChangedFile, SymbolSnapshot, ChangedFile]] = []
+    pairs: list[tuple[SymbolSnapshot, SourceRevisionPair, SymbolSnapshot, SourceRevisionPair]] = []
     warnings: list[str] = []
     matched_old: set[int] = set()
     matched_new: set[int] = set()
-    by_name: dict[tuple[str, str], list[tuple[SymbolSnapshot, ChangedFile]]] = defaultdict(list)
-    by_fingerprint: dict[tuple[str, str, str], list[tuple[SymbolSnapshot, ChangedFile]]] = (
+    by_name: dict[tuple[str, str], list[tuple[SymbolSnapshot, SourceRevisionPair]]] = defaultdict(
+        list
+    )
+    by_fingerprint: dict[tuple[str, str, str], list[tuple[SymbolSnapshot, SourceRevisionPair]]] = (
         defaultdict(list)
     )
-    by_shape: dict[tuple[str, str], list[tuple[SymbolSnapshot, ChangedFile]]] = defaultdict(list)
+    by_shape: dict[tuple[str, str], list[tuple[SymbolSnapshot, SourceRevisionPair]]] = defaultdict(
+        list
+    )
     for new, new_file in added:
         by_name[(new.kind, new.qualified_name)].append((new, new_file))
         by_fingerprint[(new.kind, new.signature_shape, new.fingerprint)].append((new, new_file))
         by_shape[(new.kind, new.signature_shape)].append((new, new_file))
 
     def available(
-        items: list[tuple[SymbolSnapshot, ChangedFile]],
-    ) -> list[tuple[SymbolSnapshot, ChangedFile]]:
-        result: list[tuple[SymbolSnapshot, ChangedFile]] = []
+        items: list[tuple[SymbolSnapshot, SourceRevisionPair]],
+    ) -> list[tuple[SymbolSnapshot, SourceRevisionPair]]:
+        result: list[tuple[SymbolSnapshot, SourceRevisionPair]] = []
         for item in items:
             if id(item[0]) not in matched_new:
                 result.append(item)
@@ -350,9 +354,3 @@ def match_cross_file_symbols(
     unmatched_removed = [item for item in removed if id(item[0]) not in matched_old]
     unmatched_added = [item for item in added if id(item[0]) not in matched_new]
     return pairs, unmatched_removed, unmatched_added, warnings
-
-
-# Backward-compatible private aliases.
-_match_symbols = match_symbols
-_match_cross_file_symbols = match_cross_file_symbols
-_symbol_similarity = symbol_similarity

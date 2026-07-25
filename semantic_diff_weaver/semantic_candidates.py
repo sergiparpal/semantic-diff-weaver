@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
 from .ast_diff import StructuralDelta
-from .models import BehaviorCategory, Evidence, Origin, WeaverConfig
+from .models import BehaviorCategory, Evidence, Origin, RulesConfig, WeaverConfig
 
 AUTH_TERMS = (
     "auth",
@@ -58,29 +58,38 @@ SIDE_EFFECT_TERMS = (
 )
 
 Classification = tuple[BehaviorCategory, str, str, float, list[str], str]
-Classifier = Callable[[StructuralDelta, WeaverConfig, str], Classification | None]
+Classifier = Callable[[StructuralDelta, RulesConfig, str], Classification | None]
 
 
-@dataclass
+@dataclass(frozen=True)
 class SemanticCandidate:
+    """One deterministic or model-supported behavior finding.
+
+    Immutable, and ``path``/``symbol`` are stored rather than derived from ``evidence[0]``.
+    Three stages merge candidates — rule grouping here, model reconciliation in
+    ``semantic_interpreter``, and deduplication in ``service`` — and each now produces a new
+    instance. Derived identity was unsafe because merging re-sorts the evidence list, so a
+    candidate could silently change the ``(path, symbol)`` another stage had already keyed on.
+    """
+
+    path: str
+    symbol: str
     category: BehaviorCategory
     summary: str
     observable_impact: str
-    evidence: list[Evidence]
+    evidence: tuple[Evidence, ...]
     confidence_baseline: float
-    assumptions: list[str] = field(default_factory=list)
+    assumptions: tuple[str, ...] = ()
     origin: Origin = Origin.DETERMINISTIC
-    rule_ids: list[str] = field(default_factory=list)
-    related_calls: set[str] = field(default_factory=set)
-    related_paths: set[str] = field(default_factory=set)
+    rule_ids: tuple[str, ...] = ()
+    related_calls: frozenset[str] = frozenset()
+    related_paths: frozenset[str] = frozenset()
 
-    @property
-    def path(self) -> str:
-        return self.evidence[0].path
 
-    @property
-    def symbol(self) -> str:
-        return self.evidence[0].symbol or "<module>"
+def evidence_identity(evidence: Sequence[Evidence]) -> tuple[str, str]:
+    """Return the ``(path, symbol)`` a candidate built from this evidence is identified by."""
+    first = evidence[0]
+    return first.path, first.symbol or "<module>"
 
 
 def _contains(text: str, terms: tuple[str, ...]) -> bool:
@@ -90,7 +99,7 @@ def _contains(text: str, terms: tuple[str, ...]) -> bool:
 
 
 def _classify_parse_incomplete(
-    delta: StructuralDelta, config: WeaverConfig, combined: str
+    delta: StructuralDelta, rules: RulesConfig, combined: str
 ) -> Classification | None:
     if delta.kind != "parse_incomplete":
         return None
@@ -105,7 +114,7 @@ def _classify_parse_incomplete(
 
 
 def _classify_symbol_lifecycle(
-    delta: StructuralDelta, config: WeaverConfig, combined: str
+    delta: StructuralDelta, rules: RulesConfig, combined: str
 ) -> Classification | None:
     if delta.kind not in {"symbol_added", "symbol_removed"}:
         return None
@@ -127,7 +136,7 @@ def _classify_symbol_lifecycle(
 
 
 def _classify_comparison(
-    delta: StructuralDelta, config: WeaverConfig, combined: str
+    delta: StructuralDelta, rules: RulesConfig, combined: str
 ) -> Classification | None:
     if delta.kind != "comparison_change":
         return None
@@ -151,7 +160,7 @@ def _classify_comparison(
 
 
 def _classify_signature(
-    delta: StructuralDelta, config: WeaverConfig, combined: str
+    delta: StructuralDelta, rules: RulesConfig, combined: str
 ) -> Classification | None:
     if delta.kind != "signature_change":
         return None
@@ -175,7 +184,7 @@ def _classify_signature(
 
 
 def _classify_error(
-    delta: StructuralDelta, config: WeaverConfig, combined: str
+    delta: StructuralDelta, rules: RulesConfig, combined: str
 ) -> Classification | None:
     if delta.kind not in {"raise_change", "exception_handler_change"}:
         return None
@@ -190,7 +199,7 @@ def _classify_error(
 
 
 def _classify_return(
-    delta: StructuralDelta, config: WeaverConfig, combined: str
+    delta: StructuralDelta, rules: RulesConfig, combined: str
 ) -> Classification | None:
     if delta.kind != "return_change":
         return None
@@ -205,7 +214,7 @@ def _classify_return(
 
 
 def _classify_assignment(
-    delta: StructuralDelta, config: WeaverConfig, combined: str
+    delta: StructuralDelta, rules: RulesConfig, combined: str
 ) -> Classification | None:
     if delta.kind != "assignment_change":
         return None
@@ -220,7 +229,7 @@ def _classify_assignment(
 
 
 def _classify_loop(
-    delta: StructuralDelta, config: WeaverConfig, combined: str
+    delta: StructuralDelta, rules: RulesConfig, combined: str
 ) -> Classification | None:
     if delta.kind != "loop_change":
         return None
@@ -235,7 +244,7 @@ def _classify_loop(
 
 
 def _classify_condition(
-    delta: StructuralDelta, config: WeaverConfig, combined: str
+    delta: StructuralDelta, rules: RulesConfig, combined: str
 ) -> Classification | None:
     if delta.kind != "condition_change":
         return None
@@ -291,7 +300,7 @@ def _classify_condition(
 
 
 def _classify_call(
-    delta: StructuralDelta, config: WeaverConfig, combined: str
+    delta: StructuralDelta, rules: RulesConfig, combined: str
 ) -> Classification | None:
     if delta.kind != "call_change":
         return None
@@ -342,7 +351,7 @@ def _classify_call(
 
 
 def _classify_ordering(
-    delta: StructuralDelta, config: WeaverConfig, combined: str
+    delta: StructuralDelta, rules: RulesConfig, combined: str
 ) -> Classification | None:
     if delta.kind not in {"call_order_change", "condition_order_change", "statement_order_change"}:
         return None
@@ -357,12 +366,12 @@ def _classify_ordering(
 
 
 def _classify_refactor(
-    delta: StructuralDelta, config: WeaverConfig, combined: str
+    delta: StructuralDelta, rules: RulesConfig, combined: str
 ) -> Classification | None:
     if delta.kind != "structural_refactor":
         return None
     materiality = float(delta.metadata.get("materiality", 0.0))
-    if materiality > config.rules.refactor_materiality_threshold:
+    if materiality > rules.refactor_materiality_threshold:
         return (
             BehaviorCategory.UNKNOWN,
             "A refactor-like change exceeds the configured materiality threshold.",
@@ -382,7 +391,7 @@ def _classify_refactor(
 
 
 def _classify_decorator(
-    delta: StructuralDelta, config: WeaverConfig, combined: str
+    delta: StructuralDelta, rules: RulesConfig, combined: str
 ) -> Classification | None:
     if delta.kind != "decorator_change" or not _contains(combined, AUTH_TERMS):
         return None
@@ -422,25 +431,56 @@ UNKNOWN_FALLBACK: Classification = (
 )
 
 
-def classify_delta(delta: StructuralDelta, config: WeaverConfig) -> Classification:
+def classify_delta(delta: StructuralDelta, rules: RulesConfig) -> Classification:
     combined = " ".join(filter(None, (delta.old, delta.new, delta.symbol)))
     for classifier in CLASSIFIERS:
-        result = classifier(delta, config, combined)
+        result = classifier(delta, rules, combined)
         if result is not None:
             return result
     return UNKNOWN_FALLBACK
+
+
+@dataclass
+class _CandidateAccumulator:
+    """Mutable scratch state for one ``(path, symbol, category)`` group.
+
+    Kept separate from the frozen candidate so grouping can merge cheaply and the immutable
+    result is constructed exactly once, when the group is complete.
+    """
+
+    summary: str
+    observable_impact: str
+    confidence_baseline: float
+    evidence: list[Evidence] = field(default_factory=list)
+    assumptions: set[str] = field(default_factory=set)
+    rule_ids: list[str] = field(default_factory=list)
+    related_calls: set[str] = field(default_factory=set)
+    related_paths: set[str] = field(default_factory=set)
+
+    def build(self, path: str, symbol: str, category: BehaviorCategory) -> SemanticCandidate:
+        return SemanticCandidate(
+            path=path,
+            symbol=symbol,
+            category=category,
+            summary=self.summary,
+            observable_impact=self.observable_impact,
+            evidence=tuple(self.evidence),
+            confidence_baseline=self.confidence_baseline,
+            assumptions=tuple(sorted(self.assumptions)),
+            rule_ids=tuple(self.rule_ids),
+            related_calls=frozenset(self.related_calls),
+            related_paths=frozenset(self.related_paths),
+        )
 
 
 def build_candidates(
     deltas: list[StructuralDelta], config: WeaverConfig | None = None
 ) -> list[SemanticCandidate]:
     """Apply stable rules, create evidence IDs, and merge same-symbol categories."""
-    effective_config = config or WeaverConfig()
-    grouped: dict[tuple[str, str, BehaviorCategory], SemanticCandidate] = {}
+    rules = (config or WeaverConfig()).rules
+    grouped: dict[tuple[str, str, BehaviorCategory], _CandidateAccumulator] = {}
     for index, delta in enumerate(deltas, start=1):
-        category, summary, impact, baseline, assumptions, rule_id = classify_delta(
-            delta, effective_config
-        )
+        category, summary, impact, baseline, assumptions, rule_id = classify_delta(delta, rules)
         evidence = Evidence(
             id=f"ev-{index:03d}",
             path=delta.path,
@@ -470,25 +510,23 @@ def build_candidates(
             current = grouped[key]
             current.evidence.append(evidence)
             current.confidence_baseline = max(current.confidence_baseline, baseline)
-            current.assumptions = sorted(set([*current.assumptions, *assumptions]))
+            current.assumptions.update(assumptions)
             current.rule_ids.append(rule_id)
             current.related_calls.update(related_calls)
             current.related_paths.update(related_paths)
         else:
-            grouped[key] = SemanticCandidate(
-                category=category,
+            grouped[key] = _CandidateAccumulator(
                 summary=summary,
                 observable_impact=impact,
-                evidence=[evidence],
                 confidence_baseline=baseline,
-                assumptions=assumptions,
+                evidence=[evidence],
+                assumptions=set(assumptions),
                 rule_ids=[rule_id],
                 related_calls=related_calls,
                 related_paths=related_paths,
             )
-    return sorted(grouped.values(), key=lambda item: (item.path, item.symbol, item.category.value))
-
-
-# Backward-compatible private alias.
-_classification = classify_delta
-_contains_terms = _contains
+    candidates = [
+        accumulator.build(path, symbol, category)
+        for (path, symbol, category), accumulator in grouped.items()
+    ]
+    return sorted(candidates, key=lambda item: (item.path, item.symbol, item.category.value))

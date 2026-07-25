@@ -42,7 +42,7 @@ def behavior(category: BehaviorCategory, index: int = 1, risk: RiskLabel = RiskL
 
 def test_boundary_generates_below_at_above_obligations() -> None:
     obligations, omitted = generate_obligations(
-        [behavior(BehaviorCategory.BOUNDARY)], {}, False, WeaverConfig()
+        [behavior(BehaviorCategory.BOUNDARY)], {}, False, WeaverConfig().rules
     )
     assert omitted == 0
     assert len(obligations) == 3
@@ -56,7 +56,7 @@ def test_high_behavior_always_has_obligation_and_cap_is_visible() -> None:
     config = WeaverConfig()
     config.rules.max_test_obligations = 2
     obligations, omitted = generate_obligations(
-        [behavior(BehaviorCategory.RETRY_TIMEOUT)], {}, False, config
+        [behavior(BehaviorCategory.RETRY_TIMEOUT)], {}, False, config.rules
     )
     assert obligations
     assert len(obligations) == 2
@@ -65,7 +65,7 @@ def test_high_behavior_always_has_obligation_and_cap_is_visible() -> None:
 
 def test_mapping_incomplete_is_not_claimed_as_coverage() -> None:
     obligations, _ = generate_obligations(
-        [behavior(BehaviorCategory.ERROR_HANDLING)], {}, True, WeaverConfig()
+        [behavior(BehaviorCategory.ERROR_HANDLING)], {}, True, WeaverConfig().rules
     )
     assert all(item.coverage_status.value == "mapping_incomplete" for item in obligations)
 
@@ -78,7 +78,7 @@ def test_equivalent_templates_do_not_remove_another_high_risk_behaviors_obligati
         ],
         {},
         False,
-        WeaverConfig(),
+        WeaverConfig().rules,
     )
     linked = {
         behavior_id for obligation in obligations for behavior_id in obligation.behavior_change_ids
@@ -108,7 +108,7 @@ def test_merged_obligations_union_and_cap_candidate_tests() -> None:
         ],
         candidate_tests,
         False,
-        WeaverConfig(),
+        WeaverConfig().rules,
     )
     assert all(len(item.candidate_existing_tests) == 5 for item in obligations)
     assert all(item.coverage_status.value == "candidate_exists_unverified" for item in obligations)
@@ -127,7 +127,7 @@ def test_duplicate_llm_obligations_are_semantically_deduplicated() -> None:
         [behavior(BehaviorCategory.BOUNDARY)],
         {},
         False,
-        WeaverConfig(),
+        WeaverConfig().rules,
         [suggestion, suggestion],
     )
     assert len(obligations) == 4
@@ -142,7 +142,7 @@ def test_global_cap_groups_overflowing_high_risk_behavior_links() -> None:
         [behavior(BehaviorCategory.BOUNDARY, index=index) for index in range(1, 4)],
         {},
         False,
-        config,
+        config.rules,
     )
     linked = {
         behavior_id for obligation in obligations for behavior_id in obligation.behavior_change_ids
@@ -172,7 +172,7 @@ def test_grouped_overflow_obligation_preserves_candidate_mapping() -> None:
         behaviors,
         {"bc-003": [mapped]},
         True,
-        config,
+        config.rules,
     )
     grouped = next(item for item in obligations if len(item.behavior_change_ids) > 1)
     assert grouped.candidate_existing_tests == [mapped]
@@ -191,6 +191,34 @@ def test_grouped_overflow_obligation_uses_conservative_origin(origin: Origin) ->
     ]
     for item in behaviors:
         item.origin = origin
-    obligations, _ = generate_obligations(behaviors, {}, False, config)
+    obligations, _ = generate_obligations(behaviors, {}, False, config.rules)
     grouped = next(item for item in obligations if len(item.behavior_change_ids) > 1)
     assert grouped.origin is origin
+
+
+def test_grouped_overflow_counts_the_absorbed_obligation_as_omitted() -> None:
+    """The synthetic grouped obligation replaces a generated one, so it is not credited.
+
+    The cap keeps ``maximum - 1`` real obligations plus one grouped review, so exactly
+    ``len(generated) - (maximum - 1)`` generated obligations were dropped. The previous
+    formula subtracted ``maximum`` and therefore under-reported the omission by one.
+    """
+    config = WeaverConfig()
+    config.rules.max_test_obligations = 2
+    behaviors = [
+        behavior(BehaviorCategory.BOUNDARY, index=1),
+        behavior(BehaviorCategory.AUTHORIZATION, index=2),
+        behavior(BehaviorCategory.RETRY_TIMEOUT, index=3),
+    ]
+    obligations, omitted = generate_obligations(behaviors, {}, False, config.rules)
+    grouped = [
+        item for item in obligations if item.title == "Review remaining high-risk behavior changes"
+    ]
+    assert len(grouped) == 1
+    assert len(obligations) == 2
+    # Eight scenarios are generated; one real obligation survives beside the grouped review.
+    assert omitted == 7
+    linked = {
+        behavior_id for obligation in obligations for behavior_id in obligation.behavior_change_ids
+    }
+    assert linked == {"bc-001", "bc-002", "bc-003"}

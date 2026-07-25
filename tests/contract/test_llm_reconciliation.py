@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from semantic_diff_weaver.models import BehaviorCategory, WeaverConfig
 from semantic_diff_weaver.semantic_interpreter import interpret_candidates
-from tests.contract.test_llm_call import FakeLlm, Result, candidate, valid_payload
+from tests.contract.test_llm_call import (
+    FakeLlm,
+    Result,
+    candidate,
+    candidate_variant,
+    valid_payload,
+)
 
 
 def test_fabricated_evidence_is_discarded() -> None:
@@ -32,9 +38,7 @@ def test_unknown_taxonomy_fails_local_validation_and_preserves_deterministic() -
 
 def test_evidence_from_another_batch_is_rejected_for_that_batch() -> None:
     first = candidate()
-    second = candidate()
-    second.evidence[0].id = "ev-002"
-    second.evidence[0].path = "src/second.py"
+    second = candidate_variant(id="ev-002", path="src/second.py")
     payload = valid_payload()
     payload["behaviors"][0]["evidence_ids"] = ["ev-002"]
     result = interpret_candidates(

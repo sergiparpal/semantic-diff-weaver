@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-import semantic_diff_weaver.ast_diff as ast_diff
+import semantic_diff_weaver.ast_diff.limits as ast_limits
 import semantic_diff_weaver.service as service
 from semantic_diff_weaver.plugin import handle_analyze_semantic_diff
 from semantic_diff_weaver.service import _read_readme_excerpt, analyze
@@ -138,7 +138,7 @@ def test_ast_resource_limit_is_explicit_in_scope(repo_factory, monkeypatch) -> N
         {"bounded.py": "def f(x):\n    return x < 2\n"},
         {"bounded.py": "def f(x):\n    return x <= 2\n"},
     )
-    monkeypatch.setattr(ast_diff, "MAX_AST_SOURCE_BYTES_PER_VERSION", 1)
+    monkeypatch.setattr(ast_limits, "MAX_AST_SOURCE_BYTES_PER_VERSION", 1)
 
     result = analyze(
         {"repo_path": str(repo), "base_ref": base, "head_ref": head, "output_format": "json"}

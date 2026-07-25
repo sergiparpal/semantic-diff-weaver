@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from ..errors import WeaverError
 from ..path_policy import normalize_repo_path
+from ..source import SourceHunk
 from .limits import HUNK_RE
-from .types import ChangedFile, Hunk
+from .types import ChangedFile
 
 _QUOTED_ESCAPES = {
     "a": 0x07,
@@ -113,15 +114,15 @@ def _header_path(value: str) -> str | None:
         return None
 
 
-def parse_hunks_by_path(diff_output: str, requested: frozenset[str]) -> dict[str, list[Hunk]]:
+def parse_hunks_by_path(diff_output: str, requested: frozenset[str]) -> dict[str, list[SourceHunk]]:
     """Split one batched unified diff into per-file hunks keyed by repository path.
 
     Only ``---``/``+++`` lines seen before a file's first hunk are treated as headers, so
     ``--unified=0`` content lines can never be mistaken for one. Paths Git did not report
     exactly as requested are left absent so the caller can fall back to a single-file diff.
     """
-    result: dict[str, list[Hunk]] = {}
-    current: list[Hunk] | None = None
+    result: dict[str, list[SourceHunk]] = {}
+    current: list[SourceHunk] | None = None
     old_path: str | None = None
     in_body = True
     for line in diff_output.splitlines():
@@ -142,7 +143,7 @@ def parse_hunks_by_path(diff_output: str, requested: frozenset[str]) -> dict[str
             in_body = True
             if current is not None:
                 current.append(
-                    Hunk(
+                    SourceHunk(
                         id=f"hunk-{len(current) + 1:03d}",
                         old_start=int(match.group(1)),
                         old_count=int(match.group(2) or 1),
@@ -153,13 +154,13 @@ def parse_hunks_by_path(diff_output: str, requested: frozenset[str]) -> dict[str
     return result
 
 
-def parse_hunks(diff_output: str) -> list[Hunk]:
-    result: list[Hunk] = []
+def parse_hunks(diff_output: str) -> list[SourceHunk]:
+    result: list[SourceHunk] = []
     for line in diff_output.splitlines():
         match = HUNK_RE.match(line)
         if match:
             result.append(
-                Hunk(
+                SourceHunk(
                     id=f"hunk-{len(result) + 1:03d}",
                     old_start=int(match.group(1)),
                     old_count=int(match.group(2) or 1),
@@ -168,8 +169,3 @@ def parse_hunks(diff_output: str) -> list[Hunk]:
                 )
             )
     return result
-
-
-# Backward-compatible private aliases.
-_parse_name_status = parse_name_status
-_parse_numstat = parse_numstat

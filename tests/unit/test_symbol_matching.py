@@ -1,18 +1,18 @@
 from __future__ import annotations
 
 from semantic_diff_weaver.ast_diff import analyze_ast
-from semantic_diff_weaver.git_diff import ChangedFile, Hunk
 from semantic_diff_weaver.semantic_candidates import build_candidates
+from semantic_diff_weaver.source import SourceHunk, SourceRevisionPair
 
 
-def file(old: str, new: str) -> ChangedFile:
-    return ChangedFile(
-        status="M",
+def file(old: str, new: str) -> SourceRevisionPair:
+    return SourceRevisionPair(
+        path="src/a.py",
         old_path="src/a.py",
         new_path="src/a.py",
         old_text=old,
         new_text=new,
-        hunks=[Hunk(id="hunk-001", old_start=1, old_count=20, new_start=1, new_count=20)],
+        hunks=(SourceHunk(id="hunk-001", old_start=1, old_count=20, new_start=1, new_count=20),),
     )
 
 
@@ -51,21 +51,21 @@ def test_conservative_similarity_matches_a_rename_with_a_small_body_change() -> 
 
 
 def test_cross_file_function_move_is_correlated_without_add_remove_claims() -> None:
-    removed = ChangedFile(
-        status="D",
+    removed = SourceRevisionPair(
+        path="src/old.py",
         old_path="src/old.py",
         new_path=None,
         old_text="def moved(x):\n    return x + 1\n",
         new_text=None,
-        hunks=[Hunk(id="hunk-001", old_start=1, old_count=2, new_start=0, new_count=0)],
+        hunks=(SourceHunk(id="hunk-001", old_start=1, old_count=2, new_start=0, new_count=0),),
     )
-    added = ChangedFile(
-        status="A",
+    added = SourceRevisionPair(
+        path="src/new.py",
         old_path=None,
         new_path="src/new.py",
         old_text=None,
         new_text="def moved(x):\n    return x + 1\n",
-        hunks=[Hunk(id="hunk-001", old_start=0, old_count=0, new_start=1, new_count=2)],
+        hunks=(SourceHunk(id="hunk-001", old_start=0, old_count=0, new_start=1, new_count=2),),
     )
     result = analyze_ast([removed, added])
     assert [(item.path, item.symbol, item.kind) for item in result.deltas] == [

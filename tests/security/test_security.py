@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-import semantic_diff_weaver.git_diff as git_diff
+import semantic_diff_weaver.git_diff.repository as repository_module
 from semantic_diff_weaver.errors import ErrorCode, WeaverError
 from semantic_diff_weaver.git_diff import GitRepository
 from semantic_diff_weaver.path_policy import ALLOWED_ROOTS_ENV
@@ -107,7 +107,7 @@ def test_subprocess_timeout_maps_to_safe_error(tmp_path: Path, monkeypatch) -> N
     def timeout(*args, **kwargs):
         raise subprocess.TimeoutExpired(args[0], 1)
 
-    monkeypatch.setattr(git_diff, "_run_bounded_process", timeout)
+    monkeypatch.setattr(repository_module, "run_bounded_process", timeout)
     with pytest.raises(WeaverError) as caught:
         repo.run(["status"])
     assert caught.value.code is ErrorCode.NOT_A_GIT_REPOSITORY

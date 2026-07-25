@@ -3,23 +3,17 @@
 from __future__ import annotations
 
 import time
-from typing import Any
 
-from ..git_diff import ChangedFile, Hunk
 from ..models import LineRange
+from ..source import SourceHunk, SourceRevisionPair
 from .compare import compare_symbol
 from .extract import AstResourceLimit, extract_symbols
+from .limits import AstBudget
 from .match import match_cross_file_symbols, match_symbols
 from .types import AstAnalysis, StructuralDelta, SymbolSnapshot
 
 
-def _ast_api() -> Any:
-    from .extract import _ast_api as resolve_ast_api
-
-    return resolve_ast_api()
-
-
-def _hunk_line_range(hunk: Hunk | None, *, side: str) -> LineRange | None:
+def _hunk_line_range(hunk: SourceHunk | None, *, side: str) -> LineRange | None:
     if hunk is None:
         return None
     if side == "old":
@@ -32,7 +26,7 @@ def _hunk_line_range(hunk: Hunk | None, *, side: str) -> LineRange | None:
 
 
 def _parse_incomplete_delta(
-    path: str, changed: ChangedFile, *, resource_limited: bool
+    path: str, changed: SourceRevisionPair, *, resource_limited: bool
 ) -> StructuralDelta:
     hunk = changed.hunks[0] if changed.hunks else None
     message = (
@@ -58,29 +52,29 @@ def _parse_incomplete_delta(
 
 
 def _parse_changed_file(
-    changed: ChangedFile,
+    changed: SourceRevisionPair,
     *,
     retained_source_bytes: int,
     extracted_symbols: int,
     deadline: float,
+    budget: AstBudget,
 ) -> tuple[list[SymbolSnapshot], list[SymbolSnapshot], int, int]:
-    api = _ast_api()
     sources = [source for source in (changed.old_text, changed.new_text) if source is not None]
     source_sizes = [len(source.encode("utf-8")) for source in sources]
     source_bytes = sum(source_sizes)
     if time.monotonic() > deadline:
         raise AstResourceLimit("AST analysis deadline exceeded")
-    if any(size > api.MAX_AST_SOURCE_BYTES_PER_VERSION for size in source_sizes):
+    if any(size > budget.max_source_bytes_per_version for size in source_sizes):
         raise AstResourceLimit("AST source byte budget exceeded")
-    if retained_source_bytes + source_bytes > api.MAX_AST_SOURCE_BYTES_TOTAL:
+    if retained_source_bytes + source_bytes > budget.max_source_bytes_total:
         raise AstResourceLimit("aggregate AST source byte budget exceeded")
     old_symbols = (
-        extract_symbols(changed.old_text)
-        if changed.old_text is not None and not changed.status.startswith("C")
+        extract_symbols(changed.old_text, budget)
+        if changed.old_text is not None and changed.has_old_side
         else []
     )
-    new_symbols = extract_symbols(changed.new_text) if changed.new_text is not None else []
-    if extracted_symbols + len(old_symbols) + len(new_symbols) > api.MAX_EXTRACTED_SYMBOLS_TOTAL:
+    new_symbols = extract_symbols(changed.new_text, budget) if changed.new_text is not None else []
+    if extracted_symbols + len(old_symbols) + len(new_symbols) > budget.max_extracted_symbols_total:
         raise AstResourceLimit("aggregate symbol budget exceeded")
     return old_symbols, new_symbols, source_bytes, len(old_symbols) + len(new_symbols)
 
@@ -116,8 +110,8 @@ def _drop_redundant_module_deltas(
     return filtered, filtered_keys
 
 
-def analyze_ast(files: list[ChangedFile]) -> AstAnalysis:
-    api = _ast_api()
+def analyze_ast(files: list[SourceRevisionPair], budget: AstBudget | None = None) -> AstAnalysis:
+    effective_budget = budget or AstBudget.default()
     deltas: list[StructuralDelta] = []
     warnings: list[str] = []
     parsed_files = 0
@@ -125,9 +119,9 @@ def analyze_ast(files: list[ChangedFile]) -> AstAnalysis:
     resource_limited_files = 0
     retained_source_bytes = 0
     extracted_symbols = 0
-    deadline = time.monotonic() + api.AST_ANALYSIS_TIMEOUT_SECONDS
+    deadline = time.monotonic() + effective_budget.analysis_timeout_seconds
     changed_symbol_keys: set[tuple[str, str]] = set()
-    parsed: list[tuple[ChangedFile, list[SymbolSnapshot], list[SymbolSnapshot]]] = []
+    parsed: list[tuple[SourceRevisionPair, list[SymbolSnapshot], list[SymbolSnapshot]]] = []
     for changed in files:
         path = changed.path
         try:
@@ -136,6 +130,7 @@ def analyze_ast(files: list[ChangedFile]) -> AstAnalysis:
                 retained_source_bytes=retained_source_bytes,
                 extracted_symbols=extracted_symbols,
                 deadline=deadline,
+                budget=effective_budget,
             )
             retained_source_bytes += source_bytes
             extracted_symbols += symbol_count
@@ -165,8 +160,8 @@ def analyze_ast(files: list[ChangedFile]) -> AstAnalysis:
         parsed_files += 1
         parsed.append((changed, old_symbols, new_symbols))
 
-    removed: list[tuple[SymbolSnapshot, ChangedFile]] = []
-    added: list[tuple[SymbolSnapshot, ChangedFile]] = []
+    removed: list[tuple[SymbolSnapshot, SourceRevisionPair]] = []
+    added: list[tuple[SymbolSnapshot, SourceRevisionPair]] = []
     for changed, old_symbols, new_symbols in parsed:
         path = changed.path
         pairs, match_warnings = match_symbols(old_symbols, new_symbols)

@@ -5,10 +5,10 @@ from __future__ import annotations
 import ast
 import hashlib
 from collections import Counter
-from typing import Any
 
 from ..path_policy import redact_text
 from . import limits
+from .limits import AstBudget
 from .types import SymbolSnapshot
 
 
@@ -25,11 +25,11 @@ def unparse_redacted(node: ast.AST | None, limit: int = 500) -> str:
         return type(node).__name__
 
 
-def _validate_ast_budget(tree: ast.AST) -> None:
+def _validate_ast_budget(tree: ast.AST, budget: AstBudget) -> None:
     pending = [(tree, 1)]
     nodes = 0
-    max_nodes = _ast_api().MAX_AST_NODES_PER_FILE
-    max_depth = _ast_api().MAX_AST_DEPTH
+    max_nodes = budget.max_nodes_per_file
+    max_depth = budget.max_depth
     while pending:
         node, depth = pending.pop()
         nodes += 1
@@ -38,18 +38,6 @@ def _validate_ast_budget(tree: ast.AST) -> None:
         if depth > max_depth:
             raise AstResourceLimit("AST depth budget exceeded")
         pending.extend((child, depth + 1) for child in ast.iter_child_nodes(node))
-
-
-_AST_API: Any | None = None
-
-
-def _ast_api() -> Any:
-    global _AST_API
-    if _AST_API is None:
-        from semantic_diff_weaver import ast_diff as api
-
-        _AST_API = api
-    return _AST_API
 
 
 def call_name(node: ast.AST) -> str:
@@ -278,11 +266,12 @@ def snapshot_symbol(node: ast.AST, qualified_name: str, kind: str) -> SymbolSnap
     )
 
 
-def extract_symbols(source: str) -> list[SymbolSnapshot]:
+def extract_symbols(source: str, budget: AstBudget | None = None) -> list[SymbolSnapshot]:
+    effective_budget = budget or AstBudget.default()
     tree = ast.parse(source, type_comments=True)
-    _validate_ast_budget(tree)
+    _validate_ast_budget(tree, effective_budget)
     symbols: list[SymbolSnapshot] = []
-    max_symbols = _ast_api().MAX_SYMBOLS_PER_FILE
+    max_symbols = effective_budget.max_symbols_per_file
 
     def record(snapshot: SymbolSnapshot) -> None:
         if len(symbols) >= max_symbols:
@@ -343,14 +332,5 @@ def extract_symbols(source: str) -> list[SymbolSnapshot]:
     return symbols
 
 
-# Backward-compatible private aliases used by older internal call sites.
-_compact = unparse_redacted
-_snapshot = snapshot_symbol
-_body_fingerprint = body_fingerprint
-_behavior_body = body_without_docstring
-_node_inventory = node_inventory
-_defaults = default_map
-_function_signature = function_signature
-_decorator_name = decorator_name
 _call_name = call_name
 _validate_ast_budget = _validate_ast_budget
