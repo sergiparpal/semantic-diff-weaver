@@ -561,44 +561,6 @@
           "test_gap_weight": 90.0
         },
         "summary": "A dependency call or its arguments appear to have changed."
-      },
-      {
-        "assumptions": [],
-        "category": "ordering_change",
-        "confidence": 0.811,
-        "evidence": [
-          {
-            "hunk_id": "src/case.py#hunk-001",
-            "id": "ev-002",
-            "kind": "statement_order_change",
-            "new": "return:client.fetch(x, strict=True); call:client.fetch",
-            "new_lines": {
-              "end": 2,
-              "start": 1
-            },
-            "old": "return:client.fetch(x); call:client.fetch",
-            "old_lines": {
-              "end": 2,
-              "start": 1
-            },
-            "parser_complete": true,
-            "path": "src/case.py",
-            "symbol": "fetch"
-          }
-        ],
-        "id": "bc-002",
-        "observable_impact": "Sequence-sensitive cases or competing conditions may now produce a different outcome.",
-        "origin": "deterministic_fallback",
-        "presentation": "finding",
-        "risk": "medium",
-        "risk_score": 50,
-        "score_explanation": {
-          "behavioral_impact": 60.0,
-          "change_surface_weight": 30.0,
-          "critical_path_weight": 10.0,
-          "test_gap_weight": 90.0
-        },
-        "summary": "Execution or call ordering appears to have changed."
       }
     ],
     "deterministic_mode": true,
@@ -636,19 +598,19 @@
     },
     "success": true,
     "summary": {
-      "behavior_changes": 2,
+      "behavior_changes": 1,
       "changed_files": 1,
       "changed_symbols": 1,
-      "overall_confidence": 0.753,
+      "overall_confidence": 0.714,
       "overall_risk": "medium",
       "risk_counts": {
         "critical": 0,
         "high": 0,
         "low": 0,
-        "medium": 2
+        "medium": 1
       },
       "risk_score": 54,
-      "test_obligations": 5
+      "test_obligations": 3
     },
     "test_obligations": [
       {
@@ -698,38 +660,6 @@
         "title": "Handle dependency success",
         "type": "interaction",
         "when": "The changed interaction runs"
-      },
-      {
-        "behavior_change_ids": [
-          "bc-002"
-        ],
-        "candidate_existing_tests": [],
-        "confidence": 0.811,
-        "coverage_status": "no_candidate_found",
-        "given": "More than one changed condition can apply",
-        "id": "to-004",
-        "origin": "deterministic_fallback",
-        "priority": 67,
-        "then": "The intended precedence determines the observable outcome",
-        "title": "Exercise competing conditions",
-        "type": "regression",
-        "when": "The changed sequence runs"
-      },
-      {
-        "behavior_change_ids": [
-          "bc-002"
-        ],
-        "candidate_existing_tests": [],
-        "confidence": 0.811,
-        "coverage_status": "no_candidate_found",
-        "given": "Multiple affected calls are observable",
-        "id": "to-005",
-        "origin": "deterministic_fallback",
-        "priority": 67,
-        "then": "The calls occur in the intended order",
-        "title": "Verify sequence-sensitive interactions",
-        "type": "interaction",
-        "when": "The operation executes"
       }
     ],
     "warnings": [
@@ -1932,44 +1862,6 @@
     "analysis_id": "<analysis-id>",
     "behavior_changes": [
       {
-        "assumptions": [],
-        "category": "ordering_change",
-        "confidence": 0.811,
-        "evidence": [
-          {
-            "hunk_id": "src/case.py#hunk-001",
-            "id": "ev-002",
-            "kind": "statement_order_change",
-            "new": "call:notify; return:user",
-            "new_lines": {
-              "end": 3,
-              "start": 1
-            },
-            "old": "return:user",
-            "old_lines": {
-              "end": 2,
-              "start": 1
-            },
-            "parser_complete": true,
-            "path": "src/case.py",
-            "symbol": "finish"
-          }
-        ],
-        "id": "bc-001",
-        "observable_impact": "Sequence-sensitive cases or competing conditions may now produce a different outcome.",
-        "origin": "deterministic_fallback",
-        "presentation": "finding",
-        "risk": "medium",
-        "risk_score": 50,
-        "score_explanation": {
-          "behavioral_impact": 60.0,
-          "change_surface_weight": 30.0,
-          "critical_path_weight": 10.0,
-          "test_gap_weight": 90.0
-        },
-        "summary": "Execution or call ordering appears to have changed."
-      },
-      {
         "assumptions": [
           "Side-effect meaning is inferred from conservative call-name signals."
         ],
@@ -1995,7 +1887,7 @@
             "symbol": "finish"
           }
         ],
-        "id": "bc-002",
+        "id": "bc-001",
         "observable_impact": "An observable write, event, notification, or dispatch may now occur or be absent.",
         "origin": "deterministic_fallback",
         "presentation": "finding",
@@ -2045,24 +1937,24 @@
     },
     "success": true,
     "summary": {
-      "behavior_changes": 2,
+      "behavior_changes": 1,
       "changed_files": 1,
       "changed_symbols": 1,
-      "overall_confidence": 0.76,
+      "overall_confidence": 0.726,
       "overall_risk": "high",
       "risk_counts": {
         "critical": 0,
         "high": 1,
         "low": 0,
-        "medium": 1
+        "medium": 0
       },
       "risk_score": 62,
-      "test_obligations": 5
+      "test_obligations": 3
     },
     "test_obligations": [
       {
         "behavior_change_ids": [
-          "bc-002"
+          "bc-001"
         ],
         "candidate_existing_tests": [],
         "confidence": 0.726,
@@ -2078,7 +1970,7 @@
       },
       {
         "behavior_change_ids": [
-          "bc-002"
+          "bc-001"
         ],
         "candidate_existing_tests": [],
         "confidence": 0.726,
@@ -2094,7 +1986,7 @@
       },
       {
         "behavior_change_ids": [
-          "bc-002"
+          "bc-001"
         ],
         "candidate_existing_tests": [],
         "confidence": 0.726,
@@ -2107,38 +1999,6 @@
         "title": "Verify side-effect occurrence",
         "type": "interaction",
         "when": "The changed operation runs"
-      },
-      {
-        "behavior_change_ids": [
-          "bc-001"
-        ],
-        "candidate_existing_tests": [],
-        "confidence": 0.811,
-        "coverage_status": "no_candidate_found",
-        "given": "More than one changed condition can apply",
-        "id": "to-004",
-        "origin": "deterministic_fallback",
-        "priority": 67,
-        "then": "The intended precedence determines the observable outcome",
-        "title": "Exercise competing conditions",
-        "type": "regression",
-        "when": "The changed sequence runs"
-      },
-      {
-        "behavior_change_ids": [
-          "bc-001"
-        ],
-        "candidate_existing_tests": [],
-        "confidence": 0.811,
-        "coverage_status": "no_candidate_found",
-        "given": "Multiple affected calls are observable",
-        "id": "to-005",
-        "origin": "deterministic_fallback",
-        "priority": 67,
-        "then": "The calls occur in the intended order",
-        "title": "Verify sequence-sensitive interactions",
-        "type": "interaction",
-        "when": "The operation executes"
       }
     ],
     "warnings": [

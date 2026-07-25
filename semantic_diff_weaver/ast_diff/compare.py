@@ -24,6 +24,17 @@ ORDER_SENSITIVE_KINDS = {
 }
 
 
+def is_reordering(old_order: Sequence[str], new_order: Sequence[str]) -> bool:
+    """Report whether two statement sequences are a permutation of one another.
+
+    ``statement_order`` entries embed unparsed expression content, not just sequence
+    identity, so plain inequality also fires on a pure content edit. Ordering means the
+    same statements occur in a different sequence, which is exactly a permutation — the
+    same test ``_append_call_delta`` already applies to call names.
+    """
+    return old_order != new_order and sorted(old_order) == sorted(new_order)
+
+
 def ranges_overlap(start: int, end: int, hunk_start: int, hunk_count: int) -> bool:
     if hunk_count == 0:
         return start <= hunk_start <= end + 1
@@ -267,7 +278,7 @@ def compare_symbol(
     _append_call_delta(result, path, old, new, hunk_id)
     result = suppress_redundant_deltas(result)
     result = _maybe_drop_return_when_call_explained(result, old, new)
-    if old.statement_order != new.statement_order and not any(
+    if is_reordering(old.statement_order, new.statement_order) and not any(
         item.kind in ORDER_SENSITIVE_KINDS for item in result
     ):
         result.append(
