@@ -21,8 +21,11 @@
 - **Fix:** skip malformed `--numstat` counts and truncated rename records instead of raising bare
   `ValueError`/`IndexError` past the error contract, and tolerate an empty path in
   `exclusion_reason`.
-- Bound the AST analysis deadline across matching and comparison, not only parsing. Files reached
-  after the deadline are now reported as resource-limited rather than analyzed unbounded.
+- Bound the AST analysis deadline across matching and comparison, not only parsing, and compare
+  against it inclusively. `time.monotonic()` is only as fine as the platform clock — about 15.6ms
+  on Windows before Python 3.13 — so a strict comparison let an already-spent budget read as live
+  there, and a zero timeout did no bounding at all. Files reached after the deadline are now
+  reported as resource-limited rather than analyzed unbounded.
 - Resolve candidate-test signals into memoized position sets and score only a candidate's
   structural hits instead of the whole index; dotted imports are matched through a leaf index.
   Output is unchanged (verified against the previous algorithm over randomized inputs) and the

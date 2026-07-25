@@ -13,6 +13,17 @@ from .match import match_cross_file_symbols, match_symbols
 from .types import AstAnalysis, StructuralDelta, SymbolSnapshot
 
 
+def _deadline_reached(deadline: float) -> bool:
+    """Report whether the analysis budget is spent, inclusively of the deadline itself.
+
+    The comparison must not be strict. ``time.monotonic()`` is only as fine as the platform
+    clock — roughly 15.6ms on Windows before Python 3.13 — so two reads inside one tick return
+    the same value, and a strict ``>`` would let an already-expired budget read as live. A zero
+    or sub-tick timeout is exactly the case a caller uses to mean "do no further work".
+    """
+    return time.monotonic() >= deadline
+
+
 def _hunk_line_range(hunk: SourceHunk | None, *, side: str) -> LineRange | None:
     if hunk is None:
         return None
@@ -62,7 +73,7 @@ def _parse_changed_file(
     sources = [source for source in (changed.old_text, changed.new_text) if source is not None]
     source_sizes = [len(source.encode("utf-8")) for source in sources]
     source_bytes = sum(source_sizes)
-    if time.monotonic() > deadline:
+    if _deadline_reached(deadline):
         raise AstResourceLimit("AST analysis deadline exceeded")
     if any(size > budget.max_source_bytes_per_version for size in source_sizes):
         raise AstResourceLimit("AST source byte budget exceeded")
@@ -183,7 +194,7 @@ def analyze_ast(files: list[SourceRevisionPair], budget: AstBudget | None = None
         path = changed.path
         # Matching and comparison are the other half of the cost, and symbol budgets alone do
         # not bound them in time. Without this the deadline covered only the parse phase.
-        if time.monotonic() > deadline:
+        if _deadline_reached(deadline):
             failed_files += 1
             resource_limited_files += 1
             _record_incomplete_file(

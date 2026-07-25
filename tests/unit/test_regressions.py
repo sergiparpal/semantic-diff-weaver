@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from semantic_diff_weaver.ast_diff import analyze as analyze_module
 from semantic_diff_weaver.ast_diff import analyze_ast
 from semantic_diff_weaver.ast_diff.extract import extract_symbols, type_parameters
 from semantic_diff_weaver.ast_diff.limits import AstBudget
@@ -136,31 +137,66 @@ def test_type_parameters_are_empty_without_the_field() -> None:
     assert type_parameters(ast.parse("x = 1").body[0]) == ""
 
 
-def test_matching_phase_respects_the_analysis_deadline() -> None:
-    """The deadline used to cover parsing only, leaving matching and comparison unbounded."""
-    source = "def f(x):\n    return x\n"
-    files = [
+def _deadline_files(count: int = 3) -> list[SourceRevisionPair]:
+    return [
         SourceRevisionPair(
             path=f"m{index}.py",
             old_path=f"m{index}.py",
             new_path=f"m{index}.py",
-            old_text=source,
+            old_text="def f(x):\n    return x\n",
             new_text="def f(x):\n    return x + 1\n",
             hunks=(SourceHunk(id="hunk-001", old_start=1, old_count=5, new_start=1, new_count=5),),
         )
-        for index in range(3)
+        for index in range(count)
     ]
-    budget = AstBudget.default()
-    expired = AstBudget(
-        max_nodes_per_file=budget.max_nodes_per_file,
-        max_depth=budget.max_depth,
-        max_symbols_per_file=budget.max_symbols_per_file,
-        max_source_bytes_per_version=budget.max_source_bytes_per_version,
-        max_source_bytes_total=budget.max_source_bytes_total,
-        max_extracted_symbols_total=budget.max_extracted_symbols_total,
+
+
+def _expired_budget() -> AstBudget:
+    base = AstBudget.default()
+    return AstBudget(
+        max_nodes_per_file=base.max_nodes_per_file,
+        max_depth=base.max_depth,
+        max_symbols_per_file=base.max_symbols_per_file,
+        max_source_bytes_per_version=base.max_source_bytes_per_version,
+        max_source_bytes_total=base.max_source_bytes_total,
+        max_extracted_symbols_total=base.max_extracted_symbols_total,
         analysis_timeout_seconds=0.0,
     )
-    result = analyze_ast(files, expired)
+
+
+def test_a_spent_budget_halts_regardless_of_platform_clock_resolution() -> None:
+    """A zero timeout must halt even when two clock reads fall inside one tick.
+
+    ``time.monotonic()`` is only as fine as the platform clock — about 15.6ms on Windows before
+    Python 3.13 — so a strict ``>`` let an already-spent budget read as live there.
+    """
+    files = _deadline_files()
+    result = analyze_ast(files, _expired_budget())
+    assert result.resource_limited_files == len(files)
+    assert result.parsed_files == 0
+    assert {item.kind for item in result.deltas} == {"parse_incomplete"}
+
+
+def test_matching_phase_respects_the_analysis_deadline(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The deadline used to cover parsing only, leaving matching and comparison unbounded.
+
+    Both phases report an incomplete file identically, so the budget is spent deterministically
+    after the parse phase rather than by wall clock — otherwise this would silently re-test the
+    parse-phase check it is meant to complement.
+    """
+    files = _deadline_files()
+    remaining_parse_checks = len(files)
+
+    def fake_deadline_reached(deadline: float) -> bool:
+        nonlocal remaining_parse_checks
+        if remaining_parse_checks > 0:
+            remaining_parse_checks -= 1
+            return False
+        return True
+
+    monkeypatch.setattr(analyze_module, "_deadline_reached", fake_deadline_reached)
+    result = analyze_ast(files)
+    assert remaining_parse_checks == 0
     assert result.resource_limited_files == len(files)
     assert result.parsed_files == 0
     assert {item.kind for item in result.deltas} == {"parse_incomplete"}
