@@ -20,8 +20,10 @@ from semantic_diff_weaver.service import analyze
 
 from .test_llm_call import FakeLlm, RaisingLlm, Result
 
-# Static assignments, deliberately free of `# type: ignore`. A double whose
-# `complete_structured` stopped matching the protocol would fail `mypy` here.
+# Static assignments, deliberately free of `# type: ignore`. `tests/contract` is inside
+# `mypy`'s configured `files`, so a double whose `complete_structured` stopped matching the
+# protocol fails the standard type-check gate here, not just when someone runs `mypy` on this
+# file by hand.
 _FAKE: LlmClient = FakeLlm([])
 _RAISING: LlmClient = RaisingLlm(TimeoutError("bounded"))
 _ABSENT: LlmClient | None = None
@@ -64,10 +66,10 @@ PROTOCOL_PARAMETERS = {
 def satisfies_protocol(candidate: type) -> bool:
     """Mirror the structural rule `mypy` applies to `LlmClient` at an assignment.
 
-    `tests/` sits outside the configured `mypy` `files`, so the static assignments above are
-    only checked when someone points the type checker at this module. This predicate makes
-    the same conformance rule fail the suite in CI: accept a catch-all `**kwargs`, otherwise
-    require every protocol parameter as keyword-only.
+    The static assignments above are the primary guarantee. This predicate is the second
+    layer: it fails the *test suite* on the same mismatch, so the contract still holds for
+    anyone who runs the tests without the type checker. Accept a catch-all `**kwargs`,
+    otherwise require every protocol parameter as keyword-only.
     """
     method = getattr(candidate, "complete_structured", None)
     if method is None or not callable(method):

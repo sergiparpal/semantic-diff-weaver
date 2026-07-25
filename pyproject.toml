@@ -73,7 +73,11 @@ ignore = ["E501"]
 
 [tool.mypy]
 python_version = "3.11"
-files = ["semantic_diff_weaver"]
+# `tests/contract` is type-checked alongside the package so the `LlmClient` conformance
+# assignments in `test_llm_client_protocol.py` are enforced by the standard gate rather
+# than only when someone points mypy at the file. The rest of the suite stays out: its
+# fixtures deliberately build malformed values to exercise validation.
+files = ["semantic_diff_weaver", "tests/contract"]
 explicit_package_bases = true
 check_untyped_defs = true
 disallow_untyped_defs = true

@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from .models import LlmBatchResponse
 
-ANALYZE_SEMANTIC_DIFF_SCHEMA = {
+# Annotated rather than inferred: without it the nested literal's value type collapses to
+# a union of everything present, and a consumer indexing into `parameters` is rejected.
+ANALYZE_SEMANTIC_DIFF_SCHEMA: dict[str, Any] = {
     "name": "analyze_semantic_diff",
     "description": (
         "Analyze the behavioral meaning of a bounded local Git diff and return evidence-backed, "

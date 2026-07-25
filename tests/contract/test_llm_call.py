@@ -13,7 +13,7 @@ from semantic_diff_weaver.models import (
     LlmBatchResponse,
     WeaverConfig,
 )
-from semantic_diff_weaver.semantic_candidates import build_candidates
+from semantic_diff_weaver.semantic_candidates import SemanticCandidate, build_candidates
 from semantic_diff_weaver.semantic_interpreter import (
     _accumulate_usage,
     _batch_candidates,
@@ -53,7 +53,7 @@ class RaisingLlm:
         raise self.error
 
 
-def candidate_variant(**evidence_updates: Any):
+def candidate_variant(**evidence_updates: Any) -> SemanticCandidate:
     """Build a candidate whose single evidence record carries the given overrides.
 
     Candidates are immutable and own their (path, symbol) identity, so a test that wants a
@@ -69,7 +69,7 @@ def candidate_variant(**evidence_updates: Any):
     )
 
 
-def candidate():
+def candidate() -> SemanticCandidate:
     return build_candidates(
         [
             StructuralDelta(
@@ -124,6 +124,7 @@ def test_call_shape_uses_active_host_model_without_overrides() -> None:
     result = interpret_candidates([candidate()], llm, WeaverConfig())
     assert result.status.calls == 1
     assert result.status.available is True
+    assert result.status.usage is not None
     assert result.status.usage.input_tokens == 10
     call = llm.calls[0]
     assert not {"provider", "model", "agent_id", "profile"} & call.keys()
@@ -145,6 +146,7 @@ def test_pydantic_parsed_results_and_common_usage_aliases_are_accepted() -> None
     )
     result = interpret_candidates([candidate()], llm, WeaverConfig())
     assert result.status.available is True
+    assert result.status.usage is not None
     assert result.status.usage.input_tokens == 7
     assert result.status.usage.output_tokens == 3
     assert result.status.usage.cost == 0.002
@@ -372,7 +374,7 @@ def test_disabled_fallback_uses_specific_public_llm_errors() -> None:
 
 def test_incremental_batch_input_length_is_exact() -> None:
     """Batch packing trusts arithmetic instead of re-encoding, so pin it to the real encoder."""
-    payloads = [
+    payloads: list[dict[str, Any]] = [
         {"category_hint": "boundary", "symbol": "s", "evidence": [], "assumptions": []},
         {"symbol": 'needs <escaping> & "quotes"', "evidence": [{"id": "ev-001"}]},
         {"symbol": "unicode ✓ café", "evidence": [{"id": "ev-002", "old": "a > b"}]},

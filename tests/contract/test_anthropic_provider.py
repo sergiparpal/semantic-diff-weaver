@@ -7,11 +7,14 @@ exception classes the interpreter distinguishes between.
 
 from __future__ import annotations
 
+import builtins
 import json
+import sys
 from dataclasses import dataclass
 from typing import Any
 
 import pytest
+from _pytest.monkeypatch import MonkeyPatch
 
 from semantic_diff_weaver.llm_client import LlmClient
 from semantic_diff_weaver.providers.anthropic_client import (
@@ -25,7 +28,7 @@ from semantic_diff_weaver.providers.anthropic_client import (
 )
 from semantic_diff_weaver.schemas import LLM_RESPONSE_SCHEMA, LLM_SCHEMA_NAME
 
-VALID_PAYLOAD = {"behavior_changes": [], "notes": []}
+VALID_PAYLOAD: dict[str, Any] = {"behavior_changes": [], "notes": []}
 
 
 @dataclass
@@ -236,7 +239,7 @@ def test_usage_is_optional() -> None:
     assert _call(client).usage is None
 
 
-def test_model_resolution_prefers_the_flag_then_the_environment(monkeypatch) -> None:
+def test_model_resolution_prefers_the_flag_then_the_environment(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.delenv(MODEL_ENV, raising=False)
     assert resolve_model() == DEFAULT_MODEL
     monkeypatch.setenv(MODEL_ENV, "claude-sonnet-5")
@@ -246,7 +249,7 @@ def test_model_resolution_prefers_the_flag_then_the_environment(monkeypatch) -> 
     assert resolve_model() == DEFAULT_MODEL
 
 
-def test_a_missing_key_is_a_notice_not_a_failure(monkeypatch) -> None:
+def test_a_missing_key_is_a_notice_not_a_failure(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.delenv(API_KEY_ENV, raising=False)
     client, notice = AnthropicClient.from_environment()
     assert client is None
@@ -254,9 +257,9 @@ def test_a_missing_key_is_a_notice_not_a_failure(monkeypatch) -> None:
     assert "deterministic mode" in notice
 
 
-def test_a_missing_package_is_a_notice_not_a_failure(monkeypatch) -> None:
+def test_a_missing_package_is_a_notice_not_a_failure(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv(API_KEY_ENV, "test-key-not-real")
-    real_import = __builtins__["__import__"] if isinstance(__builtins__, dict) else __import__
+    real_import = builtins.__import__
 
     def fail(name: str, *args: Any, **kwargs: Any) -> Any:
         if name == "anthropic":
@@ -270,7 +273,7 @@ def test_a_missing_package_is_a_notice_not_a_failure(monkeypatch) -> None:
     assert "not installed" in notice
 
 
-def test_a_client_that_cannot_be_constructed_is_a_notice(monkeypatch) -> None:
+def test_a_client_that_cannot_be_constructed_is_a_notice(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv(API_KEY_ENV, "test-key-not-real")
 
     class Module:
@@ -278,14 +281,14 @@ def test_a_client_that_cannot_be_constructed_is_a_notice(monkeypatch) -> None:
         def Anthropic() -> Any:
             raise RuntimeError("misconfigured")
 
-    monkeypatch.setitem(__import__("sys").modules, "anthropic", Module())
+    monkeypatch.setitem(sys.modules, "anthropic", Module())
     client, notice = AnthropicClient.from_environment()
     assert client is None
     assert notice is not None
     assert "deterministic mode" in notice
 
 
-def test_a_present_key_builds_a_client(monkeypatch) -> None:
+def test_a_present_key_builds_a_client(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv(API_KEY_ENV, "test-key-not-real")
 
     class Module:
@@ -293,7 +296,7 @@ def test_a_present_key_builds_a_client(monkeypatch) -> None:
         def Anthropic() -> Any:
             return Transport(_json_response())
 
-    monkeypatch.setitem(__import__("sys").modules, "anthropic", Module())
+    monkeypatch.setitem(sys.modules, "anthropic", Module())
     client, notice = AnthropicClient.from_environment(model="claude-sonnet-5")
     assert notice is None
     assert client is not None

@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+from pathlib import Path
+
 from semantic_diff_weaver.models import AnalysisResult, BothEnvelope, MarkdownEnvelope
 from semantic_diff_weaver.service import analyze
 
 
-def test_json_and_envelopes_validate_against_local_models(repo_factory) -> None:
+def test_json_and_envelopes_validate_against_local_models(
+    repo_factory: Callable[..., tuple[Path, str, str]],
+) -> None:
     repo, base, head = repo_factory(
         {"a.py": "def f(x):\n    return x < 1\n"},
         {"a.py": "def f(x):\n    return x <= 1\n"},
