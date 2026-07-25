@@ -4,7 +4,7 @@ import semantic_diff_weaver.test_mapper as test_mapper
 from semantic_diff_weaver.ast_diff import StructuralDelta
 from semantic_diff_weaver.errors import ErrorCode, WeaverError
 from semantic_diff_weaver.git_diff import GitTreeEntry
-from semantic_diff_weaver.models import LineRange, WeaverConfig
+from semantic_diff_weaver.models import LineRange, MappingRule, WeaverConfig
 from semantic_diff_weaver.semantic_candidates import build_candidates
 from semantic_diff_weaver.test_mapper import (
     IndexedTest,
@@ -158,3 +158,57 @@ def test_index_source_handles_import_forms_classes_and_async_tests() -> None:
     )
     assert [item.symbol for item in indexed] == ["TestSample.test_value"]
     assert indexed[0].imports == frozenset({"package", "helper"})
+
+
+def test_configured_mapping_is_structural_and_scoped_to_its_own_rule() -> None:
+    """An explicit mapping must promote only tests matching that rule's own test patterns."""
+    index = TestIndex(
+        tests=[
+            IndexedTest(
+                path="tests/contract/test_api_contract.py",
+                symbol="test_threshold",
+                imports=frozenset(),
+                name_tokens=frozenset({"test", "threshold"}),
+                body_tokens=frozenset({"boundary"}),
+            ),
+            IndexedTest(
+                path="tests/unrelated/test_other.py",
+                symbol="test_threshold",
+                imports=frozenset(),
+                name_tokens=frozenset({"test", "threshold"}),
+                body_tokens=frozenset({"boundary"}),
+            ),
+        ],
+        incomplete=False,
+        warnings=[],
+    )
+    config = WeaverConfig()
+    config.mapping = [
+        MappingRule(source="src/api.py", tests=["tests/contract/**"]),
+        # A rule that matches no candidate must not lend its tests to one that does.
+        MappingRule(source="src/other.py", tests=["tests/unrelated/**"]),
+    ]
+    mapped = map_candidate_tests([boundary_candidate()], index, config)[0]
+    assert [item.path for item in mapped] == ["tests/contract/test_api_contract.py"]
+    assert "explicit configured mapping" in mapped[0].match_reasons
+    # Terminology alone still cannot promote the unmapped peer.
+    assert map_candidate_tests([boundary_candidate()], index, WeaverConfig())[0] == []
+
+
+def test_unmatched_configured_mapping_leaves_candidates_unmapped() -> None:
+    index = TestIndex(
+        tests=[
+            IndexedTest(
+                path="tests/contract/test_api_contract.py",
+                symbol="test_threshold",
+                imports=frozenset(),
+                name_tokens=frozenset({"test", "threshold"}),
+                body_tokens=frozenset({"boundary"}),
+            )
+        ],
+        incomplete=False,
+        warnings=[],
+    )
+    config = WeaverConfig()
+    config.mapping = [MappingRule(source="src/nothing.py", tests=["tests/contract/**"])]
+    assert map_candidate_tests([boundary_candidate()], index, config)[0] == []
