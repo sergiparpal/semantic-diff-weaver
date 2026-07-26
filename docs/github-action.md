@@ -27,7 +27,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0        # required — see below
-      - uses: your-org/semantic-diff-weaver@v0
+      - uses: sergiparpal/semantic-diff-weaver@v0
         with:
           include: |
             src/**/*.py
@@ -43,6 +43,11 @@ comment, as `.github/workflows/ci.yml` and `.github/workflows/pr-review.yml` in 
 do. A moving tag such as `@v7` is a mutable reference: whoever controls it can change what runs
 inside a job that holds `pull-requests: write`. Copy the examples as written, and update the
 SHAs deliberately.
+
+`sergiparpal/semantic-diff-weaver@v0` is itself a moving tag, re-pointed at the newest release in
+the 0.x line. That is the Marketplace convention and the quickest way in, but the paragraph above
+applies to it no less than to anyone else's action: pin `@v0.2.0` for an immutable version, or a
+full commit SHA for exactly the guarantee you are asking of `actions/checkout`.
 
 ## `fetch-depth: 0` is required
 
@@ -100,7 +105,7 @@ jobs:
       - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           name: coverage
-      - uses: your-org/semantic-diff-weaver@v0
+      - uses: sergiparpal/semantic-diff-weaver@v0
         with:
           coverage-report: coverage.json
 ```
