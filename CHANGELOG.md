@@ -1,50 +1,6 @@
 # Changelog
 
-## Unreleased
-
-Review fixes. No schema change: `SCHEMA_VERSION` stays `"1.1"`, and the only output difference
-is a new `model_input_symbol_limit` omission reason that was previously miscounted under
-`llm_batch_limit`.
-
-- **Fix:** stop reporting valid Python as unparseable. `extract_symbols` parsed with
-  `type_comments=True`, which accepts a strictly *narrower* grammar than the default — a stray
-  module-level `# type:` comment is a `SyntaxError` under the flag and valid Python without it.
-  Such a file was reported as `parse_incomplete`, emitting a fabricated `unknown_semantic_change`
-  finding at 0.68 baseline confidence about source Python itself accepts. Type comments only
-  enrich the rendered signature, so the flag now degrades to a plain parse instead of deciding
-  parseability. `test_mapper` never read a type comment at all and no longer asks for them.
-- **Fix:** send a request shape the model accepts on always-on-thinking families. The Anthropic
-  adapter sent `thinking: {"type": "disabled"}` unconditionally, which those models reject with
-  HTTP 400 — so *every* call failed, was mapped to `ProviderUnavailable`, and silently collapsed
-  the analysis into deterministic fallback with no sign the request shape was at fault. The
-  parameter is now omitted for them and kept everywhere it is honored.
-- **Fix:** `__version__` said `0.1.1` while `pyproject.toml` and `plugin.yaml` said `0.2.0`. The
-  three are now pinned to each other by a test.
-- **Fix:** a module that still carries a precise delta keeps its changed-symbol count.
-  `_drop_redundant_module_deltas` filtered the key set by *path*, so a file with any detailed
-  delta lost its `<module>` key even when only the three generic lifecycle kinds were dropped and
-  a module-scope condition change survived — under-counting `summary.changed_symbols`.
-- **Fix:** report omitted LLM batches and oversized symbols as the different units they are.
-  The two were summed into one counter published under `llm_batch_limit`, so a symbol count was
-  reported under a reason named for batches. Oversized symbols now get their own
-  `model_input_symbol_limit` reason and their own warning.
-- **Performance:** coverage-report path resolution is memoized and its candidate paths are split
-  once per report rather than on every lookup. `status_for` and `counts_for` resolve
-  independently, so every finding paid two full `O(report files)` scans through `PurePosixPath`
-  construction; a 2,000-file report went from ~4ms per lookup to effectively free after the first.
-- **Robustness:** an evidence-free candidate no longer raises `IndexError` while being packed for
-  a model call, a high-risk behavior with no linked obligation degrades instead of raising
-  `StopIteration` through the tool boundary, and a present-but-empty scenario tuple now fails the
-  taxonomy import that already checks for missing ones.
-- **Security (hardening):** `scripts/pr_comment.py` constrains `--repository` and
-  `--pull-request` before interpolating them into a `gh api` resource path. The `gh` boundary was
-  already argument-list-only, so this was never shell injection, but an unvalidated component
-  containing `/` or `..` could retarget the request at a different endpoint.
-- **Fix (CLI):** a set-but-empty `SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS` now names the variable
-  instead of failing with "no authorized workspace root is configured", which pointed at the
-  invocation rather than the cause. The operator's bound is still never widened.
-
-## 0.2.0 - 2026-07-25
+## 0.2.0 - 2026-07-26
 
 The project becomes runnable without Hermes: a standalone CLI, a GitHub Action, an optional
 inference provider, and coverage grounding. The Hermes plugin path is unchanged.
@@ -101,6 +57,51 @@ inference provider, and coverage grounding. The Hermes plugin path is unchanged.
   development and `hermes-compatibility` interpreter and was previously never exercised by the
   main test job.
 - Hold `cli.py` and `coverage_map.py` to the 90% critical-module branch bar; both are at 100%.
+
+### Review fixes folded in before the tag
+
+These correct defects in the work above. They were found in review after it landed on `main` and
+before any of it was tagged, so no consumer ever saw the behavior they change. `SCHEMA_VERSION`
+stays `"1.1"`; the only output difference is a new `model_input_symbol_limit` omission reason that
+was previously miscounted under `llm_batch_limit`.
+
+- **Fix:** stop reporting valid Python as unparseable. `extract_symbols` parsed with
+  `type_comments=True`, which accepts a strictly *narrower* grammar than the default — a stray
+  module-level `# type:` comment is a `SyntaxError` under the flag and valid Python without it.
+  Such a file was reported as `parse_incomplete`, emitting a fabricated `unknown_semantic_change`
+  finding at 0.68 baseline confidence about source Python itself accepts. Type comments only
+  enrich the rendered signature, so the flag now degrades to a plain parse instead of deciding
+  parseability. `test_mapper` never read a type comment at all and no longer asks for them.
+- **Fix:** send a request shape the model accepts on always-on-thinking families. The Anthropic
+  adapter sent `thinking: {"type": "disabled"}` unconditionally, which those models reject with
+  HTTP 400 — so *every* call failed, was mapped to `ProviderUnavailable`, and silently collapsed
+  the analysis into deterministic fallback with no sign the request shape was at fault. The
+  parameter is now omitted for them and kept everywhere it is honored.
+- **Fix:** `__version__` said `0.1.1` while `pyproject.toml` and `plugin.yaml` said `0.2.0`. The
+  three are now pinned to each other by a test.
+- **Fix:** a module that still carries a precise delta keeps its changed-symbol count.
+  `_drop_redundant_module_deltas` filtered the key set by *path*, so a file with any detailed
+  delta lost its `<module>` key even when only the three generic lifecycle kinds were dropped and
+  a module-scope condition change survived — under-counting `summary.changed_symbols`.
+- **Fix:** report omitted LLM batches and oversized symbols as the different units they are.
+  The two were summed into one counter published under `llm_batch_limit`, so a symbol count was
+  reported under a reason named for batches. Oversized symbols now get their own
+  `model_input_symbol_limit` reason and their own warning.
+- **Performance:** coverage-report path resolution is memoized and its candidate paths are split
+  once per report rather than on every lookup. `status_for` and `counts_for` resolve
+  independently, so every finding paid two full `O(report files)` scans through `PurePosixPath`
+  construction; a 2,000-file report went from ~4ms per lookup to effectively free after the first.
+- **Robustness:** an evidence-free candidate no longer raises `IndexError` while being packed for
+  a model call, a high-risk behavior with no linked obligation degrades instead of raising
+  `StopIteration` through the tool boundary, and a present-but-empty scenario tuple now fails the
+  taxonomy import that already checks for missing ones.
+- **Security (hardening):** `scripts/pr_comment.py` constrains `--repository` and
+  `--pull-request` before interpolating them into a `gh api` resource path. The `gh` boundary was
+  already argument-list-only, so this was never shell injection, but an unvalidated component
+  containing `/` or `..` could retarget the request at a different endpoint.
+- **Fix (CLI):** a set-but-empty `SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS` now names the variable
+  instead of failing with "no authorized workspace root is configured", which pointed at the
+  invocation rather than the cause. The operator's bound is still never widened.
 
 ## 0.1.1 - 2026-07-25
 
