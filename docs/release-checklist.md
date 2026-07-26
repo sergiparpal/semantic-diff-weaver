@@ -18,7 +18,7 @@
 - [x] Record the lowest real Hermes release passing discovery tests (0.14.0).
 - [x] Test the current Hermes release (0.18.2) through pip and directory discovery.
 - [x] Update changelog and evaluation measurements if behavior changed.
-- [x] Re-point the moving `v0` action tag at the new release commit and force-push it, so
-      `uses: sergiparpal/semantic-diff-weaver@v0` resolves to what was just released. Skip only
-      when the release does not change `action.yml` or anything it runs.
+- [x] Bump the `uses: sergiparpal/semantic-diff-weaver@vX.Y.Z` examples in `README.md` and
+      `docs/github-action.md` to the new tag. No moving major tag is published, so nothing
+      re-points itself and a stale example is the only way a reader lands on an old release.
 - [x] Publish or push only with separate authorization.
