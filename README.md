@@ -3,7 +3,8 @@
 Semantic Diff Weaver is an advisory, read-only reviewer for a bounded Git diff between two committed
 revisions. It statically extracts Python structural changes, infers evidence-backed behavior changes,
 ranks risk separately from confidence, and produces concrete test obligations plus unverified
-candidate existing tests. Run it from the command line, or as a Hermes Agent plugin.
+candidate existing tests. Run it from the command line, as a GitHub Action on pull requests, or as
+a Hermes Agent plugin.
 
 It never imports, executes, builds, installs, tests, or modifies the analyzed repository. It does not
 run your tests or measure coverage itself — it can *ingest* a coverage report your own CI already
@@ -91,8 +92,16 @@ python -m pip install '.[anthropic]' && export ANTHROPIC_API_KEY=...
 ```
 
 The CLI then adds the evidence-backed inference layer to the deterministic findings. The model
-defaults to the latest capable Claude model and is overridable with `--model ID` or
-`SEMANTIC_DIFF_WEAVER_MODEL`. `--no-llm` skips provider resolution entirely.
+defaults to `claude-opus-5` and is overridable with `--model ID` or `SEMANTIC_DIFF_WEAVER_MODEL`.
+`--no-llm` skips provider resolution entirely.
+
+The adapter shapes each request to what the named model family accepts — sampling parameters are
+dropped for families that removed them, and the `thinking` parameter is omitted entirely for
+families whose thinking is always on rather than sent as disabled. A parameter a family rejects
+fails *every* call, and the run then degrades to deterministic findings with only a generic
+per-batch warning to show for it. So check an override against the prefix lists in
+`semantic_diff_weaver/providers/anthropic_client.py` before setting it in CI; the reasoning is in
+[docs/decisions.md](docs/decisions.md).
 
 When the package or the key is missing, the CLI prints a one-line notice to stderr and
 continues in deterministic mode — **missing credentials are never a hard failure**, and neither

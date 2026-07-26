@@ -59,6 +59,12 @@ still remain inside a host-authorized workspace root. The default authorized roo
 working directory; trusted operators can provide additional roots through the path-separator-delimited
 `SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS` environment variable.
 
+The three model-input bounds are reported separately when they drop something, since they count
+different units: `max_llm_calls` omits whole evidence batches as `llm_batch_limit`,
+`max_model_input_chars_per_call` drops a symbol whose payload cannot fit a single call as
+`model_input_symbol_limit`, and `max_evidence_chars_per_symbol` shortens a symbol's evidence as
+`model_evidence_limit`. Each lowers reported confidence and marks scope truncated.
+
 `privacy.redact_patterns` must remain `true` and `privacy.allow_network` must remain `false`.
 Configured excludes are additive with mandatory control, credential, key, token, cache, environment,
 and cloud-configuration exclusions. If a file/line budget is exceeded, configured critical paths are

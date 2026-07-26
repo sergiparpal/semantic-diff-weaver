@@ -80,3 +80,12 @@ narrower intent than the invocation, and the CLI never widens it:
 Nothing else about the CLI differs from the plugin: the same analysis, the same read-only Git
 boundary, the same redaction, and the same stable error codes. `tests/security/test_cli_authorization.py`
 holds the adversarial regressions for each rule above.
+
+## The GitHub Action's boundary
+
+The action wraps the CLI and adds one outward call: `scripts/pr_comment.py` posting the brief
+through `gh`. That call is argument-list-only with `shell=False`, the untrusted comment body goes
+through a file rather than the command line, and the repository and pull-request number are
+constrained to their documented shapes before they are interpolated into a `gh api` resource path,
+so neither can retarget the request at another endpoint. The analyzer itself still makes no network
+request and reads no pull-request API. See [github-action.md](github-action.md).

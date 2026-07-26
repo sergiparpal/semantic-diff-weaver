@@ -6,6 +6,13 @@
 > Document status: Draft v0.1  
 > Date: 2026-07-11
 
+> **This is the original design specification, kept as written.** It is a historical record, not
+> the current interface. Where it describes the initial release as a Hermes Agent plugin, the
+> shipped tool also runs as a standalone CLI and a GitHub Action, and it can ground coverage in an
+> ingested report. For current behavior read [`../README.md`](../README.md),
+> [`architecture.md`](architecture.md), and [`configuration.md`](configuration.md); for what
+> changed and why, [`decisions.md`](decisions.md) and [`../CHANGELOG.md`](../CHANGELOG.md).
+
 ## 1. Executive Summary
 
 **Semantic Diff Weaver** analyzes a pull request at the behavioral level and produces a traceable, risk-ranked set of test obligations.

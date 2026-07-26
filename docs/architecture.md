@@ -35,7 +35,11 @@ guard rules. `semantic_interpreter.py` sends bounded, delimited evidence through
 `ctx.llm.complete_structured`, locally validates output, rejects fabricated evidence IDs, and cannot
 initiate actions. Evidence is batched by module and shared changed dependency calls, prioritized by
 configured critical paths, bounded per symbol and per call, and retried once only for explicitly
-retryable schema/transport failures within the eight-call ceiling.
+retryable schema/transport failures within the eight-call ceiling. What each bound drops is reported
+under its own omission reason, because the three count different units: `llm_batch_limit` for
+batches the call ceiling could not accommodate or that retries left unvisited within it,
+`model_input_symbol_limit` for a single symbol whose payload cannot fit one call, and
+`model_evidence_limit` for a symbol whose evidence was truncated to fit.
 A bounded, redacted committed README excerpt may provide repository purpose context. `test_mapper.py`
 parses committed tests statically and always labels matches as unverified candidates.
 
@@ -65,6 +69,10 @@ and pinned by a contract test, so extending the taxonomy cannot half-land.
 `service._load_coverage`, only when a report path is configured, and it never reaches the
 filesystem for anything except that one bounded read. Report entries are lookup keys; none of
 them is ever opened, so the no-execute invariant is untouched.
+
+The map is immutable once built, so suffix resolution is memoized and the report's candidate paths
+are split once rather than per lookup. `status_for` and `counts_for` resolve independently, and
+without the cache every finding paid two full `O(report files)` scans.
 
 Two hooks consume it:
 

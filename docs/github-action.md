@@ -129,6 +129,12 @@ dropped, pointing the reader at the workflow log for the complete output.
 `gh` is invoked with argument lists and `shell=False`, and the comment body is passed through a
 file rather than the command line, so untrusted repository content never reaches a shell.
 
+The repository and pull-request number are interpolated into the `gh api` resource path, so both
+are constrained to their documented shapes first: `owner/repo` against
+`^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$`, and the pull request to digits. The argument-list boundary
+already ruled out shell injection; this stops a value containing `/` or `..` from retargeting the
+request at a different endpoint.
+
 ## Fork pull requests
 
 By default, a workflow triggered by `pull_request` from a fork receives a **read-only**

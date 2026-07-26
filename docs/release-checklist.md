@@ -7,7 +7,9 @@
 - [x] Install the wheel in an isolated environment and inspect `hermes_agent.plugins` entry points.
 - [x] Verify the `semantic-diff-weaver` console script is declared, importable, and runs `--help`
       from the installed environment (`scripts/verify_wheel.py` asserts all three).
-- [x] Confirm `pyproject.toml` and `plugin.yaml` carry the same version; they must not drift.
+- [x] Confirm `pyproject.toml`, `plugin.yaml`, and `semantic_diff_weaver.__version__` carry the
+      same version; they must not drift. `tests/unit/test_regressions.py` pins the three together,
+      after `__version__` was found reporting a stale release.
 - [x] Parse `action.yml` and `.github/workflows/pr-review.yml`, and confirm every third-party
       action is pinned to a full commit SHA with a version comment.
 - [x] Confirm the action's declared permissions are still exactly `contents: read` and

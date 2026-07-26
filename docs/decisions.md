@@ -96,6 +96,55 @@ recorded here alongside the corrections above.
   labels in `evaluation_expected.json` were not touched. Schema version, taxonomy values, error
   codes, and evidence IDs are unchanged.
 
+## Output-affecting corrections (2026-07-26)
+
+Review fixes. `SCHEMA_VERSION` stays `"1.1"`; the only new value any consumer can observe is one
+additional omission reason.
+
+- **A module-level type comment no longer makes a file unparseable.** `extract.py` parsed with
+  `type_comments=True`, which accepts a strictly *narrower* grammar than the default: a stray
+  `# type:` comment outside a function is a `SyntaxError` under the flag and valid Python without
+  it. Such a file was reported as `parse_incomplete` and emitted a fabricated
+  `unknown_semantic_change` finding at 0.68 baseline confidence — a claim about source that Python
+  itself accepts. `parse_module` now falls back to a plain parse, so type comments enrich the
+  rendered signature when they parse and never decide parseability. `test_mapper.py` never read
+  one and no longer asks for them.
+- **Oversized symbols are reported under their own reason.** Omitted LLM batches and symbols too
+  large for any single call were summed into one counter published as `llm_batch_limit`, reporting
+  a symbol count under a reason named for batches. A symbol whose payload alone exceeds
+  `max_model_input_chars_per_call` now carries `model_input_symbol_limit`, with its own warning.
+  This is the output difference: a consumer switching on `scope.omitted[].reason` sees a value it
+  has not seen before, and a previously inflated `llm_batch_limit` count drops to the batches it
+  actually names.
+- **A module that still carries a precise delta keeps its changed-symbol count.**
+  `_drop_redundant_module_deltas` filtered the changed-symbol key set by *path*, so a file with any
+  detailed delta lost its `<module>` key even though only `symbol_added`, `symbol_removed`, and
+  `structural_refactor` are dropped — a surviving module-scope condition change was therefore
+  missing from `summary.changed_symbols`. The key set is now filtered by what actually survived.
+- The reviewed goldens required no regeneration. No corpus case carries a module-level type
+  comment, exceeds the model-input symbol bound, or mixes a surviving module-scope delta with a
+  detailed one in the same file, so `tests/fixtures/golden/canonical_outputs.json` is
+  byte-identical and `docs/evaluation.md` carries its corpus figures forward. Schema version,
+  taxonomy values, error codes, and evidence IDs are unchanged.
+
+## Anthropic request shaping is per model family (2026-07-26)
+
+The optional provider adapter shapes each request to what the named model accepts, matching model
+families by prefix so dated snapshots and aliases behave identically:
+
+- families that removed `temperature`/`top_p`/`top_k` are sent none of them;
+- families whose thinking is always on are sent no `thinking` parameter at all, because an explicit
+  `{"type": "disabled"}` returns HTTP 400 at any effort level. Everywhere the parameter is honored
+  it is still sent as disabled, so the interpreter's small `max_tokens` budget bounds response text
+  rather than being consumed by thinking before the JSON is emitted.
+
+This is recorded because the failure mode it fixes is close to invisible. Sending a parameter the
+family rejects fails *every* call; each failure maps to `ProviderUnavailable` and surfaces only as
+the generic "One structured LLM batch failed" warning, and the analysis then collapses into
+deterministic fallback — a supported, non-erroring mode. Nothing in the output says the request
+shape was at fault. A model override (`--model`, `SEMANTIC_DIFF_WEAVER_MODEL`) therefore has to be
+shaped as deliberately as the default, `claude-opus-5`.
+
 ## Coverage-artifact grounding (2026-07-25)
 
 ### Schema version bumped to 1.1
