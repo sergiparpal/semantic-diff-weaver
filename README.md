@@ -155,8 +155,10 @@ jobs:
 
 Re-runs **edit** the existing comment rather than appending a new one, matched on a hidden
 marker. Third-party actions are pinned to a full commit SHA because a moving tag is mutable and
-this job holds `pull-requests: write`. Inputs, the fork-pull-request caveat, and how to pass a
-coverage report from a prior job are in [docs/github-action.md](docs/github-action.md).
+this job holds `pull-requests: write`; `scripts/check_action_pins.py` runs in CI and fails if a
+pin loses its SHA or if the examples above stop naming the same commit the workflows use.
+Inputs, the fork-pull-request caveat, and how to pass a coverage report from a prior job are in
+[docs/github-action.md](docs/github-action.md).
 
 ## Install and enable the Hermes plugin
 

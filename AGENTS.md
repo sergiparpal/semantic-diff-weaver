@@ -18,6 +18,9 @@ Tests are grouped under `tests/unit`, `contract`, `integration`, `security`, `pe
 - `python -m ruff check .`: lint for correctness and imports.
 - `python -m ruff format --check .`: verify formatting; omit `--check` to reformat.
 - `python -m build`: create wheel and source distributions in `dist/`.
+- `python scripts/check_action_pins.py`: verify every GitHub Actions pin in the workflows and
+  in the documentation examples is a full commit SHA, carries a `# vX.Y.Z` comment, and names
+  the same commit everywhere.
 
 Use Python 3.11 or newer and install the exact development versions from `requirements-dev.lock`.
 
