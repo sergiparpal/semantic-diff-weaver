@@ -11,6 +11,7 @@ permissions:
 jobs:
   review:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       # fetch-depth: 0 is required. The analyzer reads committed Git objects and never
       # fetches, so a shallow clone leaves the base commit absent and the action fails
