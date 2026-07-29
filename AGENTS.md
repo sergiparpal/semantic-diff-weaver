@@ -36,6 +36,12 @@ Pytest files and functions use `test_*.py` and `test_*`. Add unit tests for algo
 
 History uses Conventional Commit subjects, for example `feat: implement semantic diff weaver MVP`. Continue with `feat:`, `fix:`, `test:`, or `docs:`. Pull requests should explain behavior and contract impact, link issues, list commands run, and call out security, schema, evaluation, or documentation changes. Include screenshots only when rendered Markdown changes materially.
 
+`main` is protected by a branch ruleset: **direct pushes are rejected**, and merging requires the `ci-complete` status check to pass. So the loop is branch, push, open a PR, let CI go green, merge. Review approvals are **not** required (the count is 0) — a solo change stays a one-person operation, gated by CI rather than by a second pair of eyes.
+
+`ci-complete` is a single aggregating job that fails unless `test`, `action-pins`, and `hermes-compatibility` all succeeded. **Any new job must be added to its `needs:` list**, or it silently stops gating anything. The ruleset requires that one stable name rather than the individual matrix legs on purpose: a dropped Python version would otherwise become a required check that never reports again and would block every merge permanently. The `pr-review` workflow is deliberately outside the gate — it is dogfooding, not a check.
+
+GitHub Actions are pinned to **full commit SHAs** with a trailing `# vX.Y.Z` comment, never to tags. Here that is not just convention but an enforced policy: `scripts/check_action_pins.py` runs offline in `ci` on every PR (so a Dependabot bump fails immediately rather than a week later) and again in the weekly `action-pins` cron with `--verify-remote --check-latest`. It also compares the workflows against the YAML quoted in `README.md` and `docs/`, which Dependabot never rewrites — so update the docs alongside any pin change or the check fails. This posture is shared across all six plugin repositories in this account.
+
 ## Security & Configuration Tips
 
 Treat repositories, Git metadata, YAML, and model output as untrusted. Never execute or import analyzed code, follow paths outside the repository, expose secrets, use shell-interpolated Git commands, or weaken deterministic fallback and evidence validation to satisfy a test.
