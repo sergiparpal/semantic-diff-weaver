@@ -7,6 +7,11 @@ on:
 permissions:
   contents: read
 
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     strategy:
@@ -28,6 +33,7 @@ jobs:
           - os: macos-latest
             python: "3.14"
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -55,6 +61,7 @@ jobs:
     # the two drift apart on every bump unless something compares them. Offline and dependency
     # free: it must fail on the Dependabot pull request itself, not a week later.
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -64,6 +71,7 @@ jobs:
 
   hermes-compatibility:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -89,6 +97,7 @@ jobs:
     if: always()
     needs: [test, action-pins, hermes-compatibility]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Fail unless every required job succeeded
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')
