@@ -1,7 +1,7 @@
 manifest_version: 1
 name: semantic-diff-weaver
 kind: standalone
-version: 0.2.0
+version: 0.3.0
 description: Analyze Git diffs and produce evidence-backed, risk-ranked test obligations.
 author: Semantic Diff Weaver contributors
 provides_tools:
