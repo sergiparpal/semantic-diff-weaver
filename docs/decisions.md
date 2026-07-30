@@ -39,6 +39,30 @@ The CI compatibility matrix installs Hermes 0.14.0 and 0.18.2 with the built plu
 repeats both real discovery paths for each version. The regular fake-context suite continues to
 validate registration without requiring Hermes or a live model.
 
+## Repository-clone plugin install (2026-07-30)
+
+`hermes plugins install sergiparpal/semantic-diff-weaver --enable` is the documented install path,
+matching the sibling plugin repositories. The installer clones the repository into the Hermes
+plugins directory and reads `plugin.yaml`; it does not build the project or install its
+dependencies. Four consequences are deliberate:
+
+- The root `__init__.py` appends its own directory to `sys.path` before importing the package.
+  Hermes loads that file through `spec_from_file_location` and does not put the plugin directory on
+  `sys.path`, so without the bootstrap `import semantic_diff_weaver` resolves only when the package
+  happens to be pip-installed as well — which a clone install never does. Appending rather than
+  inserting keeps an installed copy authoritative when both exist.
+- A missing Pydantic or PyYAML raises an `ImportError` naming the dependency and the command that
+  fixes it. It is the one failure a clone install can plausibly hit that a wheel install cannot,
+  and the alternative is a bare `ModuleNotFoundError` from inside the import chain that reads like
+  a defect in the plugin. Any other missing module propagates untouched.
+- `plugin.yaml` and `after-install.md` stay out of the wheel. They belong to the clone form; the
+  wheel is discovered through the `hermes_agent.plugins` entry point and never reads the manifest.
+  Shipping them would put both files at the root of `site-packages`, where every plugin's
+  `plugin.yaml` would claim the same path.
+- The manifest declares `manifest_version: 1` and an explicit empty `provides_hooks`. `--enable`
+  makes the plugin live at install time, so "one tool, no hooks" is worth stating in the file the
+  installer reads rather than only in prose.
+
 ## Output-affecting corrections (2026-07-25)
 
 These change what an existing repository is reported as, so they are recorded here rather than only

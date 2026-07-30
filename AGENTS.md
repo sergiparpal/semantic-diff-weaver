@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-Production code lives in `semantic_diff_weaver/`. The `git_diff/` package collects committed Git data, the `ast_diff/` package extracts structural changes, and `service.py` orchestrates the pipeline. `source.py` holds the `SourceRevisionPair` contract between them, so `ast_diff/` never imports `git_diff/`. `taxonomy.py` is the single per-`BehaviorCategory` profile consumed by `scoring.py`, `obligations.py`, and `test_mapper.py`. `plugin.py`, root `__init__.py`, and `plugin.yaml` provide Hermes registration.
+Production code lives in `semantic_diff_weaver/`. The `git_diff/` package collects committed Git data, the `ast_diff/` package extracts structural changes, and `service.py` orchestrates the pipeline. `source.py` holds the `SourceRevisionPair` contract between them, so `ast_diff/` never imports `git_diff/`. `taxonomy.py` is the single per-`BehaviorCategory` profile consumed by `scoring.py`, `obligations.py`, and `test_mapper.py`. `plugin.py`, root `__init__.py`, and `plugin.yaml` provide Hermes registration; the root `__init__.py` is also the loadable entry point of a `hermes plugins install OWNER/REPO` clone, and `after-install.md` is the post-install guide that install path shows.
 
 Each package's `__init__.py` exports only its pipeline-facing surface. Import internals (parsers, the process runner, limit constants) from their defining module rather than widening the facade, and do not re-export private names.
 

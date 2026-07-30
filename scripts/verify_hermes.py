@@ -81,11 +81,21 @@ def main() -> int:
             entry_point_manager.discover_and_load()
             _assert_loaded(entry_point_manager, "entry-point")
 
+            # The directory form is what `hermes plugins install OWNER/REPO` produces, so copy
+            # what that installer clones — manifest, loadable root, and the package itself —
+            # rather than a two-file stub. Whether the package resolves from the clone alone is
+            # asserted offline in tests/integration/test_hermes_discovery.py; the wheel is
+            # necessarily installed in this environment for the entry-point check above.
             project_root = Path(__file__).resolve().parents[1]
             directory = root / "home" / "plugins" / PLUGIN_NAME
             directory.mkdir(parents=True)
-            shutil.copy2(project_root / "plugin.yaml", directory / "plugin.yaml")
-            shutil.copy2(project_root / "__init__.py", directory / "__init__.py")
+            for name in ("plugin.yaml", "__init__.py", "after-install.md"):
+                shutil.copy2(project_root / name, directory / name)
+            shutil.copytree(
+                project_root / "semantic_diff_weaver",
+                directory / "semantic_diff_weaver",
+                ignore=shutil.ignore_patterns("__pycache__"),
+            )
             plugins.PluginManager._scan_entry_points = lambda self: []
 
             directory_manager = plugins.PluginManager()
