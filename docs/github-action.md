@@ -27,7 +27,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0        # required — see below
-      - uses: sergiparpal/semantic-diff-weaver@v0.2.0
+      - uses: sergiparpal/semantic-diff-weaver@v0.3.0
         with:
           include: |
             src/**/*.py
@@ -46,7 +46,7 @@ SHAs deliberately.
 
 That reasoning does not stop applying because the action is this one, so **no moving major tag is
 published**. There is no `@v0` to float on: the examples name the immutable release tag
-`@v0.2.0`, and a full commit SHA is equally accepted if you want exactly the guarantee you are
+`@v0.3.0`, and a full commit SHA is equally accepted if you want exactly the guarantee you are
 asking of `actions/checkout`. Upgrades are a deliberate edit, and `CHANGELOG.md` says what each
 one changes.
 
@@ -106,7 +106,7 @@ jobs:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: coverage
-      - uses: sergiparpal/semantic-diff-weaver@v0.2.0
+      - uses: sergiparpal/semantic-diff-weaver@v0.3.0
         with:
           coverage-report: coverage.json
 ```

@@ -148,7 +148,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0        # required: the analyzer reads committed objects and never fetches
-      - uses: sergiparpal/semantic-diff-weaver@v0.2.0
+      - uses: sergiparpal/semantic-diff-weaver@v0.3.0
         with:
           fail-on: none
 ```

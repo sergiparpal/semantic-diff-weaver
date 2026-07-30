@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 - 2026-07-30
 
 - **Feature:** support the one-command plugin install,
   `hermes plugins install sergiparpal/semantic-diff-weaver --enable`. The installer clones the
