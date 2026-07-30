@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- **Feature:** support the one-command plugin install,
+  `hermes plugins install sergiparpal/semantic-diff-weaver --enable`. The installer clones the
+  repository into the Hermes plugins directory without building it, so the root `__init__.py` now
+  appends its own directory to `sys.path` before importing the package — previously the directory
+  form loaded only when the wheel was also pip-installed. A missing Pydantic or PyYAML is reported
+  by name with the command that fixes it instead of as a bare `ModuleNotFoundError`. `plugin.yaml`
+  gains `manifest_version: 1` and an explicit empty `provides_hooks`, and a new `after-install.md`
+  walks through enabling, dependencies, authorized roots, and the first run. See
+  `docs/decisions.md`.
+
 ## 0.2.0 - 2026-07-26
 
 The project becomes runnable without Hermes: a standalone CLI, a GitHub Action, an optional

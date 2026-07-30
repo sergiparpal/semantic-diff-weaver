@@ -162,30 +162,50 @@ Inputs, the fork-pull-request caveat, and how to pass a coverage report from a p
 
 ## Install and enable the Hermes plugin
 
-For development as a user directory plugin, copy this repository directory to:
-
-```text
-~/.hermes/plugins/semantic-diff-weaver/
+```bash
+hermes plugins install sergiparpal/semantic-diff-weaver --enable
 ```
 
-For a project plugin, copy it to `.hermes/plugins/semantic-diff-weaver/` and explicitly trust
-project plugin discovery:
+That is the whole setup. Hermes clones this repository into its plugins directory, reads
+`plugin.yaml`, and registers the single `analyze_semantic_diff` tool — no hooks, commands, or
+overrides. Plugins are opt-in, so `--enable` is what saves you a separate
+`hermes plugins enable semantic-diff-weaver`; `hermes plugins list` should then show the plugin
+enabled, with one tool and no error. [`after-install.md`](after-install.md) walks through the
+first run.
+
+Installing clones the repository, it does not build it, so the two runtime dependencies —
+Pydantic 2 and PyYAML 6 — have to be importable in the environment that runs Hermes, and Git has
+to be on `PATH`. A missing dependency is reported by name with the command that fixes it, rather
+than as a bare import failure.
+
+### Other install paths
+
+To try a working copy, point the installer at the checkout with a `file://` URL. It is cloned like
+any other Git remote, so commit first — the working tree itself is not copied:
+
+```bash
+hermes plugins install file:///absolute/path/to/semantic-diff-weaver --enable
+```
+
+Copying (or symlinking) the repository directory to `~/.hermes/plugins/semantic-diff-weaver/` is
+the same directory plugin by hand. For a project plugin, copy it to
+`.hermes/plugins/semantic-diff-weaver/` and explicitly trust project plugin discovery:
 
 ```text
 HERMES_ENABLE_PROJECT_PLUGINS=true
 ```
 
-For package installation:
+Installing the package instead registers the plugin through its `hermes_agent.plugins` entry point
+and brings the dependencies with it:
 
-```text
+```bash
 python -m pip install .
 hermes plugins enable semantic-diff-weaver
-hermes plugins list
 ```
 
-Plugins are opt-in. Set `HERMES_PLUGINS_DEBUG=1` and inspect the Hermes plugin logs if discovery or
-registration fails. The package exposes the `hermes_agent.plugins` entry point and the directory
-contains both `plugin.yaml` and a root `__init__.py`.
+Set `HERMES_PLUGINS_DEBUG=1` and inspect the Hermes plugin logs if discovery or registration fails.
+The package exposes the entry point and the repository root contains `plugin.yaml`, the loadable
+`__init__.py`, and `after-install.md`.
 
 ## Tool input
 
