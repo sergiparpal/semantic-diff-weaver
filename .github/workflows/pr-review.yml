@@ -8,6 +8,14 @@ permissions:
   contents: read
   pull-requests: write
 
+# Cancel superseded runs on the same ref to save CI minutes. It matters more here
+# than in `ci`: this workflow posts a comment, so three pushes to a pull request
+# leave three reviews of diffs that no longer exist. `ci-complete` is the only
+# required check, so a cancelled run here never blocks a merge.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   review:
     runs-on: ubuntu-latest
