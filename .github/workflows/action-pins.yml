@@ -19,6 +19,17 @@ on:
 permissions:
   contents: read
 
+# Grouped, but deliberately NOT cancelling — the opposite of `ci` and `pr-review`.
+# This is a weekly cron plus manual dispatch, so there is no superseded commit to
+# save minutes on, and every run shares the default branch's ref. With
+# `cancel-in-progress: true` a manual dispatch would silently kill the scheduled
+# check, or the schedule would kill someone's dispatch, and a check nobody sees
+# fail is worse than one that waits. The group only stops two of them hitting the
+# network verification at once.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   verify:
     runs-on: ubuntu-latest
