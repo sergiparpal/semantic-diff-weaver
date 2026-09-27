@@ -156,7 +156,10 @@ additional omission reason.
 The optional provider adapter shapes each request to what the named model accepts, matching model
 families by prefix so dated snapshots and aliases behave identically:
 
-- families that removed `temperature`/`top_p`/`top_k` are sent none of them;
+- families that removed `temperature`/`top_p`/`top_k` are sent none of them; the others get
+  `temperature` through `extra_body`, because SDK 1.0 dropped it from the `messages.create`
+  signature and the keyword now raises `TypeError` client-side — the same silent collapse into
+  deterministic fallback described below;
 - families whose thinking is always on are sent no `thinking` parameter at all, because an explicit
   `{"type": "disabled"}` returns HTTP 400 at any effort level. Everywhere the parameter is honored
   it is still sent as disabled, so the interpreter's small `max_tokens` budget bounds response text

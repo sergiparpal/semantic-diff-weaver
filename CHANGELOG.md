@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **Fix:** send `temperature` to the Anthropic SDK through `extra_body` instead of as a keyword
+  argument. SDK 1.0 removed the keyword from `messages.create`, so with `anthropic>=1` every
+  call on a model that still honors sampling (for example `claude-sonnet-4-6`) raised
+  `TypeError`, surfaced as `ProviderUnavailable`, and fell back to deterministic mode without an
+  error. The default model was unaffected. Behavior on 0.x SDKs is unchanged.
+
 ## 0.3.0 - 2026-07-30
 
 - **Feature:** support the one-command plugin install,

@@ -56,8 +56,28 @@ class Messages:
         self.outcome = outcome
         self.requests: list[dict[str, Any]] = []
 
-    def create(self, **kwargs: Any) -> Any:
-        self.requests.append(kwargs)
+    def create(
+        self,
+        *,
+        model: str,
+        max_tokens: int,
+        messages: list[dict[str, Any]],
+        system: str | None = None,
+        thinking: dict[str, Any] | None = None,
+        output_config: dict[str, Any] | None = None,
+        extra_body: dict[str, Any] | None = None,
+    ) -> Any:
+        """Mirrors the SDK 1.x signature: an argument it no longer accepts is a `TypeError`."""
+        kwargs = {
+            "model": model,
+            "max_tokens": max_tokens,
+            "messages": messages,
+            "system": system,
+            "thinking": thinking,
+            "output_config": output_config,
+            "extra_body": extra_body,
+        }
+        self.requests.append({key: value for key, value in kwargs.items() if value is not None})
         if isinstance(self.outcome, Exception):
             raise self.outcome
         return self.outcome
@@ -137,14 +157,25 @@ def test_temperature_is_omitted_on_models_that_reject_it() -> None:
     """Current models return HTTP 400 for `temperature`; forwarding it would fail every call."""
     client, transport = _client(_json_response())
     _call(client)
-    assert "temperature" not in transport.messages.requests[0]
-    assert "top_p" not in transport.messages.requests[0]
+    request = transport.messages.requests[0]
+    assert "temperature" not in request
+    assert "top_p" not in request
+    assert "extra_body" not in request
 
 
 def test_temperature_is_honored_on_models_that_still_accept_it() -> None:
     client, transport = _client(_json_response(), model="claude-haiku-4-5")
     _call(client)
-    assert transport.messages.requests[0]["temperature"] == 0.1
+    request = transport.messages.requests[0]
+    assert request["extra_body"] == {"temperature": 0.1}
+    assert "temperature" not in request
+
+
+def test_temperature_never_reaches_the_sdk_as_a_keyword_argument() -> None:
+    """SDK 1.x raises `TypeError` for `temperature=`, which silently became deterministic mode."""
+    client, _ = _client(_json_response(), model="claude-sonnet-4-6")
+    result = _call(client)
+    assert result.parsed == VALID_PAYLOAD
 
 
 @pytest.mark.parametrize(

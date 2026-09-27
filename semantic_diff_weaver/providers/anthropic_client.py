@@ -11,7 +11,10 @@ Two request-shape decisions are load-bearing and are not arbitrary:
 passes `temperature=0.1`, but `temperature`, `top_p`, and `top_k` were removed on the current
 model generation and a request carrying one returns HTTP 400. Forwarding the value verbatim
 would make every call fail on the default model, so it is forwarded only to models that still
-accept it.
+accept it. Where it is forwarded, it goes through `extra_body` rather than as a keyword
+argument: SDK 1.0 removed `temperature` from the `messages.create` signature, so the keyword
+raises `TypeError` before any request is sent, while `extra_body` is merged into the request
+JSON unchanged on every SDK version the extra allows.
 
 *Thinking is disabled where the model allows it.* `max_tokens` caps thinking and response
 text together, and the interpreter's budget is deliberately small. With thinking on by default
@@ -163,7 +166,8 @@ class AnthropicClient:
             # See the module docstring: keeps `max_tokens` a bound on the answer itself.
             request["thinking"] = {"type": "disabled"}
         if accepts_sampling_parameters(self.model):
-            request["temperature"] = temperature
+            # Not a keyword argument: SDK 1.x rejects it client-side (see the module docstring).
+            request["extra_body"] = {"temperature": temperature}
 
         try:
             transport = self._transport.with_options(timeout=timeout)
