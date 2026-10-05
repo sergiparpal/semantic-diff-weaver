@@ -150,6 +150,30 @@ One limit remains: a one-word literal still counts, so `log("Retry")` reads as a
 condition rule's comparison check had the same flaw as the keyword rules; it is fixed in the next
 section.
 
+## Output-affecting corrections (2026-10-05, tests named after their module)
+
+Candidate-test mapping keyed on the changed symbol, static imports, and mirrored file names. Code
+with one module per tool defeats all three: every `src/handlers/*.py` in `meal-manager` exports the
+same `HANDLER`, the tests load each one with `importlib`, and they all live in one
+`test_integration.py`. Its six `register_cooked_meal` tests were never proposed for a change to
+that handler, while the generic token `handler` proposed tests of the `tool_handler` decorator.
+
+What those tests share with the module is its name — `test_register_cooked_meal_rollback` calls
+`register_cooked_meal(...)` — so a test whose name spells a changed file's stem as whole words now
+scores +0.25, as much as a mirrored file name, and +0.10 more when its body names the module too.
+Only multi-word, public stems count: a single word such as `store` turns up in tests about
+anything, and `_common` or `__init__` are never what a test is named after. A body mention never
+counts on its own. A first version let it, and on this repository's history it moved 167
+candidate lists — tests here write `mcp_server.X` in tests of anything, and with the existing
+package-import signal that mention alone crossed the threshold, displacing relevant tests.
+
+Measured on `meal-manager` (`v0.2.0..HEAD` and `8894749`, production code): 25 of 47 obligations
+went from no candidate to some, 127 candidates were added — every one named after a module its
+obligation covers — and the 8 displaced were the generic `tool_handler` and 0.35 matches. Finding
+a candidate lowers the test-gap axis from 90 to 65, so 32 risk scores fell by 6 or 7 points, and
+2 findings moved from `high` to `medium`. This repository's history and the 17-case corpus are
+unchanged.
+
 ## Output-affecting corrections (2026-10-05, coverage over changed lines)
 
 Coverage grounding promised "unanimity across the changed lines a finding rests on" and judged

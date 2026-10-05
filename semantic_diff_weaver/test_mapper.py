@@ -173,6 +173,21 @@ def _module_name(path: str) -> str:
     return ".".join(parts)
 
 
+def _distinctive_stem(path: str) -> str | None:
+    """A changed file's stem when it is specific enough to name its module in a test.
+
+    Handler-per-module code exports one generic symbol from every file — `HANDLER`, `main`,
+    `run` — so the changed symbol cannot find its tests, while the tests name the module:
+    `test_register_cooked_meal_rollback` calls `register_cooked_meal(...)`. A multi-word stem
+    is that specific; a single word such as `store` or `base` turns up in tests about anything,
+    and private or dunder modules (`_common`, `__init__`) are not named by tests at all.
+    """
+    stem = PurePosixPath(path).stem.casefold()
+    if stem.startswith("_") or "_" not in stem:
+        return None
+    return stem
+
+
 @lru_cache(maxsize=16384)
 def _mirrored(source_path: str, test_path: str) -> bool:
     source = PurePosixPath(source_path)
@@ -255,6 +270,17 @@ def map_candidate_tests(
         )
 
     @cache
+    def module_named_for(stem: str) -> frozenset[int]:
+        # Whole words only: `register_cooked_meal` names `test_register_cooked_meal_rollback`,
+        # but `cooked_meal` must not match `test_uncooked_meals`.
+        marker = f"_{stem}_"
+        return frozenset(
+            position
+            for position, test in enumerate(tests)
+            if marker in f"_{test.symbol.rsplit('.', 1)[-1].casefold()}_"
+        )
+
+    @cache
     def terminology_for(category: BehaviorCategory) -> frozenset[int]:
         terms = CATEGORY_PROFILES[category].test_terms
         return frozenset(
@@ -272,11 +298,18 @@ def map_candidate_tests(
         )
         named = name_token_positions.get(symbol_token, empty) if symbol_token else empty
         bodied = body_token_positions.get(symbol_token, empty) if symbol_token else empty
+        stem = _distinctive_stem(candidate.path)
+        module_named = module_named_for(stem) if stem else empty
+        # The body only confirms a test already named after the module. On its own a module
+        # mention is everywhere — this suite writes `mcp_server.X` in tests of anything — and
+        # with the package-import rule it promoted unrelated tests over the real ones.
+        module_bodied = module_named & body_token_positions.get(stem, empty) if stem else empty
         terminology = terminology_for(candidate.category)
         ranked: list[CandidateTest] = []
         # Only a structural hit can produce a candidate, so tests outside this union would
         # score identically to being skipped. Terminology alone never clears the threshold.
-        for test_position in sorted(mapped | mirrored | imported | named | bodied):
+        structural = mapped | mirrored | imported | named | bodied | module_named
+        for test_position in sorted(structural):
             test = tests[test_position]
             score = 0.0
             reasons: list[str] = []
@@ -295,6 +328,13 @@ def map_candidate_tests(
             if test_position in bodied:
                 score += 0.10
                 reasons.append("changed symbol token in bounded test body")
+            # As strong as a mirrored file name: the test is named after the changed module.
+            if test_position in module_named:
+                score += 0.25
+                reasons.append("changed module named in test name")
+            if test_position in module_bodied:
+                score += 0.10
+                reasons.append("changed module named in bounded test body")
             if test_position in terminology:
                 score += 0.10
                 reasons.append("behavior-category terminology")
