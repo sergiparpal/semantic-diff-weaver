@@ -138,9 +138,29 @@ classifications by finding new keywords there — `service.analyze` became an `a
 because of a late `RepositoryIdentity(...)` call. That was a new false positive, not a fix, so a probe
 now covers exactly the values its display text shows.
 
-Two limits remain. A one-word literal still counts, so `log("Retry")` reads as a retry. And the
-comparison-operator check in the condition rule still scans the display text, so an operator inside
-a string literal — `'return x < 5'` in a test — still reads as a boundary.
+One limit remains: a one-word literal still counts, so `log("Retry")` reads as a retry. The
+condition rule's comparison check had the same flaw as the keyword rules; it is fixed in the next
+section.
+
+## Output-affecting corrections (2026-10-05, condition comparisons)
+
+The condition rule calls a changed condition a boundary — or a retry boundary — when it contains a
+comparison, and decided that by searching the display text for `<`, `>`, `==`, or `!=`. Text cannot
+answer the question, and it went wrong three ways: an operator inside a string literal counted
+(`'<' in text`, or test code quoted in strings), a shift counted (`mask & (1 << bit)`), and an
+equality that redaction had consumed did not — `token == expected` is displayed as
+`token =[REDACTED] expected`, so the very comparisons that guard credentials were missed.
+
+The probe now records whether each value contains an ordering or equality comparison, read from its
+AST operators (`Lt`, `LtE`, `Gt`, `GtE`, `Eq`, `NotEq`). Membership and identity tests (`in`, `is`)
+do not count, as they never did. The probe already covers exactly the values the display text
+shows, so a comparison in a condition the text never reached does not count either. Deltas built
+without a probe keep the old text scan.
+
+On this repository's history — 70 commits, 1,989 evidence classifications — one classification
+changed: a test whose conditions are membership checks over quoted source code, `'return x < 5'`
+among it, moved from `boundary_change` to `unknown_semantic_change`. The history holds no shift or
+redacted equality in a changed condition; unit tests pin both. The 17-case corpus is unchanged.
 
 ## Output-affecting corrections (2026-07-25)
 

@@ -244,16 +244,27 @@ def _classify_loop(
     )
 
 
+def _has_boundary_comparison(delta: StructuralDelta) -> bool:
+    """Whether a changed condition contains an ordering or equality comparison.
+
+    Read from the AST-built probe. The display-text fallback, kept for deltas without one,
+    scans for operator characters: it also matches operators inside string literals and shift
+    operators, and misses an `==` that redaction consumed. It reads only the changed
+    expressions, never the symbol name, whose synthetic forms (``<module>``, ``<unparsed>``)
+    contain angle brackets.
+    """
+    if delta.probe is not None:
+        return delta.probe.compares
+    expressions = " ".join(filter(None, (delta.old, delta.new)))
+    return any(operator in expressions for operator in COMPARISON_OPERATORS)
+
+
 def _classify_condition(
     delta: StructuralDelta, rules: RulesConfig, combined: str
 ) -> Classification | None:
     if delta.kind != "condition_change":
         return None
-    # Probe only the changed expressions, never the symbol name. Synthetic names such as
-    # ``<module>`` and ``<unparsed>`` contain angle brackets, so including them here made every
-    # module-scope condition look like a comparison and shadowed the auth and validation rules.
-    expressions = " ".join(filter(None, (delta.old, delta.new)))
-    if any(operator in expressions for operator in COMPARISON_OPERATORS):
+    if _has_boundary_comparison(delta):
         category = (
             BehaviorCategory.RETRY_TIMEOUT
             if _contains(combined, RETRY_TERMS)
@@ -441,7 +452,9 @@ def classify_delta(delta: StructuralDelta, rules: RulesConfig) -> Classification
     # literals, so a changed message such as "Retry later" is not a retry change. A delta
     # without a probe falls back to its display text.
     words = (
-        delta.probe if delta.probe is not None else " ".join(filter(None, (delta.old, delta.new)))
+        delta.probe.words
+        if delta.probe is not None
+        else " ".join(filter(None, (delta.old, delta.new)))
     )
     combined = " ".join(filter(None, (words, delta.symbol)))
     for classifier in CLASSIFIERS:
