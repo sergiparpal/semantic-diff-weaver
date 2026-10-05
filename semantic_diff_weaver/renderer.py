@@ -26,6 +26,36 @@ BIDI_CONTROLS = frozenset(
 )
 
 
+# What the brief says each scope reason means, read after its count. Keys are the reason codes
+# in `ScopeMetadata.omitted` and `ScopeMetadata.excluded_counts`; a code without a phrase is
+# shown as itself, so a new reason is never hidden — `tests/unit/test_scope_reasons.py` asks for a
+# phrase for every code the pipeline can emit.
+OMISSION_PHRASES = {
+    "resource_prioritization": "lower-priority file(s) past the resource budget",
+    "aggregate_source_limit": "file(s) past the aggregate source budget",
+    "parse_incomplete_files": "file(s) that did not parse completely",
+    "ast_resource_limit": "file(s) past the AST safety budget",
+    "changed_symbol_limit": "changed symbol(s) past `max_changed_symbols`",
+    "minimum_confidence": "finding(s) below `minimum_report_confidence`",
+    "low_risk_refactor_policy": "low-risk refactor(s) hidden by `emit_low_risk_refactors: false`",
+    "llm_batch_limit": "model evidence batch(es) past the call budget",
+    "model_input_symbol_limit": "symbol(s) too large for one model call",
+    "model_evidence_limit": "symbol(s) with truncated model evidence",
+    "global_obligation_limit": "test obligation(s) past `max_test_obligations`",
+}
+EXCLUSION_PHRASES = {
+    "path_filter": "outside the configured include and exclude paths",
+    "unsupported_extension": "not Python",
+    "secret_filename": "with secret-like names",
+    "control_directory": "in version-control directories",
+    "cache_or_environment": "in caches or environments",
+    "symlink_or_gitlink": "symlink(s) or submodule(s)",
+    "binary": "binary",
+    "aggregate_source_limit": "past the aggregate source budget",
+    "oversized_or_non_utf8": "oversized or not UTF-8",
+}
+
+
 def _visible_controls(text: str, *, preserve_newlines: bool = False) -> str:
     output: list[str] = []
     for character in text:
@@ -48,6 +78,26 @@ def _visible_controls(text: str, *, preserve_newlines: bool = False) -> str:
 def _escape(text: str) -> str:
     controlled = _visible_controls(text)
     return re.sub(r"([\\`*_{}\[\]()<>#+.!|~-])", r"\\\1", controlled)
+
+
+def _reason_items(counts: list[tuple[str, int]], phrases: dict[str, str]) -> str:
+    return " · ".join(
+        f"{count} {phrases.get(reason) or _escape(reason)}" for reason, count in counts if count
+    )
+
+
+def _scope_reason_lines(result: AnalysisResult) -> list[str]:
+    """Say why scope was left out, not only how much: the counts alone could not be acted on."""
+    lines = []
+    omitted = _reason_items(
+        [(item.reason, item.count) for item in result.scope.omitted], OMISSION_PHRASES
+    )
+    if omitted:
+        lines.append(f"**Omitted:** {omitted}.")
+    excluded = _reason_items(list(result.scope.excluded_counts.items()), EXCLUSION_PHRASES)
+    if excluded:
+        lines.append(f"**Excluded files:** {excluded}.")
+    return lines
 
 
 def _fenced_summary(label: str, text: str) -> list[str]:
@@ -98,6 +148,7 @@ def render_markdown(result: AnalysisResult) -> str:
             f"{sum(result.scope.excluded_counts.values())} excluded file(s)"
             f"{' (truncated)' if result.scope.truncated else ''}."
         ),
+        *_scope_reason_lines(result),
         *_coverage_lines(result),
         "",
         "### Inferred behavior changes",
