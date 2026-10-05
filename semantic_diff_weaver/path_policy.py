@@ -132,12 +132,33 @@ REDACTIONS = (
 )
 
 
-def path_error(message: str) -> WeaverError:
-    return WeaverError(
-        ErrorCode.PATH_OUTSIDE_REPOSITORY,
-        message,
-        "Use a repository-relative path that remains inside the resolved Git repository.",
-    )
+REPOSITORY_PATH_REMEDIATION = (
+    "Use a repository-relative path that remains inside the resolved Git repository."
+)
+# An authorization failure is not fixed by a better repository-relative path, which is all the
+# remediation used to say: the remedy is a path inside the workspace, or a change to which roots
+# are authorized — and only an operator can make that change. Same error code either way.
+OUTSIDE_ROOTS_REMEDIATION = (
+    "Choose a path inside an authorized workspace root, or have the operator add its directory "
+    f"to {ALLOWED_ROOTS_ENV}."
+)
+INACCESSIBLE_PATH_REMEDIATION = "Check that the path exists and that the analysis can read it."
+ROOT_INACCESSIBLE_REMEDIATION = (
+    f"Every {ALLOWED_ROOTS_ENV} entry, or the working directory when it is unset, must be an "
+    "existing, readable directory."
+)
+ROOT_UNBOUNDED_REMEDIATION = (
+    f"Name only project directories in {ALLOWED_ROOTS_ENV} — never a file or a filesystem root — "
+    "or, when it is unset, start the analysis from inside the project."
+)
+NO_ROOT_REMEDIATION = (
+    f"Set {ALLOWED_ROOTS_ENV} to at least one directory, or unset it to authorize the working "
+    "directory."
+)
+
+
+def path_error(message: str, remediation: str = REPOSITORY_PATH_REMEDIATION) -> WeaverError:
+    return WeaverError(ErrorCode.PATH_OUTSIDE_REPOSITORY, message, remediation)
 
 
 def normalize_repo_path(value: str) -> str:
@@ -182,12 +203,17 @@ def authorized_roots() -> tuple[Path, ...]:
         try:
             root = Path(value).resolve(strict=True)
         except OSError as exc:
-            raise path_error("An authorized workspace root is inaccessible.") from exc
+            raise path_error(
+                "An authorized workspace root is inaccessible.", ROOT_INACCESSIBLE_REMEDIATION
+            ) from exc
         if not root.is_dir() or root == Path(root.anchor):
-            raise path_error("An authorized workspace root must be a bounded directory.")
+            raise path_error(
+                "An authorized workspace root must be a bounded directory.",
+                ROOT_UNBOUNDED_REMEDIATION,
+            )
         roots.append(root)
     if not roots:
-        raise path_error("No authorized workspace root is configured.")
+        raise path_error("No authorized workspace root is configured.", NO_ROOT_REMEDIATION)
     return tuple(dict.fromkeys(roots))
 
 
@@ -196,14 +222,19 @@ def ensure_authorized_path(candidate: Path) -> Path:
     try:
         resolved = candidate.resolve(strict=True)
     except OSError as exc:
-        raise path_error("The requested local path is inaccessible.") from exc
+        raise path_error(
+            "The requested local path is inaccessible.", INACCESSIBLE_PATH_REMEDIATION
+        ) from exc
     for root in authorized_roots():
         try:
             resolved.relative_to(root)
             return resolved
         except ValueError:
             continue
-    raise path_error("The requested local path is outside the authorized workspace roots.")
+    raise path_error(
+        "The requested local path is outside the authorized workspace roots.",
+        OUTSIDE_ROOTS_REMEDIATION,
+    )
 
 
 def exclusion_reason(path: str) -> str | None:
