@@ -45,7 +45,10 @@ def internal_error() -> WeaverError:
     return WeaverError(
         ErrorCode.INTERNAL_ERROR,
         "The semantic diff analysis failed unexpectedly.",
-        "Retry with a narrower diff and enable Hermes plugin debug logs for stage-level details.",
+        # The package writes no logs and every transport withholds the exception, so the
+        # remediation must not send anyone looking for details that exist nowhere.
+        "Retry with a narrower diff, using closer refs or include patterns; details of "
+        "unexpected failures are deliberately withheld.",
     )
 
 

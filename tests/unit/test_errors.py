@@ -43,6 +43,19 @@ def test_safe_error_shape() -> None:
     assert "unexpected" in internal_error().safe_message
 
 
+def test_internal_error_does_not_promise_details_that_exist_nowhere() -> None:
+    """The package writes no logs and every transport withholds the exception's text.
+
+    The remediation used to point at "Hermes plugin debug logs for stage-level details", which
+    hold none — the handler catches the exception before Hermes sees it — and which the CLI and
+    the Claude Code server do not have at all.
+    """
+    remediation = internal_error().remediation
+    assert "log" not in remediation.casefold()
+    assert "Hermes" not in remediation
+    assert "narrower diff" in remediation
+
+
 @pytest.mark.parametrize("code", list(ErrorCode))
 def test_handler_preserves_every_typed_public_error(code: ErrorCode, monkeypatch) -> None:
     monkeypatch.setattr(
