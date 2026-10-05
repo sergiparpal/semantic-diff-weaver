@@ -54,6 +54,10 @@ def test_a_repository_outside_the_project_is_refused(two_repositories, monkeypat
         payload = json.loads(result["content"][0]["text"])
         assert payload["error"] == "path_outside_repository"
         assert str(other) not in payload["message"]
+        # The refusal names the operator's remedy rather than "use a repository-relative path",
+        # which cannot help when the repository itself is outside the workspace.
+        assert ALLOWED_ROOTS_ENV in payload["remediation"]
+        assert "repository-relative" not in payload["remediation"]
 
 
 def test_an_external_risk_profile_outside_the_project_is_refused(

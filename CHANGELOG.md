@@ -13,6 +13,14 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Fix:** authorization failures say how to fix them. Every `path_outside_repository` error
+  carried the remediation "Use a repository-relative path that remains inside the resolved Git
+  repository", including a repository refused for lying outside the authorized workspace, where no
+  relative path can help. Refusals now name the remedies — a path inside an authorized root, or the
+  operator adding its directory to `SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS` — and a misconfigured
+  variable, a missing path, and a filesystem-root entry each get their own. The error code and
+  messages are unchanged; repository-relative path errors keep their remediation.
+
 - **Feature:** the Markdown brief says why scope was left out, not only how much. Below the
   **Scope:** line, an **Omitted:** line counts each omission reason in words — for example
   "2 low-risk refactor(s) hidden by `emit_low_risk_refactors: false`" — and an

@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 import semantic_diff_weaver.path_policy as path_policy
-from semantic_diff_weaver.errors import WeaverError
+from semantic_diff_weaver.errors import ErrorCode, WeaverError
 from semantic_diff_weaver.path_policy import (
     ALLOWED_ROOTS_ENV,
     ensure_authorized_path,
@@ -140,3 +140,70 @@ def test_non_secret_token_source_and_windows_devices_are_handled(
     monkeypatch.setattr(path_policy.os, "name", "nt")
     with pytest.raises(WeaverError):
         normalize_repo_path("CON.py")
+
+
+def _raised(action) -> WeaverError:
+    with pytest.raises(WeaverError) as raised:
+        action()
+    return raised.value
+
+
+@pytest.mark.parametrize(
+    ("configured", "remedy"),
+    [
+        pytest.param(lambda tmp: path_policy.os.pathsep, "at least one directory", id="no-root"),
+        pytest.param(
+            lambda tmp: str(Path(tmp.anchor)), "never a file or a filesystem root", id="fs-root"
+        ),
+        pytest.param(
+            lambda tmp: str(tmp / "missing"), "existing, readable directory", id="missing"
+        ),
+    ],
+)
+def test_a_bad_root_configuration_says_how_to_fix_the_variable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, configured, remedy: str
+) -> None:
+    monkeypatch.setenv(ALLOWED_ROOTS_ENV, configured(tmp_path))
+    error = _raised(path_policy.authorized_roots)
+    assert error.code is ErrorCode.PATH_OUTSIDE_REPOSITORY
+    assert ALLOWED_ROOTS_ENV in error.remediation
+    assert remedy in error.remediation
+
+
+def test_a_path_outside_the_roots_names_the_operator_remedy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Refusing a repository outside the workspace used to say "use a repository-relative path".
+
+    That cannot help: the repository itself is outside. The remedies are a path inside the
+    workspace, or an operator widening it — the error code is unchanged.
+    """
+    allowed = tmp_path / "allowed"
+    allowed.mkdir()
+    monkeypatch.setenv(ALLOWED_ROOTS_ENV, str(allowed))
+    error = _raised(lambda: ensure_authorized_path(tmp_path))
+    assert error.code is ErrorCode.PATH_OUTSIDE_REPOSITORY
+    assert error.remediation == path_policy.OUTSIDE_ROOTS_REMEDIATION
+    assert ALLOWED_ROOTS_ENV in error.remediation
+
+
+def test_a_missing_path_says_to_check_that_it_exists(tmp_path: Path) -> None:
+    error = _raised(lambda: ensure_authorized_path(tmp_path / "missing"))
+    assert error.remediation == path_policy.INACCESSIBLE_PATH_REMEDIATION
+
+
+def test_repository_path_errors_keep_the_repository_remedy(tmp_path: Path) -> None:
+    inner = tmp_path / "inner"
+    inner.mkdir()
+    for action in (
+        lambda: normalize_repo_path("../escape.py"),
+        lambda: ensure_contained(inner, tmp_path),
+    ):
+        assert _raised(action).remediation == path_policy.REPOSITORY_PATH_REMEDIATION
+
+
+def test_every_path_remediation_is_a_single_line() -> None:
+    """The CLI prints a public error as exactly two lines: message, then remediation."""
+    for name in dir(path_policy):
+        if name.endswith("_REMEDIATION"):
+            assert "\n" not in getattr(path_policy, name)
