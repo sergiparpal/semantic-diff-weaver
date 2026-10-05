@@ -326,3 +326,32 @@ def test_each_changed_line_counts_once_however_many_findings_rest_on_it(repo_fac
     coverage = analysis["coverage"]
     assert (coverage["changed_lines"], coverage["covered_lines"]) == (2, 2)
     assert coverage["uncovered_lines"] == 0
+
+
+def test_a_removed_function_gets_no_coverage_claim(repo_factory) -> None:
+    """A removed symbol has no head-side lines, so coverage can say nothing about it.
+
+    Its evidence has no `new_lines`; the finding stays `unknown` — the static semantics — and
+    adds nothing to the summary, while the covered change beside it is still claimed.
+    """
+    old = {"api.py": "def allowed(x):\n    return x < 5\n\n\ndef legacy(y):\n    return y\n"}
+    new = {"api.py": "def allowed(x):\n    return x <= 5\n"}
+    report = {"files": {"api.py": {"executed_lines": [1, 2], "missing_lines": []}}}
+    repo, base, head = repo_factory(old, new)
+    analysis = _analyze(Path(repo), base, head, _write_report(Path(repo), report))["analysis"]
+    removed = [
+        item
+        for behavior in analysis["behavior_changes"]
+        for item in behavior["evidence"]
+        if item["symbol"] == "legacy"
+    ]
+    assert [item["new_lines"] for item in removed] == [None]
+    verdicts = _verdicts(analysis)
+    assert verdicts["allowed"] == CoverageStatus.COVERED.value
+    assert verdicts["legacy"] not in {CoverageStatus.COVERED.value, CoverageStatus.UNCOVERED.value}
+    coverage = analysis["coverage"]
+    assert (coverage["changed_lines"], coverage["covered_lines"], coverage["uncovered_lines"]) == (
+        1,
+        1,
+        0,
+    )
