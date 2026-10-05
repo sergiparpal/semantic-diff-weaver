@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from semantic_diff_weaver.config import _read_yaml, _validate_config_paths, load_config
 from semantic_diff_weaver.errors import ErrorCode, WeaverError
 from semantic_diff_weaver.models import AnalyzeRequest
+from semantic_diff_weaver.path_policy import is_included
 
 
 def request(repo: Path, **kwargs: object) -> AnalyzeRequest:
@@ -163,3 +164,30 @@ def test_empty_pattern_and_single_hermes_config_are_covered(tmp_path: Path) -> N
     config, warnings = load_config(tmp_path, request(tmp_path))
     assert config.version == 1
     assert warnings == []
+
+
+@pytest.mark.parametrize(
+    ("path", "analyzed"),
+    [
+        ("semantic_diff_weaver/cli.py", True),
+        ("semantic_diff_weaver/ast_diff/extract.py", True),
+        ("hermes_semantic_diff_weaver/service.py", True),
+        ("scripts/verify_wheel.py", True),
+        ("__init__.py", True),
+        ("tests/unit/test_config.py", False),
+        ("tests/fixtures/repositories/sample.py", False),
+    ],
+)
+def test_this_repository_analyzes_only_its_production_code(path: str, analyzed: bool) -> None:
+    """The repository's own `.semantic-diff-weaver.yaml`, read by the real loader.
+
+    With the built-in `include` of every Python file, a change that only added a test was a
+    medium-risk behavior change, and on large ranges the suite used up the changed-symbol budget
+    before production code did. Candidate tests are unaffected: they are found under
+    `test_roots`, which `include` does not narrow.
+    """
+    root = Path(__file__).resolve().parents[2]
+    config, warnings = load_config(root, request(root))
+    assert warnings == []
+    assert is_included(path, config.paths.include, config.paths.exclude) is analyzed
+    assert config.paths.test_roots == ["tests"]

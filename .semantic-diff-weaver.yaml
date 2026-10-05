@@ -1,0 +1,16 @@
+# How Semantic Diff Weaver analyzes this repository — its own code — from any transport.
+#
+# The built-in `include` is every Python file, so the test suite was analyzed as product code:
+# a change that only added a test came back as a medium-risk behavior change with an obligation
+# to "clarify the changed contract". Only production code is analyzed here. Tests still matter:
+# `include` limits which changed files are analyzed, not where candidate tests are found, and the
+# built-in `test_roots` keeps candidate discovery pointed at tests/.
+version: 1
+paths:
+  include:
+    - "semantic_diff_weaver/**/*.py"
+    # The package's name until 03a9f64, so ranges from before the rename stay complete.
+    - "hermes_semantic_diff_weaver/**/*.py"
+    - "scripts/**/*.py"
+    # The loader a `hermes plugins install` clone executes.
+    - "__init__.py"
