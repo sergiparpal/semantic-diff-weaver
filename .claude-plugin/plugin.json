@@ -8,5 +8,21 @@
   "homepage": "https://github.com/sergiparpal/semantic-diff-weaver",
   "repository": "https://github.com/sergiparpal/semantic-diff-weaver",
   "license": "MIT",
-  "keywords": ["git", "diff", "testing", "code-review", "python"]
+  "keywords": [
+    "git",
+    "diff",
+    "testing",
+    "code-review",
+    "python"
+  ],
+  "mcpServers": {
+    "semantic-diff-weaver": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "${CLAUDE_PLUGIN_ROOT}",
+        "semantic-diff-weaver-mcp"
+      ]
+    }
+  }
 }

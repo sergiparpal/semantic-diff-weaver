@@ -30,8 +30,8 @@ def test_the_marketplace_lists_the_repository_root_as_its_only_plugin() -> None:
     ]
 
 
-def test_the_mcp_config_launches_the_declared_console_script() -> None:
-    servers = _json(".mcp.json")["mcpServers"]
+def test_the_manifest_launches_the_declared_console_script() -> None:
+    servers = _json(".claude-plugin/plugin.json")["mcpServers"]
     assert list(servers) == ["semantic-diff-weaver"]
     server = servers["semantic-diff-weaver"]
     pyproject = tomllib.loads((REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
@@ -42,6 +42,15 @@ def test_the_mcp_config_launches_the_declared_console_script() -> None:
     assert server["args"][:2] == ["--from", "${CLAUDE_PLUGIN_ROOT}"]
     # The bound comes from CLAUDE_PROJECT_DIR in the server; the config must not override it.
     assert "env" not in server
+
+
+def test_there_is_no_root_mcp_config() -> None:
+    """A root `.mcp.json` doubles as this repository's project MCP config in Claude Code.
+
+    There `${CLAUDE_PLUGIN_ROOT}` is undefined, so a contributor opening the checkout got a
+    broken server pending approval. The plugin declares its server in `plugin.json` instead.
+    """
+    assert not (REPOSITORY_ROOT / ".mcp.json").exists()
 
 
 def test_the_skill_names_the_tool_and_has_frontmatter() -> None:

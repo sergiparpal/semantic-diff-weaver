@@ -87,6 +87,11 @@ deliberate:
   `pip install` and never touches the user's Python. It does not write into the plugin directory,
   unlike `uv run --project`, which would create a lockfile and virtual environment there.
 
+The server is declared inline in `.claude-plugin/plugin.json`, not in a root `.mcp.json`. Claude Code
+reads a root `.mcp.json` as the repository's own project MCP configuration too, where
+`${CLAUDE_PLUGIN_ROOT}` is undefined, so anyone opening the checkout in Claude Code got a broken
+second server waiting for approval.
+
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
