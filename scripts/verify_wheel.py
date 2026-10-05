@@ -50,6 +50,9 @@ def main() -> int:
         if "semantic-diff-weaver = semantic_diff_weaver.cli:main" not in entry_points:
             print("wheel does not declare the semantic-diff-weaver console script", file=sys.stderr)
             return 2
+        if "semantic-diff-weaver-mcp = semantic_diff_weaver.mcp_server:main" not in entry_points:
+            print("wheel does not declare the semantic-diff-weaver-mcp server", file=sys.stderr)
+            return 2
         if "semantic-diff-weaver = semantic_diff_weaver.plugin" not in entry_points:
             print("wheel does not declare the Hermes plugin entry point", file=sys.stderr)
             return 2

@@ -81,6 +81,27 @@ Nothing else about the CLI differs from the plugin: the same analysis, the same 
 boundary, the same redaction, and the same stable error codes. `tests/security/test_cli_authorization.py`
 holds the adversarial regressions for each rule above.
 
+## Authorization under Claude Code
+
+The MCP server in `mcp_server.py` is the Hermes boundary over a different transport, so it keeps the
+Hermes rule rather than the CLI's: a model supplies `repo_path`, and no tool argument ever names or
+widens an authorized root. The schema's `additionalProperties: false` rejects any attempt to pass one.
+
+The one value taken from the host is the project directory. Claude Code does not document the working
+directory it starts a plugin server in, but it exports the project root as `CLAUDE_PROJECT_DIR`; the
+server changes into it at start-up, so `path_policy`'s default root is the project rather than the
+plugin's installation directory. An inaccessible value stops the server before it reads a message.
+An operator-set `SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS` still takes precedence, so a project outside the
+operator's bound fails with `path_outside_repository` exactly as under Hermes.
+
+Stdout carries the protocol and nothing else: while serving, `sys.stdout` points at stderr. Each
+message is bounded to 1 MiB and an oversized line is discarded without being buffered whole. An
+unexpected exception becomes a generic JSON-RPC internal error that never echoes its text, and an
+analysis failure is returned as a tool result carrying the stable error payload. The server runs the
+deterministic analysis only and never reads `ANTHROPIC_API_KEY`.
+
+`tests/security/test_mcp_authorization.py` holds the adversarial regressions for each rule above.
+
 ## The GitHub Action's boundary
 
 The action wraps the CLI and adds one outward call: `scripts/pr_comment.py` posting the brief

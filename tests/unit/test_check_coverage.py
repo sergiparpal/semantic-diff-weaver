@@ -56,6 +56,7 @@ def test_coverage_policy_aggregates_package_branch_coverage(tmp_path: Path, monk
             "semantic_diff_weaver/git_diff/process.py": _file_entry(covered=85, total=100),
             "semantic_diff_weaver/obligations.py": _file_entry(),
             "semantic_diff_weaver/path_policy.py": _file_entry(),
+            "semantic_diff_weaver/mcp_server.py": _file_entry(),
             "semantic_diff_weaver/plugin.py": _file_entry(),
             "semantic_diff_weaver/renderer.py": _file_entry(),
             "semantic_diff_weaver/scoring.py": _file_entry(),

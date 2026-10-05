@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "semantic-diff-weaver"
 version = "0.3.0"
-description = "Read-only semantic Git diff analysis and risk-ranked test obligations, from a CLI, a GitHub Action, or Hermes Agent."
+description = "Read-only semantic Git diff analysis and risk-ranked test obligations, from a CLI, a GitHub Action, Hermes Agent, or Claude Code."
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "Semantic Diff Weaver contributors" }]
@@ -21,6 +21,7 @@ anthropic = ["anthropic>=0.40,<2"]
 
 [project.scripts]
 semantic-diff-weaver = "semantic_diff_weaver.cli:main"
+semantic-diff-weaver-mcp = "semantic_diff_weaver.mcp_server:main"
 
 [project.entry-points."hermes_agent.plugins"]
 semantic-diff-weaver = "semantic_diff_weaver.plugin"

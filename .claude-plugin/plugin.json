@@ -1,0 +1,12 @@
+{
+  "name": "semantic-diff-weaver",
+  "version": "0.3.0",
+  "description": "Analyze committed Git diffs and produce evidence-backed, risk-ranked test obligations. Read-only.",
+  "author": {
+    "name": "Semantic Diff Weaver contributors"
+  },
+  "homepage": "https://github.com/sergiparpal/semantic-diff-weaver",
+  "repository": "https://github.com/sergiparpal/semantic-diff-weaver",
+  "license": "MIT",
+  "keywords": ["git", "diff", "testing", "code-review", "python"]
+}

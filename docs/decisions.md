@@ -63,6 +63,33 @@ dependencies. Four consequences are deliberate:
   makes the plugin live at install time, so "one tool, no hooks" is worth stating in the file the
   installer reads rather than only in prose.
 
+## Claude Code plugin over MCP (2026-10-05)
+
+The Claude Code plugin is a second transport for the Hermes tool, not a second tool. Claude Code
+does not load Python into its own process, so the adapter is an MCP stdio server that serves
+`ANALYZE_SEMANTIC_DIFF_SCHEMA` and delegates to `handle_analyze_semantic_diff`. Four choices are
+deliberate:
+
+- **The protocol subset is implemented by hand.** A tool-only server needs `initialize`, `ping`,
+  `tools/list`, and `tools/call`. The official SDK would bring an HTTP stack this transport never
+  uses into an install that otherwise has two runtime dependencies, so the server has none beyond
+  them. It echoes any of the protocol revisions 2024-11-05 through 2025-11-25 and offers the newest
+  otherwise; the subset it serves is the same in all of them.
+- **The project directory comes from `CLAUDE_PROJECT_DIR`.** Claude Code documents that variable
+  but not the server's working directory, so the server enters it rather than relying on where it
+  happens to be started. See [security.md](security.md#authorization-under-claude-code).
+- **No inference provider.** Claude is already the interpreter of the result. Resolving a provider
+  the way the CLI does would turn an `ANTHROPIC_API_KEY` set for Claude Code into a second billed
+  model call per analysis without the user asking for one.
+- **`uvx --from ${CLAUDE_PLUGIN_ROOT}` launches it.** Installing a Claude Code plugin copies the
+  repository and installs nothing, the same constraint as the Hermes clone install. `uvx` builds
+  the checkout into an isolated, cached environment, so the plugin works without a prior
+  `pip install` and never touches the user's Python. It does not write into the plugin directory,
+  unlike `uv run --project`, which would create a lockfile and virtual environment there.
+
+`.claude-plugin/plugin.json` carries the package version and is kept in step with it by
+`tests/contract/test_claude_code_plugin.py`.
+
 ## Output-affecting corrections (2026-07-25)
 
 These change what an existing repository is reported as, so they are recorded here rather than only

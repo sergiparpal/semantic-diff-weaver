@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-Production code lives in `semantic_diff_weaver/`. The `git_diff/` package collects committed Git data, the `ast_diff/` package extracts structural changes, and `service.py` orchestrates the pipeline. `source.py` holds the `SourceRevisionPair` contract between them, so `ast_diff/` never imports `git_diff/`. `taxonomy.py` is the single per-`BehaviorCategory` profile consumed by `scoring.py`, `obligations.py`, and `test_mapper.py`. `plugin.py`, root `__init__.py`, and `plugin.yaml` provide Hermes registration; the root `__init__.py` is also the loadable entry point of a `hermes plugins install OWNER/REPO` clone, and `after-install.md` is the post-install guide that install path shows.
+Production code lives in `semantic_diff_weaver/`. The `git_diff/` package collects committed Git data, the `ast_diff/` package extracts structural changes, and `service.py` orchestrates the pipeline. `source.py` holds the `SourceRevisionPair` contract between them, so `ast_diff/` never imports `git_diff/`. `taxonomy.py` is the single per-`BehaviorCategory` profile consumed by `scoring.py`, `obligations.py`, and `test_mapper.py`. `plugin.py`, root `__init__.py`, and `plugin.yaml` provide Hermes registration; the root `__init__.py` is also the loadable entry point of a `hermes plugins install OWNER/REPO` clone, and `after-install.md` is the post-install guide that install path shows. `mcp_server.py` serves the same tool to Claude Code over MCP stdio; `.claude-plugin/`, `.mcp.json`, and `skills/` are that plugin's manifest, server launcher, and skill.
 
 Each package's `__init__.py` exports only its pipeline-facing surface. Import internals (parsers, the process runner, limit constants) from their defining module rather than widening the facade, and do not re-export private names.
 
@@ -32,15 +32,24 @@ Use four-space indentation, explicit UTF-8 encodings, type annotations, and a 10
 
 Pytest files and functions use `test_*.py` and `test_*`. Add unit tests for algorithms, contract tests for interfaces, and integration tests for end-to-end behavior. Security-sensitive changes require adversarial regressions. Maintain at least 85% overall coverage and 90% branch coverage for every critical module named in `scripts/check_coverage.py` — the boundary and transport modules plus the `ast_diff/` and `git_diff/` packages. Tests must be offline and deterministic; use fake Hermes LLM responses.
 
-## Commit & Pull Request Guidelines
+## Commit & Merge Guidelines
 
-History uses Conventional Commit subjects, for example `feat: implement semantic diff weaver MVP`. Continue with `feat:`, `fix:`, `test:`, or `docs:`. Pull requests should explain behavior and contract impact, link issues, list commands run, and call out security, schema, evaluation, or documentation changes. Include screenshots only when rendered Markdown changes materially.
+History uses Conventional Commit subjects, for example `feat: implement semantic diff weaver MVP`. Continue with `feat:`, `fix:`, `test:`, or `docs:`. A commit message body should explain behavior and contract impact and call out security, schema, evaluation, or documentation changes.
 
-`main` is protected by a branch ruleset: **direct pushes are rejected**, and merging requires the `ci-complete` status check to pass. So the loop is branch, push, open a PR, let CI go green, merge. Review approvals are **not** required (the count is 0) — a solo change stays a one-person operation, gated by CI rather than by a second pair of eyes.
+This is a **local-only repository**: there is no remote, no pull request, and no hosted CI. Work on a branch, then merge into `main` once the local gate passes. The gate is what the `ci` workflow under `.github/workflows/` would have run, and it is the bar for every merge:
 
-`ci-complete` is a single aggregating job that fails unless `test`, `action-pins`, and `hermes-compatibility` all succeeded. **Any new job must be added to its `needs:` list**, or it silently stops gating anything. The ruleset requires that one stable name rather than the individual matrix legs on purpose: a dropped Python version would otherwise become a required check that never reports again and would block every merge permanently. The `pr-review` workflow is deliberately outside the gate — it is dogfooding, not a check.
+```bash
+python -m pytest --cov=semantic_diff_weaver --cov-branch --cov-report=json:coverage.json
+python scripts/check_coverage.py coverage.json
+python -m ruff check . && python -m ruff format --check .
+python -m mypy
+python scripts/check_action_pins.py
+python -m build && python scripts/verify_wheel.py dist
+```
 
-GitHub Actions are pinned to **full commit SHAs** with a trailing `# vX.Y.Z` comment, never to tags. Here that is not just convention but an enforced policy: `scripts/check_action_pins.py` runs offline in `ci` on every PR (so a Dependabot bump fails immediately rather than a week later) and again in the weekly `action-pins` cron with `--verify-remote --check-latest`. It also compares the workflows against the YAML quoted in `README.md` and `docs/`, which Dependabot never rewrites — so update the docs alongside any pin change or the check fails. This posture is shared across all six plugin repositories in this account.
+The workflows are kept so the repository can be published again without rebuilding its CI. While it stays local they run nowhere and Dependabot does not update them, so nothing else checks the matrix of Python versions and operating systems or the `hermes-compatibility` job; run `python scripts/verify_hermes.py` against an installed wheel when a change touches Hermes registration. If the repository is published again, restore the `main` ruleset requiring the aggregating `ci-complete` check, and add any new job to its `needs:` list.
+
+GitHub Actions in those workflows stay pinned to **full commit SHAs** with a trailing `# vX.Y.Z` comment, never to tags. `scripts/check_action_pins.py` enforces this offline and also compares the workflows against the YAML quoted in `README.md` and `docs/`, so update the docs alongside any pin change or the check fails.
 
 ## Security & Configuration Tips
 

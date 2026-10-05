@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **Feature:** a Claude Code plugin. `/plugin marketplace add <path-to-checkout>` then
+  `/plugin install semantic-diff-weaver@semantic-diff-weaver` adds an MCP server exposing the
+  same `analyze_semantic_diff` tool and schema as the Hermes plugin, plus a `semantic-diff` skill.
+  The server is a new dependency-free `semantic-diff-weaver-mcp` console script
+  (`semantic_diff_weaver/mcp_server.py`) speaking MCP over stdio; the plugin launches it with
+  `uvx`. Under it the authorized root is the Claude Code project directory, an operator-set
+  `SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS` still wins, and the analysis is always deterministic. See
+  `docs/decisions.md` and `docs/security.md`.
+
 - **Fix:** send `temperature` to the Anthropic SDK through `extra_body` instead of as a keyword
   argument. SDK 1.0 removed the keyword from `messages.create`, so with `anthropic>=1` every
   call on a model that still honors sampling (for example `claude-sonnet-4-6`) raised

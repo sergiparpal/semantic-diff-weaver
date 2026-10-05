@@ -3,8 +3,8 @@
 Semantic Diff Weaver is an advisory, read-only reviewer for a bounded Git diff between two committed
 revisions. It statically extracts Python structural changes, infers evidence-backed behavior changes,
 ranks risk separately from confidence, and produces concrete test obligations plus unverified
-candidate existing tests. Run it from the command line, as a GitHub Action on pull requests, or as
-a Hermes Agent plugin.
+candidate existing tests. Run it from the command line, as a GitHub Action on pull requests, as
+a Hermes Agent plugin, or as a Claude Code plugin.
 
 It never imports, executes, builds, installs, tests, or modifies the analyzed repository. It does not
 run your tests or measure coverage itself — it can *ingest* a coverage report your own CI already
@@ -19,6 +19,8 @@ available.
 - Pydantic 2 and PyYAML 6 (installed with the package).
 - Hermes Agent 0.14.0 or later *only* for the plugin path. The package deliberately does not
   force-install Hermes or constrain its version in metadata.
+- [`uv`](https://docs.astral.sh/uv/) on `PATH` *only* for the Claude Code plugin, which uses it
+  to build the server and its dependencies from the plugin checkout.
 
 ## Standalone CLI
 
@@ -206,6 +208,51 @@ hermes plugins enable semantic-diff-weaver
 Set `HERMES_PLUGINS_DEBUG=1` and inspect the Hermes plugin logs if discovery or registration fails.
 The package exposes the entry point and the repository root contains `plugin.yaml`, the loadable
 `__init__.py`, and `after-install.md`.
+
+## Install the Claude Code plugin
+
+```text
+/plugin marketplace add /absolute/path/to/semantic-diff-weaver
+/plugin install semantic-diff-weaver@semantic-diff-weaver
+```
+
+The repository is its own single-plugin marketplace, added here from a local checkout; a hosted
+copy is added the same way by `owner/repo` or Git URL. The plugin contributes two things:
+
+- an MCP server, `semantic-diff-weaver`, exposing the same single `analyze_semantic_diff` tool and
+  input schema as the Hermes plugin, annotated read-only. Claude Code names it
+  `mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__analyze_semantic_diff`, which is the
+  name to use in permission rules;
+- a `semantic-diff` skill telling Claude when to call the tool, how to pick the refs, and how to
+  report obligations without overstating the unverified candidate tests.
+
+Then ask for it in a session — *"what does this branch change in behavior compared with `main`,
+and what should I test?"* — or invoke `/semantic-diff` directly.
+
+The server is started with `uvx --from ${CLAUDE_PLUGIN_ROOT} semantic-diff-weaver-mcp`, so `uv`
+must be on `PATH`; the first start builds the package and fetches Pydantic and PyYAML, later starts
+reuse uv's cache. It speaks MCP over stdio with no dependency beyond the base install.
+
+Two behaviors differ from the CLI on purpose:
+
+- **Authorization follows Hermes, not the CLI.** The model chooses `repo_path`, so the server
+  authorizes the Claude Code project directory (`CLAUDE_PROJECT_DIR`) and nothing else, and makes
+  it the working directory so `repo_path: "."` means the project. A trusted operator widens or
+  narrows that with `SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS`, which always takes precedence. Additional
+  directories granted with `/add-dir` are *not* authorized automatically.
+- **No second model.** The server always runs the deterministic analysis — Claude is already the
+  interpreter — and never reads `ANTHROPIC_API_KEY`, so a key present for Claude Code itself cannot
+  start a separately billed inference pass.
+
+To use the server without the plugin, install the package and register its console script:
+
+```bash
+python -m pip install . && claude mcp add semantic-diff-weaver -- semantic-diff-weaver-mcp
+```
+
+`claude plugin validate .` checks the manifests from a checkout, and
+`claude --plugin-dir /path/to/semantic-diff-weaver` loads a working copy for one session without
+installing it.
 
 ## Tool input
 

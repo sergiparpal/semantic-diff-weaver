@@ -1,0 +1,14 @@
+{
+  "name": "semantic-diff-weaver",
+  "description": "Semantic Diff Weaver for Claude Code: risk-ranked test obligations from committed Git diffs.",
+  "owner": {
+    "name": "sergiparpal"
+  },
+  "plugins": [
+    {
+      "name": "semantic-diff-weaver",
+      "source": "./",
+      "description": "Analyze committed Git diffs and produce evidence-backed, risk-ranked test obligations. Read-only."
+    }
+  ]
+}
