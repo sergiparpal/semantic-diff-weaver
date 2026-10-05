@@ -212,11 +212,12 @@ The package exposes the entry point and the repository root contains `plugin.yam
 ## Install the Claude Code plugin
 
 ```text
-/plugin marketplace add sergiparpal/semantic-diff-weaver
+/plugin marketplace add /absolute/path/to/semantic-diff-weaver
 /plugin install semantic-diff-weaver@semantic-diff-weaver
 ```
 
-The repository is its own single-plugin marketplace. The plugin contributes two things:
+The repository is its own single-plugin marketplace, added here from a local checkout; a hosted
+copy is added the same way by `owner/repo` or Git URL. The plugin contributes two things:
 
 - an MCP server, `semantic-diff-weaver`, exposing the same single `analyze_semantic_diff` tool and
   input schema as the Hermes plugin, annotated read-only. Claude Code names it

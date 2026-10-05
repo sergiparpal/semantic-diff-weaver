@@ -2,8 +2,8 @@
 
 ## Unreleased
 
-- **Feature:** a Claude Code plugin. `/plugin marketplace add sergiparpal/semantic-diff-weaver`
-  then `/plugin install semantic-diff-weaver@semantic-diff-weaver` adds an MCP server exposing the
+- **Feature:** a Claude Code plugin. `/plugin marketplace add <path-to-checkout>` then
+  `/plugin install semantic-diff-weaver@semantic-diff-weaver` adds an MCP server exposing the
   same `analyze_semantic_diff` tool and schema as the Hermes plugin, plus a `semantic-diff` skill.
   The server is a new dependency-free `semantic-diff-weaver-mcp` console script
   (`semantic_diff_weaver/mcp_server.py`) speaking MCP over stdio; the plugin launches it with
