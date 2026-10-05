@@ -220,7 +220,8 @@ The repository is its own single-plugin marketplace, added here from a local che
 copy is added the same way by `owner/repo` or Git URL. The plugin contributes two things:
 
 - an MCP server, `semantic-diff-weaver`, exposing the same single `analyze_semantic_diff` tool and
-  input schema as the Hermes plugin, annotated read-only. Claude Code names it
+  input schema as the Hermes plugin, annotated read-only, except that `output_format` defaults to
+  the Markdown brief. Claude Code names it
   `mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__analyze_semantic_diff`, which is the
   name to use in permission rules;
 - a `semantic-diff` skill telling Claude when to call the tool, how to pick the refs, and how to
@@ -243,6 +244,15 @@ Two behaviors differ from the CLI on purpose:
 - **No second model.** The server always runs the deterministic analysis — Claude is already the
   interpreter — and never reads `ANTHROPIC_API_KEY`, so a key present for Claude Code itself cannot
   start a separately billed inference pass.
+
+**Results are sized for Claude Code.** Claude Code keeps a tool result in the conversation up to
+50,000 characters by default and saves anything longer to a file. The server therefore defaults
+`output_format` to the Markdown brief — as the CLI does, where Hermes defaults to `both` — returns
+it as plain Markdown rather than a JSON string, and declares a 100,000-character threshold for the
+tool through `anthropic/maxResultSizeChars`. On this repository's own 19-file range the brief was
+57,238 characters and `both` 158,368. Request `json` or `both` explicitly, with `include` narrowed
+to a few files. Narrow with `include`, not `exclude`: `exclude` also removes files from
+candidate-test discovery, so excluding a tests directory drops every candidate test.
 
 To use the server without the plugin, install the package and register its console script:
 

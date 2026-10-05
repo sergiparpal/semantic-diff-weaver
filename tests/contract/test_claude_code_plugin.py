@@ -44,6 +44,18 @@ def test_the_manifest_launches_the_declared_console_script() -> None:
     assert "env" not in server
 
 
+def test_uv_rebuilds_the_server_when_package_sources_change() -> None:
+    """`uvx --from` reuses a cached build until a cache key changes; the default is pyproject only.
+
+    Without the source glob, a working copy installed through a local marketplace kept serving
+    the code it was first built from, whatever was edited afterwards.
+    """
+    pyproject = tomllib.loads((REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    keys = pyproject["tool"]["uv"]["cache-keys"]
+    assert {"file": "pyproject.toml"} in keys
+    assert {"file": "semantic_diff_weaver/**/*.py"} in keys
+
+
 def test_there_is_no_root_mcp_config() -> None:
     """A root `.mcp.json` doubles as this repository's project MCP config in Claude Code.
 

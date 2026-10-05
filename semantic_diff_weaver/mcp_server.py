@@ -17,12 +17,19 @@ Inference is deliberately absent. The host model already interprets the result, 
 server runs the deterministic analysis only and never reads `ANTHROPIC_API_KEY` — a key
 present for the host itself must not silently start a second, separately billed model.
 
+Output is shaped for the host. Claude Code keeps a tool result in the conversation only up to
+a character threshold and saves anything longer to a file, so this transport defaults
+`output_format` to the Markdown brief, returns the brief as plain Markdown, and declares a
+higher threshold for its tool. Everything else — error payloads and explicit `json` or `both`
+results — is exactly what the Hermes handler returns.
+
 Stdout belongs to the protocol. While serving, `sys.stdout` is pointed at stderr so a stray
 `print` anywhere in the pipeline cannot corrupt the message stream.
 """
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 import sys
@@ -30,6 +37,7 @@ from collections.abc import Callable, Mapping
 from typing import Any, BinaryIO
 
 from . import __version__
+from .models import OutputFormat
 from .plugin import DESCRIPTION, handle_analyze_semantic_diff
 from .schemas import ANALYZE_SEMANTIC_DIFF_SCHEMA
 
@@ -46,6 +54,17 @@ PROTOCOL_VERSIONS = ("2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05")
 # that a runaway or hostile writer cannot make the server buffer without bound.
 MAX_MESSAGE_BYTES = 1024 * 1024
 
+# Claude Code saves a result longer than 50,000 characters to a file unless the tool declares
+# its own threshold. Hermes's default, `both`, carries the canonical JSON *and* the brief:
+# 158,368 characters for the 19-file range that exposed this, against 57,238 for the brief
+# alone. So the brief is this transport's default.
+DEFAULT_OUTPUT_FORMAT = OutputFormat.MARKDOWN.value
+# Twice the host default and a fifth of its 500,000-character ceiling. It keeps that brief
+# inline with room to spare, while the JSON of the same range (101,171 characters) still goes
+# to a file — narrowing with `include` is the answer to that, not a higher threshold.
+MAX_RESULT_CHARS = 100_000
+RESULT_SIZE_META = "anthropic/maxResultSizeChars"
+
 PARSE_ERROR = -32700
 INVALID_REQUEST = -32600
 METHOD_NOT_FOUND = -32601
@@ -57,6 +76,12 @@ INSTRUCTIONS = (
     "plan regression tests. It is read-only and advisory. repo_path must lie inside the "
     "authorized workspace, which is the host project directory unless the operator "
     "set SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS."
+)
+
+OUTPUT_GUIDANCE = (
+    "Without output_format it returns the Markdown brief as plain text. The canonical JSON is "
+    "about twice that size, so request json or both only with include narrowed to a few files. "
+    "Narrow with include, not exclude: exclude also removes files from candidate-test discovery."
 )
 
 Handler = Callable[[dict[str, Any]], str]
@@ -76,18 +101,24 @@ class ProtocolError(Exception):
 
 
 def tool_definition() -> dict[str, Any]:
-    """The MCP form of the Hermes schema: same name, same input contract."""
+    """The MCP form of the Hermes schema: same name and input contract, the brief as default."""
+    # A copy: the Hermes registration shares the original and keeps its own default.
+    input_schema = copy.deepcopy(ANALYZE_SEMANTIC_DIFF_SCHEMA["parameters"])
+    input_schema["properties"]["output_format"]["default"] = DEFAULT_OUTPUT_FORMAT
     return {
         "name": TOOL_NAME,
         "title": "Semantic diff analysis",
-        "description": f"{ANALYZE_SEMANTIC_DIFF_SCHEMA['description']} {DESCRIPTION}",
-        "inputSchema": ANALYZE_SEMANTIC_DIFF_SCHEMA["parameters"],
+        "description": " ".join(
+            (ANALYZE_SEMANTIC_DIFF_SCHEMA["description"], DESCRIPTION, OUTPUT_GUIDANCE)
+        ),
+        "inputSchema": input_schema,
         "annotations": {
             "readOnlyHint": True,
             "destructiveHint": False,
             "idempotentHint": True,
             "openWorldHint": False,
         },
+        "_meta": {RESULT_SIZE_META: MAX_RESULT_CHARS},
     }
 
 
@@ -148,11 +179,37 @@ class McpServer:
         arguments = params.get("arguments", {})
         if not isinstance(arguments, dict):
             raise ProtocolError(INVALID_PARAMS, "Tool arguments must be an object.")
-        text = self._handler(arguments)
-        # An analysis failure is a tool result, not a protocol error, so the model sees the
-        # stable error code and remediation and can correct its arguments.
-        failed = json.loads(text).get("success") is False
-        return {"content": [{"type": "text", "text": text}], "isError": failed}
+        effective = {"output_format": DEFAULT_OUTPUT_FORMAT, **arguments}
+        text = self._handler(effective)
+        payload = json.loads(text)
+        if payload.get("success") is False:
+            # An analysis failure is a tool result, not a protocol error, so the model sees the
+            # stable error code and remediation and can correct its arguments.
+            return _text_result(text, is_error=True)
+        if effective["output_format"] == OutputFormat.MARKDOWN.value and isinstance(
+            payload.get("markdown"), str
+        ):
+            return _text_result(_brief(payload), is_error=False)
+        return _text_result(text, is_error=False)
+
+
+def _text_result(text: str, *, is_error: bool) -> dict[str, Any]:
+    return {"content": [{"type": "text", "text": text}], "isError": is_error}
+
+
+def _brief(envelope: dict[str, Any]) -> str:
+    """The brief as multi-line Markdown, closed by the envelope fields it does not show.
+
+    Plain Markdown rather than the one-line JSON envelope: it is what the model reads, it is
+    smaller without the escaping, and if the host still saves it to a file, that file can be
+    read in parts — reads page by line, and a single-line JSON file is one unpageable line.
+    The analysis ID is pattern-validated, so the closing comment cannot be broken out of.
+    """
+    footer = (
+        f"<!-- analysis_id={envelope.get('analysis_id')} "
+        f"schema_version={envelope.get('schema_version')} -->"
+    )
+    return f"{envelope['markdown'].rstrip()}\n\n{footer}\n"
 
 
 def _valid_id(value: Any) -> bool:

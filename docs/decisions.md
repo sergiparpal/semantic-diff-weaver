@@ -66,9 +66,9 @@ dependencies. Four consequences are deliberate:
 ## Claude Code plugin over MCP (2026-10-05)
 
 The Claude Code plugin is a second transport for the Hermes tool, not a second tool. Claude Code
-does not load Python into its own process, so the adapter is an MCP stdio server that serves
-`ANALYZE_SEMANTIC_DIFF_SCHEMA` and delegates to `handle_analyze_semantic_diff`. Four choices are
-deliberate:
+does not load Python into its own process, so the adapter is an MCP stdio server that serves a
+copy of `ANALYZE_SEMANTIC_DIFF_SCHEMA` and delegates to `handle_analyze_semantic_diff`. Five choices
+are deliberate:
 
 - **The protocol subset is implemented by hand.** A tool-only server needs `initialize`, `ping`,
   `tools/list`, and `tools/call`. The official SDK would bring an HTTP stack this transport never
@@ -81,11 +81,26 @@ deliberate:
 - **No inference provider.** Claude is already the interpreter of the result. Resolving a provider
   the way the CLI does would turn an `ANTHROPIC_API_KEY` set for Claude Code into a second billed
   model call per analysis without the user asking for one.
+- **The brief is the default result, sized for the host.** Claude Code keeps a result inline only
+  up to 50,000 characters unless the tool declares a higher threshold, and saves the rest to a
+  file. On `389c29e..cd460ef`, the 19-file range that exposed this, Hermes's default `both` was
+  158,368 characters, the JSON alone 101,171, and the brief 57,238; Claude spent four calls and
+  eleven turns working around the overflow. So the MCP copy of the schema defaults `output_format`
+  to `markdown`, as the CLI already does. A brief is returned as plain Markdown, which is smaller
+  without JSON escaping and, if it still overflows, lands in a file that can be read in parts; a
+  single-line JSON file cannot. The tool declares `anthropic/maxResultSizeChars: 100000`, twice
+  the default and a fifth of the 500,000 ceiling: enough for that brief, not for the JSON of the
+  same range, which stays available on request and which the skill steers to narrowed calls. The
+  skill narrows with `include` only, because `exclude` also removes files from candidate-test
+  discovery — `tests/integration/test_candidate_mapping.py` pins that asymmetry.
 - **`uvx --from ${CLAUDE_PLUGIN_ROOT}` launches it.** Installing a Claude Code plugin copies the
   repository and installs nothing, the same constraint as the Hermes clone install. `uvx` builds
   the checkout into an isolated, cached environment, so the plugin works without a prior
   `pip install` and never touches the user's Python. It does not write into the plugin directory,
-  unlike `uv run --project`, which would create a lockfile and virtual environment there.
+  unlike `uv run --project`, which would create a lockfile and virtual environment there. uv
+  reuses a local package's cached build until a cache key changes, and its default key is
+  `pyproject.toml` alone, so a working copy installed through a local marketplace kept serving the
+  code it was first built from. `[tool.uv] cache-keys` adds the package's Python sources.
 
 The server is declared inline in `.claude-plugin/plugin.json`, not in a root `.mcp.json`. Claude Code
 reads a root `.mcp.json` as the repository's own project MCP configuration too, where

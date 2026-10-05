@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -112,3 +113,25 @@ def test_the_session_runs_deterministically_even_with_an_api_key(
     payload = tool_payload(responses[1])
     assert payload["success"] is True
     assert payload["deterministic_mode"] is True
+
+
+def test_the_default_result_is_the_plain_markdown_brief(repo_factory, tmp_path) -> None:
+    """What Claude Code shows the model when it calls the tool without choosing a format."""
+    repo, base, head = repo_factory(BOUNDARY_OLD, BOUNDARY_NEW)
+    messages = [
+        *handshake(),
+        {"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+        call({"repo_path": ".", "base_ref": base, "head_ref": head}),
+    ]
+    responses, _ = run_session(messages, cwd=tmp_path, project=repo)
+    tool = responses[1]["result"]["tools"][0]
+    assert tool["inputSchema"]["properties"]["output_format"]["default"] == "markdown"
+    assert tool["_meta"]["anthropic/maxResultSizeChars"] > 50_000
+    result = responses[2]["result"]
+    assert result["isError"] is False
+    text = result["content"][0]["text"]
+    assert text.startswith("## Semantic Diff Test Brief")
+    assert "**Overall risk:**" in text
+    # Multi-line, so a host that saves an oversized result to a file can page through it.
+    assert text.count("\n") > 5
+    assert re.search(r"<!-- analysis_id=sdw_[A-Za-z0-9_-]+ schema_version=1\.1 -->\n\Z", text)
