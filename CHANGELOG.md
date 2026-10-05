@@ -13,6 +13,14 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Fix:** a test named after a changed module is now its candidate. Code with one module per
+  tool — each exporting a generic `HANDLER`, loaded with `importlib` — gave candidate mapping
+  nothing to match, so a handler's own tests were never proposed while the token `handler`
+  proposed unrelated ones. A test whose name spells a multi-word module stem, such as
+  `test_register_cooked_meal_rollback`, now scores like a mirrored file name; a module mention in
+  a test body only confirms such a test. On `meal-manager`, 25 obligations gained candidates and
+  32 risk scores fell by 6 or 7 points as their test gap closed; this repository is unaffected.
+
 - **Feature:** the Markdown brief carries finding and obligation IDs. Each finding shows its
   `bc-` ID, and each obligation its `to-` ID and the findings it covers, so a question about
   specific obligations no longer needs the JSON. Under Claude Code, a brief too large for the

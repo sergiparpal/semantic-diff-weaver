@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 import semantic_diff_weaver.test_mapper as test_mapper
 from semantic_diff_weaver.ast_diff import StructuralDelta
 from semantic_diff_weaver.errors import ErrorCode, WeaverError
@@ -256,3 +258,18 @@ def test_a_bare_import_never_matches_on_the_symbol_alone() -> None:
         warnings=[],
     )
     assert map_candidate_tests([boundary_candidate()], index, WeaverConfig())[0] == []
+
+
+@pytest.mark.parametrize(
+    ("path", "stem"),
+    [
+        ("src/handlers/register_cooked_meal.py", "register_cooked_meal"),
+        ("pkg/Path_Policy.py", "path_policy"),
+        ("src/dii/store.py", None),
+        ("src/handlers/_common.py", None),
+        ("pkg/__init__.py", None),
+    ],
+)
+def test_only_a_multi_word_public_module_name_is_distinctive(path: str, stem: str | None) -> None:
+    """A single word such as `store` turns up in tests about anything; `_common` is private."""
+    assert test_mapper._distinctive_stem(path) == stem
