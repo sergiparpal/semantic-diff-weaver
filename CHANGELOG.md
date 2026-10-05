@@ -13,6 +13,13 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Fix:** coverage grounding judges the lines the diff changed, as documented, not each finding's
+  whole symbol. A finding's span is its symbol — for `<module>`, the whole file — so one
+  uncovered, unchanged line hid a covered change, and the summary summed overlapping spans, so it
+  could report more "changed lines" than the file had — 411 in a 366-line file whose diff added 46.
+  Changed lines now come from the `--unified=0` hunks, and each is counted once per file. Only
+  analyses given a coverage report are affected.
+
 - **Fix:** authorization failures say how to fix them. Every `path_outside_repository` error
   carried the remediation "Use a repository-relative path that remains inside the resolved Git
   repository", including a repository refused for lying outside the authorized workspace, where no

@@ -18,7 +18,7 @@ safety against a hostile repository. See `docs/decisions.md`.
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable, Mapping
+from collections.abc import Collection, Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal
@@ -134,21 +134,23 @@ class CoverageMap:
         return None if ambiguous else best
 
     def status_for(self, path: str, lines: LineRange) -> CoverageState:
-        """Report coverage for a changed line range.
+        """Report coverage for a line range; see `status_for_lines`."""
+        return self.status_for_lines(path, range(lines.start, lines.end + 1))
+
+    def status_for_lines(self, path: str, lines: Iterable[int]) -> CoverageState:
+        """Report coverage for a set of changed lines.
 
         A file absent from the report is `unknown`, never `uncovered` — a misconfigured path
         prefix must be visible as a gap in the *report*, not reported as a gap in the tests.
-        A range whose known lines disagree is also `unknown`; only a unanimous range is
-        claimed either way.
+        Lines whose known states disagree are also `unknown`; only a unanimous set is claimed
+        either way.
         """
         entry = self.resolve(path)
         if entry is None:
             self._unmatched.add(_posix(path))
             return "unknown"
         self._matched.add(_posix(path))
-        span = range(lines.start, lines.end + 1)
-        covered = sum(1 for line in span if line in entry.covered)
-        uncovered = sum(1 for line in span if line in entry.uncovered)
+        covered, uncovered = _known_counts(entry, lines)
         if covered and not uncovered:
             return "covered"
         if uncovered and not covered:
@@ -157,14 +159,24 @@ class CoverageMap:
 
     def counts_for(self, path: str, lines: LineRange) -> tuple[int, int]:
         """Return (covered, uncovered) known line counts inside a range."""
+        return self.counts_for_lines(path, range(lines.start, lines.end + 1))
+
+    def counts_for_lines(self, path: str, lines: Iterable[int]) -> tuple[int, int]:
+        """Return (covered, uncovered) known line counts among `lines`."""
         entry = self.resolve(path)
         if entry is None:
             return 0, 0
-        span = range(lines.start, lines.end + 1)
-        return (
-            sum(1 for line in span if line in entry.covered),
-            sum(1 for line in span if line in entry.uncovered),
-        )
+        return _known_counts(entry, lines)
+
+
+def _known_counts(entry: FileCoverage, lines: Iterable[int]) -> tuple[int, int]:
+    covered = uncovered = 0
+    for line in lines:
+        if line in entry.covered:
+            covered += 1
+        if line in entry.uncovered:
+            uncovered += 1
+    return covered, uncovered
 
 
 def _posix(value: str) -> str:
@@ -323,13 +335,17 @@ def load_coverage(path: Path, config: WeaverConfig) -> CoverageMap:
 
 
 def summarize(
-    coverage: CoverageMap, ranges: Iterable[tuple[str, LineRange]]
+    coverage: CoverageMap, lines_by_path: Mapping[str, Collection[int]]
 ) -> tuple[int, int, int]:
-    """Return (changed_lines, covered_lines, uncovered_lines) over the supplied ranges."""
+    """Return (changed_lines, covered_lines, uncovered_lines), each line counted once.
+
+    Summing the ranges of the findings instead counted a function's lines again inside its
+    module's, and reported more changed lines than the file had.
+    """
     changed = covered = uncovered = 0
-    for path, span in ranges:
-        changed += span.end - span.start + 1
-        hit, miss = coverage.counts_for(path, span)
+    for path, lines in lines_by_path.items():
+        changed += len(lines)
+        hit, miss = coverage.counts_for_lines(path, lines)
         covered += hit
         uncovered += miss
     return changed, covered, uncovered

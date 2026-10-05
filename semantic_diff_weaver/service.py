@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
@@ -24,7 +24,6 @@ from .models import (
     BehaviorChange,
     CandidateTest,
     CoverageSummary,
-    LineRange,
     LlmStatus,
     OmittedScope,
     Origin,
@@ -321,20 +320,51 @@ def _load_coverage(config: WeaverConfig, state: _PipelineState) -> CoverageMap |
     return load_coverage(ensure_authorized_path(Path(report_path)), config)
 
 
-def _coverage_ranges(candidate: SemanticCandidate) -> list[tuple[str, LineRange]]:
-    """The changed line ranges a finding rests on, on the head side."""
-    return [
-        (item.path, item.new_lines) for item in candidate.evidence if item.new_lines is not None
-    ]
+def _changed_head_lines(collection: DiffCollection) -> dict[str, frozenset[int]]:
+    """Per path, the head-side lines the diff added or replaced.
+
+    Hunks are collected with `--unified=0`, so a hunk's new-side span is exactly its changed
+    lines, with no context around them; a pure deletion has none.
+    """
+    lines: dict[str, set[int]] = defaultdict(set)
+    for item in collection.files:
+        for hunk in item.hunks:
+            lines[item.path].update(range(hunk.new_start, hunk.new_start + hunk.new_count))
+    return {path: frozenset(values) for path, values in lines.items()}
 
 
-def _candidate_coverage_state(coverage: CoverageMap, candidate: SemanticCandidate) -> str:
+def _finding_lines(
+    candidate: SemanticCandidate, changed_lines: Mapping[str, frozenset[int]]
+) -> dict[str, set[int]]:
+    """The changed head-side lines a finding rests on: its evidence spans, cut to the diff.
+
+    An evidence span is a whole symbol — for `<module>`, the whole file — so judging the span
+    itself judged lines the diff never touched: one uncovered line anywhere in a function hid a
+    fully covered change, and the summary counted unchanged lines, some of them twice.
+    """
+    lines: dict[str, set[int]] = defaultdict(set)
+    for item in candidate.evidence:
+        if item.new_lines is None:
+            continue
+        span = range(item.new_lines.start, item.new_lines.end + 1)
+        lines[item.path].update(line for line in changed_lines.get(item.path, ()) if line in span)
+    return {path: values for path, values in lines.items() if values}
+
+
+def _candidate_coverage_state(
+    coverage: CoverageMap,
+    candidate: SemanticCandidate,
+    changed_lines: Mapping[str, frozenset[int]],
+) -> str:
     """Grounded verdict for one finding: unanimous or nothing.
 
-    Any disagreement, or any range the report does not cover, yields `unknown`, which leaves
-    the existing static semantics in place.
+    Any disagreement, any file the report does not cover, or a finding with no changed head-side
+    line to judge yields `unknown`, which leaves the existing static semantics in place.
     """
-    states = {coverage.status_for(path, span) for path, span in _coverage_ranges(candidate)}
+    states = {
+        coverage.status_for_lines(path, lines)
+        for path, lines in _finding_lines(candidate, changed_lines).items()
+    }
     if states == {"covered"}:
         return "covered"
     if states == {"uncovered"}:
@@ -349,6 +379,7 @@ def _materialize_behaviors(
     fallback_mode: bool,
     partial_fallback: bool,
     coverage: CoverageMap | None = None,
+    changed_lines: Mapping[str, frozenset[int]] | None = None,
 ) -> tuple[list[BehaviorChange], dict[str, list[CandidateTest]], dict[str, str]]:
     behaviors: list[BehaviorChange] = []
     tests_by_behavior: dict[str, list[CandidateTest]] = {}
@@ -356,7 +387,9 @@ def _materialize_behaviors(
     for index, scored in enumerate(reportable, start=1):
         candidate = scored.candidate
         coverage_state = (
-            _candidate_coverage_state(coverage, candidate) if coverage is not None else None
+            _candidate_coverage_state(coverage, candidate, changed_lines or {})
+            if coverage is not None
+            else None
         )
         risk_score, risk, explanation = score_risk(
             candidate, scored.tests, config.critical_paths, coverage_state
@@ -498,6 +531,7 @@ def _coverage_summary(
     coverage: CoverageMap | None,
     reportable: list[_ScoredCandidate],
     state: _PipelineState,
+    changed_lines: Mapping[str, frozenset[int]],
 ) -> CoverageSummary | None:
     """Report what the ingested coverage report actually matched.
 
@@ -507,8 +541,11 @@ def _coverage_summary(
     """
     if coverage is None:
         return None
-    ranges = [span for item in reportable for span in _coverage_ranges(item.candidate)]
-    changed, covered, uncovered = summarize(coverage, ranges)
+    lines_by_path: dict[str, set[int]] = defaultdict(set)
+    for item in reportable:
+        for path, lines in _finding_lines(item.candidate, changed_lines).items():
+            lines_by_path[path] |= lines
+    changed, covered, uncovered = summarize(coverage, lines_by_path)
     if coverage.unmatched_files:
         state.warnings.append(
             f"Coverage report matched {coverage.matched_files} changed file(s) and did not "
@@ -581,12 +618,14 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
     ]
     fallback_mode = not interpreted.status.available
     partial_fallback = bool(interpreted.status.failures or interpreted.omitted_batches)
+    changed_lines = _changed_head_lines(collection) if coverage is not None else {}
     behaviors, tests_by_behavior, coverage_states = _materialize_behaviors(
         reportable,
         config,
         fallback_mode=fallback_mode,
         partial_fallback=partial_fallback,
         coverage=coverage,
+        changed_lines=changed_lines,
     )
     obligations, omitted_obligations = generate_obligations(
         behaviors,
@@ -596,7 +635,7 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
         interpreted.suggestions,
         coverage_states,
     )
-    coverage_summary = _coverage_summary(coverage, reportable, state)
+    coverage_summary = _coverage_summary(coverage, reportable, state, changed_lines)
     if omitted_obligations:
         state.record_omitted("global_obligation_limit", omitted_obligations, scope=True)
         state.warnings.append(

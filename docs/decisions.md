@@ -142,6 +142,24 @@ One limit remains: a one-word literal still counts, so `log("Retry")` reads as a
 condition rule's comparison check had the same flaw as the keyword rules; it is fixed in the next
 section.
 
+## Output-affecting corrections (2026-10-05, coverage over changed lines)
+
+Coverage grounding promised "unanimity across the changed lines a finding rests on" and judged
+something else: each finding's evidence span, which is its whole symbol — for `<module>`, the whole
+file. The summary then summed those spans, so a function's lines were counted again inside its
+module's. Analyzing `069ce64..6e89d08` with a current report claimed 411 changed lines in a
+366-line file whose diff added 46, of which 185 were covered and 5 not; and the `<module>` finding
+got no verdict at all, because the file as a whole mixed covered and uncovered lines.
+
+A finding is now judged on its evidence spans cut down to the head-side lines the diff changed,
+read from the `--unified=0` hunks, and the summary counts each changed line once per file. The same
+range now reports 46 changed lines, 13 covered and 0 uncovered — of the other 33, 25 continue a
+multi-line statement, 6 are comments and 2 are blank, none of which coverage.py records as a line
+of its own — and every finding, `<module>` included, is
+`covered_by_existing_tests`. A finding with no changed head-side line, such as a pure deletion, is
+`unknown`, as an unmatched file always was. Without a coverage report nothing changes, and the
+17-case corpus has none.
+
 ## Output-affecting corrections (2026-10-05, condition comparisons)
 
 The condition rule calls a changed condition a boundary — or a retry boundary — when it contains a
