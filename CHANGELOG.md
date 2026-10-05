@@ -13,6 +13,21 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Fix:** stop blaming a Hermes host when no model is in use. The `warnings` entry for a run
+  without a model read `Hermes-hosted LLM unavailable; returned deterministic fallback findings.`
+  on every transport, although the CLI's `--no-llm`, a CLI without a provider, and the Claude Code
+  server run without one by design; it now reads `No inference model was provided; returned
+  deterministic fallback findings.` The `llm_unavailable` and `llm_schema_failure` remediations
+  name both ways to supply a model, and the `internal_error` remediation no longer points at
+  Hermes debug logs, which never held stage-level details. Error codes and findings are unchanged.
+
+- **Tests:** `scripts/verify_wheel.py` gains offline unit tests for every archive defect it
+  rejects, which the gate — only ever run on a good build — could not show. Writing them found
+  three gaps, now closed: a wheel without `METADATA` crashed with `StopIteration` instead of being
+  reported; entry points were matched as substrings, so a line under the wrong group or a
+  near-miss target such as `cli:main_legacy` passed; and the install phase never ran the
+  installed `semantic-diff-weaver-mcp`, which it now asks for its tool list.
+
 - **Fix:** send `temperature` to the Anthropic SDK through `extra_body` instead of as a keyword
   argument. SDK 1.0 removed the keyword from `messages.create`, so with `anthropic>=1` every
   call on a model that still honors sampling (for example `claude-sonnet-4-6`) raised

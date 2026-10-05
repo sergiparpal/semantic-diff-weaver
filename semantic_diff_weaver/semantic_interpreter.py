@@ -1,4 +1,4 @@
-"""Bounded Hermes-hosted structured inference and evidence reconciliation."""
+"""Bounded structured inference and evidence reconciliation."""
 
 from __future__ import annotations
 
@@ -30,6 +30,8 @@ MAX_BEHAVIORS_PER_SYMBOL = 3
 MAX_OBLIGATIONS_PER_BEHAVIOR = 6
 LLM_CONFIDENCE_CAP_EXISTING = 0.98
 LLM_CONFIDENCE_CAP_NEW = 0.85
+# Reported whenever no model was supplied, which is a normal configuration rather than a fault.
+NO_MODEL_WARNING = "No inference model was provided; returned deterministic fallback findings."
 UNINFORMATIVE_SHARED_CALLS = {
     "bool",
     "dict",
@@ -549,17 +551,21 @@ def interpret_candidates(
     if not candidates:
         return InterpreterResult(candidates=[], suggestions=[], status=LlmStatus())
     if llm is None:
+        # Not necessarily a failure, so nothing here names a host: the CLI's `--no-llm`, a CLI
+        # without a provider, and the Claude Code server all run without a model by design.
         if not config.rules.deterministic_fallback:
             raise WeaverError(
                 ErrorCode.LLM_UNAVAILABLE,
-                "The Hermes-hosted LLM is unavailable and deterministic fallback is disabled.",
-                "Enable rules.deterministic_fallback or run under a configured Hermes model.",
+                "No inference model was provided and deterministic fallback is disabled.",
+                "Enable rules.deterministic_fallback, or run with a model: Hermes with an active "
+                "model, or the CLI with an inference provider. The Claude Code server and "
+                "--no-llm never use one.",
             )
         return InterpreterResult(
             candidates=candidates,
             suggestions=[],
             status=LlmStatus(attempted=False, available=False),
-            warnings=["Hermes-hosted LLM unavailable; returned deterministic fallback findings."],
+            warnings=[NO_MODEL_WARNING],
         )
     batches, omitted_batches, oversized_symbols, truncated_symbols = _batch_candidates(
         candidates, config
@@ -648,7 +654,8 @@ def interpret_candidates(
         raise WeaverError(
             code,
             "Structured LLM interpretation did not produce a valid response.",
-            "Enable deterministic fallback or verify the active Hermes model and retry.",
+            "Enable rules.deterministic_fallback, or check the configured model (Hermes's active "
+            "model or the CLI's --model) and retry.",
         )
     return InterpreterResult(
         candidates=sorted(

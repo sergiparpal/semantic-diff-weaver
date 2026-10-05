@@ -112,7 +112,7 @@
       }
     ],
     "warnings": [
-      "Hermes-hosted LLM unavailable; returned deterministic fallback findings."
+      "No inference model was provided; returned deterministic fallback findings."
     ]
   },
   "authorization guard": {
@@ -244,7 +244,7 @@
       }
     ],
     "warnings": [
-      "Hermes-hosted LLM unavailable; returned deterministic fallback findings."
+      "No inference model was provided; returned deterministic fallback findings."
     ]
   },
   "call ordering": {
@@ -374,7 +374,7 @@
       }
     ],
     "warnings": [
-      "Hermes-hosted LLM unavailable; returned deterministic fallback findings."
+      "No inference model was provided; returned deterministic fallback findings."
     ]
   },
   "default argument": {
@@ -520,7 +520,7 @@
       }
     ],
     "warnings": [
-      "Hermes-hosted LLM unavailable; returned deterministic fallback findings."
+      "No inference model was provided; returned deterministic fallback findings."
     ]
   },
   "dependency arguments": {
@@ -668,7 +668,7 @@
       }
     ],
     "warnings": [
-      "Hermes-hosted LLM unavailable; returned deterministic fallback findings."
+      "No inference model was provided; returned deterministic fallback findings."
     ]
   },
   "exception type": {
@@ -798,7 +798,7 @@
       }
     ],
     "warnings": [
-      "Hermes-hosted LLM unavailable; returned deterministic fallback findings."
+      "No inference model was provided; returned deterministic fallback findings."
     ]
   },
   "inclusive boundary": {
@@ -944,7 +944,7 @@
       }
     ],
     "warnings": [
-      "Hermes-hosted LLM unavailable; returned deterministic fallback findings."
+      "No inference model was provided; returned deterministic fallback findings."
     ]
   },
   "mixed parseable and unparseable Python": {
@@ -1154,7 +1154,7 @@
     ],
     "warnings": [
       "Could not parse changed Python source 'src/bad.py'; analysis is incomplete.",
-      "Hermes-hosted LLM unavailable; returned deterministic fallback findings."
+      "No inference model was provided; returned deterministic fallback findings."
     ]
   },
   "moved renamed function": {
@@ -1218,7 +1218,7 @@
     },
     "test_obligations": [],
     "warnings": [
-      "Hermes-hosted LLM unavailable; returned deterministic fallback findings."
+      "No inference model was provided; returned deterministic fallback findings."
     ]
   },
   "no changed Python source": {
@@ -1404,7 +1404,7 @@
       }
     ],
     "warnings": [
-      "Hermes-hosted LLM unavailable; returned deterministic fallback findings."
+      "No inference model was provided; returned deterministic fallback findings."
     ]
   },
   "oversized critical path prioritization": {
@@ -1556,7 +1556,7 @@
       }
     ],
     "warnings": [
-      "Hermes-hosted LLM unavailable; returned deterministic fallback findings.",
+      "No inference model was provided; returned deterministic fallback findings.",
       "The diff exceeded global resource limits; analyzed prioritized critical-path scope only."
     ]
   },
@@ -1739,7 +1739,7 @@
       }
     ],
     "warnings": [
-      "Hermes-hosted LLM unavailable; returned deterministic fallback findings."
+      "No inference model was provided; returned deterministic fallback findings."
     ]
   },
   "return annotation signature": {
@@ -1869,7 +1869,7 @@
       }
     ],
     "warnings": [
-      "Hermes-hosted LLM unavailable; returned deterministic fallback findings."
+      "No inference model was provided; returned deterministic fallback findings."
     ]
   },
   "side effect": {
@@ -2017,7 +2017,7 @@
       }
     ],
     "warnings": [
-      "Hermes-hosted LLM unavailable; returned deterministic fallback findings."
+      "No inference model was provided; returned deterministic fallback findings."
     ]
   },
   "stable refactor": {
@@ -2080,7 +2080,7 @@
     },
     "test_obligations": [],
     "warnings": [
-      "Hermes-hosted LLM unavailable; returned deterministic fallback findings."
+      "No inference model was provided; returned deterministic fallback findings."
     ]
   },
   "state assignment": {
@@ -2226,7 +2226,7 @@
       }
     ],
     "warnings": [
-      "Hermes-hosted LLM unavailable; returned deterministic fallback findings."
+      "No inference model was provided; returned deterministic fallback findings."
     ]
   }
 }

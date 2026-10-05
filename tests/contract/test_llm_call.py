@@ -375,6 +375,29 @@ def test_disabled_fallback_uses_specific_public_llm_errors() -> None:
     assert schema_failure.value.code is ErrorCode.LLM_SCHEMA_FAILURE
 
 
+def test_no_model_messages_do_not_assume_a_hermes_host() -> None:
+    """Running without a model is a normal configuration on two of the three transports.
+
+    The CLI's `--no-llm`, a CLI without a provider, and the Claude Code server never supply a
+    model, yet the warning blamed an unavailable "Hermes-hosted LLM" in every one of them and
+    the remediations sent the reader to Hermes settings that do not apply.
+    """
+    result = interpret_candidates([candidate()], None, WeaverConfig())
+    assert result.warnings == [
+        "No inference model was provided; returned deterministic fallback findings."
+    ]
+    config = WeaverConfig()
+    config.rules.deterministic_fallback = False
+    with pytest.raises(WeaverError) as unavailable:
+        interpret_candidates([candidate()], None, config)
+    with pytest.raises(WeaverError) as failed:
+        interpret_candidates([candidate()], FakeLlm([Result("text", None)]), config)
+    for error in (unavailable.value, failed.value):
+        assert "Hermes-hosted" not in error.safe_message
+        assert "rules.deterministic_fallback" in error.remediation
+        assert "CLI" in error.remediation
+
+
 def test_incremental_batch_input_length_is_exact() -> None:
     """Batch packing trusts arithmetic instead of re-encoding, so pin it to the real encoder."""
     payloads: list[dict[str, Any]] = [
