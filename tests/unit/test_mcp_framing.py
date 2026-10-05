@@ -74,8 +74,16 @@ def test_an_oversized_unterminated_line_ends_cleanly() -> None:
 
 
 def test_output_is_ascii_one_message_per_line() -> None:
+    """A multi-line, non-ASCII brief still travels as one ASCII line of JSON-RPC."""
+
     def handler(arguments: dict[str, Any]) -> str:
-        return json.dumps({"success": True, "markdown": "a\nb ∅ —"}, ensure_ascii=False)
+        envelope = {
+            "success": True,
+            "schema_version": "1.1",
+            "analysis_id": "sdw_1",
+            "markdown": "a\nb ∅ —",
+        }
+        return json.dumps(envelope, ensure_ascii=False)
 
     outbound = io.BytesIO()
     request = {"jsonrpc": "2.0", "id": 1, "method": "tools/call"}
@@ -85,7 +93,7 @@ def test_output_is_ascii_one_message_per_line() -> None:
     assert raw.count(b"\n") == 1
     raw.decode("ascii")
     text = json.loads(raw)["result"]["content"][0]["text"]
-    assert "∅" in json.loads(text)["markdown"]
+    assert text.startswith("a\nb ∅ —\n")
 
 
 def test_end_of_input_with_no_messages_writes_nothing() -> None:

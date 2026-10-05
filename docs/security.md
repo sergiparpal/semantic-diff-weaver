@@ -97,8 +97,13 @@ operator's bound fails with `path_outside_repository` exactly as under Hermes.
 Stdout carries the protocol and nothing else: while serving, `sys.stdout` points at stderr. Each
 message is bounded to 1 MiB and an oversized line is discarded without being buffered whole. An
 unexpected exception becomes a generic JSON-RPC internal error that never echoes its text, and an
-analysis failure is returned as a tool result carrying the stable error payload. The server runs the
-deterministic analysis only and never reads `ANTHROPIC_API_KEY`.
+analysis failure is returned as a tool result carrying the stable error payload. A successful default
+result is the brief as plain Markdown rather than a JSON string, so the renderer's escaping is what
+keeps repository content from posing as the server's own structure: names are escaped, expression
+evidence stays on prefixed lines inside a fence it cannot close, and the closing comment carries only
+the pattern-validated analysis ID. `tests/security/test_mcp_brief.py` plants a forged footer and
+heading to pin that. The server runs the deterministic analysis only and never reads
+`ANTHROPIC_API_KEY`.
 
 `tests/security/test_mcp_authorization.py` holds the adversarial regressions for each rule above.
 

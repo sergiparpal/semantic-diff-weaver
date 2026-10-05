@@ -1,4 +1,8 @@
-"""The MCP transport serves the Hermes tool contract unchanged, over JSON-RPC 2.0."""
+"""The MCP transport serves the Hermes tool contract over JSON-RPC 2.0.
+
+The one deliberate difference is output shaping for the host: the brief is the default and is
+returned as plain Markdown. Every other request and result is the Hermes handler's own.
+"""
 
 from __future__ import annotations
 
@@ -12,8 +16,10 @@ from semantic_diff_weaver.mcp_server import (
     INTERNAL_ERROR,
     INVALID_PARAMS,
     INVALID_REQUEST,
+    MAX_RESULT_CHARS,
     METHOD_NOT_FOUND,
     PROTOCOL_VERSIONS,
+    RESULT_SIZE_META,
     TOOL_NAME,
     McpServer,
     tool_definition,
@@ -32,12 +38,43 @@ def _call(arguments: Any, name: str = TOOL_NAME) -> dict[str, Any]:
     return _request("tools/call", {"name": name, "arguments": arguments})
 
 
-def test_the_tool_definition_is_the_hermes_schema() -> None:
+BRIEF_ENVELOPE = {
+    "success": True,
+    "schema_version": "1.1",
+    "analysis_id": "sdw_0123abc",
+    "markdown": "## Semantic Diff Test Brief\n\n**Overall risk:** medium\n",
+}
+
+
+def _recording_handler(seen: list[dict[str, Any]], payload: dict[str, Any]) -> Any:
+    def handler(arguments: dict[str, Any]) -> str:
+        seen.append(arguments)
+        return json.dumps(payload)
+
+    return handler
+
+
+def test_the_tool_definition_is_the_hermes_schema_with_the_brief_as_default() -> None:
     tool = tool_definition()
     assert tool["name"] == ANALYZE_SEMANTIC_DIFF_SCHEMA["name"] == "analyze_semantic_diff"
-    assert tool["inputSchema"] == ANALYZE_SEMANTIC_DIFF_SCHEMA["parameters"]
+    expected = json.loads(json.dumps(ANALYZE_SEMANTIC_DIFF_SCHEMA["parameters"]))
+    expected["properties"]["output_format"]["default"] = "markdown"
+    assert tool["inputSchema"] == expected
     assert tool["annotations"]["readOnlyHint"] is True
     assert tool["annotations"]["destructiveHint"] is False
+
+
+def test_the_hermes_schema_keeps_its_own_default() -> None:
+    """The MCP default is set on a copy; Hermes registration still advertises `both`."""
+    tool_definition()
+    tool_definition()["inputSchema"]["properties"]["output_format"]["default"] = "json"
+    output_format = ANALYZE_SEMANTIC_DIFF_SCHEMA["parameters"]["properties"]["output_format"]
+    assert output_format["default"] == "both"
+
+
+def test_the_tool_declares_a_result_threshold_between_the_host_default_and_ceiling() -> None:
+    assert tool_definition()["_meta"] == {RESULT_SIZE_META: MAX_RESULT_CHARS}
+    assert 50_000 < MAX_RESULT_CHARS <= 500_000
 
 
 def test_tools_list_returns_exactly_one_tool() -> None:
@@ -71,19 +108,49 @@ def test_ping_returns_an_empty_result() -> None:
     }
 
 
-def test_a_successful_call_is_not_an_error_result() -> None:
+def test_a_call_without_a_format_asks_for_the_brief_and_returns_it_as_markdown() -> None:
     seen: list[dict[str, Any]] = []
-
-    def handler(arguments: dict[str, Any]) -> str:
-        seen.append(arguments)
-        return json.dumps({"success": True, "analysis": {}})
-
-    response = McpServer(handler).handle(_call({"repo_path": ".", "base_ref": "main"}))
+    server = McpServer(_recording_handler(seen, BRIEF_ENVELOPE))
+    response = server.handle(_call({"repo_path": ".", "base_ref": "main"}))
     assert response is not None
-    assert seen == [{"repo_path": ".", "base_ref": "main"}]
+    assert seen == [{"repo_path": ".", "base_ref": "main", "output_format": "markdown"}]
     result = response["result"]
     assert result["isError"] is False
-    assert json.loads(result["content"][0]["text"])["success"] is True
+    assert result["content"] == [
+        {
+            "type": "text",
+            "text": "## Semantic Diff Test Brief\n\n**Overall risk:** medium\n\n"
+            "<!-- analysis_id=sdw_0123abc schema_version=1.1 -->\n",
+        }
+    ]
+
+
+def test_an_explicit_markdown_request_is_also_returned_as_markdown() -> None:
+    server = McpServer(_recording_handler([], BRIEF_ENVELOPE))
+    response = server.handle(_call({"repo_path": ".", "output_format": "markdown"}))
+    assert response is not None
+    assert response["result"]["content"][0]["text"].startswith("## Semantic Diff Test Brief")
+
+
+@pytest.mark.parametrize("output_format", ["json", "both"])
+def test_an_explicit_json_format_is_the_hermes_payload_unchanged(output_format: str) -> None:
+    seen: list[dict[str, Any]] = []
+    payload = {"success": True, "analysis": {"analysis_id": "sdw_1"}, "markdown": "# brief"}
+    server = McpServer(_recording_handler(seen, payload))
+    response = server.handle(_call({"repo_path": ".", "output_format": output_format}))
+    assert response is not None
+    assert seen == [{"repo_path": ".", "output_format": output_format}]
+    result = response["result"]
+    assert result["isError"] is False
+    assert json.loads(result["content"][0]["text"]) == payload
+
+
+def test_a_brief_request_without_a_brief_is_returned_unchanged() -> None:
+    """Defensive: only a real brief is unwrapped; anything else passes through as JSON."""
+    payload = {"success": True, "analysis_id": "sdw_2", "markdown": None}
+    response = McpServer(_recording_handler([], payload)).handle(_call({"repo_path": "."}))
+    assert response is not None
+    assert json.loads(response["result"]["content"][0]["text"]) == payload
 
 
 def test_an_analysis_failure_is_an_error_result_with_the_stable_payload() -> None:
@@ -97,15 +164,11 @@ def test_an_analysis_failure_is_an_error_result_with_the_stable_payload() -> Non
     assert set(payload) == {"success", "error", "message", "remediation"}
 
 
-def test_missing_arguments_default_to_an_empty_object() -> None:
+def test_missing_arguments_get_only_the_transport_default() -> None:
     seen: list[dict[str, Any]] = []
-
-    def handler(arguments: dict[str, Any]) -> str:
-        seen.append(arguments)
-        return json.dumps({"success": False})
-
-    McpServer(handler).handle(_request("tools/call", {"name": TOOL_NAME}))
-    assert seen == [{}]
+    server = McpServer(_recording_handler(seen, {"success": False}))
+    server.handle(_request("tools/call", {"name": TOOL_NAME}))
+    assert seen == [{"output_format": "markdown"}]
 
 
 @pytest.mark.parametrize(

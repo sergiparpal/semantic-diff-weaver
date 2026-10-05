@@ -8,7 +8,9 @@
   The server is a new dependency-free `semantic-diff-weaver-mcp` console script
   (`semantic_diff_weaver/mcp_server.py`) speaking MCP over stdio; the plugin launches it with
   `uvx`. Under it the authorized root is the Claude Code project directory, an operator-set
-  `SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS` still wins, and the analysis is always deterministic. See
+  `SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS` still wins, and the analysis is always deterministic. Its
+  default result is the Markdown brief as plain text, with a declared 100,000-character result
+  threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
 - **Fix:** send `temperature` to the Anthropic SDK through `extra_body` instead of as a keyword

@@ -39,6 +39,13 @@ exclude = [
   "/tests",
 ]
 
+# Read only by uv, which the Claude Code plugin uses to run the MCP server straight from the plugin
+# checkout (`uvx --from ${CLAUDE_PLUGIN_ROOT}`). uv reuses a local package's cached build until one
+# of these files changes, and by default watches only pyproject.toml — so an edited working copy,
+# installed through a local marketplace, kept serving the code it was first built from.
+[tool.uv]
+cache-keys = [{ file = "pyproject.toml" }, { file = "semantic_diff_weaver/**/*.py" }]
+
 [tool.pytest.ini_options]
 addopts = "--strict-config --strict-markers"
 testpaths = ["tests"]

@@ -14,13 +14,21 @@ imports, executes, builds, or modifies the repository.
    `git rev-parse --abbrev-ref origin/HEAD` confirms. Only *committed* changes are analyzed:
    if `git status` shows uncommitted edits to Python files, say that they are not included.
 2. **Call the tool** with `repo_path` set to the project directory (`.` works), `base_ref`,
-   and `head_ref`. Narrow a large diff with `include`/`exclude` globs. Pass `coverage_report`
+   and `head_ref`, and leave `output_format` unset. The default is the Markdown brief: every
+   finding with its evidence IDs, at about half the size of the JSON. Pass `coverage_report`
    only when a coverage.py JSON or lcov file already exists; do not run tests to create one.
-3. **On an error result**, read its `error` code and `remediation`. `path_outside_repository`
+3. **Keep a large diff readable.** If the result is saved to a file for being too large, read
+   only its first lines for the overall risk and scope, then analyze one area per call with
+   `include` (for example `src/**`, then `scripts/**`) instead of reading the whole file.
+   Narrow with `include`, never with `exclude`: `include` limits only which changed files are
+   analyzed, while `exclude` also hides files from candidate-test discovery, so excluding a
+   tests directory silently drops every candidate test. Ask for `output_format: "json"` only
+   on a narrowed call, when you need fields the brief leaves out, such as obligation IDs.
+4. **On an error result**, read its `error` code and `remediation`. `path_outside_repository`
    means `repo_path` is outside the authorized workspace — the project directory, unless the
    operator set `SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS`. Do not retry with another path to get
    around it; tell the user how to authorize the directory instead.
-4. **Report** the overall risk, then the obligations highest risk first. For each one give the
+5. **Report** the overall risk, then the obligations highest risk first. For each one give the
    behavior that changed, the file and symbol, and the evidence IDs that support it. Present
    the listed candidate tests as *unverified* — the tool matches them statically and never
    runs them. Say so if the result reports truncation or omitted scope.
