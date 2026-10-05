@@ -13,6 +13,13 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Feature:** the Markdown brief says why scope was left out, not only how much. Below the
+  **Scope:** line, an **Omitted:** line counts each omission reason in words — for example
+  "2 low-risk refactor(s) hidden by `emit_low_risk_refactors: false`" — and an
+  **Excluded files:** line does the same for exclusions. A reason without a phrase is shown as its
+  code. The canonical JSON already carried these reasons and is unchanged; the brief is what the
+  CLI prints, the GitHub Action comments, and Claude Code reads.
+
 - **Fix:** the deterministic keyword rules no longer read the words of prose string literals, so a
   changed message such as `'Retry with a narrower diff'` is no longer a `retry_timeout_change`.
   Comparisons, conditions, and calls are classified from a probe built from the AST: identifiers,
