@@ -224,9 +224,11 @@ def _brief(envelope: dict[str, Any]) -> str:
     cannot be broken out of.
     """
     analysis = envelope.get("analysis")
-    identity = analysis if isinstance(analysis, dict) else envelope
+    # Named for what it is, not "identity": that word is an authorization keyword to the
+    # deterministic rules, and the analyzer reported this line as an authorization change.
+    source = analysis if isinstance(analysis, dict) else envelope
     footer = (
-        f"<!-- analysis_id={identity.get('analysis_id')} "
+        f"<!-- analysis_id={source.get('analysis_id')} "
         f"schema_version={envelope.get('schema_version')} -->"
     )
     return f"{_fitted_markdown(envelope['markdown'], analysis).rstrip()}\n\n{footer}\n"

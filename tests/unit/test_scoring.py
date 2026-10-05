@@ -99,3 +99,30 @@ def test_confidence_is_independent_and_truncation_penalizes() -> None:
 def test_priority_formula_is_bounded() -> None:
     assert obligation_priority(100, 100, 100, 1.0) == 100
     assert obligation_priority(0, 0, 0, 0.0) == 0
+
+
+def test_every_risk_score_is_the_stated_combination_of_its_axes(repo_factory) -> None:
+    """What the skill tells a model to compute must be exactly what the scorer computed."""
+    from semantic_diff_weaver import scoring
+    from semantic_diff_weaver.service import analyze
+
+    repo, base, head = repo_factory(
+        {"api.py": "def allowed(x):\n    return x < 5\n\n\ndef notify(user):\n    send(user)\n"},
+        {
+            "api.py": "def allowed(x):\n    return x <= 5\n\n\ndef notify(user):\n    send(user, 1)\n"
+        },
+    )
+    result = analyze(
+        {"repo_path": str(repo), "base_ref": base, "head_ref": head, "output_format": "json"}
+    )
+    assert result["behavior_changes"]
+    for behavior in result["behavior_changes"]:
+        axes = behavior["score_explanation"]
+        stated = round(
+            axes["behavioral_impact"] * scoring.IMPACT_WEIGHT
+            + axes["critical_path_weight"] * scoring.CRITICAL_PATH_WEIGHT
+            + axes["test_gap_weight"] * scoring.TEST_GAP_WEIGHT
+            + axes["change_surface_weight"] * scoring.CHANGE_SURFACE_WEIGHT
+        )
+        assert behavior["risk_score"] == stated
+        assert behavior["risk"] == scoring.risk_label(stated).value
