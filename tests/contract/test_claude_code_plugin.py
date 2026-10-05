@@ -7,7 +7,7 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-from semantic_diff_weaver import __version__
+from semantic_diff_weaver import __version__, scoring
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
@@ -72,3 +72,27 @@ def test_the_skill_names_the_tool_and_has_frontmatter() -> None:
     assert fields["name"] == "semantic-diff"
     assert len(fields["description"]) <= 1024
     assert "analyze_semantic_diff" in body
+
+
+def test_the_skill_states_the_risk_formula_the_scorer_uses() -> None:
+    """The JSON carries a score's axes, not how they combine; the skill says, and must stay true.
+
+    Explaining a score otherwise meant reading `scoring.py`, which only works when the analyzed
+    project is this one.
+    """
+    text = " ".join(
+        (REPOSITORY_ROOT / "skills/semantic-diff/SKILL.md").read_text(encoding="utf-8").split()
+    )
+    formula = (
+        f"risk_score = round(behavioral_impact * {scoring.IMPACT_WEIGHT} + "
+        f"critical_path_weight * {scoring.CRITICAL_PATH_WEIGHT} + "
+        f"test_gap_weight * {scoring.TEST_GAP_WEIGHT} + "
+        f"change_surface_weight * {scoring.CHANGE_SURFACE_WEIGHT})"
+    )
+    assert formula in text
+    for label, start in (
+        ("critical", scoring.CRITICAL_FROM),
+        ("high", scoring.HIGH_FROM),
+        ("medium", scoring.MEDIUM_FROM),
+    ):
+        assert f"`{label}` from {start}" in text

@@ -15,13 +15,24 @@ from .path_policy import WeightedPattern, critical_weight
 from .semantic_candidates import SemanticCandidate
 from .taxonomy import CATEGORY_PROFILES
 
+# How a behavior's four risk axes combine into its 0-100 score, and where each label starts.
+# Named because the Claude Code skill states them, so a model can explain a score without the
+# tool's source; `tests/contract/test_claude_code_plugin.py` keeps the two in step.
+IMPACT_WEIGHT = 0.35
+CRITICAL_PATH_WEIGHT = 0.25
+TEST_GAP_WEIGHT = 0.25
+CHANGE_SURFACE_WEIGHT = 0.15
+CRITICAL_FROM = 80
+HIGH_FROM = 60
+MEDIUM_FROM = 30
+
 
 def risk_label(score: int | float) -> RiskLabel:
-    if score >= 80:
+    if score >= CRITICAL_FROM:
         return RiskLabel.CRITICAL
-    if score >= 60:
+    if score >= HIGH_FROM:
         return RiskLabel.HIGH
-    if score >= 30:
+    if score >= MEDIUM_FROM:
         return RiskLabel.MEDIUM
     return RiskLabel.LOW
 
@@ -109,7 +120,12 @@ def score_risk(
         test_gap_weight=test_gap,
         change_surface_weight=surface,
     )
-    score = round(impact * 0.35 + critical * 0.25 + test_gap * 0.25 + surface * 0.15)
+    score = round(
+        impact * IMPACT_WEIGHT
+        + critical * CRITICAL_PATH_WEIGHT
+        + test_gap * TEST_GAP_WEIGHT
+        + surface * CHANGE_SURFACE_WEIGHT
+    )
     return score, risk_label(score), explanation
 
 

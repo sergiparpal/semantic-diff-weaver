@@ -36,6 +36,13 @@ imports, executes, builds, or modifies the repository.
    the listed candidate tests as *unverified* — the tool matches them statically and never
    runs them. Say so if the result reports truncation or omitted scope.
 
+**Explaining a risk score.** The brief gives each finding's label; the JSON's
+`score_explanation` gives its four axes, which combine as
+`risk_score = round(behavioral_impact * 0.35 + critical_path_weight * 0.25 + test_gap_weight * 0.25 + change_surface_weight * 0.15)`.
+Labels run `critical` from 80, `high` from 60, `medium` from 30, and `low` below that. Explain a
+score from these numbers rather than from the tool's source, which the analyzed project rarely
+contains.
+
 The analysis is deterministic. Interpreting it — which obligations matter most for this
 change and how to test them — is your part; ground every claim in the evidence the tool
 returned rather than in guesses about the code.
