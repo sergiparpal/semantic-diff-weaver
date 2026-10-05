@@ -25,6 +25,38 @@ def unparse_redacted(node: ast.AST | None, limit: int = 500) -> str:
         return type(node).__name__
 
 
+def _probe_words(node: ast.AST) -> list[str]:
+    words: list[str] = []
+    for child in ast.walk(node):
+        if isinstance(child, ast.Name):
+            words.append(child.id)
+        elif isinstance(child, ast.Attribute):
+            words.append(child.attr)
+        elif isinstance(child, ast.arg):
+            words.append(child.arg)
+        elif isinstance(child, ast.keyword):
+            if child.arg is not None:
+                words.append(child.arg)
+        elif isinstance(child, ast.Constant) and isinstance(child.value, str):
+            if not any(character.isspace() for character in child.value):
+                words.append(child.value)
+    return words
+
+
+def probe_text(*nodes: ast.AST | None) -> str:
+    """The words a category rule may read from `nodes`, bounded and redacted.
+
+    `unparse_redacted` keeps string literals verbatim, which is right for display and wrong
+    for classification: the message 'Retry with a narrower diff' made an error constructor
+    read as a retry change. A probe keeps identifiers, attribute and keyword names, and string
+    literals without whitespace — keys, headers, and permission names such as "Authorization"
+    or "retry_limit" are real signal — and drops literals that contain whitespace, whose words
+    are prose about the code rather than the code. Each f-string part is judged on its own.
+    """
+    words = [word for node in nodes if node is not None for word in _probe_words(node)]
+    return redact_text(" ".join(words), max_chars=limits.MAX_PROBE_CHARS_PER_FEATURE)
+
+
 def parse_module(source: str) -> ast.Module:
     """Parse committed source, preferring type comments but never failing because of them.
 
@@ -133,6 +165,7 @@ class FeatureVisitor(ast.NodeVisitor):
         self.loops: list[tuple[str, int]] = []
         self.contexts: list[tuple[str, int]] = []
         self.statement_order: list[str] = []
+        self.probes: dict[str, list[str]] = {name: [] for name in limits.PROBED_FEATURES}
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         if node is self.root:
@@ -154,19 +187,24 @@ class FeatureVisitor(ast.NodeVisitor):
     def visit_Compare(self, node: ast.Compare) -> None:
         operators = ",".join(type(item).__name__ for item in node.ops)
         self.comparisons.append((f"{unparse_redacted(node)} [{operators}]", node.lineno))
+        self.probes["comparisons"].append(probe_text(node))
         self.generic_visit(node)
 
+    def _record_condition(self, test: ast.expr, lineno: int) -> None:
+        self.conditions.append((unparse_redacted(test), lineno))
+        self.probes["conditions"].append(probe_text(test))
+
     def visit_If(self, node: ast.If) -> None:
-        self.conditions.append((unparse_redacted(node.test), node.lineno))
+        self._record_condition(node.test, node.lineno)
         self.statement_order.append(f"if:{unparse_redacted(node.test, 120)}")
         self.generic_visit(node)
 
     def visit_IfExp(self, node: ast.IfExp) -> None:
-        self.conditions.append((unparse_redacted(node.test), node.lineno))
+        self._record_condition(node.test, node.lineno)
         self.generic_visit(node)
 
     def visit_Assert(self, node: ast.Assert) -> None:
-        self.conditions.append((unparse_redacted(node.test), node.lineno))
+        self._record_condition(node.test, node.lineno)
         self.generic_visit(node)
 
     def visit_Raise(self, node: ast.Raise) -> None:
@@ -186,6 +224,7 @@ class FeatureVisitor(ast.NodeVisitor):
         ]
         arguments = ", ".join([*positional, *keywords])
         self.calls.append((f"{name}({arguments})", node.lineno))
+        self.probes["calls"].append(probe_text(node.func, *node.args[:5], *node.keywords[:5]))
         self.statement_order.append(f"call:{name}")
         self.generic_visit(node)
 
@@ -234,7 +273,7 @@ class FeatureVisitor(ast.NodeVisitor):
 
     def visit_While(self, node: ast.While) -> None:
         self._record_loop(f"while {unparse_redacted(node.test, 250)}", node.lineno)
-        self.conditions.append((unparse_redacted(node.test), node.lineno))
+        self._record_condition(node.test, node.lineno)
         self.generic_visit(node)
 
     def _record_context(self, names: str, lineno: int) -> None:
@@ -294,6 +333,7 @@ def snapshot_symbol(node: ast.AST, qualified_name: str, kind: str) -> SymbolSnap
         features={name: tuple(getattr(visitor, name)) for name in limits.FEATURE_NAMES},
         statement_order=tuple(visitor.statement_order),
         node_inventory=node_inventory(body),
+        probes={name: tuple(values) for name, values in visitor.probes.items()},
     )
 
 

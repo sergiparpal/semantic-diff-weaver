@@ -110,6 +110,38 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-10-05, prose in string literals)
+
+The keyword rules read a delta's display text, which keeps string literals verbatim, so the words of
+a message counted as code. `WeaverError(..., 'Retry with a narrower diff ...')` was reported as a
+`retry_timeout_change`, and a test whose strings quoted `def run(limit=2)` became a retry boundary.
+
+Filtering the display text cannot fix this: it is redacted and cut per value, so literals arrive
+unterminated — a call argument stops at 100 characters — and redaction can consume a closing quote,
+leaving no reliable boundary between code and string. The probe is computed from the AST at
+extraction instead, for the three features the keyword rules read (comparisons, conditions, calls):
+identifiers, attribute and keyword names, lambda parameters, and string literals without whitespace.
+A literal containing whitespace is prose and contributes nothing; each f-string part is judged on its
+own. Literals without whitespace stay because they are often the signal — `headers.get('Authorization')`
+and `config.get('retry_limit')` keep their categories.
+
+Measured on this repository's history — every commit against its first parent, 66 analyzable
+commits and 1,909 evidence classifications — 10 classifications changed, and in each one every
+keyword the old category rested on was inside a prose literal: error messages, obligation scenario
+texts, and source code quoted in test strings. Six moved from `validation_change` to
+`dependency_interaction_change`, two from `retry_timeout_change` to `dependency_interaction_change`,
+and two from `retry_timeout_change` to `boundary_change`. The 17-case corpus is unchanged.
+
+A first version let the probe reach further than the display text, which stops at 1,500 characters
+per side. Being denser, it covered calls the text never showed, and changed six more
+classifications by finding new keywords there — `service.analyze` became an `authorization_change`
+because of a late `RepositoryIdentity(...)` call. That was a new false positive, not a fix, so a probe
+now covers exactly the values its display text shows.
+
+Two limits remain. A one-word literal still counts, so `log("Retry")` reads as a retry. And the
+comparison-operator check in the condition rule still scans the display text, so an operator inside
+a string literal — `'return x < 5'` in a test — still reads as a boundary.
+
 ## Output-affecting corrections (2026-07-25)
 
 These change what an existing repository is reported as, so they are recorded here rather than only

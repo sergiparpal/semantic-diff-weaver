@@ -37,6 +37,8 @@ class SymbolSnapshot:
     statement_order: tuple[str, ...]
     node_inventory: tuple[tuple[str, int], ...]
     match_ambiguous: bool = False
+    # Per probed feature, one category probe per recorded value, in the same order.
+    probes: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
     @property
     def signature_shape(self) -> str:
@@ -55,6 +57,9 @@ class StructuralDelta:
     hunk_id: str | None
     parser_complete: bool = True
     metadata: dict[str, Any] = field(default_factory=dict)
+    # The words the category rules may read, without prose string literals. Internal to
+    # classification and never reported; None means "read `old` and `new` instead".
+    probe: str | None = None
 
 
 @dataclass

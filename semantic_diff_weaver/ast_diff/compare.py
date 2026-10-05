@@ -8,7 +8,7 @@ from typing import Any
 from ..models import LineRange
 from ..path_policy import redact_text
 from ..source import SourceHunk
-from .limits import FEATURE_DELTA_KINDS
+from .limits import FEATURE_DELTA_KINDS, MAX_DELTA_TEXT_CHARS, MAX_PROBE_CHARS_PER_SIDE
 from .match import symbol_similarity
 from .types import StructuralDelta, SymbolSnapshot
 
@@ -61,7 +61,41 @@ def matching_hunk(
 
 def join_feature_values(values: Iterable[tuple[str, int]]) -> str | None:
     material = [text for text, _ in values]
-    return redact_text("; ".join(material), max_chars=1500) if material else None
+    return redact_text("; ".join(material), max_chars=MAX_DELTA_TEXT_CHARS) if material else None
+
+
+def _probes_in_display_window(snapshot: SymbolSnapshot, feature: str) -> list[str]:
+    """The probes of the values a delta's display text shows.
+
+    The display text joins every value with "; " and stops at `MAX_DELTA_TEXT_CHARS`, so a long
+    symbol shows — and has always been classified by — only its first values. Covering the same
+    values keeps what a probe changes about classification to prose literals and nothing else;
+    a denser probe that reached further was finding new keywords in calls the text never showed.
+    """
+    kept: list[str] = []
+    offset = 0
+    pairs = zip(snapshot.features[feature], snapshot.probes[feature], strict=True)
+    for (text, _), probe in pairs:
+        if offset >= MAX_DELTA_TEXT_CHARS:
+            break
+        kept.append(probe)
+        offset += len(text) + len("; ")
+    return kept
+
+
+def join_probes(old: SymbolSnapshot, new: SymbolSnapshot, feature: str) -> str | None:
+    """Both sides' category probes for `feature`, or None when either side recorded none.
+
+    None sends the category rules back to the display text, which is what a feature without
+    probes — or a snapshot built by hand — has always been classified by. Each side is bounded
+    on its own, so a long old side can never crowd out the new one.
+    """
+    if feature not in old.probes or feature not in new.probes:
+        return None
+    return " ".join(
+        " ".join(_probes_in_display_window(snapshot, feature))[:MAX_PROBE_CHARS_PER_SIDE]
+        for snapshot in (old, new)
+    )
 
 
 def line_ranges(
@@ -80,6 +114,8 @@ def make_structural_delta(
     kind: str,
     old_value: str | None,
     new_value: str | None,
+    *,
+    probe: str | None = None,
     **metadata: Any,
 ) -> StructuralDelta:
     old_lines, new_lines = line_ranges(old, new)
@@ -93,12 +129,13 @@ def make_structural_delta(
         path=path,
         symbol=symbol_name,
         kind=kind,
-        old=redact_text(old_value, max_chars=1500) if old_value else None,
-        new=redact_text(new_value, max_chars=1500) if new_value else None,
+        old=redact_text(old_value, max_chars=MAX_DELTA_TEXT_CHARS) if old_value else None,
+        new=redact_text(new_value, max_chars=MAX_DELTA_TEXT_CHARS) if new_value else None,
         old_lines=old_lines,
         new_lines=new_lines,
         hunk_id=hunk_id,
         metadata=metadata,
+        probe=probe,
     )
 
 
@@ -143,6 +180,7 @@ def _append_call_delta(
             kind,
             "; ".join(old_names),
             "; ".join(new_names),
+            probe=join_probes(old, new, "calls"),
             old_calls=[item.split("(", 1)[0] for item in old_names],
             new_calls=[item.split("(", 1)[0] for item in new_names],
         )
@@ -191,6 +229,7 @@ def _append_feature_deltas(
                 effective_kind,
                 join_feature_values(old.features[feature]),
                 join_feature_values(new.features[feature]),
+                probe=join_probes(old, new, feature),
             )
         )
 

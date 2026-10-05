@@ -13,6 +13,14 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Fix:** the deterministic keyword rules no longer read the words of prose string literals, so a
+  changed message such as `'Retry with a narrower diff'` is no longer a `retry_timeout_change`.
+  Comparisons, conditions, and calls are classified from a probe built from the AST: identifiers,
+  attribute and keyword names, and literals without whitespace, which still carry keys and headers
+  such as `'Authorization'` or `'retry_limit'`. On this repository's history 10 of 1,909 evidence
+  classifications changed, each one resting only on prose; the evaluation corpus is unchanged. See
+  `docs/decisions.md`.
+
 - **Fix:** stop blaming a Hermes host when no model is in use. The `warnings` entry for a run
   without a model read `Hermes-hosted LLM unavailable; returned deterministic fallback findings.`
   on every transport, although the CLI's `--no-llm`, a CLI without a provider, and the Claude Code

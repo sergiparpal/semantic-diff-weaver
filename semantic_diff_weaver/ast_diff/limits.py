@@ -32,6 +32,15 @@ FEATURE_NAMES: tuple[str, ...] = (
     "calls",
 )
 
+# The features whose deltas the category rules search for keywords, and so the only ones that
+# record a probe (see `extract.probe_text`). The other kinds are classified by structure alone.
+PROBED_FEATURES: tuple[str, ...] = ("comparisons", "conditions", "calls")
+MAX_PROBE_CHARS_PER_FEATURE = 500
+# A safety bound only: a side's probe already covers no more values than its display text.
+MAX_PROBE_CHARS_PER_SIDE = 3_000
+# A delta's `old` and `new` display texts are each cut to this length.
+MAX_DELTA_TEXT_CHARS = 1_500
+
 
 @dataclass(frozen=True)
 class AstBudget:
