@@ -111,6 +111,27 @@ def test_snapshots_record_one_probe_per_probed_value() -> None:
     assert snapshot.probes["conditions"] == (CategoryProbe(words="x", compares=True),)
 
 
+@pytest.mark.parametrize(
+    "body",
+    [
+        pytest.param("    if value > limit:\n        return 1\n    return 0\n", id="if"),
+        pytest.param("    return 1 if value > limit else 0\n", id="if-expression"),
+        pytest.param("    assert value > limit, 'value must exceed the limit'\n", id="assert"),
+        pytest.param("    while value > limit:\n        value -= 1\n", id="while"),
+    ],
+)
+def test_every_condition_site_records_its_probe(body: str) -> None:
+    """`if`, conditional expressions, `assert`, and `while` each record a condition.
+
+    Each must record its probe beside it. Values and probes are paired by position, so a site
+    that recorded only the value would turn any analysis changing such a condition into an
+    `internal_error` — the whole analysis, not just that symbol.
+    """
+    snapshot = _calls(f"def run(value, limit):\n{body}")
+    assert [text for text, _ in snapshot.features["conditions"]] == ["value > limit"]
+    assert snapshot.probes["conditions"] == (CategoryProbe(words="value limit", compares=True),)
+
+
 def test_a_snapshot_without_probes_falls_back_to_display_text() -> None:
     snapshot = _calls("def run():\n    step()\n")
     assert join_probes(replace(snapshot, probes={}), snapshot, "calls") is None
