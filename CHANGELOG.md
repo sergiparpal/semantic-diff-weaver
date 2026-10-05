@@ -13,6 +13,12 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Feature:** the Markdown brief carries finding and obligation IDs. Each finding shows its
+  `bc-` ID, and each obligation its `to-` ID and the findings it covers, so a question about
+  specific obligations no longer needs the JSON. Under Claude Code, a brief too large for the
+  host is rendered again with shorter evidence excerpts — never fewer findings or obligations —
+  instead of being saved to a file the model cannot read in parts.
+
 - **Fix:** coverage grounding judges the lines the diff changed, as documented, not each finding's
   whole symbol. A finding's span is its symbol — for `<module>`, the whole file — so one
   uncovered, unchanged line hid a covered change, and the summary summed overlapping spans, so it

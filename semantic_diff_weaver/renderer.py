@@ -100,6 +100,24 @@ def _scope_reason_lines(result: AnalysisResult) -> list[str]:
     return lines
 
 
+def _excerpt(text: str, limit: int | None) -> str:
+    """`text`, cut to `limit` characters when one is set, with an ellipsis marking the cut."""
+    if limit is None or len(text) <= limit:
+        return text
+    return f"{text[:limit].rstrip()} …"
+
+
+def _excerpt_lines(limit: int | None) -> list[str]:
+    if limit is None:
+        return []
+    if limit == 0:
+        return ["**Evidence excerpts:** omitted to fit a size limit; `git diff` shows the changes."]
+    return [
+        f"**Evidence excerpts:** cut to {limit} characters to fit a size limit; `git diff` shows "
+        "them in full."
+    ]
+
+
 def _fenced_summary(label: str, text: str) -> list[str]:
     safe = _visible_controls(text.replace("`", "'"), preserve_newlines=True)
     return [f"    {label}: {line}" for line in safe.splitlines() or [""]]
@@ -131,7 +149,12 @@ def _coverage_lines(result: AnalysisResult) -> list[str]:
     ]
 
 
-def render_markdown(result: AnalysisResult) -> str:
+def render_markdown(result: AnalysisResult, *, excerpt_chars: int | None = None) -> str:
+    """The brief. `excerpt_chars` cuts each evidence code excerpt, and 0 drops them.
+
+    Only a transport with a hard result limit sets it — findings, obligations, and every ID
+    are kept either way, and the brief says when excerpts were shortened.
+    """
     lines = [
         "## Semantic Diff Test Brief",
         "",
@@ -150,6 +173,7 @@ def render_markdown(result: AnalysisResult) -> str:
         ),
         *_scope_reason_lines(result),
         *_coverage_lines(result),
+        *_excerpt_lines(excerpt_chars),
         "",
         "### Inferred behavior changes",
         "",
@@ -166,8 +190,9 @@ def render_markdown(result: AnalysisResult) -> str:
         )
         lines.extend(
             [
-                f"- **{prefix} · {_escape(behavior.category.value)} · {behavior.risk.value} "
-                f"risk · {behavior.confidence:.0%} confidence:** {_escape(behavior.summary)}",
+                f"- **{prefix} `{behavior.id}` · {_escape(behavior.category.value)} · "
+                f"{behavior.risk.value} risk · {behavior.confidence:.0%} confidence:** "
+                f"{_escape(behavior.summary)}",
                 f"  - Observable impact: {_escape(behavior.observable_impact)}",
             ]
         )
@@ -182,16 +207,23 @@ def render_markdown(result: AnalysisResult) -> str:
                 ranges.append(f"new {evidence.new_lines.start}-{evidence.new_lines.end}")
             suffix = f" ({', '.join(ranges)})" if ranges else ""
             lines.append(f"  - Evidence `{evidence.id}`: {location}{suffix}")
-            if evidence.old or evidence.new:
-                lines.extend(["    ````text", *_fenced_summary("old", evidence.old or "∅")])
-                lines.extend([*_fenced_summary("new", evidence.new or "∅"), "    ````"])
+            if (evidence.old or evidence.new) and excerpt_chars != 0:
+                old = _excerpt(evidence.old or "∅", excerpt_chars)
+                new = _excerpt(evidence.new or "∅", excerpt_chars)
+                lines.extend(["    ````text", *_fenced_summary("old", old)])
+                lines.extend([*_fenced_summary("new", new), "    ````"])
     lines.extend(["", "### Prioritized test obligations", ""])
     if not result.test_obligations:
         lines.append("No test obligations were generated.")
     for obligation in result.test_obligations:
+        # No escaping needed: obligation IDs are pattern-validated, and an obligation may only
+        # reference behavior IDs of this result, which are too. They number positions within this
+        # one result, the only place they can be quoted from.
+        covers = ", ".join(f"`{item}`" for item in obligation.behavior_change_ids)
         lines.extend(
             [
-                f"- [ ] **P{obligation.priority} — {_escape(obligation.title)}**",
+                f"- [ ] **P{obligation.priority} — {_escape(obligation.title)}** "
+                f"(`{obligation.id}`; covers {covers})",
                 f"  - Given: {_escape(obligation.given)}",
                 f"  - When: {_escape(obligation.when)}",
                 f"  - Then: {_escape(obligation.then)}",

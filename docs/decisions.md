@@ -87,10 +87,18 @@ are deliberate:
   158,368 characters, the JSON alone 101,171, and the brief 57,238; Claude spent four calls and
   eleven turns working around the overflow. So the MCP copy of the schema defaults `output_format`
   to `markdown`, as the CLI already does. A brief is returned as plain Markdown, which is smaller
-  without JSON escaping and, if it still overflows, lands in a file that can be read in parts; a
-  single-line JSON file cannot. The tool declares `anthropic/maxResultSizeChars: 100000`, twice
-  the default and a fifth of the 500,000 ceiling: enough for that brief, not for the JSON of the
-  same range, which stays available on request and which the skill steers to narrowed calls. The
+  without JSON escaping. The tool declares `anthropic/maxResultSizeChars: 100000`, twice the
+  default and a fifth of the 500,000 ceiling: enough for that brief, not for the JSON of the same
+  range, which stays available on request and which the skill steers to narrowed calls.
+  A brief that still would not fit is rendered again with shorter evidence excerpts. An earlier
+  version of this entry claimed an overflowing brief would land in a file readable in parts; it
+  does not. Claude Code saves the result as JSON, the whole brief on one line, and a model can then
+  reach it only through shell tools that need approval: asked for the top obligation IDs of
+  `v0.3.0..main`, a 124,551-byte brief, Claude spent fifteen turns working around it. The server
+  now requests the analysis beside the brief and, over a 95,000-byte budget, re-renders it with
+  each excerpt cut to 400, 200, 120, 80, 40, or 0 characters, the first that fits; that range fits
+  at 80. Findings, obligations, and every ID are kept, the brief says excerpts were shortened, and
+  the brief now carries finding and obligation IDs, so the question no longer needs the JSON. The
   skill narrows with `include` only, because `exclude` also removes files from candidate-test
   discovery — `tests/integration/test_candidate_mapping.py` pins that asymmetry.
 - **`uvx --from ${CLAUDE_PLUGIN_ROOT}` launches it.** Installing a Claude Code plugin copies the
