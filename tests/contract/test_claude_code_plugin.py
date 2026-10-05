@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import json
+import re
 import tomllib
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from semantic_diff_weaver import __version__, scoring
+from semantic_diff_weaver.service import analyze
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
@@ -74,25 +77,52 @@ def test_the_skill_names_the_tool_and_has_frontmatter() -> None:
     assert "analyze_semantic_diff" in body
 
 
-def test_the_skill_states_the_risk_formula_the_scorer_uses() -> None:
-    """The JSON carries a score's axes, not how they combine; the skill says, and must stay true.
+FORMULA = re.compile(
+    r"risk_score = round\(behavioral_impact \* ([\d.]+) \+ critical_path_weight \* ([\d.]+) "
+    r"\+ test_gap_weight \* ([\d.]+) \+ change_surface_weight \* ([\d.]+)\)"
+)
+AXES = ("behavioral_impact", "critical_path_weight", "test_gap_weight", "change_surface_weight")
 
-    Explaining a score otherwise meant reading `scoring.py`, which only works when the analyzed
-    project is this one.
-    """
+
+def _skill_scoring() -> tuple[dict[str, float], dict[str, int]]:
+    """The weights and label thresholds as the skill states them, read from its text."""
     text = " ".join(
         (REPOSITORY_ROOT / "skills/semantic-diff/SKILL.md").read_text(encoding="utf-8").split()
     )
-    formula = (
-        f"risk_score = round(behavioral_impact * {scoring.IMPACT_WEIGHT} + "
-        f"critical_path_weight * {scoring.CRITICAL_PATH_WEIGHT} + "
-        f"test_gap_weight * {scoring.TEST_GAP_WEIGHT} + "
-        f"change_surface_weight * {scoring.CHANGE_SURFACE_WEIGHT})"
+    formula = FORMULA.search(text)
+    assert formula is not None
+    weights = dict(zip(AXES, (float(value) for value in formula.groups()), strict=True))
+    starts = {}
+    for label in ("critical", "high", "medium"):
+        found = re.search(rf"`{label}` from (\d+)", text)
+        assert found is not None
+        starts[label] = int(found.group(1))
+    return weights, starts
+
+
+def test_the_risk_formula_in_the_skill_reproduces_every_score(
+    repo_factory: Callable[..., tuple[Path, str, str]],
+) -> None:
+    """The JSON carries a score's axes, not how they combine; the skill says, and must stay true.
+
+    Checked against behavior, not constants: a test comparing the text with `HIGH_FROM` kept
+    passing when `>=` became `>`, although the skill's "high from 60" was then false.
+    """
+    weights, starts = _skill_scoring()
+    for label, start in starts.items():
+        assert scoring.risk_label(start).value == label
+        assert scoring.risk_label(start - 1).value != label
+    repo, base, head = repo_factory(
+        {"api.py": "def allowed(x):\n    return x < 5\n\n\ndef notify(user):\n    send(user)\n"},
+        {
+            "api.py": "def allowed(x):\n    return x <= 5\n\n\ndef notify(user):\n    send(user, 1)\n"
+        },
     )
-    assert formula in text
-    for label, start in (
-        ("critical", scoring.CRITICAL_FROM),
-        ("high", scoring.HIGH_FROM),
-        ("medium", scoring.MEDIUM_FROM),
-    ):
-        assert f"`{label}` from {start}" in text
+    result = analyze(
+        {"repo_path": str(repo), "base_ref": base, "head_ref": head, "output_format": "json"}
+    )
+    assert result["behavior_changes"]
+    for behavior in result["behavior_changes"]:
+        explanation = behavior["score_explanation"]
+        stated = round(sum(explanation[axis] * weight for axis, weight in weights.items()))
+        assert behavior["risk_score"] == stated
