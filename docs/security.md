@@ -93,9 +93,10 @@ server changes into it at start-up, so `path_policy`'s default root is the proje
 plugin's installation directory. An inaccessible value stops the server before it reads a message.
 An operator-set `SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS` still takes precedence, so a project outside the
 operator's bound fails with `path_outside_repository` exactly as under Hermes. The refusal's
-remediation names the two real remedies — a path inside the workspace, or an operator adding the
-directory to that variable — so a model that receives it can tell the user what to do instead of
-trying another path.
+remediation names the two real remedies — a path inside the workspace, or an operator listing the
+directory in that variable — with the separator, and warns that setting the variable replaces the
+default root, so the project must be listed too. A model that receives it can tell the user exactly
+what to do instead of trying another path or reading the source to find out.
 
 Stdout carries the protocol and nothing else: while serving, `sys.stdout` points at stderr. Each
 message is bounded to 1 MiB and an oversized line is discarded without being buffered whole. An

@@ -185,6 +185,23 @@ def test_a_path_outside_the_roots_names_the_operator_remedy(
     assert error.code is ErrorCode.PATH_OUTSIDE_REPOSITORY
     assert error.remediation == path_policy.OUTSIDE_ROOTS_REMEDIATION
     assert ALLOWED_ROOTS_ENV in error.remediation
+    # Enough to act on without the docs: the separator, and the default root that setting the
+    # variable replaces — set to only the new directory, it de-authorizes the old default.
+    assert f"'{path_policy.os.pathsep}'" in error.remediation
+    assert "replaces the default root" in error.remediation
+
+
+def test_following_the_remediation_authorizes_both_directories(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Listing the outside directory and the old default keeps both authorized."""
+    project = tmp_path / "project"
+    outside = tmp_path / "outside"
+    project.mkdir()
+    outside.mkdir()
+    monkeypatch.setenv(ALLOWED_ROOTS_ENV, path_policy.os.pathsep.join((str(project), str(outside))))
+    assert ensure_authorized_path(project) == project.resolve()
+    assert ensure_authorized_path(outside) == outside.resolve()
 
 
 def test_a_missing_path_says_to_check_that_it_exists(tmp_path: Path) -> None:
