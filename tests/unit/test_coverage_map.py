@@ -189,10 +189,19 @@ def test_duplicate_entries_union_and_execution_wins(tmp_path: Path) -> None:
 def test_summarize_counts_only_known_lines(tmp_path: Path) -> None:
     coverage = load_coverage(_write(tmp_path, "coverage.json", COVERAGE_JSON), _config())
     changed, covered, uncovered = summarize(
-        coverage,
-        [("src/api.py", LineRange(start=1, end=3)), ("src/absent.py", LineRange(start=1, end=2))],
+        coverage, {"src/api.py": {1, 2, 3}, "src/absent.py": {1, 2}}
     )
     assert (changed, covered, uncovered) == (5, 3, 0)
+
+
+def test_line_sets_are_judged_like_ranges(tmp_path: Path) -> None:
+    coverage = load_coverage(_write(tmp_path, "coverage.json", COVERAGE_JSON), _config())
+    assert coverage.status_for_lines("src/api.py", {1, 3}) == "covered"
+    assert coverage.status_for_lines("src/api.py", {10, 11}) == "uncovered"
+    assert coverage.status_for_lines("src/api.py", {1, 10}) == "unknown"
+    assert coverage.status_for_lines("src/api.py", set()) == "unknown"
+    assert coverage.counts_for_lines("src/api.py", {1, 2, 10}) == (2, 1)
+    assert coverage.counts_for_lines("src/absent.py", {1}) == (0, 0)
 
 
 @pytest.mark.parametrize(

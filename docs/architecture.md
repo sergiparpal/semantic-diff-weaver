@@ -80,6 +80,13 @@ The map is immutable once built, so suffix resolution is memoized and the report
 are split once rather than per lookup. `status_for` and `counts_for` resolve independently, and
 without the cache every finding paid two full `O(report files)` scans.
 
+What it judges is the lines the diff changed, not the symbols around them. Hunks are collected
+with `--unified=0`, so their head-side spans are exactly the added or replaced lines;
+`service._finding_lines` cuts each finding's evidence spans down to those lines. An evidence span
+is a whole symbol — for `<module>`, the whole file — so judging it directly let one uncovered,
+unchanged line hide a covered change, and counted lines no diff touched. The summary counts each
+changed line once per file however many findings rest on it.
+
 Two hooks consume it:
 
 **Scoring.** `score_risk` takes an optional grounded state and adjusts the existing test-gap

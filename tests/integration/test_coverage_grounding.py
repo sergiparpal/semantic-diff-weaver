@@ -122,9 +122,11 @@ def test_the_summary_reports_what_the_report_matched(repo_factory) -> None:
     assert coverage["source"] == "coverage.py-json"
     assert coverage["matched_files"] == 1
     assert coverage["unmatched_files"] == 0
-    assert coverage["covered_lines"] == 2
-    assert coverage["uncovered_lines"] == 2
-    assert coverage["changed_lines"] >= coverage["covered_lines"] + coverage["uncovered_lines"]
+    # The diff changes line 2 (executed) and line 6 (missed) — not the functions' other lines,
+    # which a span-based count used to include.
+    assert coverage["changed_lines"] == 2
+    assert coverage["covered_lines"] == 1
+    assert coverage["uncovered_lines"] == 1
 
 
 def test_the_brief_names_the_ingested_report(repo_factory) -> None:
@@ -132,7 +134,7 @@ def test_the_brief_names_the_ingested_report(repo_factory) -> None:
     envelope = _analyze(Path(repo), base, head, _write_report(Path(repo)))
     markdown = envelope["markdown"]
     assert "**Coverage (ingested coverage.py-json report, not produced by this tool):**" in markdown
-    assert "2 covered and 2 uncovered" in markdown
+    assert "1 covered and 1 uncovered of 2 changed line(s)" in markdown
 
 
 def test_the_brief_omits_coverage_without_a_report(repo_factory) -> None:
@@ -279,3 +281,48 @@ def test_a_grouped_obligation_keeps_a_verdict_only_when_its_behaviors_agree(
         behaviors["b"]["score_explanation"]["test_gap_weight"]
         > behaviors["a"]["score_explanation"]["test_gap_weight"]
     )
+
+
+def _verdicts(analysis: dict[str, Any]) -> dict[str, str]:
+    """Each changed symbol's grounded coverage verdict, read from its linked obligation."""
+    by_behavior = {
+        behavior_id: obligation["coverage_status"]
+        for obligation in analysis["test_obligations"]
+        for behavior_id in obligation["behavior_change_ids"]
+    }
+    return {symbol: by_behavior[item["id"]] for symbol, item in _by_symbol(analysis).items()}
+
+
+def test_an_uncovered_unchanged_line_does_not_hide_a_covered_change(repo_factory) -> None:
+    """Only the lines the diff changed are judged, not the rest of the symbol.
+
+    Line 3 is missed by the suite but untouched by the change; judging the whole function
+    made the verdict `unknown` although the one changed line, line 2, is executed.
+    """
+    old = {"calc.py": "def scale(x):\n    y = x + 1\n    z = y * 2\n    return z\n"}
+    new = {"calc.py": "def scale(x):\n    y = x + 2\n    z = y * 2\n    return z\n"}
+    report = {
+        "files": {"calc.py": {"executed_lines": [1, 2, 4], "missing_lines": [3]}},
+    }
+    repo, base, head = repo_factory(old, new)
+    analysis = _analyze(Path(repo), base, head, _write_report(Path(repo), report))["analysis"]
+    assert _verdicts(analysis)["scale"] == CoverageStatus.COVERED.value
+    assert analysis["coverage"]["changed_lines"] == 1
+
+
+def test_each_changed_line_counts_once_however_many_findings_rest_on_it(repo_factory) -> None:
+    """A module-level change and a function change in one file overlap: `<module>` spans it all.
+
+    Summing spans counted the whole file plus the function again — more changed lines than the
+    file had. The diff here changes exactly lines 1 and 5.
+    """
+    old = {"limits.py": "LIMIT = 3\n\n\ndef allowed(x):\n    return x < LIMIT\n"}
+    new = {"limits.py": "LIMIT = 4\n\n\ndef allowed(x):\n    return x <= LIMIT\n"}
+    report = {"files": {"limits.py": {"executed_lines": [1, 4, 5], "missing_lines": []}}}
+    repo, base, head = repo_factory(old, new)
+    analysis = _analyze(Path(repo), base, head, _write_report(Path(repo), report))["analysis"]
+    symbols = {item["symbol"] for b in analysis["behavior_changes"] for item in b["evidence"]}
+    assert {"<module>", "allowed"} <= symbols
+    coverage = analysis["coverage"]
+    assert (coverage["changed_lines"], coverage["covered_lines"]) == (2, 2)
+    assert coverage["uncovered_lines"] == 0
