@@ -437,7 +437,13 @@ UNKNOWN_FALLBACK: Classification = (
 
 
 def classify_delta(delta: StructuralDelta, rules: RulesConfig) -> Classification:
-    combined = " ".join(filter(None, (delta.old, delta.new, delta.symbol)))
+    # Keyword rules read the delta's probe, which leaves out the words of prose string
+    # literals, so a changed message such as "Retry later" is not a retry change. A delta
+    # without a probe falls back to its display text.
+    words = (
+        delta.probe if delta.probe is not None else " ".join(filter(None, (delta.old, delta.new)))
+    )
+    combined = " ".join(filter(None, (words, delta.symbol)))
     for classifier in CLASSIFIERS:
         result = classifier(delta, rules, combined)
         if result is not None:

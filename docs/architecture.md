@@ -30,7 +30,11 @@ let an exhausted budget read as live.
 
 Deterministic rules create evidence before model use. Their term-based probes read the changed
 expressions together with the symbol name, because names carry authorization, validation, and retry
-meaning. The comparison-operator probe is the exception: it reads the changed expressions alone,
+meaning. For comparisons, conditions, and calls they read a probe built from the AST at extraction
+rather than the display text: identifiers, attribute and keyword names, and string literals without
+whitespace (keys, headers, permission names), but not literals containing whitespace, whose words are
+prose about the code. A probe covers exactly the values the delta's bounded display text shows. The
+comparison-operator probe is the exception: it reads the changed expressions alone,
 since the synthetic `<module>` and `<unparsed>` names contain angle brackets and would otherwise
 force every module-scope or unparsed condition into a boundary or retry finding ahead of the
 guard rules. `semantic_interpreter.py` sends bounded, delimited evidence through
