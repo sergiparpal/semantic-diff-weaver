@@ -273,3 +273,68 @@ def test_a_bare_import_never_matches_on_the_symbol_alone() -> None:
 def test_only_a_multi_word_public_module_name_is_distinctive(path: str, stem: str | None) -> None:
     """A single word such as `store` turns up in tests about anything; `_common` is private."""
     assert test_mapper._distinctive_stem(path) == stem
+
+
+def handler_candidate():
+    return build_candidates(
+        [
+            StructuralDelta(
+                path="src/handlers/cooked_meal.py",
+                symbol="HANDLER",
+                kind="comparison_change",
+                old="x < 5",
+                new="x <= 5",
+                old_lines=LineRange(start=2, end=2),
+                new_lines=LineRange(start=2, end=2),
+                hunk_id="src/handlers/cooked_meal.py#hunk-001",
+            )
+        ]
+    )[0]
+
+
+def module_name_reasons(source: str) -> dict[str, list[str]]:
+    index = TestIndex(
+        tests=_index_source("tests/test_meals.py", source), incomplete=False, warnings=[]
+    )
+    mapped = map_candidate_tests([handler_candidate()], index, WeaverConfig())[0]
+    return {item.symbol: item.match_reasons for item in mapped}
+
+
+def test_a_module_name_matches_a_test_name_only_as_whole_words() -> None:
+    """`cooked_meal` names `test_register_cooked_meal`, never `test_uncooked_meals`."""
+    reasons = module_name_reasons(
+        "import handlers\n"
+        "def test_cooked_meal_is_saved():\n    assert handlers\n"
+        "def test_register_cooked_meal():\n    assert handlers\n"
+        "class TestMeals:\n"
+        "    def test_cooked_meal(self):\n        assert handlers\n"
+        "def test_uncooked_meal_is_kept():\n    assert handlers\n"
+        "def test_cooked_meals_are_listed():\n    assert handlers\n"
+        "def test_precooked_meal_is_saved():\n    assert handlers\n"
+    )
+    named = "changed module named in test name"
+    for symbol in (
+        "test_cooked_meal_is_saved",
+        "test_register_cooked_meal",
+        "TestMeals.test_cooked_meal",
+    ):
+        assert named in reasons[symbol]
+    for symbol in (
+        "test_uncooked_meal_is_kept",
+        "test_cooked_meals_are_listed",
+        "test_precooked_meal_is_saved",
+    ):
+        assert named not in reasons.get(symbol, [])
+
+
+def test_a_module_mention_in_the_body_adds_only_to_a_test_named_after_it() -> None:
+    reasons = module_name_reasons(
+        "import handlers\n"
+        "def test_cooked_meal_is_saved():\n    assert handlers.cooked_meal\n"
+        "def test_cooked_meal_is_listed():\n    assert handlers\n"
+        "def test_every_handler_answers():\n    assert handlers.cooked_meal\n"
+    )
+    bodied = "changed module named in bounded test body"
+    assert bodied in reasons["test_cooked_meal_is_saved"]
+    assert bodied not in reasons["test_cooked_meal_is_listed"]
+    assert bodied not in reasons.get("test_every_handler_answers", [])
