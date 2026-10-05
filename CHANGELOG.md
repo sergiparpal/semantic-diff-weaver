@@ -21,6 +21,12 @@
   classifications changed, each one resting only on prose; the evaluation corpus is unchanged. See
   `docs/decisions.md`.
 
+- **Fix:** the condition rule decides whether a changed condition compares from its AST operators,
+  not by searching its text for `<`, `>`, `==`, or `!=`. An operator inside a string literal or a
+  shift (`1 << bit`) no longer makes a boundary, and an equality that redaction consumed —
+  `token == expected` is displayed as `token =[REDACTED] expected` — is no longer missed. On this
+  repository's history one of 1,989 classifications changed; the evaluation corpus is unchanged.
+
 - **Fix:** stop blaming a Hermes host when no model is in use. The `warnings` entry for a run
   without a model read `Hermes-hosted LLM unavailable; returned deterministic fallback findings.`
   on every transport, although the CLI's `--no-llm`, a CLI without a provider, and the Claude Code

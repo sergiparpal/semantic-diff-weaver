@@ -10,7 +10,7 @@ from ..path_policy import redact_text
 from ..source import SourceHunk
 from .limits import FEATURE_DELTA_KINDS, MAX_DELTA_TEXT_CHARS, MAX_PROBE_CHARS_PER_SIDE
 from .match import symbol_similarity
-from .types import StructuralDelta, SymbolSnapshot
+from .types import CategoryProbe, StructuralDelta, SymbolSnapshot
 
 ORDER_SENSITIVE_KINDS = {
     "call_order_change",
@@ -64,7 +64,7 @@ def join_feature_values(values: Iterable[tuple[str, int]]) -> str | None:
     return redact_text("; ".join(material), max_chars=MAX_DELTA_TEXT_CHARS) if material else None
 
 
-def _probes_in_display_window(snapshot: SymbolSnapshot, feature: str) -> list[str]:
+def _probes_in_display_window(snapshot: SymbolSnapshot, feature: str) -> list[CategoryProbe]:
     """The probes of the values a delta's display text shows.
 
     The display text joins every value with "; " and stops at `MAX_DELTA_TEXT_CHARS`, so a long
@@ -72,7 +72,7 @@ def _probes_in_display_window(snapshot: SymbolSnapshot, feature: str) -> list[st
     values keeps what a probe changes about classification to prose literals and nothing else;
     a denser probe that reached further was finding new keywords in calls the text never showed.
     """
-    kept: list[str] = []
+    kept: list[CategoryProbe] = []
     offset = 0
     pairs = zip(snapshot.features[feature], snapshot.probes[feature], strict=True)
     for (text, _), probe in pairs:
@@ -83,18 +83,21 @@ def _probes_in_display_window(snapshot: SymbolSnapshot, feature: str) -> list[st
     return kept
 
 
-def join_probes(old: SymbolSnapshot, new: SymbolSnapshot, feature: str) -> str | None:
+def join_probes(old: SymbolSnapshot, new: SymbolSnapshot, feature: str) -> CategoryProbe | None:
     """Both sides' category probes for `feature`, or None when either side recorded none.
 
     None sends the category rules back to the display text, which is what a feature without
-    probes — or a snapshot built by hand — has always been classified by. Each side is bounded
-    on its own, so a long old side can never crowd out the new one.
+    probes — or a snapshot built by hand — has always been classified by. Each side's words are
+    bounded on their own, so a long old side can never crowd out the new one.
     """
     if feature not in old.probes or feature not in new.probes:
         return None
-    return " ".join(
-        " ".join(_probes_in_display_window(snapshot, feature))[:MAX_PROBE_CHARS_PER_SIDE]
-        for snapshot in (old, new)
+    sides = [_probes_in_display_window(snapshot, feature) for snapshot in (old, new)]
+    return CategoryProbe(
+        words=" ".join(
+            " ".join(item.words for item in side)[:MAX_PROBE_CHARS_PER_SIDE] for side in sides
+        ),
+        compares=any(item.compares for side in sides for item in side),
     )
 
 
@@ -115,7 +118,7 @@ def make_structural_delta(
     old_value: str | None,
     new_value: str | None,
     *,
-    probe: str | None = None,
+    probe: CategoryProbe | None = None,
     **metadata: Any,
 ) -> StructuralDelta:
     old_lines, new_lines = line_ranges(old, new)

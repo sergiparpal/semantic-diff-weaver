@@ -23,6 +23,22 @@ def reparameterize(signature: str) -> str:
     return "".join(result)
 
 
+@dataclass(frozen=True)
+class CategoryProbe:
+    """What the category rules may read from a value, taken from its AST rather than its text.
+
+    The display text keeps string literals verbatim and is redacted and cut, so it cannot tell
+    code from strings: a message's words read as keywords, a `'<'` inside a literal read as a
+    comparison, and redaction could turn `token == expected` into `token =[REDACTED] expected`.
+    Internal to classification and never reported.
+    """
+
+    # Identifiers, attribute and keyword names, and string literals without whitespace.
+    words: str
+    # Whether the value contains an ordering or equality comparison: <, <=, >, >=, ==, !=.
+    compares: bool
+
+
 @dataclass
 class SymbolSnapshot:
     qualified_name: str
@@ -38,7 +54,7 @@ class SymbolSnapshot:
     node_inventory: tuple[tuple[str, int], ...]
     match_ambiguous: bool = False
     # Per probed feature, one category probe per recorded value, in the same order.
-    probes: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    probes: dict[str, tuple[CategoryProbe, ...]] = field(default_factory=dict)
 
     @property
     def signature_shape(self) -> str:
@@ -57,9 +73,8 @@ class StructuralDelta:
     hunk_id: str | None
     parser_complete: bool = True
     metadata: dict[str, Any] = field(default_factory=dict)
-    # The words the category rules may read, without prose string literals. Internal to
-    # classification and never reported; None means "read `old` and `new` instead".
-    probe: str | None = None
+    # What the category rules read; None means "read the `old` and `new` display text instead".
+    probe: CategoryProbe | None = None
 
 
 @dataclass

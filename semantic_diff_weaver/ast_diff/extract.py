@@ -9,7 +9,7 @@ from collections import Counter
 from ..path_policy import redact_text
 from . import limits
 from .limits import AstBudget
-from .types import SymbolSnapshot
+from .types import CategoryProbe, SymbolSnapshot
 
 
 class AstResourceLimit(ValueError):
@@ -25,36 +25,49 @@ def unparse_redacted(node: ast.AST | None, limit: int = 500) -> str:
         return type(node).__name__
 
 
-def _probe_words(node: ast.AST) -> list[str]:
-    words: list[str] = []
-    for child in ast.walk(node):
-        if isinstance(child, ast.Name):
-            words.append(child.id)
-        elif isinstance(child, ast.Attribute):
-            words.append(child.attr)
-        elif isinstance(child, ast.arg):
-            words.append(child.arg)
-        elif isinstance(child, ast.keyword):
-            if child.arg is not None:
-                words.append(child.arg)
-        elif isinstance(child, ast.Constant) and isinstance(child.value, str):
-            if not any(character.isspace() for character in child.value):
-                words.append(child.value)
-    return words
+# The comparisons the condition rule treats as a boundary. Membership and identity tests (`in`,
+# `is`) never were, and a shift (`<<`, `>>`) is arithmetic that only looked like one in text.
+BOUNDARY_COMPARISONS = (ast.Lt, ast.LtE, ast.Gt, ast.GtE, ast.Eq, ast.NotEq)
 
 
-def probe_text(*nodes: ast.AST | None) -> str:
-    """The words a category rule may read from `nodes`, bounded and redacted.
+def _probe_word(node: ast.AST) -> str | None:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        return node.attr
+    if isinstance(node, ast.arg):
+        return node.arg
+    if isinstance(node, ast.keyword):
+        return node.arg
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        if not any(character.isspace() for character in node.value):
+            return node.value
+    return None
+
+
+def category_probe(*nodes: ast.AST | None) -> CategoryProbe:
+    """What a category rule may read from `nodes`: their words and whether they compare.
 
     `unparse_redacted` keeps string literals verbatim, which is right for display and wrong
     for classification: the message 'Retry with a narrower diff' made an error constructor
-    read as a retry change. A probe keeps identifiers, attribute and keyword names, and string
+    read as a retry change. The words keep identifiers, attribute and keyword names, and string
     literals without whitespace — keys, headers, and permission names such as "Authorization"
-    or "retry_limit" are real signal — and drops literals that contain whitespace, whose words
+    or "retry_limit" are real signal — and drop literals that contain whitespace, whose words
     are prose about the code rather than the code. Each f-string part is judged on its own.
+    Whether the value compares is read from its operators, never from characters in its text.
     """
-    words = [word for node in nodes if node is not None for word in _probe_words(node)]
-    return redact_text(" ".join(words), max_chars=limits.MAX_PROBE_CHARS_PER_FEATURE)
+    words: list[str] = []
+    compares = False
+    for node in nodes:
+        if node is None:
+            continue
+        for child in ast.walk(node):
+            if isinstance(child, BOUNDARY_COMPARISONS):
+                compares = True
+            elif (word := _probe_word(child)) is not None:
+                words.append(word)
+    text = redact_text(" ".join(words), max_chars=limits.MAX_PROBE_CHARS_PER_FEATURE)
+    return CategoryProbe(words=text, compares=compares)
 
 
 def parse_module(source: str) -> ast.Module:
@@ -165,7 +178,7 @@ class FeatureVisitor(ast.NodeVisitor):
         self.loops: list[tuple[str, int]] = []
         self.contexts: list[tuple[str, int]] = []
         self.statement_order: list[str] = []
-        self.probes: dict[str, list[str]] = {name: [] for name in limits.PROBED_FEATURES}
+        self.probes: dict[str, list[CategoryProbe]] = {name: [] for name in limits.PROBED_FEATURES}
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         if node is self.root:
@@ -187,12 +200,12 @@ class FeatureVisitor(ast.NodeVisitor):
     def visit_Compare(self, node: ast.Compare) -> None:
         operators = ",".join(type(item).__name__ for item in node.ops)
         self.comparisons.append((f"{unparse_redacted(node)} [{operators}]", node.lineno))
-        self.probes["comparisons"].append(probe_text(node))
+        self.probes["comparisons"].append(category_probe(node))
         self.generic_visit(node)
 
     def _record_condition(self, test: ast.expr, lineno: int) -> None:
         self.conditions.append((unparse_redacted(test), lineno))
-        self.probes["conditions"].append(probe_text(test))
+        self.probes["conditions"].append(category_probe(test))
 
     def visit_If(self, node: ast.If) -> None:
         self._record_condition(node.test, node.lineno)
@@ -224,7 +237,7 @@ class FeatureVisitor(ast.NodeVisitor):
         ]
         arguments = ", ".join([*positional, *keywords])
         self.calls.append((f"{name}({arguments})", node.lineno))
-        self.probes["calls"].append(probe_text(node.func, *node.args[:5], *node.keywords[:5]))
+        self.probes["calls"].append(category_probe(node.func, *node.args[:5], *node.keywords[:5]))
         self.statement_order.append(f"call:{name}")
         self.generic_visit(node)
 

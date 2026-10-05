@@ -34,10 +34,10 @@ meaning. For comparisons, conditions, and calls they read a probe built from the
 rather than the display text: identifiers, attribute and keyword names, and string literals without
 whitespace (keys, headers, permission names), but not literals containing whitespace, whose words are
 prose about the code. A probe covers exactly the values the delta's bounded display text shows. The
-comparison-operator probe is the exception: it reads the changed expressions alone,
-since the synthetic `<module>` and `<unparsed>` names contain angle brackets and would otherwise
-force every module-scope or unparsed condition into a boundary or retry finding ahead of the
-guard rules. `semantic_interpreter.py` sends bounded, delimited evidence through
+condition rule's boundary check reads the same probe: whether a value contains an ordering or
+equality comparison (`<`, `<=`, `>`, `>=`, `==`, `!=`), taken from its operators and never from
+characters in its text, where a literal's `'<'`, a shift, or a synthetic `<module>` name would count
+and an `==` consumed by redaction would not. `semantic_interpreter.py` sends bounded, delimited evidence through
 `ctx.llm.complete_structured`, locally validates output, rejects fabricated evidence IDs, and cannot
 initiate actions. Evidence is batched by module and shared changed dependency calls, prioritized by
 configured critical paths, bounded per symbol and per call, and retried once only for explicitly
