@@ -17,7 +17,9 @@
   carried the remediation "Use a repository-relative path that remains inside the resolved Git
   repository", including a repository refused for lying outside the authorized workspace, where no
   relative path can help. Refusals now name the remedies — a path inside an authorized root, or the
-  operator adding its directory to `SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS` — and a misconfigured
+  operator listing its directory in `SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS` — with the entry
+  separator and a warning that setting the variable replaces the default root, so the previous
+  default must be listed too. A misconfigured
   variable, a missing path, and a filesystem-root entry each get their own. The error code and
   messages are unchanged; repository-relative path errors keep their remediation.
 

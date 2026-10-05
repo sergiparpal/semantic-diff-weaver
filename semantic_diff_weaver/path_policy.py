@@ -138,9 +138,13 @@ REPOSITORY_PATH_REMEDIATION = (
 # An authorization failure is not fixed by a better repository-relative path, which is all the
 # remediation used to say: the remedy is a path inside the workspace, or a change to which roots
 # are authorized — and only an operator can make that change. Same error code either way.
+# Says what an operator needs to act without reading the docs: the separator, and that setting
+# the variable replaces the default root. "Add its directory" alone led straight into that trap —
+# set to only the new directory, the variable de-authorizes the project it used to default to.
 OUTSIDE_ROOTS_REMEDIATION = (
-    "Choose a path inside an authorized workspace root, or have the operator add its directory "
-    f"to {ALLOWED_ROOTS_ENV}."
+    "Choose a path inside an authorized workspace root, or have the operator list its directory "
+    f"in {ALLOWED_ROOTS_ENV}, entries separated by '{os.pathsep}'. If the variable is unset, "
+    "setting it replaces the default root, the working directory, so list that directory too."
 )
 INACCESSIBLE_PATH_REMEDIATION = "Check that the path exists and that the analysis can read it."
 ROOT_INACCESSIBLE_REMEDIATION = (
