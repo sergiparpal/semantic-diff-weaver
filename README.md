@@ -250,8 +250,10 @@ Two behaviors differ from the CLI on purpose:
 `output_format` to the Markdown brief — as the CLI does, where Hermes defaults to `both` — returns
 it as plain Markdown rather than a JSON string, and declares a 100,000-character threshold for the
 tool through `anthropic/maxResultSizeChars`. On this repository's own 19-file range the brief was
-57,238 characters and `both` 158,368. Request `json` or `both` explicitly, with `include` narrowed
-to a few files. Narrow with `include`, not `exclude`: `exclude` also removes files from
+57,238 characters and `both` 158,368. A brief that would still not fit is rendered again with its
+evidence excerpts shortened — never its findings, obligations, or IDs — because Claude Code saves
+an oversized result as a JSON file the model cannot read in parts. Request `json` or `both`
+explicitly, with `include` narrowed to a few files. Narrow with `include`, not `exclude`: `exclude` also removes files from
 candidate-test discovery, so excluding a tests directory drops every candidate test.
 
 To use the server without the plugin, install the package and register its console script:

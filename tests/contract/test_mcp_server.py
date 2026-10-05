@@ -113,7 +113,8 @@ def test_a_call_without_a_format_asks_for_the_brief_and_returns_it_as_markdown()
     server = McpServer(_recording_handler(seen, BRIEF_ENVELOPE))
     response = server.handle(_call({"repo_path": ".", "base_ref": "main"}))
     assert response is not None
-    assert seen == [{"repo_path": ".", "base_ref": "main", "output_format": "markdown"}]
+    # The brief is requested with its analysis beside it, so an oversized one can be re-rendered.
+    assert seen == [{"repo_path": ".", "base_ref": "main", "output_format": "both"}]
     result = response["result"]
     assert result["isError"] is False
     assert result["content"] == [
@@ -165,10 +166,11 @@ def test_an_analysis_failure_is_an_error_result_with_the_stable_payload() -> Non
 
 
 def test_missing_arguments_get_only_the_transport_default() -> None:
+    """No arguments means the default brief, requested as `both` to keep the analysis at hand."""
     seen: list[dict[str, Any]] = []
     server = McpServer(_recording_handler(seen, {"success": False}))
     server.handle(_request("tools/call", {"name": TOOL_NAME}))
-    assert seen == [{"output_format": "markdown"}]
+    assert seen == [{"output_format": "both"}]
 
 
 @pytest.mark.parametrize(

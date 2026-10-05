@@ -19,9 +19,10 @@ present for the host itself must not silently start a second, separately billed 
 
 Output is shaped for the host. Claude Code keeps a tool result in the conversation only up to
 a character threshold and saves anything longer to a file, so this transport defaults
-`output_format` to the Markdown brief, returns the brief as plain Markdown, and declares a
-higher threshold for its tool. Everything else — error payloads and explicit `json` or `both`
-results — is exactly what the Hermes handler returns.
+`output_format` to the Markdown brief, returns the brief as plain Markdown, declares a higher
+threshold for its tool, and shortens a brief's evidence excerpts when it would still not fit.
+Everything else — error payloads and explicit `json` or `both` results — is exactly what the
+Hermes handler returns.
 
 Stdout belongs to the protocol. While serving, `sys.stdout` is pointed at stderr so a stray
 `print` anywhere in the pipeline cannot corrupt the message stream.
@@ -37,8 +38,9 @@ from collections.abc import Callable, Mapping
 from typing import Any, BinaryIO
 
 from . import __version__
-from .models import OutputFormat
+from .models import AnalysisResult, OutputFormat
 from .plugin import DESCRIPTION, handle_analyze_semantic_diff
+from .renderer import render_markdown
 from .schemas import ANALYZE_SEMANTIC_DIFF_SCHEMA
 
 SERVER_NAME = "semantic-diff-weaver"
@@ -64,6 +66,17 @@ DEFAULT_OUTPUT_FORMAT = OutputFormat.MARKDOWN.value
 # to a file — narrowing with `include` is the answer to that, not a higher threshold.
 MAX_RESULT_CHARS = 100_000
 RESULT_SIZE_META = "anthropic/maxResultSizeChars"
+# A brief over budget is rendered again with shorter evidence excerpts, because Claude Code saves
+# an oversized result as a JSON file with the whole brief on one line: unreadable in parts, and
+# reachable only through shell tools that need approval. The budget is in UTF-8 bytes, never
+# fewer than characters, and under the declared threshold, so the brief stays in the conversation
+# however the host counts.
+BRIEF_BUDGET_BYTES = MAX_RESULT_CHARS * 95 // 100
+# Tried in order until a brief fits: characters kept from each side of each evidence excerpt,
+# then none. Findings, obligations, and every ID survive every step. The ladder is fine-grained
+# because the largest excerpt that fits is the most useful: on this repository's 122-item
+# release range, 120 characters missed the budget by about 3 KB and 80 fit.
+EXCERPT_STEPS = (400, 200, 120, 80, 40, 0)
 
 PARSE_ERROR = -32700
 INVALID_REQUEST = -32600
@@ -79,9 +92,11 @@ INSTRUCTIONS = (
 )
 
 OUTPUT_GUIDANCE = (
-    "Without output_format it returns the Markdown brief as plain text. The canonical JSON is "
-    "about twice that size, so request json or both only with include narrowed to a few files. "
-    "Narrow with include, not exclude: exclude also removes files from candidate-test discovery."
+    "Without output_format it returns the Markdown brief as plain text, with every finding and "
+    "obligation ID; a brief too large for the host has its evidence excerpts shortened. The "
+    "canonical JSON is about twice the size, so request json or both only with include narrowed "
+    "to a few files. Narrow with include, not exclude: exclude also removes files from "
+    "candidate-test discovery."
 )
 
 Handler = Callable[[dict[str, Any]], str]
@@ -180,15 +195,19 @@ class McpServer:
         if not isinstance(arguments, dict):
             raise ProtocolError(INVALID_PARAMS, "Tool arguments must be an object.")
         effective = {"output_format": DEFAULT_OUTPUT_FORMAT, **arguments}
-        text = self._handler(effective)
+        wants_brief = effective["output_format"] == OutputFormat.MARKDOWN.value
+        # A brief is requested together with its analysis, so an oversized one can be rendered
+        # again with shorter excerpts instead of analyzing twice.
+        request = (
+            {**effective, "output_format": OutputFormat.BOTH.value} if wants_brief else effective
+        )
+        text = self._handler(request)
         payload = json.loads(text)
         if payload.get("success") is False:
             # An analysis failure is a tool result, not a protocol error, so the model sees the
             # stable error code and remediation and can correct its arguments.
             return _text_result(text, is_error=True)
-        if effective["output_format"] == OutputFormat.MARKDOWN.value and isinstance(
-            payload.get("markdown"), str
-        ):
+        if wants_brief and isinstance(payload.get("markdown"), str):
             return _text_result(_brief(payload), is_error=False)
         return _text_result(text, is_error=False)
 
@@ -198,18 +217,39 @@ def _text_result(text: str, *, is_error: bool) -> dict[str, Any]:
 
 
 def _brief(envelope: dict[str, Any]) -> str:
-    """The brief as multi-line Markdown, closed by the envelope fields it does not show.
+    """The brief as Markdown, fitted to the host, closed by the envelope fields it hides.
 
-    Plain Markdown rather than the one-line JSON envelope: it is what the model reads, it is
-    smaller without the escaping, and if the host still saves it to a file, that file can be
-    read in parts — reads page by line, and a single-line JSON file is one unpageable line.
-    The analysis ID is pattern-validated, so the closing comment cannot be broken out of.
+    Plain Markdown rather than the JSON envelope, because it is what the model reads and it is
+    smaller without the escaping. The analysis ID is pattern-validated, so the closing comment
+    cannot be broken out of.
     """
+    analysis = envelope.get("analysis")
+    identity = analysis if isinstance(analysis, dict) else envelope
     footer = (
-        f"<!-- analysis_id={envelope.get('analysis_id')} "
+        f"<!-- analysis_id={identity.get('analysis_id')} "
         f"schema_version={envelope.get('schema_version')} -->"
     )
-    return f"{envelope['markdown'].rstrip()}\n\n{footer}\n"
+    return f"{_fitted_markdown(envelope['markdown'], analysis).rstrip()}\n\n{footer}\n"
+
+
+def _size(text: str) -> int:
+    return len(text.encode("utf-8"))
+
+
+def _fitted_markdown(markdown: str, analysis: Any) -> str:
+    """The brief, rendered again with shorter evidence excerpts while it is over budget.
+
+    If even no excerpts are too much, the smallest rendering is returned: narrowing with
+    `include` is the remedy then, and the tool description says so.
+    """
+    if _size(markdown) <= BRIEF_BUDGET_BYTES or not isinstance(analysis, dict):
+        return markdown
+    result = AnalysisResult.model_validate(analysis)
+    for limit in EXCERPT_STEPS:
+        markdown = render_markdown(result, excerpt_chars=limit)
+        if _size(markdown) <= BRIEF_BUDGET_BYTES:
+            break
+    return markdown
 
 
 def _valid_id(value: Any) -> bool:
