@@ -10,7 +10,9 @@ request/config -> repository + resolved refs -> changed committed blobs -> AST d
 ```
 
 `plugin.py` is the only Hermes adapter. Registration closes over `ctx.llm` but performs no Git or LLM
-work. `service.py` orchestrates modules without importing Hermes internals. The `git_diff/` package is the sole
+work. `mcp_server.py` serves the same tool and handler to Claude Code over MCP stdio, always in
+deterministic mode, and `cli.py` is the standalone command line; all three share `service.analyze`
+and the public error payload. `service.py` orchestrates modules without importing Hermes internals. The `git_diff/` package is the sole
 subprocess boundary and invokes only Git with argument arrays, resolved commit IDs, timeouts, bounded
 captured input/output, disabled external diff/text conversion, and `shell=False`. Tree metadata is
 collected once per revision and eligible object IDs are read through bounded `cat-file` batches;

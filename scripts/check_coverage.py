@@ -24,6 +24,9 @@ CRITICAL_MODULES = (
     "coverage_map.py",
     "errors.py",
     "git_diff/",
+    # The MCP transport decodes untrusted JSON-RPC from the host and fixes the working
+    # directory that authorization defaults to — the plugin.py boundary, over stdio.
+    "mcp_server.py",
     "obligations.py",
     "path_policy.py",
     "plugin.py",

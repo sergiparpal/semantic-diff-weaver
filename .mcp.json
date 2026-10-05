@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "semantic-diff-weaver": {
+      "command": "uvx",
+      "args": ["--from", "${CLAUDE_PLUGIN_ROOT}", "semantic-diff-weaver-mcp"]
+    }
+  }
+}
