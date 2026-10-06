@@ -13,6 +13,12 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Feature:** comparing a commit with itself says so. When the base and head refs resolve to the
+  same commit — `main` and `HEAD` before a change is committed — the result's 0/100 risk at 100%
+  confidence read like a clean review. It now carries a warning that nothing was compared and that
+  only committed changes are analyzed. It stays a successful result rather than an error, because
+  it is accurate, and nothing else in it changes.
+
 - **Fix:** a test named after a changed module is now its candidate. Code with one module per
   tool — each exporting a generic `HANDLER`, loaded with `importlib` — gave candidate mapping
   nothing to match, so a handler's own tests were never proposed while the token `handler`
