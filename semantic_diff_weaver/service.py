@@ -566,6 +566,14 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
     """Analyze committed Python changes and return the requested transport dictionary."""
     request, repo, base_commit, head_commit, config, config_warnings = _bootstrap(arguments)
     state = _PipelineState(warnings=list(config_warnings))
+    if base_commit == head_commit:
+        # Accurate, so not an error, but zero risk at full confidence reads like a clean review
+        # when the change was simply left uncommitted, which is the usual way to get here.
+        state.warnings.append(
+            "The base and head refs resolve to the same commit, so there was nothing to compare. "
+            "Only committed changes are analyzed: commit the change and choose a base ref that "
+            "predates it, such as the branch it will merge into."
+        )
     coverage = _load_coverage(config, state)
     collection = collect_diff(repo, base_commit, head_commit, config)
     state.warnings.extend(collection.warnings)

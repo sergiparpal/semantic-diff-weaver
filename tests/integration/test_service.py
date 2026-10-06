@@ -46,6 +46,27 @@ def test_no_python_change_is_successful_empty_analysis(repo_factory) -> None:
     assert any("no included changed Python" in item for item in result["limitations"])
 
 
+def test_comparing_a_commit_with_itself_warns_that_nothing_was_compared(repo_factory) -> None:
+    """Two names for one commit, like `main` and `HEAD` before the change is committed."""
+    repo, base, head = repo_factory(
+        {"api.py": "def allowed(x):\n    return x < 5\n"},
+        {"api.py": "def allowed(x):\n    return x <= 5\n"},
+    )
+    same = analyze(
+        {"repo_path": str(repo), "base_ref": head, "head_ref": "HEAD", "output_format": "both"}
+    )
+    assert same["success"] is True
+    assert same["analysis"]["summary"]["changed_files"] == 0
+    assert any("resolve to the same commit" in item for item in same["analysis"]["warnings"])
+    assert "resolve to the same commit" in same["markdown"]
+
+    compared = analyze(
+        {"repo_path": str(repo), "base_ref": base, "head_ref": "HEAD", "output_format": "json"}
+    )
+    assert compared["behavior_changes"]
+    assert not any("same commit" in item for item in compared["warnings"])
+
+
 def test_empty_analysis_does_not_build_a_test_index(repo_factory, monkeypatch) -> None:
     repo, base, head = repo_factory({"README.md": "old\n"}, {"README.md": "new\n"})
 
