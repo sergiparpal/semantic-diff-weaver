@@ -190,11 +190,13 @@ def collect_diff(
             excluded[reason] += 1
             continue
         path = changed.path
-        if not is_included(path, config.paths.include, config.paths.exclude):
-            excluded["path_filter"] += 1
-            continue
+        # The extension first: the default include is `**/*.py`, so the path filter would
+        # otherwise claim every non-Python file, even in a repository that configured no paths.
         if not path.endswith(".py"):
             excluded["unsupported_extension"] += 1
+            continue
+        if not is_included(path, config.paths.include, config.paths.exclude):
+            excluded["path_filter"] += 1
             continue
         additions, deletions, binary = stats.get(path, (0, 0, False))
         changed.additions = additions

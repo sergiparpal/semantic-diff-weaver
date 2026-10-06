@@ -13,6 +13,14 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Fix:** a changed file that is not Python is excluded as not Python. The default include is
+  `**/*.py` and the path filter ran first, so every Markdown or YAML change counted as
+  `path_filter` and the brief called it "outside the configured include and exclude paths", even
+  in a repository that configured none — which read as a configuration problem. The extension is
+  now checked first, so such files count as `unsupported_extension` ("not Python"), and
+  `path_filter` keeps the Python files the include and exclude patterns reject. The same files are
+  excluded and every finding is unchanged; only the reason in `scope.excluded_counts` moves.
+
 - **Feature:** comparing a commit with itself says so. When the base and head refs resolve to the
   same commit — `main` and `HEAD` before a change is committed — the result's 0/100 risk at 100%
   confidence read like a clean review. It now carries a warning that nothing was compared and that

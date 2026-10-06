@@ -1253,7 +1253,7 @@
       "changed_lines": 2,
       "changed_symbols": 0,
       "excluded_counts": {
-        "path_filter": 1
+        "unsupported_extension": 1
       },
       "omitted": [],
       "truncated": false

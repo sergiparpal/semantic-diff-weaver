@@ -13,7 +13,7 @@ def test_add_delete_and_no_change_paths(repo_factory) -> None:
     )
     result = collect_diff(GitRepository.open(str(repo_path)), base, head, WeaverConfig())
     assert {item.status[:1] for item in result.files} == {"A", "D"}
-    assert result.excluded_counts["path_filter"] == 1
+    assert result.excluded_counts == {"unsupported_extension": 1}
 
 
 def test_secret_and_binary_files_are_excluded(repo_factory) -> None:
