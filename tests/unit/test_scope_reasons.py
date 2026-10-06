@@ -62,16 +62,22 @@ def _brief(repo_factory, old: dict[str, str], new: dict[str, str]) -> list[str]:
 
 def test_the_brief_names_each_omission_and_exclusion(repo_factory) -> None:
     # A rename with an unchanged body is a low-risk refactor, which the default policy omits.
+    # Vendored Python is outside the default paths; the notes are not Python at all, which is
+    # their reason even though the default `**/*.py` include would reject them too.
     old = {"app.py": "def total(items):\n    return sum(items)\n"}
     new = {
         "app.py": "def compute_total(items):\n    return sum(items)\n",
         "NOTES.md": "Renamed total.\n",
+        "vendor/client.py": "def call():\n    return 1\n",
     }
     lines = _brief(repo_factory, old, new)
     assert (
         "**Omitted:** 1 low-risk refactor(s) hidden by `emit_low_risk_refactors: false`." in lines
     )
-    assert "**Excluded files:** 1 outside the configured include and exclude paths." in lines
+    assert (
+        "**Excluded files:** 1 outside the configured include and exclude paths · 1 not Python."
+        in lines
+    )
 
 
 def test_a_brief_with_nothing_left_out_adds_no_reason_lines(repo_factory) -> None:
