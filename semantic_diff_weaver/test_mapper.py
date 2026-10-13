@@ -25,6 +25,7 @@ from .semantic_candidates import SemanticCandidate
 from .taxonomy import CATEGORY_PROFILES
 
 TOKEN_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+CAMEL_BOUNDARY_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 MAX_TEST_INDEX_FILES = 500
 MAX_TEST_INDEX_BYTES = 8 * 1024 * 1024
 
@@ -34,8 +35,11 @@ class IndexedTest:
     path: str
     symbol: str
     imports: frozenset[str]
+    # Words as well as whole identifiers: category terminology reads these.
     name_tokens: frozenset[str]
     body_tokens: frozenset[str]
+    # Whole identifiers, for whether the body uses a changed symbol or module by name.
+    body_identifiers: frozenset[str] = frozenset()
 
 
 @dataclass
@@ -70,6 +74,23 @@ def _tokens(text: str) -> frozenset[str]:
     return frozenset(tokens)
 
 
+def _bare(identifier: str) -> str:
+    """An identifier casefolded and without the underscores that make it private.
+
+    A test's `_serve(...)` helper wraps `serve`, so the two read alike. A dunder such as
+    `__init__` is a protocol name rather than a word, and stays whole.
+    """
+    folded = identifier.casefold()
+    if len(folded) > 4 and folded.startswith("__") and folded.endswith("__"):
+        return folded
+    return folded.strip("_")
+
+
+def _identifiers(text: str) -> frozenset[str]:
+    """Whole identifiers, so `run_args_from` does not read as `run`."""
+    return frozenset(name for item in TOKEN_RE.findall(text) if (name := _bare(item)))
+
+
 def _test_functions(
     body: list[ast.stmt], prefix: str = ""
 ) -> Iterator[tuple[str, ast.FunctionDef | ast.AsyncFunctionDef]]:
@@ -90,16 +111,20 @@ def _index_source(path: str, source: str) -> list[IndexedTest]:
     imports_visitor = _ImportVisitor()
     imports_visitor.visit(tree)
     imports = frozenset(item.casefold() for item in imports_visitor.imports)
-    return [
-        IndexedTest(
-            path=path,
-            symbol=symbol,
-            imports=imports,
-            name_tokens=_tokens(node.name),
-            body_tokens=_tokens(redact_text(ast.unparse(node), max_chars=4000)),
+    indexed: list[IndexedTest] = []
+    for symbol, node in _test_functions(tree.body):
+        body_text = redact_text(ast.unparse(node), max_chars=4000)
+        indexed.append(
+            IndexedTest(
+                path=path,
+                symbol=symbol,
+                imports=imports,
+                name_tokens=_tokens(node.name),
+                body_tokens=_tokens(body_text),
+                body_identifiers=_identifiers(body_text),
+            )
         )
-        for symbol, node in _test_functions(tree.body)
-    ]
+    return indexed
 
 
 def defines_tests(source: str) -> bool:
@@ -200,6 +225,17 @@ def _distinctive_stem(path: str) -> str | None:
     return stem
 
 
+def _name_words(name: str) -> str | None:
+    """A changed symbol's name as the snake_case words a test name spells it in.
+
+    `RunArgs` and `_run_args` both read `run_args`. A dunder such as `__init__` reads as
+    nothing, since `init` in a test name is about something else, and so does a synthetic name
+    such as `<module>`.
+    """
+    words = _bare(CAMEL_BOUNDARY_RE.sub("_", name))
+    return words if words.isidentifier() and not words.startswith("_") else None
+
+
 @lru_cache(maxsize=16384)
 def _mirrored(source_path: str, test_path: str) -> bool:
     source = PurePosixPath(source_path)
@@ -233,8 +269,7 @@ def map_candidate_tests(
         )
         for mapping in config.mapping
     ]
-    name_token_positions: dict[str, set[int]] = defaultdict(set)
-    body_token_positions: dict[str, set[int]] = defaultdict(set)
+    body_identifier_positions: dict[str, set[int]] = defaultdict(set)
     # ``imported.endswith(f".{symbol}")`` is an exact match on a dotted import's last segment,
     # so it indexes directly. Keeping it out of the module scan below means the import signal
     # costs one pass per distinct module rather than one per distinct (module, symbol) pair.
@@ -242,10 +277,8 @@ def map_candidate_tests(
     all_tokens_by_test: list[frozenset[str]] = []
     for position, test in enumerate(tests):
         all_tokens_by_test.append(test.name_tokens | test.body_tokens)
-        for token in test.name_tokens:
-            name_token_positions[token].add(position)
-        for token in test.body_tokens:
-            body_token_positions[token].add(position)
+        for identifier in test.body_identifiers:
+            body_identifier_positions[identifier].add(position)
         for import_path in test.imports:
             _, dot, leaf = import_path.rpartition(".")
             if dot:
@@ -282,10 +315,10 @@ def map_candidate_tests(
         )
 
     @cache
-    def module_named_for(stem: str) -> frozenset[int]:
+    def named_for(words: str) -> frozenset[int]:
         # Whole words only: `register_cooked_meal` names `test_register_cooked_meal_rollback`,
         # but `cooked_meal` must not match `test_uncooked_meals`.
-        marker = f"_{stem}_"
+        marker = f"_{words}_"
         return frozenset(
             position
             for position, test in enumerate(tests)
@@ -300,7 +333,8 @@ def map_candidate_tests(
         )
 
     for candidate_index, candidate in enumerate(candidates):
-        symbol_token = candidate.symbol.rsplit(".", 1)[-1].casefold()
+        name = candidate.symbol.rsplit(".", 1)[-1]
+        symbol_token = name.casefold()
         module = _module_name(candidate.path).casefold()
         mapped = mapped_for(candidate.path)
         mirrored = mirrored_for(candidate.path)
@@ -308,14 +342,25 @@ def map_candidate_tests(
         imported = module_imported_for(module) | (
             import_leaf_positions.get(symbol_token, empty) if symbol_token else empty
         )
-        named = name_token_positions.get(symbol_token, empty) if symbol_token else empty
-        bodied = body_token_positions.get(symbol_token, empty) if symbol_token else empty
+        # Whole identifiers: by its words, `run` was in the body of every test that called
+        # `run_args_from(...)`, and every test name was in its own body through the `def` line.
+        body_key = _bare(name)
+        bodied = body_identifier_positions.get(body_key, empty) if body_key else empty
+        # Whole words in sequence, as for a module: by single words, a compound name such as
+        # `pr_number` could never match `test_pr_number_rejects_zero`.
+        words = _name_words(name)
+        named = named_for(words) if words else empty
+        if words and "_" not in words:
+            # A single word turns up in test names about something else — `run` in
+            # `test_evaluate_gets_its_options_as_run_args` — so it names the symbol only in a
+            # test whose body uses the symbol too.
+            named = named & bodied
         stem = _distinctive_stem(candidate.path)
-        module_named = module_named_for(stem) if stem else empty
+        module_named = named_for(stem) if stem else empty
         # The body only confirms a test already named after the module. On its own a module
         # mention is everywhere — this suite writes `mcp_server.X` in tests of anything — and
         # with the package-import rule it promoted unrelated tests over the real ones.
-        module_bodied = module_named & body_token_positions.get(stem, empty) if stem else empty
+        module_bodied = module_named & body_identifier_positions.get(stem, empty) if stem else empty
         terminology = terminology_for(candidate.category)
         ranked: list[CandidateTest] = []
         # Only a structural hit can produce a candidate, so tests outside this union would
