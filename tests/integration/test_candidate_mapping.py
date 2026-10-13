@@ -316,6 +316,48 @@ def test_a_test_reaches_a_changed_method_through_an_instance_another_module_hold
     }
 
 
+def test_a_test_reaches_a_change_in_a_module_it_loads_with_importlib(repo_factory) -> None:
+    """`meal-manager`'s integration tests load each handler with `importlib` through a helper."""
+    tests = (
+        "import importlib\nfrom pathlib import Path\n\n"
+        "_PLUGIN_DIR = Path(__file__).resolve().parent\n\n\n"
+        "def _load_handler(module_suffix):\n"
+        "    mod = importlib.import_module(f'.src.handlers.{module_suffix}', _PLUGIN_DIR.name)\n"
+        "    return mod.HANDLER\n\n\n"
+        "add_dish = _load_handler('add_dish')\n"
+        "list_dishes = _load_handler('list_dishes')\n\n\n"
+        "def test_a_dish_is_added():\n    assert add_dish({'name': ' x '}) == 'x'\n\n\n"
+        "def test_no_dish_is_listed():\n    assert list_dishes({}) == []\n"
+    )
+    add_dish = "def _normalize(name):\n    return name.{}()\n\n\n"
+    add_dish += "def HANDLER(args):\n    return _normalize(args['name'])\n"
+    unchanged = {
+        "__init__.py": "",
+        "src/__init__.py": "",
+        "src/handlers/__init__.py": "",
+        "src/handlers/list_dishes.py": "def HANDLER(args):\n    return []\n",
+        "test_integration.py": tests,
+    }
+    repo, base, head = repo_factory(
+        {**unchanged, "src/handlers/add_dish.py": add_dish.format("strip")},
+        {**unchanged, "src/handlers/add_dish.py": add_dish.format("lstrip")},
+    )
+    result = analyze(
+        {"repo_path": str(repo), "base_ref": base, "head_ref": head, "output_format": "json"}
+    )
+    candidates = {
+        (test["path"], test["symbol"]): test["match_reasons"]
+        for obligation in result["test_obligations"]
+        for test in obligation["candidate_existing_tests"]
+    }
+    assert candidates == {
+        ("test_integration.py", "test_a_dish_is_added"): [
+            "direct module or symbol import",
+            "changed symbol reached through calls",
+        ]
+    }
+
+
 def test_a_test_that_runs_the_package_covers_its_changed_main_module(repo_factory) -> None:
     """`python -m pkg` is how a test reaches `pkg/__main__.py`; nothing imports it."""
     test_main = (

@@ -50,7 +50,10 @@ batches the call ceiling could not accommodate or that retries left unvisited wi
 `model_input_symbol_limit` for a single symbol whose payload cannot fit one call, and
 `model_evidence_limit` for a symbol whose evidence was truncated to fit.
 A bounded, redacted committed README excerpt may provide repository purpose context. `test_mapper.py`
-parses committed tests statically and always labels matches as unverified candidates. Tests that
+parses committed tests statically and always labels matches as unverified candidates. A test
+imports what its file imports outside test functions and what its own body imports, including
+modules loaded with `importlib.import_module` under a name the file writes out, and the names its
+file binds to what such a load returns. Tests that
 match only through evidence about their file — a mapping, a mirrored name, an import, a run, or a
 package import — cannot be told apart by it, so several of them stand as one candidate for the
 file, with the symbol `<module>`. `call_graph.py` reads the head revision of the modules tests

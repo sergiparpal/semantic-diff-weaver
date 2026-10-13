@@ -13,6 +13,19 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Feature:** a test that loads a module with `importlib` is related to it. `meal-manager`'s tests
+  load everything that way, `importlib.import_module(".src.dish", _PLUGIN_DIR.name)` and a
+  `_load_handler("add_dish")` helper that formats the name, so no test related to any of its
+  modules. The test index now reads `importlib.import_module` calls whose name the file writes
+  out — a literal, a module-level constant, or an f-string or concatenation of those, including a
+  same-file helper's argument at each call — resolving a relative name against the package given,
+  or the test file's own when that is known only at run time, and records what each name the file
+  assigns from one stands for: `add_dish = _load_handler("add_dish")` is
+  `src.handlers.add_dish.HANDLER`. An import inside a test function, of either kind, now belongs to
+  that test alone. On `meal-manager`'s `8894749`, 60 of 91 findings gain their first candidate
+  tests and 83 risk scores fall, the overall from 62 to 57; this repository changes 2 candidate
+  lists, through the imports inside tests, and `distiller` none.
+
 - **Fix:** an attribute a method reads on `self` is a member of its own class. A class's members
   know whatever any of them knows, so once `meal-manager`'s repositories kept the shared
   `DataDirLock` as `self.lock`, every `self.path` they read, their own data file, reached the
