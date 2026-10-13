@@ -118,6 +118,18 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-10-13, pooled candidate reasons)
+
+An obligation that stands for several findings pools their candidate tests. For a test more than
+one of them matched, it kept the best score but the union of every match's reasons, so the
+reasons stopped explaining the score. On `distiller` `main..skeleton`,
+`test_an_unexpected_failure_is_one_line_that_names_only_its_class` showed 0.60 with five reasons
+worth 0.95, drawn from its matches for `cli.main` and for `messages.unexpected_failure`. A pooled
+test now keeps its best match whole, reasons included, and on a tie the first one pooled.
+
+Measured: `distiller`'s two such candidates now add up, and `meal-manager` and this repository's
+`v0.3.0..main` had none. No candidate list, score, or risk changes.
+
 ## Output-affecting corrections (2026-10-13, file-level candidates)
 
 A mirrored file name, an import, a configured mapping, a `python -m` run, and a package import
