@@ -13,6 +13,12 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Fix:** a candidate test pooled into an obligation from several findings keeps the reasons
+  of its best match. It kept the best score but the union of every match's reasons, so the
+  reasons no longer explained the score: on `distiller` one test showed 0.60 with five reasons
+  worth 0.95. Every listed candidate's reasons now add up to its score; which tests are listed,
+  and every score, are unchanged.
+
 - **Fix:** tests matched only through their file stand as that file. A mirrored file name, an
   import, a configured mapping, a `python -m` run, and a package import are evidence about a test
   file and hold for every test in it, yet each test was listed as a candidate of its own and the

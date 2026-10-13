@@ -204,6 +204,41 @@ def test_a_grouped_overflow_obligation_reports_its_least_tested_behavior(
     assert grouped.coverage_status is expected
 
 
+@pytest.mark.parametrize("strong_first", [True, False])
+def test_a_pooled_candidate_keeps_the_reasons_of_its_best_match(strong_first: bool) -> None:
+    """Two behaviors matching one test for different reasons used to union them.
+
+    Beside the best score, that union no longer added up: 0.60 with reasons worth 0.80.
+    """
+    weak = CandidateTest(
+        path="tests/test_cli.py",
+        symbol="test_options_become_run_args",
+        match_score=0.5,
+        match_reasons=["mirrored source/test path", "direct module or symbol import"],
+    )
+    strong = CandidateTest(
+        path="tests/test_cli.py",
+        symbol="test_options_become_run_args",
+        match_score=0.55,
+        match_reasons=[
+            "direct module or symbol import",
+            "changed symbol token in test name",
+            "changed symbol token in bounded test body",
+        ],
+    )
+    first, second = (strong, weak) if strong_first else (weak, strong)
+    obligations, _ = generate_obligations(
+        [
+            behavior(BehaviorCategory.BOUNDARY, index=1),
+            behavior(BehaviorCategory.BOUNDARY, index=2),
+        ],
+        {"bc-001": [first], "bc-002": [second]},
+        False,
+        WeaverConfig().rules,
+    )
+    assert all(item.candidate_existing_tests == [strong] for item in obligations)
+
+
 def test_duplicate_llm_obligations_are_semantically_deduplicated() -> None:
     suggestion = SuggestedScenario(
         evidence_ids=("ev-001",),

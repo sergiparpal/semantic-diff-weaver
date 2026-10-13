@@ -32,17 +32,18 @@ REVIEW_SCENARIO_RELEVANCE = 80
 def _merge_candidate_tests(
     current: list[CandidateTest], incoming: list[CandidateTest]
 ) -> list[CandidateTest]:
+    """Pool candidate tests, keeping for each its strongest match and the reasons for it.
+
+    Two behaviors can match one test for different reasons. Their union shown beside the best
+    score no longer added up to it: a test at 0.60 listed four reasons worth 0.80.
+    """
     merged: dict[tuple[str, str], CandidateTest] = {
         (item.path, item.symbol): item.model_copy(deep=True) for item in current
     }
     for item in incoming:
         key = (item.path, item.symbol)
-        if key not in merged:
+        if key not in merged or item.match_score > merged[key].match_score:
             merged[key] = item.model_copy(deep=True)
-            continue
-        existing = merged[key]
-        existing.match_score = max(existing.match_score, item.match_score)
-        existing.match_reasons = sorted(set([*existing.match_reasons, *item.match_reasons]))
     return sorted(merged.values(), key=lambda item: (-item.match_score, item.path, item.symbol))
 
 
