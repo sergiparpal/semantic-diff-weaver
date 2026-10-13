@@ -118,6 +118,55 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Candidate tests through other modules' calls (2026-10-13)
+
+Reach stopped at the module a test imported. A test of `distiller`'s `cli.main` reached
+`_parser` but not `messages.unexpected_failure`, which `main` calls, and a helper changed beneath
+an unchanged module could not count a test reaching it through that module, because only
+changed files were read.
+
+`call_graph.py` now reads modules at the head revision: the ones tests import and the changed
+ones first, then whatever their imports name, breadth first, until 500 modules, 8 MiB, or five
+seconds, each under the AST stage's parse budgets. It keeps, for every symbol, the names and the
+attribute chains rooted at a name that its code uses, and for every module what each name its
+imports bind stands for, relative imports resolved against the package. A use reaches a symbol
+in its own module by name, as before, and one in another module only through an import:
+`messages.unexpected_failure` resolves through `from distiller import messages`, and a package
+that re-exports a name, as `ast_diff/__init__.py` does, is followed to its definition. A name
+that no import binds is not resolved to another module, so `store.get(...)` on some object
+never reaches a `get` function the module happens to import. Loading a module loads what it
+imports, so their top-level code is reached too, and a test starts from the modules it imports
+and the `__main__.py` it runs. The references the previous section had the AST stage record
+moved here, which reads changed and unchanged modules alike.
+
+A first version scored a test that reaches a symbol only through other modules 0.35, on top of
+the package import and category terminology. On this repository's `v0.3.0..main` that made
+end-to-end tests strong candidates for nearly everything — `service.analyze` calls into every
+stage, and static reach takes every branch — and moved 70 risk scores, so a test of the MCP
+transport became the first candidate for `obligations._group_overflow`. Call distance did not
+separate them: integration tests calling `analyze` are two calls from it. What did was weight.
+Reaching a module through another is what importing its package could only suggest, so the
+package import no longer adds to such a test, and category terminology, which describes what the
+distant test is about rather than the change, neither. Such a test scores 0.35, a candidate but
+never a strong one alone. Reaching the symbol from a module the test imports now scores 0.15
+instead of 0.10, so an import plus that reach, 0.40, ranks above a test that only reaches it from
+afar.
+
+The graph's bounds matter twice. A module that does not parse, one past a bound, and a slow
+repository leave the graph incomplete, with a warning, and an incomplete graph rules no private
+helper untested, since the reach it lacks could be the one that tests it. It never stops a reach
+it did find from counting.
+
+Measured: on `distiller` `main..skeleton`, `unexpected_failure` gains every test of `cli.py` at
+0.35, its own test reaching 0.55 with its name, and `evaluate.run` and `report.run` gain the test
+that runs `python -m distiller`; no risk score changes. `meal-manager` (`8894749`, and
+`v0.2.0..HEAD` over `src/**`) is unchanged. This repository's `v0.3.0..main` changes 121 of 156
+candidate lists, mostly adding tests that reach a symbol from afar below the ones that reach it
+from its module, and two risk scores: `SymbolReferences` gains its first candidates, and
+`authorized_roots`, whose tests are named after it and reach it, becomes a strong candidate. The
+pipeline over this repository takes 0.2 to 0.4 seconds longer. The 17-case corpus has no test file
+and is unchanged.
+
 ## Candidate tests through a module's own calls (2026-10-13)
 
 Once file-level evidence stood as the test file, a helper no test names, such as `distiller`'s

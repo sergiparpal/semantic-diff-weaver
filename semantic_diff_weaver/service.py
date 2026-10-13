@@ -12,6 +12,7 @@ from uuid import uuid4
 from pydantic import ValidationError
 
 from .ast_diff import AstAnalysis, StructuralDelta, analyze_ast
+from .call_graph import build_call_graph
 from .config import load_config
 from .coverage_map import CoverageMap, load_coverage, summarize
 from .errors import ErrorCode, WeaverError
@@ -649,8 +650,21 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
         else TestIndex(tests=[], incomplete=False, warnings=[])
     )
     state.warnings.extend(test_index.warnings)
+    call_graph = (
+        build_call_graph(
+            repo,
+            head_commit,
+            config,
+            imports=(name for test in test_index.tests for name in test.imports),
+            changed=(item.path for item in collection.files),
+        )
+        if test_index.tests
+        else None
+    )
+    if call_graph is not None:
+        state.warnings.extend(call_graph.warnings)
     mapped_by_index = map_candidate_tests(
-        [item.candidate for item in reportable], test_index, config, ast_result.references
+        [item.candidate for item in reportable], test_index, config, call_graph
     )
     reportable = [
         replace(item, tests=mapped_by_index.get(index, [])) for index, item in enumerate(reportable)

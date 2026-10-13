@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from semantic_diff_weaver.ast_diff import extract_symbols
+from semantic_diff_weaver.ast_diff import extract_symbols, module_references
 
 
 def test_extracts_nested_async_decorated_symbols() -> None:
@@ -99,13 +99,42 @@ def test_a_symbol_records_the_names_its_code_uses_called_or_not() -> None:
     source = (
         "import argparse\n"
         "HANDLERS = {'run': dispatch}\n\n"
+        "@command\n"
         "def build():\n"
         "    parser = argparse.ArgumentParser()\n"
         "    parser.add_argument('--pr', type=pr_number)\n"
-        "    return parser\n"
+        "    return messages.render(parser)\n"
     )
-    symbols = {item.qualified_name: item for item in extract_symbols(source)}
-    assert {"argparse", "ArgumentParser", "add_argument", "pr_number", "parser"} <= (
-        symbols["build"].references
+    module = module_references(source, package="pkg")
+    build = module.symbols["build"]
+    assert {"argparse", "ArgumentParser", "add_argument", "pr_number", "parser"} <= build.names
+    assert {"argparse.ArgumentParser", "messages.render", "parser.add_argument"} <= build.dotted
+    assert build.decorated is True
+    assert module.symbols["<module>"].names == {"HANDLERS", "dispatch"}
+    assert module.symbols["<module>"].decorated is False
+
+
+def test_imports_bind_names_to_absolute_modules_and_symbols() -> None:
+    source = (
+        "import os.path\n"
+        "import distiller.cli as cli\n"
+        "from distiller import messages\n"
+        "from . import evaluate\n"
+        "from .report import run as report_run\n"
+        "from .. import shared\n"
+        "from helpers import *\n"
+        "def main():\n"
+        "    from .lazy import load\n"
+        "    return load()\n"
     )
-    assert symbols["<module>"].references == {"HANDLERS", "dispatch"}
+    module = module_references(source, package="distiller.commands")
+    assert module.imports == {
+        "os": "os",
+        "cli": "distiller.cli",
+        "messages": "distiller.messages",
+        "evaluate": "distiller.commands.evaluate",
+        "report_run": "distiller.commands.report.run",
+        "shared": "distiller.shared",
+        "load": "distiller.commands.lazy.load",
+    }
+    assert {"os.path", "distiller", "distiller.commands.report", "helpers"} <= module.loads

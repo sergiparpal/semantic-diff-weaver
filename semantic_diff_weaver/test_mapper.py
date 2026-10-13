@@ -12,7 +12,7 @@ from itertools import pairwise
 from pathlib import PurePosixPath
 from typing import ClassVar
 
-from .ast_diff import SymbolReferences
+from .call_graph import CallGraph, Node, bare_name
 from .errors import WeaverError
 from .git_diff import GitRepository
 from .models import WHOLE_TEST_FILE, BehaviorCategory, CandidateTest, WeaverConfig
@@ -122,21 +122,9 @@ def _tokens(text: str) -> frozenset[str]:
     return frozenset(tokens)
 
 
-def _bare(identifier: str) -> str:
-    """An identifier casefolded and without the underscores that make it private.
-
-    A test's `_serve(...)` helper wraps `serve`, so the two read alike. A dunder such as
-    `__init__` is a protocol name rather than a word, and stays whole.
-    """
-    folded = identifier.casefold()
-    if len(folded) > 4 and folded.startswith("__") and folded.endswith("__"):
-        return folded
-    return folded.strip("_")
-
-
 def _identifiers(text: str) -> frozenset[str]:
     """Whole identifiers, so `run_args_from` does not read as `run`."""
-    return frozenset(name for item in TOKEN_RE.findall(text) if (name := _bare(item)))
+    return frozenset(name for item in TOKEN_RE.findall(text) if (name := bare_name(item)))
 
 
 def _code_names(node: ast.AST) -> frozenset[str]:
@@ -151,7 +139,7 @@ def _code_names(node: ast.AST) -> frozenset[str]:
             raw = child.arg
         else:
             continue
-        if name := _bare(raw):
+        if name := bare_name(raw):
             names.add(name)
     return frozenset(names)
 
@@ -195,7 +183,7 @@ def _index_source(path: str, source: str) -> list[IndexedTest]:
     runs_visitor.visit(tree)
     modules_run = frozenset(item.casefold() for item in runs_visitor.modules)
     helpers = {
-        _bare(node.name): _code_names(node)
+        bare_name(node.name): _code_names(node)
         for node in tree.body
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
         and not node.name.startswith("test")
@@ -323,7 +311,7 @@ def _name_words(name: str) -> str | None:
     nothing, since `init` in a test name is about something else, and so does a synthetic name
     such as `<module>`.
     """
-    words = _bare(CAMEL_BOUNDARY_RE.sub("_", name))
+    words = bare_name(CAMEL_BOUNDARY_RE.sub("_", name))
     return words if words.isidentifier() and not words.startswith("_") else None
 
 
@@ -350,12 +338,12 @@ def map_candidate_tests(
     candidates: list[SemanticCandidate],
     index: TestIndex,
     config: WeaverConfig,
-    references: Mapping[str, Mapping[str, SymbolReferences]] | None = None,
+    graph: CallGraph | None = None,
 ) -> dict[int, list[CandidateTest]]:
     """Return capped static candidates; terminology alone can never create a match.
 
-    ``references`` holds, per changed file, what each of its head symbols uses: with it a test
-    related to the module is followed through the module's own calls to the symbols it
+    With ``graph``, a test is followed from the modules it imports or runs through every call
+    their symbols make, into other modules through their imports, to the changed symbols it
     reaches, which no name or import in the test shows.
     """
     result: dict[int, list[CandidateTest]] = {}
@@ -436,44 +424,37 @@ def map_candidate_tests(
         return frozenset(run_positions.get(module.removesuffix(".__main__"), ()))
 
     @cache
-    def reached_for(path: str, module: str) -> dict[int, frozenset[str]]:
-        """Per test that file-level evidence relates to the module, every symbol it reaches.
+    def entries_of(position: int) -> frozenset[Node]:
+        """The symbols a test starts from: what it names in each module it imports, and the
+        top-level code of every module it imports or runs, which loading executes."""
+        if graph is None:
+            return frozenset()
+        test = tests[position]
+        entries: set[Node] = set()
+        for imported_name in test.imports:
+            found = graph.locate(imported_name)
+            if found is not None:
+                entries.add((found[0], "<module>"))
+                entries.update(
+                    (found[0], symbol)
+                    for name in test.reach_names
+                    for symbol in graph.named(found[0], name)
+                )
+        for program in test.modules_run:
+            found = graph.locate(f"{program}.__main__")
+            if found is not None and not found[1]:
+                entries.add((found[0], "<module>"))
+        return frozenset(entries)
 
-        A test reaches what it names and, from there, whatever those symbols name in turn:
-        `cli.main` calls `_run_command`, which builds `_parser`, which hands `pr_number` to
-        argparse. Loading the module runs its top-level code too.
-        """
-        symbols = references.get(path) if references else None
-        if not symbols:
-            return {}
-        by_name: dict[str, set[str]] = defaultdict(set)
-        for qualified in symbols:
-            by_name[_bare(qualified.rsplit(".", 1)[-1])].add(qualified)
-        uses = {
-            qualified: {target for name in item.names for target in by_name.get(_bare(name), ())}
-            for qualified, item in symbols.items()
-        }
-        # Making an instance runs its class's protocol methods, which nothing calls by name.
-        for qualified in symbols:
-            owner, _, leaf = qualified.rpartition(".")
-            if owner in uses and leaf.startswith("__") and leaf.endswith("__"):
-                uses[owner].add(qualified)
-        loaded = module_imported_for(module) | ran_for(module)
-        reached: dict[int, frozenset[str]] = {}
-        for position in mapped_for(path) | mirrored_for(path) | loaded:
-            pending = [
-                target for name in tests[position].reach_names for target in by_name.get(name, ())
-            ]
-            if position in loaded and "<module>" in symbols:
-                pending.append("<module>")
-            seen: set[str] = set()
-            while pending:
-                current = pending.pop()
-                if current not in seen:
-                    seen.add(current)
-                    pending.extend(uses[current] - seen)
-            reached[position] = frozenset(seen)
-        return reached
+    def reaches(position: int, path: str, ancestors: frozenset[Node], local: bool) -> bool:
+        if entries_of(position) & ancestors:
+            return True
+        # A test related to the module by its file, not its imports, starts from what it names.
+        return local and any(
+            (path, symbol) in ancestors
+            for name in tests[position].reach_names
+            for symbol in (graph.named(path, name) if graph else ())
+        )
 
     @cache
     def named_for(words: str) -> frozenset[int]:
@@ -511,7 +492,7 @@ def map_candidate_tests(
         ran = ran_for(module)
         # Whole identifiers: by its words, `run` was in the body of every test that called
         # `run_args_from(...)`, and every test name was in its own body through the `def` line.
-        body_key = _bare(name)
+        body_key = bare_name(name)
         bodied = body_identifier_positions.get(body_key, empty) if body_key else empty
         # Whole words in sequence, as for a module: by single words, a compound name such as
         # `pr_number` could never match `test_pr_number_rejects_zero`.
@@ -528,33 +509,77 @@ def map_candidate_tests(
         # mention is everywhere — this suite writes `mcp_server.X` in tests of anything — and
         # with the package-import rule it promoted unrelated tests over the real ones.
         module_bodied = module_named & body_identifier_positions.get(stem, empty) if stem else empty
-        reach = reached_for(candidate.path, module)
-        reaching = {position for position, symbols in reach.items() if candidate.symbol in symbols}
-        # Loading a module runs its top-level code, which the import or run already counted.
-        reached = reaching - bodied if candidate.symbol != "<module>" else empty
+        in_graph = (
+            graph is not None
+            and candidate.path in graph.modules
+            and candidate.symbol in graph.modules[candidate.path].symbols
+        )
+        reaching: set[int] = set()
+        if graph is not None and in_graph:
+            ancestors = graph.reaching((candidate.path, candidate.symbol))
+            local = mapped | mirrored
+            reaching = {
+                position
+                for position in range(len(tests))
+                if reaches(position, candidate.path, ancestors, position in local)
+            }
+        related = mapped | mirrored | imported | ran
+        if candidate.symbol == "<module>":
+            # Loading a module runs its top-level code, which the import or run already counted,
+            # and loading it through other modules is true of nearly every test.
+            reached = reached_elsewhere = empty
+        else:
+            reached = (reaching & related) - bodied
+            reached_elsewhere = reaching - related
+        # Reaching the module through another is what importing its package could only suggest,
+        # so the package import adds nothing more to such a test.
+        package -= reached_elsewhere
         terminology = terminology_for(candidate.category)
+        # Category words confirm a test tied to the change itself. In one that reaches it only
+        # from afar they describe whatever that test is about, and they had end-to-end tests
+        # outrank a unit test that imports the module and reaches the symbol.
+        terminology -= reached_elsewhere - (
+            mapped | mirrored | imported | ran | named | bodied | module_named
+        )
         ranked: list[CandidateTest] = []
         # A mapping, a mirrored name, an import, a run, or a package is evidence about a test
         # file, shared by every test in it, so it cannot single out the tests that exercise the
         # changed symbol. Tests matched by it alone stand as their file: one `cli.py` helper got
         # the first five of eight tests in `test_cli.py`, alphabetically, as five candidates.
-        specific = named | bodied | module_named | reached
+        specific = named | bodied | module_named | reached | reached_elsewhere
         by_file: dict[str, list[CandidateTest]] = defaultdict(list)
         # Only a structural hit can produce a candidate, so tests outside this union would
         # score identically to being skipped. Terminology alone never clears the threshold.
-        structural = mapped | mirrored | imported | package | ran | named | bodied | module_named
-        module_symbols = references.get(candidate.path) if references else None
+        structural = (
+            mapped
+            | mirrored
+            | imported
+            | package
+            | ran
+            | named
+            | bodied
+            | module_named
+            | reached_elsewhere
+        )
         if (
-            reach
-            and module_symbols
-            and candidate.symbol in module_symbols
+            graph is not None
+            and in_graph
+            and not graph.incomplete
             and _is_private(name)
-            and not module_symbols[candidate.symbol].decorated
+            and not graph.modules[candidate.path].symbols[candidate.symbol].decorated
             and not (reaching or bodied or named)
+            and (
+                related
+                or any(
+                    entries_of(position) & graph.reaching((candidate.path, "<module>"))
+                    for position in range(len(tests))
+                )
+            )
         ):
-            # A private helper is reached only through its own module, so when no test related
-            # to the module reaches or names it, neither their file nor a test named after the
-            # module is evidence that it is tested. Only a configured mapping still counts.
+            # A private helper is called only through its own module. When tests load the
+            # module and none reaches or names the helper, neither their file nor a test named
+            # after the module is evidence that it is tested; only a configured mapping counts.
+            # A graph cut short by its bounds rules nothing out.
             structural = mapped
         for test_position in sorted(structural):
             test = tests[test_position]
@@ -582,10 +607,16 @@ def map_candidate_tests(
             if test_position in bodied:
                 score += 0.10
                 reasons.append("changed symbol token in bounded test body")
-            # As strong as a body mention: the test reaches the symbol through what it calls.
+            # More than a body mention: the test exercises the symbol through what it calls.
             if test_position in reached:
-                score += 0.10
+                score += 0.15
                 reasons.append("changed symbol reached through calls")
+            # A candidate on its own, never a strong one: static reach through an orchestrator
+            # takes every branch, so a test calling `service.analyze` reaches nearly everything.
+            # It stays below a test that imports the module and reaches the symbol (0.40).
+            if test_position in reached_elsewhere:
+                score += 0.35
+                reasons.append("changed symbol reached through another module's calls")
             # As strong as a mirrored file name: the test is named after the changed module.
             if test_position in module_named:
                 score += 0.25

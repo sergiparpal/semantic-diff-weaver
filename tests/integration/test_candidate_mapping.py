@@ -218,6 +218,33 @@ def test_a_helper_the_tests_reach_is_told_apart_from_one_nothing_calls(repo_fact
     } == {"no_candidate_found"}
 
 
+def test_a_test_reaches_a_change_through_a_module_the_diff_leaves_alone(repo_factory) -> None:
+    """`test_api.py` calls `api.handle`, unchanged, which calls the changed `utils._normalize`."""
+    api = "from shop import utils\n\n\ndef handle(order):\n    return utils._normalize(order)\n"
+    tests = (
+        "import shop.api\n\ndef test_an_order_is_handled():\n    assert shop.api.handle({}) == {}\n"
+    )
+    unchanged = {"src/shop/__init__.py": "", "src/shop/api.py": api, "tests/test_api.py": tests}
+    repo, base, head = repo_factory(
+        {**unchanged, "src/shop/utils.py": "def _normalize(order):\n    return order\n"},
+        {**unchanged, "src/shop/utils.py": "def _normalize(order):\n    return dict(order)\n"},
+    )
+    result = analyze(
+        {"repo_path": str(repo), "base_ref": base, "head_ref": head, "output_format": "json"}
+    )
+    assert result["scope"]["analyzed_files"] == ["src/shop/utils.py"]
+    candidates = {
+        (test["path"], test["symbol"]): test["match_reasons"]
+        for obligation in result["test_obligations"]
+        for test in obligation["candidate_existing_tests"]
+    }
+    assert candidates == {
+        ("tests/test_api.py", "test_an_order_is_handled"): [
+            "changed symbol reached through another module's calls"
+        ]
+    }
+
+
 def test_a_test_that_runs_the_package_covers_its_changed_main_module(repo_factory) -> None:
     """`python -m pkg` is how a test reaches `pkg/__main__.py`; nothing imports it."""
     test_main = (

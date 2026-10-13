@@ -5,11 +5,12 @@ from __future__ import annotations
 import ast
 import hashlib
 from collections import Counter
+from collections.abc import Iterator
 
 from ..path_policy import redact_text
 from . import limits
 from .limits import AstBudget
-from .types import CategoryProbe, SymbolSnapshot
+from .types import CategoryProbe, ModuleReferences, SymbolReferences, SymbolSnapshot
 
 
 class AstResourceLimit(ValueError):
@@ -346,21 +347,6 @@ def module_display(body: list[ast.stmt]) -> str:
     return "\n".join(lines) or "module"
 
 
-def referenced_names(node: ast.AST) -> frozenset[str]:
-    """The identifiers a symbol's code uses — names and attributes, called or not.
-
-    A reference rather than a call, because `type=pr_number` hands a function to argparse and
-    `{"x": _handle_x}` to a dispatcher, and either calls it later.
-    """
-    names: set[str] = set()
-    for child in ast.walk(node):
-        if isinstance(child, ast.Name):
-            names.add(child.id)
-        elif isinstance(child, ast.Attribute):
-            names.add(child.attr)
-    return frozenset(names)
-
-
 def snapshot_symbol(node: ast.AST, qualified_name: str, kind: str) -> SymbolSnapshot:
     body = list(getattr(node, "body", []))
     visitor = FeatureVisitor(node)
@@ -395,8 +381,59 @@ def snapshot_symbol(node: ast.AST, qualified_name: str, kind: str) -> SymbolSnap
         node_inventory=node_inventory(body),
         probes={name: tuple(values) for name, values in visitor.probes.items()},
         display=display,
-        references=referenced_names(node),
     )
+
+
+def _symbol_nodes(
+    body: list[ast.stmt], prefix: str = "", *, parent_is_class: bool = False
+) -> Iterator[tuple[str, str, ast.AST]]:
+    """Yield each symbol's qualified name, kind, and node, in extraction order.
+
+    A class is yielded as a shell without its nested definitions, which are symbols of their
+    own, and the module's remaining top-level statements come last, as `<module>`.
+    """
+    module_body: list[ast.stmt] = []
+    for statement in body:
+        if isinstance(statement, ast.ClassDef):
+            name = f"{prefix}.{statement.name}" if prefix else statement.name
+            class_shell = ast.ClassDef(
+                name=statement.name,
+                bases=statement.bases,
+                keywords=statement.keywords,
+                body=[
+                    item
+                    for item in statement.body
+                    if not isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+                ],
+                decorator_list=statement.decorator_list,
+            )
+            ast.copy_location(class_shell, statement)
+            class_shell.end_lineno = statement.end_lineno
+            # The shell exists only to drop nested definitions from the body fingerprint,
+            # so every other behavior-bearing field must survive the rebuild.
+            if hasattr(statement, TYPE_PARAMS_FIELD):
+                setattr(class_shell, TYPE_PARAMS_FIELD, getattr(statement, TYPE_PARAMS_FIELD))
+            yield name, "class", class_shell
+            yield from _symbol_nodes(statement.body, name, parent_is_class=True)
+        elif isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            name = f"{prefix}.{statement.name}" if prefix else statement.name
+            if parent_is_class:
+                kind = "async_method" if isinstance(statement, ast.AsyncFunctionDef) else "method"
+            else:
+                kind = (
+                    "async_function" if isinstance(statement, ast.AsyncFunctionDef) else "function"
+                )
+            yield name, kind, statement
+            nested: list[ast.stmt] = [
+                item
+                for item in statement.body
+                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+            ]
+            yield from _symbol_nodes(nested, name)
+        else:
+            module_body.append(statement)
+    if not prefix:
+        yield "<module>", "module", ast.Module(body=module_body, type_ignores=[])
 
 
 def extract_symbols(source: str, budget: AstBudget | None = None) -> list[SymbolSnapshot]:
@@ -404,66 +441,97 @@ def extract_symbols(source: str, budget: AstBudget | None = None) -> list[Symbol
     tree = parse_module(source)
     _validate_ast_budget(tree, effective_budget)
     symbols: list[SymbolSnapshot] = []
-    max_symbols = effective_budget.max_symbols_per_file
-
-    def record(snapshot: SymbolSnapshot) -> None:
-        if len(symbols) >= max_symbols:
+    for name, kind, node in _symbol_nodes(tree.body):
+        if len(symbols) >= effective_budget.max_symbols_per_file:
             raise AstResourceLimit("symbol budget exceeded")
-        symbols.append(snapshot)
-
-    def walk(body: list[ast.stmt], prefix: str, *, parent_is_class: bool = False) -> None:
-        module_body: list[ast.stmt] = []
-        for statement in body:
-            if isinstance(statement, ast.ClassDef):
-                name = f"{prefix}.{statement.name}" if prefix else statement.name
-                class_shell = ast.ClassDef(
-                    name=statement.name,
-                    bases=statement.bases,
-                    keywords=statement.keywords,
-                    body=[
-                        item
-                        for item in statement.body
-                        if not isinstance(
-                            item, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
-                        )
-                    ],
-                    decorator_list=statement.decorator_list,
-                )
-                ast.copy_location(class_shell, statement)
-                class_shell.end_lineno = statement.end_lineno
-                # The shell exists only to drop nested definitions from the body fingerprint,
-                # so every other behavior-bearing field must survive the rebuild.
-                if hasattr(statement, TYPE_PARAMS_FIELD):
-                    setattr(class_shell, TYPE_PARAMS_FIELD, getattr(statement, TYPE_PARAMS_FIELD))
-                record(snapshot_symbol(class_shell, name, "class"))
-                walk(statement.body, name, parent_is_class=True)
-            elif isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                name = f"{prefix}.{statement.name}" if prefix else statement.name
-                if parent_is_class:
-                    kind = (
-                        "async_method" if isinstance(statement, ast.AsyncFunctionDef) else "method"
-                    )
-                else:
-                    kind = (
-                        "async_function"
-                        if isinstance(statement, ast.AsyncFunctionDef)
-                        else "function"
-                    )
-                record(snapshot_symbol(statement, name, kind))
-                nested: list[ast.stmt] = [
-                    item
-                    for item in statement.body
-                    if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
-                ]
-                walk(nested, name)
-            else:
-                module_body.append(statement)
-        if not prefix:
-            module = ast.Module(body=module_body, type_ignores=[])
-            snapshot = snapshot_symbol(module, "<module>", "module")
+        snapshot = snapshot_symbol(node, name, kind)
+        if kind == "module":
             snapshot.start = 1
             snapshot.end = max(1, len(source.splitlines()))
-            record(snapshot)
-
-    walk(tree.body, "")
+        symbols.append(snapshot)
     return symbols
+
+
+def _dotted(node: ast.Attribute) -> str | None:
+    """`a.b.c` for an attribute chain rooted at a name, and None for one rooted elsewhere."""
+    parts = [node.attr]
+    value = node.value
+    while isinstance(value, ast.Attribute):
+        parts.append(value.attr)
+        value = value.value
+    if not isinstance(value, ast.Name):
+        return None
+    parts.append(value.id)
+    return ".".join(reversed(parts))
+
+
+def symbol_references(node: ast.AST) -> SymbolReferences:
+    """What a symbol's code uses — every name and attribute, called or not — and its chains."""
+    names: set[str] = set()
+    dotted: set[str] = set()
+    for child in ast.walk(node):
+        if isinstance(child, ast.Name):
+            names.add(child.id)
+        elif isinstance(child, ast.Attribute):
+            names.add(child.attr)
+            if chain := _dotted(child):
+                dotted.add(chain)
+    return SymbolReferences(
+        names=frozenset(names),
+        decorated=bool(getattr(node, "decorator_list", None)),
+        dotted=frozenset(dotted),
+    )
+
+
+def import_bindings(tree: ast.AST, package: str) -> tuple[dict[str, str], frozenset[str]]:
+    """What the module's imports bind, each to the absolute dotted name it stands for, and load.
+
+    `import a.b` binds `a` to `a` and loads `a.b`, `import a.b as c` binds `c` to `a.b`, and
+    `from a import b` binds `b` to `a.b`, which may be a module or a symbol of `a`. A relative
+    import resolves against `package`, and each dot past the first goes up one package. A star
+    import binds no name that could be followed.
+    """
+    bindings: dict[str, str] = {}
+    loads: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                loads.add(alias.name)
+                if alias.asname:
+                    bindings[alias.asname] = alias.name
+                else:
+                    root = alias.name.split(".", 1)[0]
+                    bindings[root] = root
+        elif isinstance(node, ast.ImportFrom):
+            parts = [node.module] if node.module else []
+            if node.level:
+                anchor = package.split(".") if package else []
+                parts = [*anchor[: max(0, len(anchor) - (node.level - 1))], *parts]
+            base = ".".join(parts)
+            if base:
+                loads.add(base)
+            for alias in node.names:
+                if alias.name != "*":
+                    target = f"{base}.{alias.name}" if base else alias.name
+                    bindings[alias.asname or alias.name] = target
+                    loads.add(target)
+    return bindings, frozenset(loads)
+
+
+def module_references(
+    source: str, package: str, budget: AstBudget | None = None
+) -> ModuleReferences:
+    """What each symbol of a module uses and what its imports bind, for test reachability.
+
+    Bounded like extraction, and lighter: only names, attribute chains, and imports are read.
+    """
+    effective_budget = budget or AstBudget.default()
+    tree = parse_module(source)
+    _validate_ast_budget(tree, effective_budget)
+    symbols: dict[str, SymbolReferences] = {}
+    for name, _, node in _symbol_nodes(tree.body):
+        if len(symbols) >= effective_budget.max_symbols_per_file:
+            raise AstResourceLimit("symbol budget exceeded")
+        symbols[name] = symbol_references(node)
+    bindings, loads = import_bindings(tree, package)
+    return ModuleReferences(symbols=symbols, imports=bindings, loads=loads)
