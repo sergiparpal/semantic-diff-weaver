@@ -107,9 +107,10 @@ scored independently, an uncovered change on a critical path ranks above a cover
 same path, and above an uncovered one off it.
 
 **Obligations.** `generate_obligations` receives a per-behavior grounded state and prefers it
-over static candidate matching. Obligations merge by normalized Given/When/Then semantics, so
-one obligation can stand for several behaviors; a merged obligation keeps a grounded verdict
-only when every behavior it covers agrees, and otherwise falls back to the static semantics.
+over static candidate matching. Obligations merge by normalized Given/When/Then semantics only
+between behaviors with the same coverage status, so one obligation can stand for several
+behaviors while its status and candidate tests hold for each of them. The obligation that groups
+high-risk overflow past the global cap reports its least-tested behavior's status.
 
 `AnalysisResult.coverage` reports what the report actually matched — source format, matched and
 unmatched file counts, and changed/covered/uncovered line counts — so a reader can audit the
