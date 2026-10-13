@@ -13,6 +13,15 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Fix:** tests matched only through their file stand as that file. A mirrored file name, an
+  import, a configured mapping, a `python -m` run, and a package import are evidence about a test
+  file and hold for every test in it, yet each test was listed as a candidate of its own and the
+  list cut to five alphabetically: a `cli.py` helper that no test names got the first five of
+  `test_cli.py`'s eight tests. Such tests now make one candidate, the file, with the symbol
+  `<module>`, shown in the brief as `tests/test_cli.py` (whole file). A file with one such test
+  still names it, and no score or risk changes. On this repository's `v0.3.0..main` 50 findings
+  gain a whole-file entry and two obligations change their candidate list.
+
 - **Fix:** importing a package no longer counts as a direct import of every module in it.
   `from distiller import cli` records `distiller`, and every module under an imported package was
   treated as imported, as "direct module or symbol import". With category terminology alone that

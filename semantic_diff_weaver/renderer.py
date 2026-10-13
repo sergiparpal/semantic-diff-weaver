@@ -6,7 +6,15 @@ import re
 import unicodedata
 from typing import Any
 
-from .models import AnalysisResult, BothEnvelope, MarkdownEnvelope, OutputFormat, Presentation
+from .models import (
+    WHOLE_TEST_FILE,
+    AnalysisResult,
+    BothEnvelope,
+    CandidateTest,
+    MarkdownEnvelope,
+    OutputFormat,
+    Presentation,
+)
 
 BIDI_CONTROLS = frozenset(
     {
@@ -99,6 +107,14 @@ def _scope_reason_lines(result: AnalysisResult) -> list[str]:
     if excluded:
         lines.append(f"**Excluded files:** {excluded}.")
     return lines
+
+
+def _candidate(item: CandidateTest) -> str:
+    """One candidate test, or a test file standing for its tests related only through it."""
+    details = f"{item.match_score:.2f}; {_escape(', '.join(item.match_reasons))}"
+    if item.symbol == WHOLE_TEST_FILE:
+        return f"`{_escape(item.path)}` (whole file; {details})"
+    return f"`{_escape(item.path)}::{_escape(item.symbol)}` ({details})"
 
 
 def _excerpt(text: str, limit: int | None) -> str:
@@ -231,11 +247,7 @@ def render_markdown(result: AnalysisResult, *, excerpt_chars: int | None = None)
             ]
         )
         if obligation.candidate_existing_tests:
-            candidates = ", ".join(
-                f"`{_escape(item.path)}::{_escape(item.symbol)}` ({item.match_score:.2f}; "
-                f"{_escape(', '.join(item.match_reasons))})"
-                for item in obligation.candidate_existing_tests
-            )
+            candidates = ", ".join(_candidate(item) for item in obligation.candidate_existing_tests)
             lines.append(f"  - Candidate existing tests (unverified): {candidates}")
         else:
             lines.append(f"  - Candidate existing tests: none ({obligation.coverage_status.value})")

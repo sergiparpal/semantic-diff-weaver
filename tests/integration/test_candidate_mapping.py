@@ -157,6 +157,32 @@ def test_an_untested_change_is_never_shown_another_changes_tests(repo_factory) -
             assert obligation["coverage_status"] == "candidate_exists_unverified"
 
 
+def test_a_brief_names_the_test_file_when_none_of_its_tests_names_the_change(
+    repo_factory,
+) -> None:
+    tests = (
+        "import cli\n\n"
+        "def test_a_command_line_is_parsed():\n    assert cli.main([])\n\n"
+        "def test_an_unknown_option_exits_with_two():\n    assert cli.main(['-x'])\n"
+    )
+    repo, base, head = repo_factory(
+        {"src/cli.py": "def accepts(x):\n    return x < 5\n", "tests/test_cli.py": tests},
+        {"src/cli.py": "def accepts(x):\n    return x <= 5\n", "tests/test_cli.py": tests},
+    )
+    envelope = analyze(
+        {"repo_path": str(repo), "base_ref": base, "head_ref": head, "output_format": "both"}
+    )
+    assert {
+        (test["path"], test["symbol"])
+        for obligation in envelope["analysis"]["test_obligations"]
+        for test in obligation["candidate_existing_tests"]
+    } == {("tests/test_cli.py", "<module>")}
+    assert (
+        "Candidate existing tests (unverified): `tests/test\\_cli\\.py` (whole file; 0.50; "
+        "mirrored source/test path, direct module or symbol import)"
+    ) in envelope["markdown"]
+
+
 def test_a_test_that_runs_the_package_covers_its_changed_main_module(repo_factory) -> None:
     """`python -m pkg` is how a test reaches `pkg/__main__.py`; nothing imports it."""
     test_main = (
