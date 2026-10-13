@@ -538,7 +538,11 @@ def _build_limitations(
             "Some optional model interpretation context was omitted or truncated.",
         ),
         (
-            lambda: fallback_mode and bool(deterministic),
+            lambda: fallback_mode and bool(deterministic) and not interpreted.status.attempted,
+            "No model interpreted the findings; each comes from a deterministic structural rule.",
+        ),
+        (
+            lambda: fallback_mode and bool(deterministic) and interpreted.status.attempted,
             "LLM interpretation was unavailable; deterministic fallback was used.",
         ),
         (

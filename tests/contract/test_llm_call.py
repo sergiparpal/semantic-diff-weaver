@@ -380,12 +380,11 @@ def test_no_model_messages_do_not_assume_a_hermes_host() -> None:
 
     The CLI's `--no-llm`, a CLI without a provider, and the Claude Code server never supply a
     model, yet the warning blamed an unavailable "Hermes-hosted LLM" in every one of them and
-    the remediations sent the reader to Hermes settings that do not apply.
+    the remediations sent the reader to Hermes settings that do not apply. It is not a warning
+    at all: the result's limitations say that no model interpreted the findings.
     """
     result = interpret_candidates([candidate()], None, WeaverConfig())
-    assert result.warnings == [
-        "No inference model was provided; returned deterministic fallback findings."
-    ]
+    assert result.warnings == []
     config = WeaverConfig()
     config.rules.deterministic_fallback = False
     with pytest.raises(WeaverError) as unavailable:

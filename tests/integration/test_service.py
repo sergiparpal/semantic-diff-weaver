@@ -186,6 +186,32 @@ def test_handler_always_returns_json_on_llm_failure(repo_factory) -> None:
     assert result["success"] is True
     assert result["analysis"]["deterministic_mode"] is True
     assert result["analysis"]["behavior_changes"]
+    assert (
+        "LLM interpretation was unavailable; deterministic fallback was used."
+        in result["analysis"]["limitations"]
+    )
+
+
+def test_running_without_a_model_is_stated_as_a_limitation_not_warned_about(
+    repo_factory,
+) -> None:
+    """The CLI's `--no-llm` and the Claude Code server never supply a model, by design.
+
+    Every such result carried "No inference model was provided; returned deterministic fallback
+    findings." among its warnings, and a reader took the analysis for a degraded one.
+    """
+    repo, base, head = repo_factory(
+        {"a.py": "def f(x):\n    return x < 1\n"},
+        {"a.py": "def f(x):\n    return x <= 1\n"},
+    )
+    envelope = analyze({"repo_path": str(repo), "base_ref": base, "head_ref": head})
+    analysis = envelope["analysis"]
+    assert analysis["warnings"] == []
+    assert (
+        "No model interpreted the findings; each comes from a deterministic structural rule."
+        in analysis["limitations"]
+    )
+    assert "fallback" not in envelope["markdown"]
 
 
 def test_unknown_request_field_is_public_configuration_error(repo_factory) -> None:

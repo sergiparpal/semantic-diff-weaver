@@ -13,6 +13,15 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Fix:** running without a model is no longer reported as a fallback. The CLI's `--no-llm`, a
+  CLI without a provider, and the Claude Code server run without one by design, yet every result
+  warned "No inference model was provided; returned deterministic fallback findings." and listed
+  "LLM interpretation was unavailable; deterministic fallback was used." among its limitations,
+  so a reader took the analysis for a degraded one. Such a result now has no warning and states
+  "No model interpreted the findings; each comes from a deterministic structural rule." A model
+  that was called and failed still reports the fallback. The `deterministic_fallback` origin and
+  `deterministic_mode` are unchanged. Sixteen evaluation goldens change accordingly.
+
 - **Fix:** a candidate test pooled into an obligation from several findings keeps the reasons
   of its best match. It kept the best score but the union of every match's reasons, so the
   reasons no longer explained the score: on `distiller` one test showed 0.60 with five reasons
