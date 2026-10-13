@@ -62,7 +62,8 @@ same-file helpers it calls, and the modules it imports or runs, the mapper follo
 across modules: a test reaches whatever it names, whatever that uses in turn, and the top-level
 code of every module loading brings in. Reaching a symbol from a module the test imports counts
 more than reaching it only through another module, which never makes a strong candidate on its
-own. A private, undecorated helper that no test reaches or names gets no candidate from a test
+own. A reach replaces a mention of the symbol in the test's body, the weaker evidence of the same
+thing, and among equal scores a test that names the symbol ranks first. A private, undecorated helper that no test reaches or names gets no candidate from a test
 file, since only its module calls it, unless the graph was cut short by its bounds.
 
 When global file or line limits are exceeded, explicitly configured critical paths are analyzed first

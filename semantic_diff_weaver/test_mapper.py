@@ -529,8 +529,13 @@ def map_candidate_tests(
             # and loading it through other modules is true of nearly every test.
             reached = reached_elsewhere = empty
         else:
-            reached = (reaching & related) - bodied
+            reached = reaching & related
             reached_elsewhere = reaching - related
+        # A mention in the body and a reach are one piece of evidence, that the test exercises
+        # the symbol, and the reach is the stronger, so it replaces the mention. A test calling
+        # the symbol directly used to keep its mention, 0.10, below one reaching the symbol
+        # through other calls, 0.15, while a reach from afar added to the mention.
+        mentioned = bodied - reached - reached_elsewhere
         # Reaching the module through another is what importing its package could only suggest,
         # so the package import adds nothing more to such a test.
         package -= reached_elsewhere
@@ -604,7 +609,7 @@ def map_candidate_tests(
             if test_position in named:
                 score += 0.20
                 reasons.append("changed symbol token in test name")
-            if test_position in bodied:
+            if test_position in mentioned:
                 score += 0.10
                 reasons.append("changed symbol token in bounded test body")
             # More than a body mention: the test exercises the symbol through what it calls.
@@ -644,6 +649,16 @@ def map_candidate_tests(
             ranked.append(
                 best if len(items) == 1 else best.model_copy(update={"symbol": WHOLE_TEST_FILE})
             )
-        ranked.sort(key=lambda item: (-item.match_score, item.path, item.symbol))
+        # Among equal scores, a test whose body names the symbol is about it, while one reaching
+        # it through other calls may be about anything along the way.
+        naming = {(tests[position].path, tests[position].symbol) for position in bodied}
+        ranked.sort(
+            key=lambda item: (
+                -item.match_score,
+                (item.path, item.symbol) not in naming,
+                item.path,
+                item.symbol,
+            )
+        )
         result[candidate_index] = ranked[: config.rules.max_candidate_tests_per_obligation]
     return result

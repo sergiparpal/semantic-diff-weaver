@@ -118,6 +118,37 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-10-13, direct calls)
+
+A mention of a changed symbol in a test's body and a reach through the test's calls were meant
+as one piece of evidence, that the test exercises the symbol: a reach was "worth 0.10 like a body
+mention and not added on top of one". Raising a reach from an imported module to 0.15, so that it
+ranks above a reach only from afar, left two inversions. A test calling the symbol directly both
+names and reaches it, and kept the mention, so it scored below the tests reaching the symbol
+through other calls: `test_line_sets_are_judged_like_ranges`, which calls
+`CoverageMap.status_for_lines`, was not among its five candidates. And a reach from afar, 0.35,
+did add to a mention, so a test that never imports the module could outrank one that does and
+calls the symbol. Following calls on instances, which a test makes by naming the method, would
+have made that common.
+
+A reach now replaces the mention wherever both hold. Adding the two instead would reward a direct
+call more, on weights tuned for evidence that does not stack; measured, it moved 32 risk scores on
+this repository's `v0.3.0..main` rather than 15. A direct caller then ties with the tests reaching the
+symbol through other calls, and alphabetical order still left it out, so among equal scores a
+test whose body names the symbol ranks first. A mention still scores 0.10 for a test the graph
+does not show reaching the symbol.
+
+Measured: on `distiller` `main..skeleton`, 5 of 11 lists change. `RunArgs` falls four points, its
+named test now 0.60, `cli.main` is led by the test that calls it, and the test that runs
+`python -m distiller` no longer leads `evaluate.run` and `report.run`, since the mention it scored
+was `subprocess.run`. `meal-manager` (`8894749`, and `v0.2.0..HEAD` over `src/**`) is unchanged.
+This repository's `v0.3.0..main` changes 80 of 156 lists and the first candidate of 43, mostly to
+a test that calls the symbol: `build_call_graph` is led by a test of `test_call_graph.py` instead
+of an end-to-end test of the Claude Code skill, and `CallGraph.resolve` by a test that builds a
+graph instead of a `service` test whose message says "resolve to the same commit". 15 risk scores
+fall four or five points, each because a test named after the symbol, importing its module, and
+calling it became a strong candidate. The 17-case corpus has no test file and is unchanged.
+
 ## Candidate tests through other modules' calls (2026-10-13)
 
 Reach stopped at the module a test imported. A test of `distiller`'s `cli.main` reached

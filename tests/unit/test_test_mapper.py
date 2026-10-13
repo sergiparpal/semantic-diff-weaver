@@ -695,6 +695,22 @@ def test_a_helper_the_tests_reach_through_the_module_calls_is_theirs(symbol: str
     }
 
 
+def test_a_test_calling_a_symbol_directly_ranks_first_among_those_reaching_it() -> None:
+    """A direct call is a reach as well as a mention, and the reach is the stronger evidence.
+
+    Scored by its mention, the test calling `_parser` ranked below the tests reaching it through
+    `cli.main`. Scored by its reach, it ties with them, and naming the symbol breaks the tie.
+    """
+    tests = f"{CLI_TESTS}\n\ndef test_a_pr_is_an_option():\n    assert cli._parser()\n"
+    reasons = reach_reasons("_parser", tests)
+    assert list(reasons) == [
+        "test_a_pr_is_an_option",
+        "test_a_command_line_is_parsed",
+        "test_an_unknown_option_is_rejected",
+    ]
+    assert {tuple(items) for items in reasons.values()} == {(*FILE_ONLY, REACHED)}
+
+
 def test_a_private_helper_no_test_reaches_has_no_candidate() -> None:
     """Nothing calls `_describe`, so the test file is no evidence that it is tested."""
     assert reach_reasons("_describe") == {}

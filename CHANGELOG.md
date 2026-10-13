@@ -13,6 +13,19 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Fix:** a test that calls a changed symbol no longer ranks below the tests that reach it
+  through other calls. A mention of the symbol in a test's body and a reach through its calls
+  were meant as one piece of evidence, never added together, but a reach from a module the test
+  imports had come to count 0.15 against the mention's 0.10, and a test that calls the symbol
+  kept its mention; a reach through another module, meanwhile, added to it. The reach now
+  replaces the mention wherever both hold, and among equal scores a test whose body names the
+  symbol ranks first, so `test_line_sets_are_judged_like_ranges` leads
+  `CoverageMap.status_for_lines` instead of missing its five candidates. A test named after a
+  symbol, importing its module, and calling it now scores 0.60 instead of 0.55, a strong
+  candidate: `distiller`'s `RunArgs` falls four points, and 15 risk scores on this repository's
+  `v0.3.0..main` fall four or five. The test that runs `python -m distiller` no longer leads
+  `evaluate.run`, as the mention it scored was `subprocess.run`.
+
 - **Feature:** a test is followed into modules it never imports. Candidate mapping stopped at
   the module a test imported, so a test of `cli.main` did not count for `messages`, which `main`
   calls, and a helper changed beneath an unchanged module counted no test that reaches it through
