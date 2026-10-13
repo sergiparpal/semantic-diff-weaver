@@ -202,10 +202,11 @@ def test_the_index_reads_what_a_test_file_loads_by_name() -> None:
     """`meal-manager`'s tests load their modules with `importlib`, relative to their package.
 
     A name written out, a module-level constant, an f-string of a loader's argument, and a
-    concatenation of those are read; a name known only when the test runs is not.
+    concatenation of those are read; a name known only when the test runs is not. The name of
+    the test's own directory loads the package it lives in, here the repository's root, `""`.
     """
     added, read = _index_source("test_integration.py", LOADING_TESTS)
-    shared = {"src.dish", "shop.cart", "shop.api", "src.handlers.add_dish"}
+    shared = {"", "src.dish", "shop.cart", "shop.api", "src.handlers.add_dish"}
     shared.add("src.handlers.list_fridge")
     assert shared <= added.imports
     assert "src.repositories.json_store" in read.imports - added.imports
@@ -213,6 +214,7 @@ def test_the_index_reads_what_a_test_file_loads_by_name() -> None:
     assert dict(added.bound) == {
         "importlib": "importlib",
         "Path": "pathlib.Path",
+        "_pkg": "",
         "_dish_mod": "src.dish",
         "_cart": "shop.cart",
         "_api": "shop.api",
@@ -284,6 +286,44 @@ def test_a_load_the_file_does_not_spell_out_binds_nothing() -> None:
         "total": "shop.cart.Cart.total",
         "api": "shop.api",
     }
+
+
+OWN_PACKAGE_LOADS = """import importlib
+import os
+from pathlib import Path
+
+_PLUGIN_DIR = Path(__file__).resolve().parent
+HERE = os.path.dirname(os.path.abspath(__file__))
+NAME = "shop.cart"
+NAME = compute()
+_pkg = importlib.import_module(_PLUGIN_DIR.name)
+_same = importlib.import_module(os.path.basename(HERE))
+_own = importlib.import_module(__package__)
+_cart = importlib.import_module(NAME)
+_deep = importlib.import_module(DEEP.parent.name)
+
+
+def test_registers():
+    assert _pkg.register and _same and _own and _cart and _deep
+"""
+
+
+@pytest.mark.parametrize(
+    ("path", "package"), [("test_unit.py", ""), ("tests/test_unit.py", "tests")]
+)
+def test_the_name_of_a_tests_own_directory_loads_its_own_package(path: str, package: str) -> None:
+    """`meal-manager` loads its plugin package as `importlib.import_module(_PLUGIN_DIR.name)`.
+
+    A test at the repository's root lives in the root package, which the call graph names
+    `""`. A name assigned again with something unknown is forgotten.
+    """
+    deep = "Path(" * 20 + "__file__" + ")" * 20
+    [test] = _index_source(path, OWN_PACKAGE_LOADS.replace("DEEP", deep))
+    assert test.imports == {"importlib", "os", "pathlib", "pathlib.Path", package}
+    bound = dict(test.bound)
+    assert bound["_pkg"] == bound["_same"] == bound["_own"] == package
+    assert "_cart" not in bound
+    assert "_deep" not in bound
 
 
 def test_an_import_inside_a_test_is_that_tests_alone() -> None:

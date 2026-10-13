@@ -358,6 +358,41 @@ def test_a_test_reaches_a_change_in_a_module_it_loads_with_importlib(repo_factor
     }
 
 
+def test_a_test_reaches_a_change_through_the_package_it_lives_in(repo_factory) -> None:
+    """`meal-manager`'s tests load the plugin's root package by their directory's name."""
+    tests = (
+        "import importlib\nfrom pathlib import Path\n\n"
+        "_PLUGIN_DIR = Path(__file__).resolve().parent\n"
+        "_pkg = importlib.import_module(_PLUGIN_DIR.name)\n\n\n"
+        "def test_registering_sets_up_the_context():\n    assert _pkg.register({}) == {}\n"
+    )
+    unchanged = {
+        "__init__.py": (
+            "from .src.setup import prepare\n\n\ndef register(ctx):\n    return prepare(ctx)\n"
+        ),
+        "src/__init__.py": "",
+        "test_plugin.py": tests,
+    }
+    setup = "def prepare(ctx):\n    return {}\n"
+    repo, base, head = repo_factory(
+        {**unchanged, "src/setup.py": setup.format("dict(ctx)")},
+        {**unchanged, "src/setup.py": setup.format("{**ctx}")},
+    )
+    result = analyze(
+        {"repo_path": str(repo), "base_ref": base, "head_ref": head, "output_format": "json"}
+    )
+    candidates = {
+        (test["path"], test["symbol"]): test["match_reasons"]
+        for obligation in result["test_obligations"]
+        for test in obligation["candidate_existing_tests"]
+    }
+    assert candidates == {
+        ("test_plugin.py", "test_registering_sets_up_the_context"): [
+            "changed symbol reached through another module's calls"
+        ]
+    }
+
+
 def test_a_test_that_runs_the_package_covers_its_changed_main_module(repo_factory) -> None:
     """`python -m pkg` is how a test reaches `pkg/__main__.py`; nothing imports it."""
     test_main = (
