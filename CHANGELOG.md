@@ -13,6 +13,18 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Feature:** a test that loads the package it lives in is related to it. `meal-manager`'s tests
+  load the plugin itself as `importlib.import_module(_PLUGIN_DIR.name)`, where
+  `_PLUGIN_DIR = Path(__file__).resolve().parent`, and call `_pkg.register(...)`; the name is
+  known only at run time, so the load was dropped. The index now reads the name of a test file's
+  own directory — through `Path(__file__)`, `.resolve()`, `.parent`, `.name`,
+  `os.path.dirname`, `os.path.basename`, module-level variables holding those, or
+  `__package__` — as the test's own package, which for a test at the repository's root is the
+  root package the call graph names `""`, and a name starting with a dot, `.register`, is
+  relative to it. Taking `meal-manager`'s `register` as changed, `test_register_wires_every_tool`
+  becomes its candidate where it had none; the measured ranges are unchanged, since that test
+  reached the same code through the modules it also loads.
+
 - **Fix:** a test holds an instance it makes or reads, not one a module makes when it loads. A test
   that reaches a class may call methods on an instance of it, but reaching a class counted loading
   a module whose top-level code makes one: every test importing `meal-manager`'s `dii` held its

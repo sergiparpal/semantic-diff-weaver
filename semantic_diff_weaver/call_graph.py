@@ -116,10 +116,17 @@ def _locate(located: Mapping[str, str], dotted: str) -> tuple[str, list[str]] | 
     """The file a dotted name's longest importable prefix names, and the rest of the name.
 
     A name written from the repository root, such as `src.distiller.cli`, is read without its
-    `src` or `lib` too.
+    `src` or `lib` too. One that starts with a dot is relative to the repository's root package,
+    `""`, as a test loading its own package names it: `.register` is a module of that name, or
+    what the root `__init__.py` binds.
     """
     parts = dotted.split(".")
-    starts = [parts, parts[1:]] if parts[0] in {"src", "lib"} else [parts]
+    if parts[0] in {"src", "lib"}:
+        starts = [parts, parts[1:]]
+    elif not parts[0]:
+        starts = [parts[1:], parts]
+    else:
+        starts = [parts]
     for candidate in starts:
         for size in range(len(candidate), 0, -1):
             path = located.get(".".join(candidate[:size]))

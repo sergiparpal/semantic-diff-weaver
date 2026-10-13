@@ -400,6 +400,16 @@ def test_an_import_that_climbs_to_a_src_package_reaches_what_it_re_exports() -> 
     assert graph.locate("filelock") == ("src/filelock.py", [])
 
 
+def test_a_name_with_a_leading_dot_is_relative_to_the_root_package() -> None:
+    """A test loading the root package it lives in names `""`, and its `configure`, which the
+    root `__init__.py` re-exports, `.configure`."""
+    graph = graph_of(PLUGIN)
+    assert graph.locate("") == ("__init__.py", [])
+    assert graph.resolve(".configure") == ("src/repositories/__init__.py", "configure")
+    assert graph.locate(".src.filelock") == ("src/filelock.py", [])
+    assert graph.resolve(".src.filelock.DataDirLock") == ("src/filelock.py", "DataDirLock")
+
+
 class FakeRepository:
     def __init__(self, files: dict[str, str]) -> None:
         self.objects = {path: f"{index + 1:040x}" for index, path in enumerate(sorted(files))}

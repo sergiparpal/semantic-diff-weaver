@@ -118,6 +118,40 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Candidate tests that load their own package (2026-10-13)
+
+`meal-manager`'s tests load the plugin package they live in by their directory's name:
+`_PLUGIN_DIR = Path(__file__).resolve().parent`, then
+`_pkg = importlib.import_module(_PLUGIN_DIR.name)`, and `test_register_wires_every_tool` calls
+`_pkg.register(ctx, data_dir=...)`. The name is known only at run time, so the index dropped the
+load, although it already resolved relative loads such as `.src.dish` against the same package.
+
+The index now reads the name of the test file's own directory as the test's own package: the
+`.name` or `os.path.basename` of `Path(__file__).parent`, `os.path.dirname(__file__)`, or the same
+made absolute or resolved, through module-level variables that hold them, and `__package__`. That
+package is the one the call graph would name the directory, `""` for a test at the repository's
+root, which is the plugin's own `__init__.py` when it is a package. A module-level name is now a
+constant whenever its value reads as one, assigned in order, and forgotten when assigned again
+with anything else. The graph reads a dotted name that starts with a dot as relative to that root
+package: `.register`, what `_pkg.register` resolves to, is a top-level module of that name if one
+exists, and otherwise what the root `__init__.py` binds, here its `register`.
+
+A test that imports a package does not count as importing its `__init__.py`, whose module name
+keeps the `__init__`, so `test_register_wires_every_tool` reaches `register` from afar, at 0.55
+with its name, rather than through an import, which would make it strong. Naming an
+`__init__.py` by its package was measured and left out: importing any module below a package
+then counts as importing the package, every test file importing one became a candidate for
+changes to the package's top-level code, and integration tests with category terminology
+outranked the unit tests of `atomic_write_json`, for four risk scores on `meal-manager`'s
+`8894749` and one on this repository.
+
+Measured: taking `meal-manager`'s `register` as changed, its candidate goes from none to
+`test_register_wires_every_tool`. `meal-manager`'s `8894749` and `v0.2.0..HEAD` over `src/**`
+are unchanged, because that test is the only one to load the package, and it reaches the same
+code through `_repos_mod.configure` and `_handlers_pkg.iter_tools`. `distiller` `main..skeleton`,
+this repository's `v0.3.0..2f3840a` — the range the previous sections measured, now that `main`
+exceeds the 3,000 changed-line bound — and the 17-case corpus are unchanged.
+
 ## Output-affecting corrections (2026-10-13, instances a test holds)
 
 A test that reaches a class may hold an instance of it and reaches the methods it calls on one by

@@ -6,7 +6,7 @@ import ast
 import re
 from collections import defaultdict
 from collections.abc import Iterable, Iterator, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import cache, lru_cache
 from itertools import pairwise
 from pathlib import PurePosixPath
@@ -141,15 +141,76 @@ def _loads_module(node: ast.AST) -> TypeGuard[ast.Call]:
     )
 
 
-def _text(node: ast.AST | None, constants: Mapping[str, str], depth: int = 0) -> str | None:
-    """The string an expression always is: a literal, a name the file binds to one, or an
-    f-string or concatenation of those. None for anything known only when it runs."""
+@dataclass(frozen=True)
+class _Scope:
+    """What a test file's module-level names stand for, to read a module name with."""
+
+    # Names bound to strings: literals, and what concatenating or formatting those makes.
+    constants: Mapping[str, str]
+    # Names bound to the file's own path, as `__file__` is, or to its directory.
+    files: frozenset[str] = frozenset()
+    directories: frozenset[str] = frozenset()
+    # The test file's own package as the call graph names it: `""` for a test at the root.
+    package: str = ""
+
+
+# Calls and methods that give back the path they are given, made absolute or resolved.
+PATH_CALLS = frozenset({"Path", "pathlib.Path", "os.path.abspath", "os.path.realpath"})
+PATH_METHODS = frozenset({"resolve", "absolute"})
+
+
+def _callee(node: ast.expr) -> str | None:
+    if isinstance(node, ast.Name):
+        return node.id
+    return _chain(node) if isinstance(node, ast.Attribute) else None
+
+
+def _path_of(node: ast.AST, scope: _Scope, depth: int = 0) -> str | None:
+    """Whether an expression is the test file's own path, `"file"`, or its directory.
+
+    `Path(__file__).resolve().parent` is the directory `meal-manager`'s tests live in, and so
+    is `os.path.dirname(__file__)`.
+    """
+    if depth > MAX_NAME_EXPRESSION_DEPTH:
+        return None
+    if isinstance(node, ast.Name):
+        if node.id == "__file__" or node.id in scope.files:
+            return "file"
+        return "directory" if node.id in scope.directories else None
+    if isinstance(node, ast.Attribute) and node.attr == "parent":
+        return "directory" if _path_of(node.value, scope, depth + 1) == "file" else None
+    if isinstance(node, ast.Call):
+        callee = _callee(node.func)
+        if callee == "os.path.dirname" and node.args:
+            return "directory" if _path_of(node.args[0], scope, depth + 1) == "file" else None
+        if callee in PATH_CALLS and node.args:
+            return _path_of(node.args[0], scope, depth + 1)
+        if isinstance(node.func, ast.Attribute) and node.func.attr in PATH_METHODS:
+            return _path_of(node.func.value, scope, depth + 1)
+    return None
+
+
+def _text(node: ast.AST | None, scope: _Scope, depth: int = 0) -> str | None:
+    """The string an expression always is: a literal, a name the file binds to one, an f-string
+    or concatenation of those, or the name of the test file's own package. None for anything
+    known only when it runs.
+
+    `Path(__file__).parent.name` names the directory a test lives in, which the test imports as
+    a package, so it reads as that package: `__package__` does too.
+    """
     if node is None or depth > MAX_NAME_EXPRESSION_DEPTH:
         return None
     if isinstance(node, ast.Constant):
         return node.value if isinstance(node.value, str) else None
     if isinstance(node, ast.Name):
-        return constants.get(node.id)
+        return scope.package if node.id == "__package__" else scope.constants.get(node.id)
+    if isinstance(node, ast.Attribute) and node.attr == "name":
+        return scope.package if _path_of(node.value, scope, depth + 1) == "directory" else None
+    if isinstance(node, ast.Call):
+        if _callee(node.func) == "os.path.basename" and node.args:
+            directory = _path_of(node.args[0], scope, depth + 1) == "directory"
+            return scope.package if directory else None
+        return None
     if isinstance(node, ast.JoinedStr):
         parts: list[str] = []
         for value in node.values:
@@ -157,14 +218,14 @@ def _text(node: ast.AST | None, constants: Mapping[str, str], depth: int = 0) ->
                 if value.conversion != -1 or value.format_spec is not None:
                     return None
                 value = value.value
-            text = _text(value, constants, depth + 1)
+            text = _text(value, scope, depth + 1)
             if text is None:
                 return None
             parts.append(text)
         return "".join(parts)
     if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
-        left = _text(node.left, constants, depth + 1)
-        right = _text(node.right, constants, depth + 1)
+        left = _text(node.left, scope, depth + 1)
+        right = _text(node.right, scope, depth + 1)
         return None if left is None or right is None else left + right
     return None
 
@@ -175,25 +236,26 @@ def _argument(call: ast.Call, position: int, keyword: str) -> ast.expr | None:
     return next((item.value for item in call.keywords if item.arg == keyword), None)
 
 
-def _loaded(call: ast.Call, constants: Mapping[str, str], package: str) -> str | None:
+def _loaded(call: ast.Call, scope: _Scope) -> str | None:
     """The absolute name of the module an `import_module` call loads, when the file says it.
 
     A relative name resolves against the package the call names, or, when that is known only
     at run time, against the test file's own: `meal-manager` passes `Path(__file__).parent`'s
-    name to load `.src.dish` from the package its tests live in.
+    name to load `.src.dish` from the package its tests live in, and that name alone to load
+    the package itself, the repository's root, which the call graph names `""`.
     """
-    name = _text(_argument(call, 0, "name"), constants)
-    if not name:
+    name = _text(_argument(call, 0, "name"), scope)
+    if name is None:
         return None
     level = len(name) - len(name.lstrip("."))
     if level:
-        anchor_name = _text(_argument(call, 1, "package"), constants)
-        anchor = (package if anchor_name is None else anchor_name).split(".")
+        anchor_name = _text(_argument(call, 1, "package"), scope)
+        anchor = (scope.package if anchor_name is None else anchor_name).split(".")
         anchor = [part for part in anchor if part]
         if level - 1 > len(anchor):
             return None
         name = ".".join([*anchor[: len(anchor) - (level - 1)], *filter(None, [name[level:]])])
-    return name if MODULE_NAME_RE.fullmatch(name) else None
+    return name if name == scope.package or MODULE_NAME_RE.fullmatch(name) else None
 
 
 @dataclass(frozen=True)
@@ -259,16 +321,35 @@ class _DynamicImports:
     """
 
     def __init__(self, tree: ast.Module, package: str) -> None:
-        self.package = package
-        self.constants = {
-            statement.targets[0].id: statement.value.value
-            for statement in tree.body
-            if isinstance(statement, ast.Assign)
-            and len(statement.targets) == 1
-            and isinstance(statement.targets[0], ast.Name)
-            and isinstance(statement.value, ast.Constant)
-            and isinstance(statement.value.value, str)
-        }
+        constants: dict[str, str] = {}
+        paths: dict[str, str] = {}
+        for statement in tree.body:
+            if not (
+                isinstance(statement, ast.Assign)
+                and len(statement.targets) == 1
+                and isinstance(statement.targets[0], ast.Name)
+            ):
+                continue
+            # In order, and forgotten when assigned again with something else.
+            name = statement.targets[0].id
+            scope = _Scope(
+                constants=dict(constants),
+                files=frozenset(key for key, kind in paths.items() if kind == "file"),
+                directories=frozenset(key for key, kind in paths.items() if kind == "directory"),
+                package=package,
+            )
+            constants.pop(name, None)
+            paths.pop(name, None)
+            if (text := _text(statement.value, scope)) is not None:
+                constants[name] = text
+            elif (kind := _path_of(statement.value, scope)) is not None:
+                paths[name] = kind
+        self.scope = _Scope(
+            constants=constants,
+            files=frozenset(key for key, kind in paths.items() if kind == "file"),
+            directories=frozenset(key for key, kind in paths.items() if kind == "directory"),
+            package=package,
+        )
         self.loaders = {
             statement.name: found
             for statement in tree.body
@@ -280,21 +361,20 @@ class _DynamicImports:
     def load(self, call: ast.Call) -> tuple[set[str], str | None]:
         """What a call loads, and what it returns: a module or one of its attributes."""
         if _loads_module(call):
-            module = _loaded(call, self.constants, self.package)
-            return ({module} if module else set()), module
+            module = _loaded(call, self.scope)
+            return ({module} if module is not None else set()), module
         if not isinstance(call.func, ast.Name) or call.func.id not in self.loaders:
             return set(), None
         loader = self.loaders[call.func.id]
-        arguments = dict(self.constants)
+        arguments = dict(self.scope.constants)
         for name, value in zip(loader.parameters, call.args, strict=False):
-            if (text := _text(value, self.constants)) is not None:
+            if (text := _text(value, self.scope)) is not None:
                 arguments[name] = text
         for keyword in call.keywords:
-            if keyword.arg and (text := _text(keyword.value, self.constants)) is not None:
+            if keyword.arg and (text := _text(keyword.value, self.scope)) is not None:
                 arguments[keyword.arg] = text
-        modules = {
-            module for item in loader.calls if (module := _loaded(item, arguments, self.package))
-        }
+        within = replace(self.scope, constants=arguments)
+        modules = {module for item in loader.calls if (module := _loaded(item, within)) is not None}
         returned = None
         if loader.returns is not None and len(modules) == 1:
             [module] = modules
