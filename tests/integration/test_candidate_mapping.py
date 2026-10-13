@@ -88,6 +88,55 @@ def test_include_narrows_the_analysis_but_not_candidate_test_discovery(repo_fact
     assert _candidate_tests(excluded) == []
 
 
+def test_a_test_changed_with_its_code_is_a_candidate_and_not_a_finding(repo_factory) -> None:
+    """Analyzed as product code, every changed test became a finding of its own.
+
+    A branch that added a module and its tests reported each test function as a medium-risk
+    behavior change with an obligation to test it, and those findings set the overall risk.
+    """
+    tests = "from src.api import allowed\n\ndef test_allowed_boundary():\n    assert allowed(5)\n"
+    opt_in = "version: 1\nrules:\n  analyze_test_files: true\n"
+    repo, base, head = repo_factory(
+        {"src/api.py": "def allowed(x):\n    return x < 5\n"},
+        {"src/api.py": "def allowed(x):\n    return x <= 5\n", "tests/test_api.py": tests},
+    )
+    request = {"repo_path": str(repo), "base_ref": base, "head_ref": head, "output_format": "json"}
+
+    result = analyze(request)
+    assert result["scope"]["analyzed_files"] == ["src/api.py"]
+    assert result["scope"]["excluded_counts"] == {"test_file": 1}
+    assert {item["evidence"][0]["path"] for item in result["behavior_changes"]} == {"src/api.py"}
+    assert "tests/test_api.py" in _candidate_tests(result)
+
+    repo, base, head = repo_factory(
+        {"src/api.py": "def allowed(x):\n    return x < 5\n", ".semantic-diff-weaver.yaml": opt_in},
+        {
+            "src/api.py": "def allowed(x):\n    return x <= 5\n",
+            "tests/test_api.py": tests,
+            ".semantic-diff-weaver.yaml": opt_in,
+        },
+    )
+    opted_in = analyze({**request, "repo_path": str(repo), "base_ref": base, "head_ref": head})
+    assert opted_in["scope"]["analyzed_files"] == ["src/api.py", "tests/test_api.py"]
+
+
+def test_a_file_named_like_a_test_is_left_out_only_when_it_defines_one(repo_factory) -> None:
+    """The name alone would have hidden this repository's own `test_mapper.py` from review."""
+    repo, base, head = repo_factory(
+        {"src/test_mapper.py": "def threshold():\n    return 0.35\n"},
+        {
+            "src/test_mapper.py": "def threshold():\n    return 0.45\n",
+            "test_unit.py": "def test_threshold():\n    assert True\n",
+        },
+    )
+    result = analyze(
+        {"repo_path": str(repo), "base_ref": base, "head_ref": head, "output_format": "json"}
+    )
+    assert result["scope"]["analyzed_files"] == ["src/test_mapper.py"]
+    assert result["scope"]["excluded_counts"] == {"test_file": 1}
+    assert result["behavior_changes"]
+
+
 # `import handlers` gives every test here the package-import signal for every handler module,
 # as importing `semantic_diff_weaver` does in this repository's own suite: a module mention in
 # a body must not tip such a test over the threshold.

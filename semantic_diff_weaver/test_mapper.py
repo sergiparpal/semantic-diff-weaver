@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import re
 from collections import defaultdict
+from collections.abc import Iterator
 from dataclasses import dataclass
 from functools import cache, lru_cache
 from pathlib import PurePosixPath
@@ -13,7 +14,13 @@ from typing import ClassVar
 from .errors import WeaverError
 from .git_diff import GitRepository
 from .models import BehaviorCategory, CandidateTest, WeaverConfig
-from .path_policy import exclusion_reason, glob_matches, redact_text
+from .path_policy import (
+    exclusion_reason,
+    glob_matches,
+    has_test_module_name,
+    is_test_support_path,
+    redact_text,
+)
 from .semantic_candidates import SemanticCandidate
 from .taxonomy import CATEGORY_PROFILES
 
@@ -54,15 +61,6 @@ class _ImportVisitor(ast.NodeVisitor):
             self.imports.update(alias.name for alias in node.names)
 
 
-def _is_test_path(path: str, roots: list[str]) -> bool:
-    pure = PurePosixPath(path)
-    root_match = any(
-        pure == PurePosixPath(root) or PurePosixPath(root) in pure.parents for root in roots
-    )
-    convention = pure.name.startswith("test_") or pure.name.endswith("_test.py")
-    return path.endswith(".py") and (root_match or convention)
-
-
 def _tokens(text: str) -> frozenset[str]:
     tokens: set[str] = set()
     for item in TOKEN_RE.findall(text):
@@ -70,6 +68,18 @@ def _tokens(text: str) -> frozenset[str]:
         tokens.add(lowered)
         tokens.update(part for part in lowered.split("_") if part)
     return frozenset(tokens)
+
+
+def _test_functions(
+    body: list[ast.stmt], prefix: str = ""
+) -> Iterator[tuple[str, ast.FunctionDef | ast.AsyncFunctionDef]]:
+    """Yield each test function's qualified name and node, as pytest would collect them."""
+    for node in body:
+        if isinstance(node, ast.ClassDef):
+            yield from _test_functions(node.body, f"{prefix}{node.name}.")
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if node.name.startswith("test"):
+                yield f"{prefix}{node.name}", node
 
 
 def _index_source(path: str, source: str) -> list[IndexedTest]:
@@ -80,27 +90,29 @@ def _index_source(path: str, source: str) -> list[IndexedTest]:
     imports_visitor = _ImportVisitor()
     imports_visitor.visit(tree)
     imports = frozenset(item.casefold() for item in imports_visitor.imports)
-    result: list[IndexedTest] = []
+    return [
+        IndexedTest(
+            path=path,
+            symbol=symbol,
+            imports=imports,
+            name_tokens=_tokens(node.name),
+            body_tokens=_tokens(redact_text(ast.unparse(node), max_chars=4000)),
+        )
+        for symbol, node in _test_functions(tree.body)
+    ]
 
-    def walk(body: list[ast.stmt], prefix: str = "") -> None:
-        for node in body:
-            if isinstance(node, ast.ClassDef):
-                walk(node.body, f"{prefix}{node.name}.")
-            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                if node.name.startswith("test"):
-                    body_text = redact_text(ast.unparse(node), max_chars=4000)
-                    result.append(
-                        IndexedTest(
-                            path=path,
-                            symbol=f"{prefix}{node.name}",
-                            imports=imports,
-                            name_tokens=_tokens(node.name),
-                            body_tokens=_tokens(body_text),
-                        )
-                    )
 
-    walk(tree.body)
-    return result
+def defines_tests(source: str) -> bool:
+    """Whether candidate-test discovery would find a test in this source.
+
+    Source that does not parse defines none, so a file named like a test module but broken is
+    analyzed, and the AST stage reports why it could not be read.
+    """
+    try:
+        tree = ast.parse(source)
+    except (MemoryError, RecursionError, SyntaxError, TypeError, ValueError):
+        return False
+    return next(_test_functions(tree.body), None) is not None
 
 
 def build_test_index(repo: GitRepository, head_commit: str, config: WeaverConfig) -> TestIndex:
@@ -120,7 +132,7 @@ def build_test_index(repo: GitRepository, head_commit: str, config: WeaverConfig
         for path in repository_files
         if not exclusion_reason(path)
         and not any(glob_matches(path, pattern) for pattern in config.paths.exclude)
-        and _is_test_path(path, config.paths.test_roots)
+        and (is_test_support_path(path, config.paths.test_roots) or has_test_module_name(path))
     )
     if len(test_paths) > MAX_TEST_INDEX_FILES:
         incomplete = True

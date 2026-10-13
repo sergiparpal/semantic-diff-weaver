@@ -12,6 +12,8 @@ from semantic_diff_weaver.path_policy import (
     ensure_contained,
     exclusion_reason,
     glob_matches,
+    has_test_module_name,
+    is_test_support_path,
     normalize_repo_path,
     redact_text,
 )
@@ -62,6 +64,42 @@ def test_globs_preserve_hidden_segments_and_do_not_cross_directories() -> None:
 )
 def test_mandatory_exclusions(path: str, reason: str) -> None:
     assert exclusion_reason(path) == reason
+
+
+@pytest.mark.parametrize(
+    ("path", "roots", "expected"),
+    [
+        ("tests/helpers.py", ["tests"], True),
+        ("tests/unit/test_api.py", ["tests"], True),
+        ("conftest.py", ["tests"], True),
+        ("src/pkg/conftest.py", ["tests"], True),
+        ("backend/tests/helpers.py", ["backend/tests"], True),
+        ("backend/tests/helpers.py", ["tests"], False),
+        ("tests_data/api.py", ["tests"], False),
+        ("tests/fixture.json", ["tests"], False),
+        ("src/test_api.py", ["tests"], False),
+    ],
+)
+def test_a_test_root_or_a_conftest_is_test_code_by_its_path(
+    path: str, roots: list[str], expected: bool
+) -> None:
+    assert is_test_support_path(path, roots) is expected
+
+
+@pytest.mark.parametrize(
+    ("path", "expected"),
+    [
+        ("test_unit.py", True),
+        ("src/pkg/test_api.py", True),
+        ("src/pkg/api_test.py", True),
+        ("semantic_diff_weaver/test_mapper.py", True),
+        ("src/testing.py", False),
+        ("src/contest.py", False),
+        ("test_data.json", False),
+    ],
+)
+def test_a_test_module_name_is_only_the_name_pytest_collects(path: str, expected: bool) -> None:
+    assert has_test_module_name(path) is expected
 
 
 def test_inline_secrets_are_redacted_and_bounded() -> None:

@@ -46,6 +46,7 @@ OMISSION_PHRASES = {
 EXCLUSION_PHRASES = {
     "path_filter": "outside the configured include and exclude paths",
     "unsupported_extension": "not Python",
+    "test_file": "test file(s) left out by `analyze_test_files: false`",
     "secret_filename": "with secret-like names",
     "control_directory": "in version-control directories",
     "cache_or_environment": "in caches or environments",

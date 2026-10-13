@@ -151,6 +151,9 @@ class RulesConfig(StrictModel):
     review_question_confidence: float = Field(default=0.60, ge=0, le=1)
     refactor_materiality_threshold: float = Field(default=0.25, ge=0, le=1)
     emit_low_risk_refactors: bool = False
+    # Test code is not the behavior under review: analyzed, every changed test became a
+    # finding with an obligation to test it. See `service._set_aside_test_modules`.
+    analyze_test_files: bool = False
     deterministic_fallback: bool = True
 
 
