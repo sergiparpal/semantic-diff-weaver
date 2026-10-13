@@ -210,6 +210,15 @@ def test_an_attribute_is_never_what_an_import_binds() -> None:
     )
 
 
+def test_loading_a_module_that_makes_an_instance_is_no_call_to_its_class() -> None:
+    """`default.py` makes `CART` on import, which hands the code importing it no instance."""
+    graph = graph_of(STORE)
+    cart = ("src/store/cart.py", "Cart")
+    assert ("src/store/default.py", "<module>") in graph.reaching(cart)
+    assert ("src/store/default.py", "<module>") not in graph.callers(cart)
+    assert ("src/store/checkout.py", "checkout") in graph.callers(cart)
+
+
 def test_an_instance_reaches_the_methods_its_class_inherits() -> None:
     """`GiftCart` inherits `save` from a base that another module defines."""
     reaching = graph_of(STORE).reaching(("src/store/cart.py", "Cart.save"))

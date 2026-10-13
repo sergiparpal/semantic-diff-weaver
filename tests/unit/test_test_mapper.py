@@ -211,6 +211,8 @@ def test_the_index_reads_what_a_test_file_loads_by_name() -> None:
     assert "src.repositories.json_store" in read.imports - added.imports
     assert not any("json_fridge" in name for name in added.imports)
     assert dict(added.bound) == {
+        "importlib": "importlib",
+        "Path": "pathlib.Path",
         "_dish_mod": "src.dish",
         "_cart": "shop.cart",
         "_api": "shop.api",
@@ -222,6 +224,7 @@ def test_the_index_reads_what_a_test_file_loads_by_name() -> None:
 
 
 EDGE_LOADS = """import importlib
+import shop.extra as extra
 from importlib import import_module
 
 CONSTANT = "shop"
@@ -271,8 +274,11 @@ def test_a_load_the_file_does_not_spell_out_binds_nothing() -> None:
     long_name = " + ".join(f"'{letter}'" for letter in "abcdefghijklmnopqrstu")
     [test] = _index_source("tests/test_edges.py", EDGE_LOADS.replace("LONG", long_name))
     loaded = {"shop.cart", "shop.api", "shop.views", "shop.a", "shop.b", "shop.models"}
-    assert test.imports == {"importlib", "importlib.import_module", *loaded}
+    assert test.imports == {"importlib", "importlib.import_module", "shop.extra", *loaded}
     assert dict(test.bound) == {
+        "importlib": "importlib",
+        "extra": "shop.extra",
+        "import_module": "importlib.import_module",
         "cart": "shop.cart",
         "copy": "shop.cart",
         "total": "shop.cart.Cart.total",
@@ -998,4 +1004,45 @@ def test_a_test_reaches_the_methods_it_calls_on_an_instance_of_a_class_it_reache
     assert {item.symbol: item.match_reasons for item in mapped} == {
         "test_a_made_invoice_is_empty": [REACHED_ELSEWHERE],
         "test_a_new_invoice_is_empty": [REACHED_ELSEWHERE],
+    }
+
+
+def test_a_test_holds_an_instance_it_makes_or_reads_not_one_a_module_makes_on_import() -> None:
+    """`kitchen` makes a `Store` on import. Loading it hands a test none, so `.get` on a
+    dictionary is no call on the store, while reading `kitchen._store` or making a
+    `kitchen.Store()`, through the class the package re-exports, holds one."""
+    modules = {
+        "src/kitchen/__init__.py": "from .stores import Store\n\n_store = Store()\n",
+        "src/kitchen/stores.py": "class Store:\n    def get(self, key):\n        return key\n",
+    }
+    tests = (
+        "import kitchen\n\n"
+        "def test_a_lookup_reads_a_dict():\n    assert {'a': 1}.get('a') == 1 and kitchen\n\n"
+        "def test_the_store_returns_the_key():\n    assert kitchen._store.get('a') == 'a'\n\n"
+        "def test_a_new_store_returns_the_key():\n    assert kitchen.Store().get('a') == 'a'\n"
+    )
+    graph = CallGraph(
+        {path: module_references(text, package_of(path)) for path, text in modules.items()}
+    )
+    index = TestIndex(
+        tests=_index_source("tests/test_kitchen.py", tests), incomplete=False, warnings=[]
+    )
+    candidate = build_candidates(
+        [
+            StructuralDelta(
+                path="src/kitchen/stores.py",
+                symbol="Store.get",
+                kind="symbol_added",
+                old=None,
+                new="(self, key)",
+                old_lines=None,
+                new_lines=LineRange(start=2, end=3),
+                hunk_id="src/kitchen/stores.py#hunk-001",
+            )
+        ]
+    )[0]
+    mapped = map_candidate_tests([candidate], index, WeaverConfig(), graph)[0]
+    assert {item.symbol: item.match_reasons for item in mapped} == {
+        "test_the_store_returns_the_key": [REACHED_ELSEWHERE],
+        "test_a_new_store_returns_the_key": [REACHED_ELSEWHERE],
     }

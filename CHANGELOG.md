@@ -13,6 +13,17 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Fix:** a test holds an instance it makes or reads, not one a module makes when it loads. A test
+  that reaches a class may call methods on an instance of it, but reaching a class counted loading
+  a module whose top-level code makes one: every test importing `meal-manager`'s `dii` held its
+  session store, and `.get` on any dictionary reached `IngredientSessionStore.get`. A test now
+  holds an instance of a class it reaches through calls without loading a module, or of a
+  module-level variable it reads, as `_dii_mod._store` does. The index also records the test's
+  attribute chains and what the file's `import` statements bind, so
+  `_repos_mod.JsonFridgeRepository(...)` is the class the module re-exports. On `meal-manager`,
+  19 of 91 candidate lists swap 44 candidates for tests that use what changed, and no risk score
+  moves; this repository and `distiller` are unchanged.
+
 - **Feature:** a test that loads a module with `importlib` is related to it. `meal-manager`'s tests
   load everything that way, `importlib.import_module(".src.dish", _PLUGIN_DIR.name)` and a
   `_load_handler("add_dish")` helper that formats the name, so no test related to any of its

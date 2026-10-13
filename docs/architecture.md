@@ -69,8 +69,9 @@ from, but no subclass's override. An attribute a method reads on `self` names a 
 class or its bases only. From what each test names, with the
 same-file helpers it calls, the modules it imports or runs, and the names it imports through
 re-exporting packages, the mapper follows those uses across modules: a test reaches whatever it
-names, whatever that uses in turn, the methods it calls on a class it reaches, and the top-level
-code of every module loading brings in. Reaching a symbol from a module the test imports counts
+names, whatever that uses in turn, the methods it calls on an instance it holds — of a class it
+reaches through calls, or one a module-level variable it reads holds — and the top-level code of
+every module loading brings in. Reaching a symbol from a module the test imports counts
 more than reaching it only through another module, which never makes a strong candidate on its
 own. A reach replaces a mention of the symbol in the test's body, the weaker evidence of the same
 thing, and among equal scores a test that names the symbol ranks first. A private, undecorated helper that no test reaches or names gets no candidate from a test

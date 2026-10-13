@@ -56,9 +56,13 @@ class IndexedTest:
     reach_names: frozenset[str] = frozenset()
     # The attributes among them, which alone call a method on an instance the test holds.
     reach_attributes: frozenset[str] = frozenset()
-    # Names the test's file binds to what it loads by name, each with the absolute name it
-    # stands for: `add_dish = _load_handler("add_dish")` is `src.handlers.add_dish.HANDLER`.
+    # Names the test and its file bind, each with the absolute name it stands for: `from shop
+    # import Cart` binds `Cart` to `shop.Cart`, and `add_dish = _load_handler("add_dish")`
+    # binds `add_dish` to `src.handlers.add_dish.HANDLER`.
     bound: frozenset[tuple[str, str]] = frozenset()
+    # Attribute chains rooted at a name, in the test and the same-file helpers it names:
+    # `_repos_mod.JsonFridgeRepository` is what the module `_repos_mod` stands for binds.
+    reach_chains: frozenset[str] = frozenset()
 
 
 @dataclass
@@ -82,6 +86,34 @@ def _static_imports(nodes: Iterable[ast.AST]) -> set[str]:
             elif node.level:
                 imports.update(alias.name for alias in node.names)
     return imports
+
+
+def _static_bindings(nodes: Iterable[ast.AST]) -> dict[str, str]:
+    """What each name the `import` statements among `nodes` bind stands for: `import a.b`
+    binds `a`, and `from x import y as z` binds `z` to `x.y`."""
+    bound: dict[str, str] = {}
+    for node in nodes:
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.asname:
+                    bound[alias.asname] = alias.name
+                else:
+                    root = alias.name.split(".", 1)[0]
+                    bound[root] = root
+        elif isinstance(node, ast.ImportFrom) and node.module and not node.level:
+            for alias in node.names:
+                if alias.name != "*":
+                    bound[alias.asname or alias.name] = f"{node.module}.{alias.name}"
+    return bound
+
+
+def _chains(node: ast.AST) -> frozenset[str]:
+    """Every attribute chain rooted at a name in code, `a.b` and `a.b.c` for `a.b.c`."""
+    return frozenset(
+        chain
+        for item in ast.walk(node)
+        if isinstance(item, ast.Attribute) and (chain := _chain(item)) is not None
+    )
 
 
 def _outside(tree: ast.AST, excluded: set[int]) -> Iterator[ast.AST]:
@@ -408,7 +440,7 @@ def _index_source(path: str, source: str) -> list[IndexedTest]:
     # An import in a test's own body is that test's; the rest of the file imports for all.
     shared = list(_outside(tree, {id(node) for _, node in tests}))
     dynamic = _DynamicImports(tree, package_of(path))
-    file_loaded, file_bound = dynamic.scan(shared, {})
+    file_loaded, file_bound = dynamic.scan(shared, _static_bindings(shared))
     file_imports = _static_imports(shared) | file_loaded
     runs_visitor = _ModuleRunVisitor()
     runs_visitor.visit(tree)
@@ -420,13 +452,14 @@ def _index_source(path: str, source: str) -> list[IndexedTest]:
         and not node.name.startswith("test")
     }
     helpers = {name: _code_names(node) for name, node in helper_nodes.items()}
+    helper_chains = {name: _chains(node) for name, node in helper_nodes.items()}
     indexed: list[IndexedTest] = []
     for symbol, node in tests:
         body_text = redact_text(ast.unparse(node), max_chars=4000)
         names = _code_names(node)
         named_helpers = _helpers_named(names, helpers)
         own = list(ast.walk(node))
-        loaded, bound = dynamic.scan(own, file_bound)
+        loaded, bound = dynamic.scan(own, {**file_bound, **_static_bindings(own)})
         indexed.append(
             IndexedTest(
                 path=path,
@@ -441,6 +474,9 @@ def _index_source(path: str, source: str) -> list[IndexedTest]:
                     *(_attributes(helper_nodes[helper]) for helper in named_helpers)
                 ),
                 bound=frozenset(bound.items()),
+                reach_chains=_chains(node).union(
+                    *(helper_chains[helper] for helper in named_helpers)
+                ),
             )
         )
     return indexed
@@ -694,9 +730,15 @@ def map_candidate_tests(
                 imported_symbol := graph.resolve(imported_name)
             ):
                 entries.add(imported_symbol)
-        # `list_fridge = _load_handler("list_fridge")` is the module's `HANDLER` by another name.
-        for name, target in test.bound:
+        # `list_fridge = _load_handler("list_fridge")` is the module's `HANDLER` by another name,
+        # and `_repos_mod.JsonFridgeRepository` the class `_repos_mod`'s module re-exports.
+        bound = dict(test.bound)
+        for name, target in bound.items():
             if bare_name(name) in test.reach_names and (symbol := graph.resolve(target)):
+                entries.add(symbol)
+        for chain in test.reach_chains:
+            root, _, rest = chain.partition(".")
+            if root in bound and (symbol := graph.resolve(f"{bound[root]}.{rest}")):
                 entries.add(symbol)
         for program in test.modules_run:
             found = graph.locate(f"{program}.__main__")
@@ -705,11 +747,32 @@ def map_candidate_tests(
         return frozenset(entries)
 
     @cache
+    def held_of(position: int) -> frozenset[Node]:
+        """The classes of the module-level instances a test reads, as `_dii_mod._store`."""
+        if graph is None:
+            return frozenset()
+        test = tests[position]
+        bound = dict(test.bound)
+        held: set[Node] = set()
+        for name, target in bound.items():
+            if bare_name(name) in test.reach_names:
+                held |= graph.instances(target)
+        for chain in test.reach_chains:
+            root, _, rest = chain.partition(".")
+            if root in bound:
+                held |= graph.instances(f"{bound[root]}.{rest}")
+        return frozenset(held)
+
+    @cache
     def class_reachers(cls: Node) -> frozenset[int]:
-        """The tests that reach a class, and so may hold one of its instances."""
-        ancestors = graph.reaching(cls) if graph is not None else frozenset()
+        """The tests that may hold an instance of a class: they reach it through calls, which
+        make or return one, or read a module-level variable holding one. Loading the module
+        that makes one at import hands the test none."""
+        callers = graph.callers(cls) if graph is not None else frozenset()
         return frozenset(
-            position for position in range(len(tests)) if entries_of(position) & ancestors
+            position
+            for position in range(len(tests))
+            if entries_of(position) & callers or cls in held_of(position)
         )
 
     def reaches(position: int, path: str, ancestors: frozenset[Node], local: bool) -> bool:

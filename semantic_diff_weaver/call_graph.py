@@ -218,6 +218,8 @@ class CallGraph:
             for target in targets:
                 self._users[target].add(node)
         self._reaching: dict[Node, frozenset[Node]] = {}
+        self._callers: dict[Node, frozenset[Node]] = {}
+        self._calling: dict[Node, set[Node]] | None = None
 
     def locate(self, dotted: str) -> tuple[str, list[str]] | None:
         """The indexed module a dotted name starts with, and the rest of the name."""
@@ -484,6 +486,21 @@ class CallGraph:
         if node not in self._reaching:
             self._reaching[node] = _closure(node, self._users)
         return self._reaching[node]
+
+    def callers(self, node: Node) -> frozenset[Node]:
+        """Every symbol from which `node` is reached through calls, without loading a module.
+
+        Loading `dii/__init__.py` makes its `_store`, which hands no one an instance: code
+        holds one only through a call that makes or returns it, or by reading the variable.
+        """
+        if self._calling is None:
+            self._calling = {
+                target: {user for user in found if user[1] != "<module>"}
+                for target, found in self._users.items()
+            }
+        if node not in self._callers:
+            self._callers[node] = _closure(node, self._calling)
+        return self._callers[node]
 
 
 def build_call_graph(

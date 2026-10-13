@@ -118,6 +118,31 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-10-13, instances a test holds)
+
+A test that reaches a class may hold an instance of it and reaches the methods it calls on one by
+name. Reaching a class counted any path, loading a module included, so a module that makes an
+instance on import handed one to every test that loads it: once `meal-manager`'s tests related to
+its modules, each of the 81 integration tests importing `dii` held the session store that
+`dii/__init__.py` makes, and `.get` on a dictionary in `test_add_dish_with_instructions` reached
+`IngredientSessionStore.get` and the session parsing behind it.
+
+A test now holds an instance of a class it reaches through calls that load no module, which
+`CallGraph.callers` follows, or of a module-level variable it reads, by a name its file binds or a
+chain rooted at one: `_dii_mod._store` holds what `dii/__init__.py` assigns it. Production code is
+followed as before; a function that calls `_store.get()` still knows its variable. For those chains
+the index records each test's attribute chains, with its same-file helpers', and what the file's
+`import` statements bind beside what it loads by name, so `_repos_mod.JsonFridgeRepository(...)`
+starts the test from the class `src/repositories/__init__.py` re-exports.
+
+Measured: on `meal-manager`'s `8894749`, 19 of 91 lists swap 44 candidates and 2 first candidates
+change, with no risk score moving: the session helpers are reached by the `dii` tests instead of
+the dish tests, `JsonTuningRepository.load` by the tests that register cooked meals instead of the
+`dii` ones, and `tuning.validate_state` by the shopping-list test, whose handler loads the tuning,
+instead of `test_edit_dish_empty_rejected`. `v0.2.0..HEAD` over `src/**` swaps 29 candidates in 14
+lists. This repository's `v0.3.0..main`, `distiller` `main..skeleton`, and the 17-case corpus are
+unchanged.
+
 ## Candidate tests that load modules with `importlib` (2026-10-13)
 
 `meal-manager`'s tests run as scripts from the plugin's directory, so they cannot import its
