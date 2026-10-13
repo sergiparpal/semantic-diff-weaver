@@ -118,6 +118,35 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-10-13, merged obligations)
+
+Equivalent obligations merged by normalized Given/When/Then, as the plan-conformance closure
+below records, but a scenario template names no symbol, so equivalence reduced to "same
+category". Every behavior of a category then shared its obligations. Their candidate tests were
+pooled and cut to five, and the static status was `candidate_exists_unverified` once any of them
+had a candidate. A behavior with no candidate was listed under another's tests, and the brief,
+which shows a finding's label but not its test gap, gave no other way to tell. On `distiller`
+`main..skeleton`, `__main__` and `messages.unexpected_failure` had no candidate, yet the one
+obligation covering them listed `test_an_unexpected_failure_is_one_line_that_names_only_its_class`,
+a test matched to `cli.main`. Grounded verdicts already demanded unanimity, and a merge of a
+covered and an uncovered behavior fell back to static matching instead of reporting either.
+
+The merge key now includes the behavior's coverage status, so an obligation's status and
+candidate tests hold for every behavior it covers, and behaviors without a candidate share one
+that says so, at the higher priority their test gap already gave them. A covered and an uncovered
+behavior each keep their own verdict instead of losing both. The obligation grouping high-risk
+overflow past `max_test_obligations` cannot be split without exceeding the cap, so like its
+origin and confidence it reports its weakest link: the status of its least-tested behavior, in
+the order uncovered, no candidate found, mapping incomplete, unverified candidate, covered.
+
+Measured: no risk score changes, since obligations do not feed them. `distiller` goes from one
+obligation to two. `meal-manager` `8894749` goes from 25 obligations to 42, and `v0.2.0..HEAD`
+over `src/**` from 22 to 41. Of their findings, 67 of 91 and 98 of 122 had no candidate yet were
+linked only to obligations listing other findings' tests, and each now has an obligation that
+says none was found. This repository's `v0.3.0..main` goes from 25 obligations to 28, two
+findings no longer under others' tests. The 17-case corpus, in which no obligation merges, is
+unchanged.
+
 ## Output-affecting corrections (2026-10-13, test files)
 
 Every changed Python file was analyzed, so test code was reviewed as if it were the behavior under

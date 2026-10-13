@@ -6,6 +6,7 @@ from semantic_diff_weaver.models import (
     BehaviorCategory,
     BehaviorChange,
     CandidateTest,
+    CoverageStatus,
     Evidence,
     ObligationType,
     Origin,
@@ -114,6 +115,95 @@ def test_merged_obligations_union_and_cap_candidate_tests() -> None:
     assert all(item.coverage_status.value == "candidate_exists_unverified" for item in obligations)
 
 
+def test_a_behavior_without_tests_never_shares_an_obligation_with_one_that_has_them() -> None:
+    """The templates name no symbol, so equivalent scenarios used to merge across behaviors.
+
+    The untested behavior was then listed under the other's candidate tests, with a
+    `candidate_exists_unverified` status that was false for it.
+    """
+    tested = CandidateTest(
+        path="tests/test_pricing.py",
+        symbol="test_discount_above_threshold",
+        match_score=0.8,
+        match_reasons=["mirrored source/test path"],
+    )
+    obligations, _ = generate_obligations(
+        [
+            behavior(BehaviorCategory.BOUNDARY, index=1),
+            behavior(BehaviorCategory.BOUNDARY, index=2),
+        ],
+        {"bc-001": [tested]},
+        False,
+        WeaverConfig().rules,
+    )
+    assert len(obligations) == 6
+    for obligation in obligations:
+        if obligation.behavior_change_ids == ["bc-001"]:
+            assert obligation.candidate_existing_tests == [tested]
+            assert obligation.coverage_status is CoverageStatus.CANDIDATE_UNVERIFIED
+        else:
+            assert obligation.behavior_change_ids == ["bc-002"]
+            assert obligation.candidate_existing_tests == []
+            assert obligation.coverage_status is CoverageStatus.NONE_FOUND
+
+
+def test_behaviors_share_an_obligation_only_when_their_coverage_status_agrees() -> None:
+    obligations, _ = generate_obligations(
+        [behavior(BehaviorCategory.BOUNDARY, index=index) for index in range(1, 5)],
+        {},
+        False,
+        WeaverConfig().rules,
+        coverage_states={"bc-001": "covered", "bc-002": "covered", "bc-003": "uncovered"},
+    )
+    statuses = {(tuple(item.behavior_change_ids), item.coverage_status) for item in obligations}
+    assert statuses == {
+        (("bc-001", "bc-002"), CoverageStatus.COVERED),
+        (("bc-003",), CoverageStatus.UNCOVERED),
+        (("bc-004",), CoverageStatus.NONE_FOUND),
+    }
+    assert len(obligations) == 9
+
+
+@pytest.mark.parametrize(
+    ("states", "with_candidate", "mapping_incomplete", "expected"),
+    [
+        ({"bc-002": "covered", "bc-003": "covered"}, False, False, CoverageStatus.COVERED),
+        ({"bc-002": "covered"}, True, False, CoverageStatus.CANDIDATE_UNVERIFIED),
+        ({"bc-002": "covered"}, False, True, CoverageStatus.INCOMPLETE),
+        ({"bc-002": "covered"}, False, False, CoverageStatus.NONE_FOUND),
+        ({"bc-002": "uncovered"}, False, False, CoverageStatus.UNCOVERED),
+    ],
+)
+def test_a_grouped_overflow_obligation_reports_its_least_tested_behavior(
+    states: dict[str, str],
+    with_candidate: bool,
+    mapping_incomplete: bool,
+    expected: CoverageStatus,
+) -> None:
+    config = WeaverConfig()
+    config.rules.max_test_obligations = 2
+    candidate = CandidateTest(
+        path="tests/test_a.py",
+        symbol="test_retry",
+        match_score=0.8,
+        match_reasons=["direct module or symbol import"],
+    )
+    obligations, _ = generate_obligations(
+        [
+            behavior(BehaviorCategory.BOUNDARY, index=1),
+            behavior(BehaviorCategory.AUTHORIZATION, index=2),
+            behavior(BehaviorCategory.RETRY_TIMEOUT, index=3),
+        ],
+        {"bc-003": [candidate]} if with_candidate else {},
+        mapping_incomplete,
+        config.rules,
+        coverage_states=states,
+    )
+    grouped = next(item for item in obligations if len(item.behavior_change_ids) > 1)
+    assert grouped.behavior_change_ids == ["bc-002", "bc-003"]
+    assert grouped.coverage_status is expected
+
+
 def test_duplicate_llm_obligations_are_semantically_deduplicated() -> None:
     suggestion = SuggestedScenario(
         evidence_ids=("ev-001",),
@@ -176,7 +266,9 @@ def test_grouped_overflow_obligation_preserves_candidate_mapping() -> None:
     )
     grouped = next(item for item in obligations if len(item.behavior_change_ids) > 1)
     assert grouped.candidate_existing_tests == [mapped]
-    assert grouped.coverage_status.value == "candidate_exists_unverified"
+    # The candidate is bc-003's alone. bc-002 has none in an incomplete mapping, and a group
+    # reports its least-tested behavior's status.
+    assert grouped.coverage_status.value == "mapping_incomplete"
     assert grouped.origin is Origin.LLM_SUPPORTED
 
 

@@ -13,6 +13,19 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Fix:** an obligation no longer shows one finding's candidate tests for another that has none.
+  Equivalent scenarios merged on their template's wording, which names no symbol, so every finding
+  of a category shared one obligation, its candidate tests pooled and its status
+  `candidate_exists_unverified` as soon as any one had a candidate. A finding with no test was
+  listed under another's tests, and nothing in the brief told the two apart. Obligations now
+  merge only between findings with the same coverage status, so findings without a candidate get
+  their own obligation reading "none (no_candidate_found)", at the higher priority their test gap
+  already earned. Covered and uncovered findings no longer share an obligation either: each keeps
+  its own grounded verdict, where a shared one used to fall back to static matching. The
+  obligation grouping high-risk overflow past `max_test_obligations` reports its least-tested
+  finding's status. Risk scores are unchanged, and the obligation count rises: 25 to 42 on
+  `meal-manager` `8894749`, where 67 of 91 findings had been listed under other findings' tests.
+
 - **Fix:** changed tests are no longer analyzed as product code. The default include is `**/*.py`,
   so a branch that added a module and its tests reported every test function, helper, and nested
   fake as a medium-risk behavior change with an obligation to test it — 17 of 28 findings on one

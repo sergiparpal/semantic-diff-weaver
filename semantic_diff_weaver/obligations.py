@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
 from .models import (
@@ -68,15 +69,23 @@ def _coverage_status(
     return CoverageStatus.NONE_FOUND
 
 
-def _merge_grounded(behavior_ids: list[str], states: dict[str, str] | None) -> str | None:
-    """A grouped obligation keeps a grounded verdict only when every behavior agrees."""
-    if not states:
-        return None
-    verdicts = {states.get(behavior_id) for behavior_id in behavior_ids}
-    if len(verdicts) != 1:
-        return None
-    single = verdicts.pop()
-    return single if single in {"covered", "uncovered"} else None
+# From the least test evidence to the most.
+_TEST_EVIDENCE_ORDER = (
+    CoverageStatus.UNCOVERED,
+    CoverageStatus.NONE_FOUND,
+    CoverageStatus.INCOMPLETE,
+    CoverageStatus.CANDIDATE_UNVERIFIED,
+    CoverageStatus.COVERED,
+)
+
+
+def _least_tested(statuses: Iterable[CoverageStatus]) -> CoverageStatus:
+    """The coverage status of the least-tested behavior a grouped obligation stands in for.
+
+    Like its origin and confidence, the grouped obligation reports its weakest link, so it never
+    claims a candidate test or an executed line that one of its behaviors lacks.
+    """
+    return min(statuses, key=_TEST_EVIDENCE_ORDER.index)
 
 
 def _overflow_origin(behaviors: list[BehaviorChange]) -> Origin:
@@ -93,7 +102,7 @@ def _group_overflow(
     overflow: list[TestObligation],
     required_behaviors: list[BehaviorChange],
     candidate_tests: dict[str, list[CandidateTest]],
-    mapping_incomplete: bool,
+    coverage_by_behavior: dict[str, CoverageStatus],
     rules: RulesConfig,
 ) -> TestObligation:
     """Collapse high-risk obligations past the global cap into one linked review obligation.
@@ -119,7 +128,7 @@ def _group_overflow(
         when="The bounded review is planned",
         then="Each linked behavior receives an explicit regression scenario before release",
         candidate_existing_tests=candidates,
-        coverage_status=_coverage_status(candidates, mapping_incomplete),
+        coverage_status=_least_tested(coverage_by_behavior[item] for item in behavior_ids),
         origin=_overflow_origin(behaviors),
         confidence=min(item.confidence for item in behaviors),
     )
@@ -134,11 +143,13 @@ def generate_obligations(
     coverage_states: dict[str, str] | None = None,
 ) -> tuple[list[TestObligation], int]:
     generated: list[TestObligation] = []
-    by_semantics: dict[tuple[str, str, str], TestObligation] = {}
+    by_semantics: dict[tuple[str, str, str, CoverageStatus], TestObligation] = {}
+    coverage_by_behavior: dict[str, CoverageStatus] = {}
     for behavior in behaviors:
         candidates = candidate_tests.get(behavior.id, [])
         grounded = (coverage_states or {}).get(behavior.id)
         coverage = _coverage_status(candidates, mapping_incomplete, grounded)
+        coverage_by_behavior[behavior.id] = coverage
         gap = TEST_GAP_WITH_CANDIDATES if candidates else TEST_GAP_WITHOUT_CANDIDATES
         scenarios: tuple[Scenario, ...] = CATEGORY_PROFILES[behavior.category].scenarios
         behavior_evidence_ids = {item.id for item in behavior.evidence}
@@ -169,10 +180,15 @@ def generate_obligations(
                 *scenarios[: max(0, rules.max_obligations_per_behavior - 1)],
             )
         for scenario in scenarios:
+            # The templates name no symbol, so without the coverage status in the key every
+            # behavior of a category shared one obligation, and a behavior with no test showed
+            # another's candidates under `candidate_exists_unverified`. Merging only behaviors
+            # whose status agrees keeps an obligation's status and candidates true of each one.
             key = (
                 canonical_phrase(scenario.given),
                 canonical_phrase(scenario.when),
                 canonical_phrase(scenario.then),
+                coverage,
             )
             priority = obligation_priority(
                 behavior.risk_score, scenario.relevance, gap, behavior.confidence
@@ -187,11 +203,6 @@ def generate_obligations(
                 existing.candidate_existing_tests = _merge_candidate_tests(
                     existing.candidate_existing_tests, candidates
                 )[: rules.max_candidate_tests_per_obligation]
-                existing.coverage_status = _coverage_status(
-                    existing.candidate_existing_tests,
-                    mapping_incomplete,
-                    _merge_grounded(existing.behavior_change_ids, coverage_states),
-                )
                 if behavior.confidence > existing.confidence:
                     existing.type = scenario.type
                     existing.title = scenario.title
@@ -243,7 +254,7 @@ def generate_obligations(
                 required[max(0, maximum - 1) :],
                 required_behaviors,
                 candidate_tests,
-                mapping_incomplete,
+                coverage_by_behavior,
                 rules,
             ),
         ]

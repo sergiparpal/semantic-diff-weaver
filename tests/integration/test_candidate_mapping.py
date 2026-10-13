@@ -120,6 +120,43 @@ def test_a_test_changed_with_its_code_is_a_candidate_and_not_a_finding(repo_fact
     assert opted_in["scope"]["analyzed_files"] == ["src/api.py", "tests/test_api.py"]
 
 
+def test_an_untested_change_is_never_shown_another_changes_tests(repo_factory) -> None:
+    """Two boundary changes in different modules, of which only one has a test.
+
+    Their obligations used to merge on the template's wording alone, so the untested
+    `free_shipping` was listed under `test_discount_above_threshold` as having a candidate.
+    """
+    tests = (
+        "from app.pricing import discount\n\n"
+        "def test_discount_above_threshold():\n    assert discount(150) == 10\n"
+    )
+    repo, base, head = repo_factory(
+        {
+            "app/pricing.py": "def discount(total):\n    return 10 if total > 100 else 0\n",
+            "app/shipping.py": "def free_shipping(weight):\n    return weight < 5\n",
+            "tests/test_pricing.py": tests,
+        },
+        {
+            "app/pricing.py": "def discount(total):\n    return 10 if total >= 100 else 0\n",
+            "app/shipping.py": "def free_shipping(weight):\n    return weight <= 5\n",
+            "tests/test_pricing.py": tests,
+        },
+    )
+    result = analyze(
+        {"repo_path": str(repo), "base_ref": base, "head_ref": head, "output_format": "json"}
+    )
+    symbols = {item["id"]: item["evidence"][0]["symbol"] for item in result["behavior_changes"]}
+    assert sorted(symbols.values()) == ["discount", "free_shipping"]
+    for obligation in result["test_obligations"]:
+        covered = {symbols[item] for item in obligation["behavior_change_ids"]}
+        if covered == {"free_shipping"}:
+            assert obligation["candidate_existing_tests"] == []
+            assert obligation["coverage_status"] == "no_candidate_found"
+        else:
+            assert covered == {"discount"}
+            assert obligation["coverage_status"] == "candidate_exists_unverified"
+
+
 def test_a_file_named_like_a_test_is_left_out_only_when_it_defines_one(repo_factory) -> None:
     """The name alone would have hidden this repository's own `test_mapper.py` from review."""
     repo, base, head = repo_factory(

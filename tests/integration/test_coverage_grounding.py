@@ -251,31 +251,24 @@ def test_an_unreadable_report_is_a_cli_analysis_error(repo_factory, capsys, monk
     assert "coverage_unreadable" in captured.err
 
 
-def test_a_grouped_obligation_keeps_a_verdict_only_when_its_behaviors_agree(
-    repo_factory,
-) -> None:
-    """Two identical changes merge into one obligation; a split verdict falls back to static.
+def test_changes_with_split_verdicts_never_share_an_obligation(repo_factory) -> None:
+    """Two identical changes, one covered and one not, each keep their own verdict.
 
-    Claiming either verdict for an obligation that stands for both a covered and an uncovered
-    change would be reporting something the report does not support.
+    They used to share obligations, which could claim neither verdict and fell back to static
+    matching: claiming either for both would report something the report does not support.
+    Obligations now merge only between behaviors whose coverage status agrees.
     """
     repo, base, head = repo_factory(
         {"api.py": "def a(x):\n    return x < 5\n\n\ndef b(y):\n    return y < 5\n"},
         {"api.py": "def a(x):\n    return x <= 5\n\n\ndef b(y):\n    return y <= 5\n"},
     )
     analysis = _analyze(Path(repo), base, head, _write_report(Path(repo)))["analysis"]
-    grouped = [
-        obligation
-        for obligation in analysis["test_obligations"]
-        if len(obligation["behavior_change_ids"]) > 1
-    ]
-    assert grouped, "the two identical boundary changes should share obligations"
-    assert all(
-        obligation["coverage_status"]
-        not in {CoverageStatus.COVERED.value, CoverageStatus.UNCOVERED.value}
-        for obligation in grouped
-    )
-    # The per-finding score still reflects coverage, even where the obligation cannot.
+    assert all(len(item["behavior_change_ids"]) == 1 for item in analysis["test_obligations"])
+    assert _verdicts(analysis) == {
+        "a": CoverageStatus.COVERED.value,
+        "b": CoverageStatus.UNCOVERED.value,
+    }
+    # The per-finding score reflects coverage too.
     behaviors = _by_symbol(analysis)
     assert (
         behaviors["b"]["score_explanation"]["test_gap_weight"]
