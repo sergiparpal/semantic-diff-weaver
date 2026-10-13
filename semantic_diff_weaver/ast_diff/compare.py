@@ -271,7 +271,7 @@ def compare_symbol(
                 hunk_id,
                 "symbol_added",
                 None,
-                new.signature,
+                new.display or new.signature,
                 ambiguous_match=new.match_ambiguous,
             )
         ]
@@ -283,7 +283,7 @@ def compare_symbol(
                 new,
                 hunk_id,
                 "symbol_removed",
-                old.signature,
+                old.display or old.signature,
                 None,
                 ambiguous_match=old.match_ambiguous,
             )

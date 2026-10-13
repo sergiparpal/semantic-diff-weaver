@@ -13,6 +13,17 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Fix:** added code reads as added, and an added or removed class or module shows what it is.
+  Every added symbol, a brand-new file's included, was "added without a reliable semantic match"
+  and warned that "callers or observable behavior may change" — the wording of a rename the
+  matcher could not correlate. An added symbol now reads "A callable or structural symbol was
+  added." with "New behavior becomes reachable; its intended contract needs characterizing
+  tests.", a removed one names the callers it may break, and the old wording stays for the
+  ambiguous near-matches it describes. The evidence of an added or removed class showed only its
+  `bases(...)`, and a module only `module`. A class now shows its decorators, bases, and fields
+  (`@dataclass class RunArgs: pr: int, head: str, …`) and a module its first top-level
+  statements. Scores, confidence, and obligations are unchanged.
+
 - **Fix:** running without a model is no longer reported as a fallback. The CLI's `--no-llm`, a
   CLI without a provider, and the Claude Code server run without one by design, yet every result
   warned "No inference model was provided; returned deterministic fallback findings." and listed
