@@ -157,6 +157,34 @@ def test_an_untested_change_is_never_shown_another_changes_tests(repo_factory) -
             assert obligation["coverage_status"] == "candidate_exists_unverified"
 
 
+def test_a_test_that_runs_the_package_covers_its_changed_main_module(repo_factory) -> None:
+    """`python -m pkg` is how a test reaches `pkg/__main__.py`; nothing imports it."""
+    test_main = (
+        "import subprocess\nimport sys\n\n"
+        "def test_the_program_exits_with_what_main_returns():\n"
+        "    subprocess.run([sys.executable, '-P', '-m', 'pkg'], check=False)\n"
+    )
+    repo, base, head = repo_factory(
+        {
+            "src/pkg/__init__.py": "",
+            "src/pkg/__main__.py": "raise SystemExit(0)\n",
+            "tests/test_main.py": test_main,
+        },
+        {
+            "src/pkg/__init__.py": "",
+            "src/pkg/__main__.py": "raise SystemExit(1)\n",
+            "tests/test_main.py": test_main,
+        },
+    )
+    result = analyze(
+        {"repo_path": str(repo), "base_ref": base, "head_ref": head, "output_format": "json"}
+    )
+    assert {item["evidence"][0]["path"] for item in result["behavior_changes"]} == {
+        "src/pkg/__main__.py"
+    }
+    assert set(_candidate_tests(result)) == {"tests/test_main.py"}
+
+
 def test_a_file_named_like_a_test_is_left_out_only_when_it_defines_one(repo_factory) -> None:
     """The name alone would have hidden this repository's own `test_mapper.py` from review."""
     repo, base, head = repo_factory(
