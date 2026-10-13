@@ -118,6 +118,32 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-10-13, package imports)
+
+Candidate mapping counted a test as importing the changed module when it imported any package
+above it: `from distiller import cli` records `distiller`, so the test also imported every other
+module of `distiller`, at 0.25 as "direct module or symbol import". A package import reaches one
+of its modules only if something along the way imports it, which the rule could not tell. With
+category terminology's 0.10 the two reached the threshold: on this repository's `v0.3.0..main`,
+`test_the_risk_formula_in_the_skill_reproduces_every_score` was a candidate for twelve symbols
+of `mcp_server.py` and for `ast_diff/compare.py`, and other scripts' tests for
+`scripts/verify_wheel.py`.
+
+Dropping the rule would have cost `distiller` a real candidate:
+`test_an_unexpected_failure_is_one_line_that_names_only_its_class` imports `cli`, which imports
+`messages`. A package import is now its own signal, "changed module's package imported", at
+0.15 — enough to confirm a test whose name spells the changed symbol (0.35), not enough with
+terminology or a body mention alone (0.25) — and it is not added on top of a direct import of
+the module.
+
+Measured: `distiller` keeps every candidate, `unexpected_failure`'s at 0.35 instead of 0.45
+under the new reason. `meal-manager` (`8894749`, and `v0.2.0..HEAD` over `src/**`) is unchanged.
+This repository's `v0.3.0..main` changes 118 of 147 candidate lists. 28 findings lose every
+candidate, all of them a package import plus terminology, and score six or seven points higher;
+elsewhere the dropped matches make room for tests of the changed module itself, so
+`snapshot_symbol` now lists the probe tests of `extract.py` instead of LLM batching and MCP
+tests. The 17-case corpus is unchanged.
+
 ## Output-affecting corrections (2026-10-13, `__main__` modules)
 
 A package's `__main__.py` has no test that imports it: its tests run the package as a program.

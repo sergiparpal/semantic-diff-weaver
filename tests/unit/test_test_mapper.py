@@ -531,3 +531,37 @@ def test_a_test_that_runs_the_package_is_a_candidate_for_its_main_module() -> No
 def test_running_a_package_is_no_evidence_about_its_other_modules() -> None:
     """A run reaches the whole package, as coarsely as an import of it already says."""
     assert main_module_reasons("tests/test_cli.py", RUNS_PKG, "src/pkg/cli.py") == {}
+
+
+def test_importing_the_package_confirms_a_test_name_but_is_no_import_of_the_module() -> None:
+    """`from pkg import cli` counted as a direct import of every module of `pkg`.
+
+    With category terminology alone that crossed the threshold, so a test of `cli` became a
+    candidate for every module beside it.
+    """
+    reasons = symbol_reasons(
+        "src/pkg/messages.py",
+        "unexpected_failure",
+        "from pkg import cli\n"
+        "def test_an_unexpected_failure_names_its_class():\n    assert cli.main([]) == 1\n"
+        "def test_a_review_of_the_behavior_exits_cleanly():\n    assert cli.main([]) == 0\n",
+    )
+    assert reasons == {
+        "test_an_unexpected_failure_names_its_class": [
+            "changed module's package imported",
+            SYMBOL_IN_NAME,
+        ]
+    }
+
+
+def test_a_test_that_imports_the_module_gets_no_package_signal_on_top() -> None:
+    reasons = symbol_reasons(
+        "src/pkg/messages.py",
+        "unexpected_failure",
+        "from pkg import messages\n"
+        "def test_an_unexpected_failure_names_its_class():\n    assert messages\n",
+    )
+    assert reasons["test_an_unexpected_failure_names_its_class"] == [
+        "direct module or symbol import",
+        SYMBOL_IN_NAME,
+    ]
