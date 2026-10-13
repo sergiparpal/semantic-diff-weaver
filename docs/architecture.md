@@ -50,7 +50,10 @@ batches the call ceiling could not accommodate or that retries left unvisited wi
 `model_input_symbol_limit` for a single symbol whose payload cannot fit one call, and
 `model_evidence_limit` for a symbol whose evidence was truncated to fit.
 A bounded, redacted committed README excerpt may provide repository purpose context. `test_mapper.py`
-parses committed tests statically and always labels matches as unverified candidates. Tests that
+parses committed tests statically and always labels matches as unverified candidates. A test
+imports what its file imports outside test functions and what its own body imports, including
+modules loaded with `importlib.import_module` under a name the file writes out, and the names its
+file binds to what such a load returns. Tests that
 match only through evidence about their file — a mapping, a mirrored name, an import, a run, or a
 package import — cannot be told apart by it, so several of them stand as one candidate for the
 file, with the symbol `<module>`. `call_graph.py` reads the head revision of the modules tests
@@ -66,8 +69,9 @@ from, but no subclass's override. An attribute a method reads on `self` names a 
 class or its bases only. From what each test names, with the
 same-file helpers it calls, the modules it imports or runs, and the names it imports through
 re-exporting packages, the mapper follows those uses across modules: a test reaches whatever it
-names, whatever that uses in turn, the methods it calls on a class it reaches, and the top-level
-code of every module loading brings in. Reaching a symbol from a module the test imports counts
+names, whatever that uses in turn, the methods it calls on an instance it holds — of a class it
+reaches through calls, or one a module-level variable it reads holds — and the top-level code of
+every module loading brings in. Reaching a symbol from a module the test imports counts
 more than reaching it only through another module, which never makes a strong candidate on its
 own. A reach replaces a mention of the symbol in the test's body, the weaker evidence of the same
 thing, and among equal scores a test that names the symbol ranks first. A private, undecorated helper that no test reaches or names gets no candidate from a test

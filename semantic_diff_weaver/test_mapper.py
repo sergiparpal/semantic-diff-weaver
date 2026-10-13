@@ -5,14 +5,14 @@ from __future__ import annotations
 import ast
 import re
 from collections import defaultdict
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from functools import cache, lru_cache
 from itertools import pairwise
 from pathlib import PurePosixPath
-from typing import ClassVar
+from typing import ClassVar, TypeGuard
 
-from .call_graph import CallGraph, Node, bare_name
+from .call_graph import CallGraph, Node, bare_name, package_of
 from .errors import WeaverError
 from .git_diff import GitRepository
 from .models import WHOLE_TEST_FILE, BehaviorCategory, CandidateTest, WeaverConfig
@@ -31,6 +31,8 @@ CAMEL_BOUNDARY_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 MODULE_NAME_RE = re.compile(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*")
 # `-m pkg` inside one string: a shell command line, or what `shlex.split` is given.
 RUN_FLAG_RE = re.compile(r"(?<!\S)-m\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)")
+# How deeply a module name built from literals is followed: `"pkg." + name`, an f-string.
+MAX_NAME_EXPRESSION_DEPTH = 16
 MAX_TEST_INDEX_FILES = 500
 MAX_TEST_INDEX_BYTES = 8 * 1024 * 1024
 
@@ -54,6 +56,13 @@ class IndexedTest:
     reach_names: frozenset[str] = frozenset()
     # The attributes among them, which alone call a method on an instance the test holds.
     reach_attributes: frozenset[str] = frozenset()
+    # Names the test and its file bind, each with the absolute name it stands for: `from shop
+    # import Cart` binds `Cart` to `shop.Cart`, and `add_dish = _load_handler("add_dish")`
+    # binds `add_dish` to `src.handlers.add_dish.HANDLER`.
+    bound: frozenset[tuple[str, str]] = frozenset()
+    # Attribute chains rooted at a name, in the test and the same-file helpers it names:
+    # `_repos_mod.JsonFridgeRepository` is what the module `_repos_mod` stands for binds.
+    reach_chains: frozenset[str] = frozenset()
 
 
 @dataclass
@@ -64,19 +73,260 @@ class TestIndex:
     warnings: list[str]
 
 
-class _ImportVisitor(ast.NodeVisitor):
-    def __init__(self) -> None:
-        self.imports: set[str] = set()
+def _static_imports(nodes: Iterable[ast.AST]) -> set[str]:
+    """What the `import` statements among `nodes` import."""
+    imports: set[str] = set()
+    for node in nodes:
+        if isinstance(node, ast.Import):
+            imports.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            if node.module:
+                imports.add(node.module)
+                imports.update(f"{node.module}.{alias.name}" for alias in node.names)
+            elif node.level:
+                imports.update(alias.name for alias in node.names)
+    return imports
 
-    def visit_Import(self, node: ast.Import) -> None:
-        self.imports.update(alias.name for alias in node.names)
 
-    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
-        if node.module:
-            self.imports.add(node.module)
-            self.imports.update(f"{node.module}.{alias.name}" for alias in node.names)
-        elif node.level:
-            self.imports.update(alias.name for alias in node.names)
+def _static_bindings(nodes: Iterable[ast.AST]) -> dict[str, str]:
+    """What each name the `import` statements among `nodes` bind stands for: `import a.b`
+    binds `a`, and `from x import y as z` binds `z` to `x.y`."""
+    bound: dict[str, str] = {}
+    for node in nodes:
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.asname:
+                    bound[alias.asname] = alias.name
+                else:
+                    root = alias.name.split(".", 1)[0]
+                    bound[root] = root
+        elif isinstance(node, ast.ImportFrom) and node.module and not node.level:
+            for alias in node.names:
+                if alias.name != "*":
+                    bound[alias.asname or alias.name] = f"{node.module}.{alias.name}"
+    return bound
+
+
+def _chains(node: ast.AST) -> frozenset[str]:
+    """Every attribute chain rooted at a name in code, `a.b` and `a.b.c` for `a.b.c`."""
+    return frozenset(
+        chain
+        for item in ast.walk(node)
+        if isinstance(item, ast.Attribute) and (chain := _chain(item)) is not None
+    )
+
+
+def _outside(tree: ast.AST, excluded: set[int]) -> Iterator[ast.AST]:
+    """Every node of `tree` except those inside the excluded ones, by identity."""
+    pending = [tree]
+    while pending:
+        node = pending.pop()
+        if id(node) not in excluded:
+            yield node
+            pending.extend(ast.iter_child_nodes(node))
+
+
+def _loads_module(node: ast.AST) -> TypeGuard[ast.Call]:
+    """Whether a call is `importlib.import_module`, written either way."""
+    if not isinstance(node, ast.Call):
+        return False
+    function = node.func
+    if isinstance(function, ast.Name):
+        return function.id == "import_module"
+    return (
+        isinstance(function, ast.Attribute)
+        and function.attr == "import_module"
+        and isinstance(function.value, ast.Name)
+        and function.value.id == "importlib"
+    )
+
+
+def _text(node: ast.AST | None, constants: Mapping[str, str], depth: int = 0) -> str | None:
+    """The string an expression always is: a literal, a name the file binds to one, or an
+    f-string or concatenation of those. None for anything known only when it runs."""
+    if node is None or depth > MAX_NAME_EXPRESSION_DEPTH:
+        return None
+    if isinstance(node, ast.Constant):
+        return node.value if isinstance(node.value, str) else None
+    if isinstance(node, ast.Name):
+        return constants.get(node.id)
+    if isinstance(node, ast.JoinedStr):
+        parts: list[str] = []
+        for value in node.values:
+            if isinstance(value, ast.FormattedValue):
+                if value.conversion != -1 or value.format_spec is not None:
+                    return None
+                value = value.value
+            text = _text(value, constants, depth + 1)
+            if text is None:
+                return None
+            parts.append(text)
+        return "".join(parts)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left = _text(node.left, constants, depth + 1)
+        right = _text(node.right, constants, depth + 1)
+        return None if left is None or right is None else left + right
+    return None
+
+
+def _argument(call: ast.Call, position: int, keyword: str) -> ast.expr | None:
+    if position < len(call.args):
+        return call.args[position]
+    return next((item.value for item in call.keywords if item.arg == keyword), None)
+
+
+def _loaded(call: ast.Call, constants: Mapping[str, str], package: str) -> str | None:
+    """The absolute name of the module an `import_module` call loads, when the file says it.
+
+    A relative name resolves against the package the call names, or, when that is known only
+    at run time, against the test file's own: `meal-manager` passes `Path(__file__).parent`'s
+    name to load `.src.dish` from the package its tests live in.
+    """
+    name = _text(_argument(call, 0, "name"), constants)
+    if not name:
+        return None
+    level = len(name) - len(name.lstrip("."))
+    if level:
+        anchor_name = _text(_argument(call, 1, "package"), constants)
+        anchor = (package if anchor_name is None else anchor_name).split(".")
+        anchor = [part for part in anchor if part]
+        if level - 1 > len(anchor):
+            return None
+        name = ".".join([*anchor[: len(anchor) - (level - 1)], *filter(None, [name[level:]])])
+    return name if MODULE_NAME_RE.fullmatch(name) else None
+
+
+@dataclass(frozen=True)
+class _Loader:
+    """A same-file function that loads a module named by its arguments, as a test's
+    `_load_handler(module_suffix)` loads `f".src.handlers.{module_suffix}"`."""
+
+    parameters: tuple[str, ...]
+    calls: tuple[ast.Call, ...]
+    # What of the module it loads the function returns: "" for the module itself, `HANDLER`
+    # for `return mod.HANDLER`, and None for anything else.
+    returns: str | None
+
+
+def _loader(node: ast.FunctionDef | ast.AsyncFunctionDef) -> _Loader | None:
+    calls = tuple(item for item in ast.walk(node) if _loads_module(item))
+    if not calls:
+        return None
+    holders = {
+        item.targets[0].id
+        for item in ast.walk(node)
+        if isinstance(item, ast.Assign)
+        and len(item.targets) == 1
+        and isinstance(item.targets[0], ast.Name)
+        and _loads_module(item.value)
+    }
+    returns: str | None = None
+    for item in ast.walk(node):
+        if isinstance(item, ast.Return) and item.value is not None:
+            value = item.value
+            if _loads_module(value) or (isinstance(value, ast.Name) and value.id in holders):
+                returns = ""
+            elif isinstance(value, ast.Attribute) and (chain := _chain(value)):
+                root, _, rest = chain.partition(".")
+                returns = rest if root in holders else None
+            break
+    parameters = tuple(arg.arg for arg in [*node.args.posonlyargs, *node.args.args])
+    return _Loader(parameters=parameters, calls=calls, returns=returns)
+
+
+def _chain(node: ast.Attribute) -> str | None:
+    """`a.b.c` for an attribute chain rooted at a name."""
+    parts = [node.attr]
+    value = node.value
+    while isinstance(value, ast.Attribute):
+        parts.append(value.attr)
+        value = value.value
+    if not isinstance(value, ast.Name):
+        return None
+    parts.append(value.id)
+    return ".".join(reversed(parts))
+
+
+class _DynamicImports:
+    """The modules a test file loads by name, as `importlib.import_module` does, and what each
+    name it assigns from one stands for.
+
+    `dish_mod = importlib.import_module(".src.dish", PACKAGE)` loads `src.dish` and binds
+    `dish_mod` to it, `Dish = dish_mod.Dish` binds `Dish` to `src.dish.Dish`, and a same-file
+    function that builds the name from its arguments loads one module for each call that
+    passes them written out. A name known only when the test runs loads nothing the index can
+    tell.
+    """
+
+    def __init__(self, tree: ast.Module, package: str) -> None:
+        self.package = package
+        self.constants = {
+            statement.targets[0].id: statement.value.value
+            for statement in tree.body
+            if isinstance(statement, ast.Assign)
+            and len(statement.targets) == 1
+            and isinstance(statement.targets[0], ast.Name)
+            and isinstance(statement.value, ast.Constant)
+            and isinstance(statement.value.value, str)
+        }
+        self.loaders = {
+            statement.name: found
+            for statement in tree.body
+            if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and not statement.name.startswith("test")
+            and (found := _loader(statement)) is not None
+        }
+
+    def load(self, call: ast.Call) -> tuple[set[str], str | None]:
+        """What a call loads, and what it returns: a module or one of its attributes."""
+        if _loads_module(call):
+            module = _loaded(call, self.constants, self.package)
+            return ({module} if module else set()), module
+        if not isinstance(call.func, ast.Name) or call.func.id not in self.loaders:
+            return set(), None
+        loader = self.loaders[call.func.id]
+        arguments = dict(self.constants)
+        for name, value in zip(loader.parameters, call.args, strict=False):
+            if (text := _text(value, self.constants)) is not None:
+                arguments[name] = text
+        for keyword in call.keywords:
+            if keyword.arg and (text := _text(keyword.value, self.constants)) is not None:
+                arguments[keyword.arg] = text
+        modules = {
+            module for item in loader.calls if (module := _loaded(item, arguments, self.package))
+        }
+        returned = None
+        if loader.returns is not None and len(modules) == 1:
+            [module] = modules
+            returned = f"{module}.{loader.returns}" if loader.returns else module
+        return modules, returned
+
+    def scan(
+        self, nodes: Iterable[ast.AST], bound: Mapping[str, str]
+    ) -> tuple[set[str], dict[str, str]]:
+        """What `nodes` load, and the names they bind, given what is `bound` already."""
+        imports: set[str] = set()
+        binding = dict(bound)
+        ordered = sorted(
+            (item for item in nodes if isinstance(item, (ast.Assign, ast.Call))),
+            key=lambda item: (item.lineno, item.col_offset),
+        )
+        for item in ordered:
+            if isinstance(item, ast.Call):
+                imports |= self.load(item)[0]
+            elif len(item.targets) == 1 and isinstance(item.targets[0], ast.Name):
+                value = item.value
+                target: str | None = None
+                if isinstance(value, ast.Call):
+                    target = self.load(value)[1]
+                elif isinstance(value, ast.Name):
+                    target = binding.get(value.id)
+                elif isinstance(value, ast.Attribute) and (chain := _chain(value)):
+                    root, _, rest = chain.partition(".")
+                    target = f"{binding[root]}.{rest}" if root in binding else None
+                if target is not None:
+                    binding[item.targets[0].id] = target
+        return imports, binding
 
 
 class _ModuleRunVisitor(ast.NodeVisitor):
@@ -186,9 +436,12 @@ def _index_source(path: str, source: str) -> list[IndexedTest]:
     # grammar, so requesting them would drop otherwise-indexable test files for a signal
     # this function never uses.
     tree = ast.parse(source)
-    imports_visitor = _ImportVisitor()
-    imports_visitor.visit(tree)
-    imports = frozenset(imports_visitor.imports)
+    tests = list(_test_functions(tree.body))
+    # An import in a test's own body is that test's; the rest of the file imports for all.
+    shared = list(_outside(tree, {id(node) for _, node in tests}))
+    dynamic = _DynamicImports(tree, package_of(path))
+    file_loaded, file_bound = dynamic.scan(shared, _static_bindings(shared))
+    file_imports = _static_imports(shared) | file_loaded
     runs_visitor = _ModuleRunVisitor()
     runs_visitor.visit(tree)
     modules_run = frozenset(runs_visitor.modules)
@@ -199,16 +452,19 @@ def _index_source(path: str, source: str) -> list[IndexedTest]:
         and not node.name.startswith("test")
     }
     helpers = {name: _code_names(node) for name, node in helper_nodes.items()}
+    helper_chains = {name: _chains(node) for name, node in helper_nodes.items()}
     indexed: list[IndexedTest] = []
-    for symbol, node in _test_functions(tree.body):
+    for symbol, node in tests:
         body_text = redact_text(ast.unparse(node), max_chars=4000)
         names = _code_names(node)
         named_helpers = _helpers_named(names, helpers)
+        own = list(ast.walk(node))
+        loaded, bound = dynamic.scan(own, {**file_bound, **_static_bindings(own)})
         indexed.append(
             IndexedTest(
                 path=path,
                 symbol=symbol,
-                imports=imports,
+                imports=frozenset(file_imports | _static_imports(own) | loaded),
                 name_tokens=_tokens(node.name),
                 body_tokens=_tokens(body_text),
                 body_identifiers=_identifiers(body_text),
@@ -216,6 +472,10 @@ def _index_source(path: str, source: str) -> list[IndexedTest]:
                 reach_names=names.union(*(helpers[helper] for helper in named_helpers)),
                 reach_attributes=_attributes(node).union(
                     *(_attributes(helper_nodes[helper]) for helper in named_helpers)
+                ),
+                bound=frozenset(bound.items()),
+                reach_chains=_chains(node).union(
+                    *(helper_chains[helper] for helper in named_helpers)
                 ),
             )
         )
@@ -470,6 +730,16 @@ def map_candidate_tests(
                 imported_symbol := graph.resolve(imported_name)
             ):
                 entries.add(imported_symbol)
+        # `list_fridge = _load_handler("list_fridge")` is the module's `HANDLER` by another name,
+        # and `_repos_mod.JsonFridgeRepository` the class `_repos_mod`'s module re-exports.
+        bound = dict(test.bound)
+        for name, target in bound.items():
+            if bare_name(name) in test.reach_names and (symbol := graph.resolve(target)):
+                entries.add(symbol)
+        for chain in test.reach_chains:
+            root, _, rest = chain.partition(".")
+            if root in bound and (symbol := graph.resolve(f"{bound[root]}.{rest}")):
+                entries.add(symbol)
         for program in test.modules_run:
             found = graph.locate(f"{program}.__main__")
             if found is not None and not found[1]:
@@ -477,11 +747,32 @@ def map_candidate_tests(
         return frozenset(entries)
 
     @cache
+    def held_of(position: int) -> frozenset[Node]:
+        """The classes of the module-level instances a test reads, as `_dii_mod._store`."""
+        if graph is None:
+            return frozenset()
+        test = tests[position]
+        bound = dict(test.bound)
+        held: set[Node] = set()
+        for name, target in bound.items():
+            if bare_name(name) in test.reach_names:
+                held |= graph.instances(target)
+        for chain in test.reach_chains:
+            root, _, rest = chain.partition(".")
+            if root in bound:
+                held |= graph.instances(f"{bound[root]}.{rest}")
+        return frozenset(held)
+
+    @cache
     def class_reachers(cls: Node) -> frozenset[int]:
-        """The tests that reach a class, and so may hold one of its instances."""
-        ancestors = graph.reaching(cls) if graph is not None else frozenset()
+        """The tests that may hold an instance of a class: they reach it through calls, which
+        make or return one, or read a module-level variable holding one. Loading the module
+        that makes one at import hands the test none."""
+        callers = graph.callers(cls) if graph is not None else frozenset()
         return frozenset(
-            position for position in range(len(tests)) if entries_of(position) & ancestors
+            position
+            for position in range(len(tests))
+            if entries_of(position) & callers or cls in held_of(position)
         )
 
     def reaches(position: int, path: str, ancestors: frozenset[Node], local: bool) -> bool:

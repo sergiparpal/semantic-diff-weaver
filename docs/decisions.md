@@ -118,6 +118,70 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-10-13, instances a test holds)
+
+A test that reaches a class may hold an instance of it and reaches the methods it calls on one by
+name. Reaching a class counted any path, loading a module included, so a module that makes an
+instance on import handed one to every test that loads it: once `meal-manager`'s tests related to
+its modules, each of the 81 integration tests importing `dii` held the session store that
+`dii/__init__.py` makes, and `.get` on a dictionary in `test_add_dish_with_instructions` reached
+`IngredientSessionStore.get` and the session parsing behind it.
+
+A test now holds an instance of a class it reaches through calls that load no module, which
+`CallGraph.callers` follows, or of a module-level variable it reads, by a name its file binds or a
+chain rooted at one: `_dii_mod._store` holds what `dii/__init__.py` assigns it. Production code is
+followed as before; a function that calls `_store.get()` still knows its variable. For those chains
+the index records each test's attribute chains, with its same-file helpers', and what the file's
+`import` statements bind beside what it loads by name, so `_repos_mod.JsonFridgeRepository(...)`
+starts the test from the class `src/repositories/__init__.py` re-exports.
+
+Measured: on `meal-manager`'s `8894749`, 19 of 91 lists swap 44 candidates and 2 first candidates
+change, with no risk score moving: the session helpers are reached by the `dii` tests instead of
+the dish tests, `JsonTuningRepository.load` by the tests that register cooked meals instead of the
+`dii` ones, and `tuning.validate_state` by the shopping-list test, whose handler loads the tuning,
+instead of `test_edit_dish_empty_rejected`. `v0.2.0..HEAD` over `src/**` swaps 29 candidates in 14
+lists. This repository's `v0.3.0..main`, `distiller` `main..skeleton`, and the 17-case corpus are
+unchanged.
+
+## Candidate tests that load modules with `importlib` (2026-10-13)
+
+`meal-manager`'s tests run as scripts from the plugin's directory, so they cannot import its
+package by name, and load every module with `importlib`:
+`_dish_mod = importlib.import_module(".src.dish", _PLUGIN_DIR.name)`, then `Dish = _dish_mod.Dish`,
+and `_load_handler("add_dish")`, a helper that loads `f".src.handlers.{module_suffix}"` and returns
+its `HANDLER`. The index read only `import` statements, so none of its tests related to any
+module, and the graph had no test to follow.
+
+The index now reads `importlib.import_module` calls, written either way, whose name the file
+writes out: a literal, a module-level string constant, or an f-string or concatenation of those,
+followed 16 levels deep. A same-file function that loads a name built from its parameters is
+evaluated at each call that passes them written out, and a name known only when the test runs
+loads nothing the index can tell. A relative name resolves against the package the call names,
+or, when that too is known only at run time, against the test file's own package, the one
+`Path(__file__).parent` names. The file's assignments bind names to what they load:
+`dish_mod` to `src.dish`, `Dish = dish_mod.Dish` to `src.dish.Dish`, and `add_dish` to what the
+helper returns, `src.handlers.add_dish.HANDLER`. A test that uses such a name starts from its
+symbol, as it starts from what it names in a module it imports.
+
+Each test used to import everything its file imports anywhere, so two of `meal-manager`'s 83
+integration tests loading `dii.store` and `dii.session` inside their bodies made all 83 import
+them, and `.get` on a dictionary in any of them reached `IngredientSessionStore.get`. An import
+inside a test function, a statement or a load, now belongs to that test; what the file imports
+outside test functions, helpers included, still belongs to every test in it.
+
+Measured: on `meal-manager`'s `8894749`, 83 of 91 candidate lists change and 60 findings gain
+their first candidates; 323 candidates are added and 1 removed, displaced from the five kept for
+`register_cooked_meal`'s `HANDLER` by the tests named after the handler, which now import and reach
+it, at 0.85 instead of 0.45. 83 risk scores fall, most by five or six points and eleven by eleven
+or twelve, where a finding with no candidate gains a strong one; the overall falls from 62 to 57,
+and three findings go from high to medium. `v0.2.0..HEAD` over `src/**` changes 108 of 122
+lists, 83 gaining their first candidates, and 106 risk scores fall, the overall from 62 to 57.
+Keeping imports to their test alone accounts for 14 and 21 of those lists, which swap 40 and 67
+candidates: `session.from_dict` stops being led by `Dish.from_dict`'s tests. This repository's
+`v0.3.0..main` changes 2 lists, which swap 3 candidates among tests that imported `path_policy`
+inside other tests' bodies, and no risk score; `distiller` `main..skeleton` and the 17-case corpus
+are unchanged.
+
 ## Output-affecting corrections (2026-10-13, attributes of `self`)
 
 A class's members know whatever any of them knows, so that `self.cart.total()` in one method

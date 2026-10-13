@@ -165,6 +165,139 @@ def test_index_source_handles_import_forms_classes_and_async_tests() -> None:
     assert indexed[0].imports == frozenset({"package", "helper"})
 
 
+LOADING_TESTS = """import importlib
+from pathlib import Path
+
+_PLUGIN_DIR = Path(__file__).resolve().parent
+PACKAGE = "shop"
+_pkg = importlib.import_module(_PLUGIN_DIR.name)
+_dish_mod = importlib.import_module(".src.dish", _PLUGIN_DIR.name)
+_cart = importlib.import_module(".cart", PACKAGE)
+_api = importlib.import_module("shop" + ".api")
+Dish = _dish_mod.Dish
+
+
+def _load_handler(module_suffix):
+    mod = importlib.import_module(f".src.handlers.{module_suffix}", _PLUGIN_DIR.name)
+    return mod.HANDLER
+
+
+add_dish = _load_handler("add_dish")
+list_fridge = _load_handler(module_suffix="list_fridge")
+
+
+def test_a_dish_is_added():
+    name = "json_fridge"
+    importlib.import_module(".src.repositories." + name, _PLUGIN_DIR.name)
+    assert add_dish({"name": Dish("x").name})
+
+
+def test_the_fridge_is_read():
+    store = importlib.import_module(".src.repositories.json_store", _PLUGIN_DIR.name)
+    assert list_fridge({}) and store
+"""
+
+
+def test_the_index_reads_what_a_test_file_loads_by_name() -> None:
+    """`meal-manager`'s tests load their modules with `importlib`, relative to their package.
+
+    A name written out, a module-level constant, an f-string of a loader's argument, and a
+    concatenation of those are read; a name known only when the test runs is not.
+    """
+    added, read = _index_source("test_integration.py", LOADING_TESTS)
+    shared = {"src.dish", "shop.cart", "shop.api", "src.handlers.add_dish"}
+    shared.add("src.handlers.list_fridge")
+    assert shared <= added.imports
+    assert "src.repositories.json_store" in read.imports - added.imports
+    assert not any("json_fridge" in name for name in added.imports)
+    assert dict(added.bound) == {
+        "importlib": "importlib",
+        "Path": "pathlib.Path",
+        "_dish_mod": "src.dish",
+        "_cart": "shop.cart",
+        "_api": "shop.api",
+        "Dish": "src.dish.Dish",
+        "add_dish": "src.handlers.add_dish.HANDLER",
+        "list_fridge": "src.handlers.list_fridge.HANDLER",
+    }
+    assert dict(read.bound)["store"] == "src.repositories.json_store"
+
+
+EDGE_LOADS = """import importlib
+import shop.extra as extra
+from importlib import import_module
+
+CONSTANT = "shop"
+cart = importlib.import_module(name="shop.cart")
+copy = cart
+total = cart.Cart.total
+too_high = importlib.import_module("...x", "a")
+quoted = importlib.import_module(f"{CONSTANT!r}")
+long = importlib.import_module(LONG)
+
+
+def _module(suffix):
+    return import_module(CONSTANT + "." + suffix)
+
+
+def _discarded(suffix):
+    import_module("shop." + suffix)
+    return None
+
+
+def _either(first, second):
+    one = import_module(first)
+    two = import_module(second)
+    return one.VALUE
+
+
+def _elsewhere(suffix):
+    mod = import_module("shop." + suffix)
+    return other.VALUE
+
+
+api = _module("api")
+views = _discarded("views")
+both = _either("shop.a", "shop.b")
+unknown = _module(compute())
+spread = _module(**options)
+models = _elsewhere("models")
+
+
+def test_loads():
+    assert api and copy and total
+"""
+
+
+def test_a_load_the_file_does_not_spell_out_binds_nothing() -> None:
+    """Only a name the file writes out is read, and a helper binds only what it returns."""
+    long_name = " + ".join(f"'{letter}'" for letter in "abcdefghijklmnopqrstu")
+    [test] = _index_source("tests/test_edges.py", EDGE_LOADS.replace("LONG", long_name))
+    loaded = {"shop.cart", "shop.api", "shop.views", "shop.a", "shop.b", "shop.models"}
+    assert test.imports == {"importlib", "importlib.import_module", "shop.extra", *loaded}
+    assert dict(test.bound) == {
+        "importlib": "importlib",
+        "extra": "shop.extra",
+        "import_module": "importlib.import_module",
+        "cart": "shop.cart",
+        "copy": "shop.cart",
+        "total": "shop.cart.Cart.total",
+        "api": "shop.api",
+    }
+
+
+def test_an_import_inside_a_test_is_that_tests_alone() -> None:
+    """Two of `meal-manager`'s integration tests load `dii.store`; the other 80 do not."""
+    source = (
+        "import shop\n\n"
+        "def test_one():\n    import shop.extra\n    assert shop.extra\n\n"
+        "def test_two():\n    assert shop\n"
+    )
+    one, two = _index_source("tests/test_shop.py", source)
+    assert one.imports == {"shop", "shop.extra"}
+    assert two.imports == {"shop"}
+
+
 @pytest.mark.parametrize(
     ("source", "expected"),
     [
@@ -723,12 +856,12 @@ def test_what_another_module_or_a_decorator_may_call_keeps_the_test_file(symbol:
 
 
 def test_without_a_test_that_loads_the_module_nothing_is_ruled_untested() -> None:
-    """Tests that load a module dynamically show no reach, which is no evidence of none.
+    """Tests that load a module by a name known only when they run show no reach, which is no
+    evidence of none, and their tests named after the handler stay its candidates.
 
-    `meal-manager` loads each handler with `importlib`, and its tests named after the handler
-    stay its candidates.
+    `meal-manager`'s tests write out the names they load, which the index reads.
     """
-    loads = "    assert importlib.import_module('src.meal_handler')\n"
+    loads = "    name = 'meal_handler'\n    assert importlib.import_module('src.' + name)\n"
     tests = (
         "import importlib\n"
         f"def test_meal_handler_rejects_bad_input():\n{loads}"
@@ -871,4 +1004,45 @@ def test_a_test_reaches_the_methods_it_calls_on_an_instance_of_a_class_it_reache
     assert {item.symbol: item.match_reasons for item in mapped} == {
         "test_a_made_invoice_is_empty": [REACHED_ELSEWHERE],
         "test_a_new_invoice_is_empty": [REACHED_ELSEWHERE],
+    }
+
+
+def test_a_test_holds_an_instance_it_makes_or_reads_not_one_a_module_makes_on_import() -> None:
+    """`kitchen` makes a `Store` on import. Loading it hands a test none, so `.get` on a
+    dictionary is no call on the store, while reading `kitchen._store` or making a
+    `kitchen.Store()`, through the class the package re-exports, holds one."""
+    modules = {
+        "src/kitchen/__init__.py": "from .stores import Store\n\n_store = Store()\n",
+        "src/kitchen/stores.py": "class Store:\n    def get(self, key):\n        return key\n",
+    }
+    tests = (
+        "import kitchen\n\n"
+        "def test_a_lookup_reads_a_dict():\n    assert {'a': 1}.get('a') == 1 and kitchen\n\n"
+        "def test_the_store_returns_the_key():\n    assert kitchen._store.get('a') == 'a'\n\n"
+        "def test_a_new_store_returns_the_key():\n    assert kitchen.Store().get('a') == 'a'\n"
+    )
+    graph = CallGraph(
+        {path: module_references(text, package_of(path)) for path, text in modules.items()}
+    )
+    index = TestIndex(
+        tests=_index_source("tests/test_kitchen.py", tests), incomplete=False, warnings=[]
+    )
+    candidate = build_candidates(
+        [
+            StructuralDelta(
+                path="src/kitchen/stores.py",
+                symbol="Store.get",
+                kind="symbol_added",
+                old=None,
+                new="(self, key)",
+                old_lines=None,
+                new_lines=LineRange(start=2, end=3),
+                hunk_id="src/kitchen/stores.py#hunk-001",
+            )
+        ]
+    )[0]
+    mapped = map_candidate_tests([candidate], index, WeaverConfig(), graph)[0]
+    assert {item.symbol: item.match_reasons for item in mapped} == {
+        "test_the_store_returns_the_key": [REACHED_ELSEWHERE],
+        "test_a_new_store_returns_the_key": [REACHED_ELSEWHERE],
     }
