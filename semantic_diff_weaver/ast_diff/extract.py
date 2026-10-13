@@ -346,6 +346,21 @@ def module_display(body: list[ast.stmt]) -> str:
     return "\n".join(lines) or "module"
 
 
+def referenced_names(node: ast.AST) -> frozenset[str]:
+    """The identifiers a symbol's code uses — names and attributes, called or not.
+
+    A reference rather than a call, because `type=pr_number` hands a function to argparse and
+    `{"x": _handle_x}` to a dispatcher, and either calls it later.
+    """
+    names: set[str] = set()
+    for child in ast.walk(node):
+        if isinstance(child, ast.Name):
+            names.add(child.id)
+        elif isinstance(child, ast.Attribute):
+            names.add(child.attr)
+    return frozenset(names)
+
+
 def snapshot_symbol(node: ast.AST, qualified_name: str, kind: str) -> SymbolSnapshot:
     body = list(getattr(node, "body", []))
     visitor = FeatureVisitor(node)
@@ -380,6 +395,7 @@ def snapshot_symbol(node: ast.AST, qualified_name: str, kind: str) -> SymbolSnap
         node_inventory=node_inventory(body),
         probes={name: tuple(values) for name, values in visitor.probes.items()},
         display=display,
+        references=referenced_names(node),
     )
 
 

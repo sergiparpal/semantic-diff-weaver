@@ -10,7 +10,7 @@ from .compare import compare_symbol
 from .extract import AstResourceLimit, extract_symbols
 from .limits import AstBudget
 from .match import match_cross_file_symbols, match_symbols
-from .types import AstAnalysis, StructuralDelta, SymbolSnapshot
+from .types import AstAnalysis, StructuralDelta, SymbolReferences, SymbolSnapshot
 
 
 def _deadline_reached(deadline: float) -> bool:
@@ -192,6 +192,16 @@ def analyze_ast(files: list[SourceRevisionPair], budget: AstBudget | None = None
             continue
         parsed.append((changed, old_symbols, new_symbols))
 
+    references = {
+        changed.new_path: {
+            snapshot.qualified_name: SymbolReferences(
+                names=snapshot.references, decorated=bool(snapshot.decorators)
+            )
+            for snapshot in new_symbols
+        }
+        for changed, _, new_symbols in parsed
+        if changed.new_path is not None and changed.new_text is not None
+    }
     removed: list[tuple[SymbolSnapshot, SourceRevisionPair]] = []
     added: list[tuple[SymbolSnapshot, SourceRevisionPair]] = []
     for changed, old_symbols, new_symbols in parsed:
@@ -284,4 +294,5 @@ def analyze_ast(files: list[SourceRevisionPair], budget: AstBudget | None = None
         failed_files=failed_files,
         changed_symbols=len(changed_symbol_keys),
         resource_limited_files=resource_limited_files,
+        references=references,
     )

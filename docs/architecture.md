@@ -53,7 +53,12 @@ A bounded, redacted committed README excerpt may provide repository purpose cont
 parses committed tests statically and always labels matches as unverified candidates. Tests that
 match only through evidence about their file — a mapping, a mirrored name, an import, a run, or a
 package import — cannot be told apart by it, so several of them stand as one candidate for the
-file, with the symbol `<module>`.
+file, with the symbol `<module>`. The AST stage also records, for each symbol of a changed file's
+head revision, the names its code uses. From the tests that load the module, together with the
+same-file helpers they call, the mapper follows those names through the module's own calls: a
+test reaches whatever it names and whatever that names in turn, and the module's top-level code
+when it loads it. A private, undecorated helper that no such test reaches or names gets no
+candidate from their file, since only its module calls it.
 
 When global file or line limits are exceeded, explicitly configured critical paths are analyzed first
 and every omitted count/reason is carried into canonical scope and Markdown. Parse-incomplete files

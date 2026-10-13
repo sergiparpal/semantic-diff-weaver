@@ -92,3 +92,20 @@ def test_a_long_class_or_module_display_ends_with_an_ellipsis() -> None:
         item for item in extract_symbols("def f():\n    return 1\n") if item.kind == "module"
     ]
     assert module.display == "module"
+
+
+def test_a_symbol_records_the_names_its_code_uses_called_or_not() -> None:
+    """`type=pr_number` hands a function to argparse without calling it, and still reaches it."""
+    source = (
+        "import argparse\n"
+        "HANDLERS = {'run': dispatch}\n\n"
+        "def build():\n"
+        "    parser = argparse.ArgumentParser()\n"
+        "    parser.add_argument('--pr', type=pr_number)\n"
+        "    return parser\n"
+    )
+    symbols = {item.qualified_name: item for item in extract_symbols(source)}
+    assert {"argparse", "ArgumentParser", "add_argument", "pr_number", "parser"} <= (
+        symbols["build"].references
+    )
+    assert symbols["<module>"].references == {"HANDLERS", "dispatch"}

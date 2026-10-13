@@ -10,7 +10,7 @@ from __future__ import annotations
 from .analyze import analyze_ast
 from .extract import AstResourceLimit, extract_symbols
 from .limits import AstBudget
-from .types import AstAnalysis, StructuralDelta, SymbolPair, SymbolSnapshot
+from .types import AstAnalysis, StructuralDelta, SymbolPair, SymbolReferences, SymbolSnapshot
 
 __all__ = [
     "AstAnalysis",
@@ -18,6 +18,7 @@ __all__ = [
     "AstResourceLimit",
     "StructuralDelta",
     "SymbolPair",
+    "SymbolReferences",
     "SymbolSnapshot",
     "analyze_ast",
     "extract_symbols",

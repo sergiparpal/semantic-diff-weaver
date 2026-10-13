@@ -13,6 +13,18 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Feature:** candidate mapping tells a helper the tests reach from one nothing calls. A test
+  that loads a changed module is now followed through the module's own calls — `cli.main` calls
+  `_run_command`, which builds `_parser`, which hands `pr_number` to argparse — and through the
+  helpers of its own file, so it becomes a candidate for every symbol it reaches ("changed
+  symbol reached through calls"). Before, a helper no test named had only its module's test
+  file, the same as a helper nothing calls. A private, undecorated helper that no such test
+  reaches or names now has no candidate, since only its module calls it; a public function or a
+  decorated helper keeps the file, as something else may call it. On `distiller`, `_parser`,
+  `_run_command`, and `pr_number` gain the tests that reach them and fall four or five points;
+  on this repository, 24 private helpers reached through their module's public functions gain
+  their first candidate.
+
 - **Fix:** added code reads as added, and an added or removed class or module shows what it is.
   Every added symbol, a brand-new file's included, was "added without a reliable semantic match"
   and warned that "callers or observable behavior may change" — the wording of a rename the
