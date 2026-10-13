@@ -16,7 +16,10 @@ and the public error payload. `service.py` orchestrates modules without importin
 subprocess boundary and invokes only Git with argument arrays, resolved commit IDs, timeouts, bounded
 captured input/output, disabled external diff/text conversion, and `shell=False`. Tree metadata is
 collected once per revision and eligible object IDs are read through bounded `cat-file` batches;
-per-file patch hunks retain literal path isolation.
+per-file patch hunks retain literal path isolation. Changed test code is not analyzed: collection
+drops what a path settles — files under a test root and `conftest.py` — before its budgets, and
+`service.py` drops a file named like a test module once the candidate-test parser finds a test in
+it (`rules.analyze_test_files` keeps both).
 
 The `ast_diff/` package parses text with the Python AST without importing target modules. It consumes
 the `SourceRevisionPair` contract in `source.py` rather than Git types, so structural analysis does not

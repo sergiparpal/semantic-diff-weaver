@@ -27,6 +27,39 @@ def test_secret_and_binary_files_are_excluded(repo_factory) -> None:
     assert result.excluded_counts["binary"] == 1
 
 
+def test_test_files_are_left_out_of_the_analyzed_scope_unless_asked_for(repo_factory) -> None:
+    repo_path, base, head = repo_factory(
+        {
+            "src/api.py": "def allowed(x):\n    return x < 5\n",
+            "tests/helpers.py": "LIMIT = 4\n",
+            "conftest.py": "",
+        },
+        {
+            "src/api.py": "def allowed(x):\n    return x <= 5\n",
+            "tests/helpers.py": "LIMIT = 5\n",
+            "conftest.py": "import pytest\n",
+            "src/test_api.py": "def test_allowed():\n    assert True\n",
+        },
+    )
+    repo = GitRepository.open(str(repo_path))
+    result = collect_diff(repo, base, head, WeaverConfig())
+    # A test root and `conftest.py` settle it by path. A test-module name does not, so that file
+    # is collected and left to the service, which reads whether it defines a test.
+    assert [item.path for item in result.files] == ["src/api.py", "src/test_api.py"]
+    assert result.excluded_counts == {"test_file": 2}
+
+    config = WeaverConfig()
+    config.rules.analyze_test_files = True
+    opted_in = collect_diff(repo, base, head, config)
+    assert sorted(item.path for item in opted_in.files) == [
+        "conftest.py",
+        "src/api.py",
+        "src/test_api.py",
+        "tests/helpers.py",
+    ]
+    assert opted_in.excluded_counts == {}
+
+
 def test_exact_file_rename_metadata_is_preserved(repo_factory) -> None:
     content = "def renamed(x):\n    return x + 1\n"
     repo_path, base, head = repo_factory(

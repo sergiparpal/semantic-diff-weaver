@@ -323,6 +323,29 @@ def is_included(path: str, includes: list[str], excludes: list[str]) -> bool:
     )
 
 
+def is_test_support_path(path: str, roots: Iterable[str]) -> bool:
+    """Whether a Python file is test code by its path alone, whatever it defines.
+
+    Everything under a configured test root — tests, helpers, and fixtures alike — and pytest's
+    `conftest.py`, a name that nothing but test code uses.
+    """
+    pure = PurePosixPath(path)
+    in_root = any(
+        pure == PurePosixPath(root) or PurePosixPath(root) in pure.parents for root in roots
+    )
+    return path.endswith(".py") and (in_root or pure.name == "conftest.py")
+
+
+def has_test_module_name(path: str) -> bool:
+    """Whether a Python file is named the way pytest collects test modules.
+
+    The name alone does not make a file test code — this repository's own `test_mapper.py` is
+    production code — so a file named like this counts as a test only once it defines one.
+    """
+    name = PurePosixPath(path).name
+    return path.endswith(".py") and (name.startswith("test_") or name.endswith("_test.py"))
+
+
 def critical_weight(
     path: str, critical_paths: Sequence[WeightedPattern], *, default: int = 0
 ) -> int:

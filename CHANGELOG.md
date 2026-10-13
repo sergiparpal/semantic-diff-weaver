@@ -13,6 +13,17 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Fix:** changed tests are no longer analyzed as product code. The default include is `**/*.py`,
+  so a branch that added a module and its tests reported every test function, helper, and nested
+  fake as a medium-risk behavior change with an obligation to test it — 17 of 28 findings on one
+  such branch — and those findings set the overall risk. A changed file under a `test_roots`
+  entry, a `conftest.py`, or a file named `test_*.py` or `*_test.py` that defines a test is now
+  left out as `test_file` ("test file(s) left out by `analyze_test_files: false`") and stays a
+  candidate test. A name alone is not enough: a production module named like a test, such as
+  this repository's `test_mapper.py`, is still analyzed. Files under a test root no longer count
+  toward the changed-file and changed-line budgets. The new `rules.analyze_test_files: true`
+  restores the previous scope.
+
 - **Fix:** a changed file that is not Python is excluded as not Python. The default include is
   `**/*.py` and the path filter ran first, so every Markdown or YAML change counted as
   `path_filter` and the brief called it "outside the configured include and exclude paths", even

@@ -15,7 +15,7 @@ from .ast_diff import AstAnalysis, StructuralDelta, analyze_ast
 from .config import load_config
 from .coverage_map import CoverageMap, load_coverage, summarize
 from .errors import ErrorCode, WeaverError
-from .git_diff import DiffCollection, GitRepository, collect_diff
+from .git_diff import ChangedFile, DiffCollection, GitRepository, collect_diff
 from .llm_client import LlmClient
 from .models import (
     AnalysisResult,
@@ -41,13 +41,14 @@ from .path_policy import (
     ensure_authorized_path,
     exclusion_reason,
     glob_matches,
+    has_test_module_name,
     redact_text,
 )
 from .renderer import render_transport
 from .scoring import confidence_score, score_risk
 from .semantic_candidates import SemanticCandidate, build_candidates
 from .semantic_interpreter import InterpreterResult, interpret_candidates
-from .test_mapper import TestIndex, build_test_index, map_candidate_tests
+from .test_mapper import TestIndex, build_test_index, defines_tests, map_candidate_tests
 from .textutil import canonical_phrase
 
 HIGH_IMPACT_DELTA_KINDS = {
@@ -239,6 +240,31 @@ class _ScoredCandidate:
     candidate: SemanticCandidate
     confidence: float
     tests: list[CandidateTest] = field(default_factory=list)
+
+
+def _is_test_module(item: ChangedFile) -> bool:
+    source = item.new_text if item.new_text is not None else item.old_text
+    return source is not None and has_test_module_name(item.path) and defines_tests(source)
+
+
+def _set_aside_test_modules(collection: DiffCollection, config: WeaverConfig) -> None:
+    """Leave out a changed file named like a test module once its source shows it is one.
+
+    Collection already left out what a path settles: test roots and `conftest.py`. A name such
+    as `test_*.py` does not settle it — this repository's own `test_mapper.py` is production
+    code — so such a file is test code only when candidate-test discovery would find a test in
+    it: the head revision decides, or the base one for a deleted file.
+    """
+    if config.rules.analyze_test_files:
+        return
+    kept = [item for item in collection.files if not _is_test_module(item)]
+    set_aside = len(collection.files) - len(kept)
+    if not set_aside:
+        return
+    collection.files = kept
+    counts = Counter(collection.excluded_counts)
+    counts["test_file"] += set_aside
+    collection.excluded_counts = dict(sorted(counts.items()))
 
 
 def _collect_scope(
@@ -576,6 +602,7 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
         )
     coverage = _load_coverage(config, state)
     collection = collect_diff(repo, base_commit, head_commit, config)
+    _set_aside_test_modules(collection, config)
     state.warnings.extend(collection.warnings)
     ast_result = analyze_ast([item.as_revision_pair() for item in collection.files])
     state.warnings.extend(ast_result.warnings)

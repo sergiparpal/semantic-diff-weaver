@@ -13,6 +13,7 @@ from semantic_diff_weaver.test_mapper import (
     TestIndex,
     _index_source,
     build_test_index,
+    defines_tests,
     map_candidate_tests,
 )
 
@@ -160,6 +161,22 @@ def test_index_source_handles_import_forms_classes_and_async_tests() -> None:
     )
     assert [item.symbol for item in indexed] == ["TestSample.test_value"]
     assert indexed[0].imports == frozenset({"package", "helper"})
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ("def test_value():\n    assert True\n", True),
+        ("class TestSample:\n    async def test_value(self):\n        assert True\n", True),
+        # This repository's own `test_mapper.py`: a `Test*` class is not a test without one.
+        ("class TestIndex:\n    tests: list\n\ndef build_test_index():\n    return []\n", False),
+        ("def helper():\n    def test_nested():\n        pass\n", False),
+        ("TEMPLATE = 'def test_value():'\n", False),
+        ("def test_value(:\n", False),
+    ],
+)
+def test_only_source_that_defines_a_test_is_a_test_module(source: str, expected: bool) -> None:
+    assert defines_tests(source) is expected
 
 
 def test_configured_mapping_is_structural_and_scoped_to_its_own_rule() -> None:

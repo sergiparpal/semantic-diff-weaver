@@ -35,6 +35,7 @@ rules:
   review_question_confidence: 0.60
   refactor_materiality_threshold: 0.25
   emit_low_risk_refactors: false
+  analyze_test_files: false
   deterministic_fallback: true
 mapping: []
 privacy:
@@ -58,6 +59,15 @@ explicitly named external `risk_profile` is the only exception to repository con
 still remain inside a host-authorized workspace root. The default authorized root is the process
 working directory; trusted operators can provide additional roots through the path-separator-delimited
 `SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS` environment variable.
+
+Changed test code is left out of the analysis and counted as `test_file`, because a test is not the
+behavior under review: analyzed, each changed test function became a finding with an obligation to
+test it. A path settles it for anything under a `test_roots` entry and for `conftest.py`, and those
+files are left out before the changed-file and changed-line budgets apply. A name does not: a file
+named like a pytest test module (`test_*.py`, `*_test.py`) is test code only if it defines a test,
+so a production module such as `test_mapper.py` is still analyzed. Such a file has to be read to
+tell, so it counts toward the budgets. Test files stay candidate tests either way. Set
+`rules.analyze_test_files: true` to analyze them as product code.
 
 The three model-input bounds are reported separately when they drop something, since they count
 different units: `max_llm_calls` omits whole evidence batches as `llm_batch_limit`,

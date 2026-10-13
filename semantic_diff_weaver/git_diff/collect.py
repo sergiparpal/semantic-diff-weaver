@@ -6,7 +6,7 @@ from collections import Counter
 
 from ..errors import ErrorCode, WeaverError
 from ..models import WeaverConfig
-from ..path_policy import critical_weight, first_exclusion, is_included
+from ..path_policy import critical_weight, first_exclusion, is_included, is_test_support_path
 from ..source import SourceHunk
 from . import limits
 from .parse import parse_hunks, parse_hunks_by_path, parse_name_status, parse_numstat
@@ -194,6 +194,15 @@ def collect_diff(
         # otherwise claim every non-Python file, even in a repository that configured no paths.
         if not path.endswith(".py"):
             excluded["unsupported_extension"] += 1
+            continue
+        # Also before the path filter, which the default include would pass: test code is
+        # candidate-test material, not behavior under review, and the reason should say so.
+        # Only what the path settles is left out here, before the line budget is spent on it;
+        # a file merely named like a test module is settled by its source, in `service`.
+        if not config.rules.analyze_test_files and is_test_support_path(
+            path, config.paths.test_roots
+        ):
+            excluded["test_file"] += 1
             continue
         if not is_included(path, config.paths.include, config.paths.exclude):
             excluded["path_filter"] += 1

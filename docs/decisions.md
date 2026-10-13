@@ -118,6 +118,35 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-10-13, test files)
+
+Every changed Python file was analyzed, so test code was reviewed as if it were the behavior under
+test. On `distiller` (`main..skeleton`, a branch adding a command-line skeleton and its tests), 17
+of 28 findings were test functions, helpers, and their nested fakes, each an
+`unknown_semantic_change` at 49/100 with no candidate test, so the tests alone set the overall
+risk. With the project's coverage report they were also the only findings it could not ground —
+its `source = src` measures no test file — which kept the obligation from a grounded verdict and
+produced a warning blaming the report's paths. This repository had worked around it in its own
+`.semantic-diff-weaver.yaml`.
+
+A changed file is now left out as `test_file` when it is test code. A path settles that for
+anything under a `test_roots` entry and for `conftest.py`, and those files are left out before the
+collection budgets. A name such as `test_*.py` or `*_test.py` does not: a first version reused
+candidate discovery's naming rule, and on this repository's `v0.3.0..main` it hid
+`semantic_diff_weaver/test_mapper.py`, which is production code. Such a file is therefore test
+code only when candidate discovery's parser finds a test in it, read at the head revision, or the
+base one for a deletion; it counts toward the budgets, because it has to be read to be told apart.
+`rules.analyze_test_files: true` restores the previous scope.
+
+Measured: `distiller` `main..skeleton` went from 28 findings to 11, the 17 test findings gone. Its
+overall risk stays 49 without a coverage report and falls from 49 to 45 with one, whose obligation
+is now `covered_by_existing_tests`. `meal-manager` `8894749` went from 108 findings to 91 — its two
+root-level test modules, with 17 findings, three of them `high` — at an unchanged overall 62. This
+repository's `v0.3.0..main` is unchanged except that 24 files move from `path_filter` to
+`test_file`, and so is the 17-case corpus, which changes no test file. `meal-manager`
+`v0.2.0..HEAD` still exceeds the default line budget: its 4,068-line `test_unit.py` sits at the
+repository root, outside any test root, so it counts until read.
+
 ## Output-affecting corrections (2026-10-05, prose in string literals)
 
 The keyword rules read a delta's display text, which keeps string literals verbatim, so the words of
