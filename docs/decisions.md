@@ -118,6 +118,93 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Candidate tests through calls on instances (2026-10-13)
+
+The call graph followed a use only through a name it could resolve: one of the module's own
+symbols, or one an import binds. `cart = Cart(); cart.total()` resolved `Cart` through the import
+and stopped at `cart.total`, since `cart` is a local variable, so a method of a class from another
+module was reached only by tests that imported its module and named the method.
+
+The graph now records which symbols are classes, the bases each class names, the names in each
+function's return annotation, and which of the names a symbol uses are attributes. A symbol knows
+the classes it uses, wherever they live — making one, annotating with it, inheriting from it — and
+those the functions it calls are annotated to return. An instance holds what its class inherits
+and the instances its class body names, as a dataclass's fields do. A class's members know the
+class and whatever any of them knows, since `self.cart = Cart()` in `__init__` holds what
+`self.cart.total()` calls in another method, and every symbol of a module knows what the module's
+top-level code knows, which covers a module-level instance. An attribute the symbol uses reaches
+the method of that name on each class it so knows, and what that method returns is known in turn.
+Only attributes count, as a method is called on an instance: a first version read every name, and
+local variables named `ordered` reached `LineRange.ordered`.
+
+Overrides are not followed down: a call on an object known as a `Cart` reaches `Cart.total`, not
+a subclass's `total`, unless the subclass itself is known. Following every override, as class
+hierarchy analysis does, would credit a test of one subclass with all of its siblings. A
+`Protocol` is matched by structure rather than inheritance, so a call through one, as
+`meal-manager`'s handlers make on their repositories, reaches only the protocol's stub, and the
+graph does not see the methods a base class outside the repository calls by name, such as
+`ast.NodeVisitor` calling `visit_Call`.
+
+A test is followed the same way, one level deep: a test that reaches a class through its calls —
+`api.make_invoice()` makes one — and uses a method's name as an attribute reaches the method, or
+the one the class inherits, but what that method returns is not followed further. A test also starts from what it imports through a re-exporting
+package, if it uses the name, since every test of the file shares the import: `from shop import
+Cart` names the class in `shop/cart.py`. That needed import names as written. The index casefolded
+them, and the graph located `shop.Cart` as the module `shop/cart.py`, which Python's
+case-sensitive imports never do; both keep the case now, and matching a changed module by name
+still folds it.
+
+The classes a symbol knows are computed per symbol, as a closure over what instances hold and what
+the methods it calls return. A first version repeated a pass over the whole graph until nothing
+changed, one pass per link of a chain of methods each returning the next class: such a chain
+across 500 modules, the graph's bound, took 57 seconds, and takes 0.6 now. The performance suite
+covers it.
+
+Measured: `distiller` `main..skeleton` and `meal-manager` (`8894749`, and `v0.2.0..HEAD` over
+`src/**`) are unchanged: `distiller`'s one class has no methods, and `meal-manager`'s tests load
+its modules with `importlib`, which a static graph cannot follow. This repository's `v0.3.0..main` changes 14
+of 156 lists and one risk score: `StructuralDelta` falls five points, its first candidate now
+`test_extracts_required_structural_delta_classes`, which reaches it through `analyze_ast`
+imported from `ast_diff/__init__.py`. Thirteen of the fourteen come from imports followed through
+re-exporting packages. The other comes from calls on instances, and is not better: three tests in
+`tests/security` that reach `CoverageMap.status_for_lines` through `service` tie at 0.40 with the
+map's own tests and precede them by path. Taking each of this repository's 94 methods as changed,
+with up to 25 candidates, 70 have candidates instead of 68 — `ChangedFile.as_revision_pair`, which
+`service` calls on each file of what `collect_diff` returns, gains its first — and the candidates
+grow from 1,187 to 1,424, those reached only from afar from 75 to 227. The pipeline over this
+repository takes the same 1.4 seconds. The 17-case corpus has no test file and is unchanged.
+
+## Output-affecting corrections (2026-10-13, direct calls)
+
+A mention of a changed symbol in a test's body and a reach through the test's calls were meant
+as one piece of evidence, that the test exercises the symbol: a reach was "worth 0.10 like a body
+mention and not added on top of one". Raising a reach from an imported module to 0.15, so that it
+ranks above a reach only from afar, left two inversions. A test calling the symbol directly both
+names and reaches it, and kept the mention, so it scored below the tests reaching the symbol
+through other calls: `test_line_sets_are_judged_like_ranges`, which calls
+`CoverageMap.status_for_lines`, was not among its five candidates. And a reach from afar, 0.35,
+did add to a mention, so a test that never imports the module could outrank one that does and
+calls the symbol. Following calls on instances, which a test makes by naming the method, would
+have made that common.
+
+A reach now replaces the mention wherever both hold. Adding the two instead would reward a direct
+call more, on weights tuned for evidence that does not stack; measured, it moved 32 risk scores on
+this repository's `v0.3.0..main` rather than 15. A direct caller then ties with the tests reaching the
+symbol through other calls, and alphabetical order still left it out, so among equal scores a
+test whose body names the symbol ranks first. A mention still scores 0.10 for a test the graph
+does not show reaching the symbol.
+
+Measured: on `distiller` `main..skeleton`, 5 of 11 lists change. `RunArgs` falls four points, its
+named test now 0.60, `cli.main` is led by the test that calls it, and the test that runs
+`python -m distiller` no longer leads `evaluate.run` and `report.run`, since the mention it scored
+was `subprocess.run`. `meal-manager` (`8894749`, and `v0.2.0..HEAD` over `src/**`) is unchanged.
+This repository's `v0.3.0..main` changes 80 of 156 lists and the first candidate of 43, mostly to
+a test that calls the symbol: `build_call_graph` is led by a test of `test_call_graph.py` instead
+of an end-to-end test of the Claude Code skill, and `CallGraph.resolve` by a test that builds a
+graph instead of a `service` test whose message says "resolve to the same commit". 15 risk scores
+fall four or five points, each because a test named after the symbol, importing its module, and
+calling it became a strong candidate. The 17-case corpus has no test file and is unchanged.
+
 ## Candidate tests through other modules' calls (2026-10-13)
 
 Reach stopped at the module a test imported. A test of `distiller`'s `cli.main` reached

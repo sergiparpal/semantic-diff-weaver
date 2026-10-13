@@ -5,6 +5,10 @@ through every call and reference their symbols make, and into other modules thro
 modules' own imports. A test that calls `cli.main`, which calls
 `messages.unexpected_failure`, reaches it although it never imports `messages`.
 
+A call on an instance, `cart.total()`, names no class, so it is followed through the classes
+the calling code knows: those it names, wherever they live, those the functions it calls are
+annotated to return, and the classes their instances hold in fields.
+
 Modules are read at the head revision, starting from the ones tests import and the changed
 ones and following imports from there, as untrusted source: parsed under the AST stage's
 budgets, never imported or executed, and bounded like the candidate-test index.
@@ -32,6 +36,9 @@ MAX_REEXPORT_HOPS = 5
 
 Node = tuple[str, str]
 """A symbol of an indexed module: its path and qualified name."""
+
+# What extraction calls a function defined in a class body, which an instance reaches by name.
+METHOD_KINDS = frozenset({"method", "async_method"})
 
 
 def bare_name(identifier: str) -> str:
@@ -66,11 +73,27 @@ def package_of(path: str) -> str:
 
 
 def _locator(paths: Iterable[str]) -> dict[str, str]:
-    """Importable name, casefolded, to path; the first path in order wins a shared name."""
+    """Importable name to path; the first path in order wins a shared name.
+
+    Case counts, as it does for Python's imports: `shop.Cart` is what `shop/__init__.py` binds,
+    perhaps a class it re-exports, and never the module `shop/cart.py`.
+    """
     located: dict[str, str] = {}
     for path in sorted(paths):
-        located.setdefault(importable_name(path).casefold(), path)
+        located.setdefault(importable_name(path), path)
     return located
+
+
+def _closure(node: Node, edges: Mapping[Node, Iterable[Node]]) -> frozenset[Node]:
+    """`node` and everything its edges lead to, transitively."""
+    seen = {node}
+    pending = [node]
+    while pending:
+        for following in edges.get(pending.pop(), ()):
+            if following not in seen:
+                seen.add(following)
+                pending.append(following)
+    return frozenset(seen)
 
 
 def _locate(located: Mapping[str, str], dotted: str) -> tuple[str, list[str]] | None:
@@ -83,14 +106,14 @@ def _locate(located: Mapping[str, str], dotted: str) -> tuple[str, list[str]] | 
     starts = [parts, parts[1:]] if parts[0] in {"src", "lib"} else [parts]
     for candidate in starts:
         for size in range(len(candidate), 0, -1):
-            path = located.get(".".join(candidate[:size]).casefold())
+            path = located.get(".".join(candidate[:size]))
             if path is not None:
                 return path, candidate[size:]
     return None
 
 
 class CallGraph:
-    """Which symbols of the indexed modules use which, through names and imports."""
+    """Which symbols of the indexed modules use which, through names, imports, and instances."""
 
     def __init__(
         self,
@@ -107,22 +130,71 @@ class CallGraph:
         # Per module, each class's protocol methods, which making an instance runs although
         # nothing calls them by name.
         self._protocol: dict[str, dict[str, set[str]]] = {}
+        # Per class, its own methods by bare name, which a call on one of its instances reaches.
+        self._methods: dict[Node, dict[str, frozenset[str]]] = {}
         for path, module in self.modules.items():
             named: dict[str, set[str]] = defaultdict(set)
             protocol: dict[str, set[str]] = defaultdict(set)
-            for qualified in module.symbols:
+            methods: dict[str, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
+            for qualified, item in module.symbols.items():
                 owner, _, leaf = qualified.rpartition(".")
                 named[bare_name(leaf)].add(qualified)
                 if owner in module.symbols and leaf.startswith("__") and leaf.endswith("__"):
                     protocol[owner].add(qualified)
+                if item.kind in METHOD_KINDS:
+                    methods[owner][bare_name(leaf)].add(qualified)
             self._named[path] = {name: frozenset(items) for name, items in named.items()}
             self._protocol[path] = protocol
+            for owner, by_name in methods.items():
+                self._methods[(path, owner)] = {
+                    name: frozenset(items) for name, items in by_name.items()
+                }
+        # Every method of the indexed classes.
+        self.methods = frozenset(
+            (path, method)
+            for (path, _), by_name in self._methods.items()
+            for items in by_name.values()
+            for method in items
+        )
         self._resolved: dict[str, Node | None] = {}
-        self._users: dict[Node, set[Node]] = defaultdict(set)
+        # Per class, the classes it names as bases that the indexed modules define, and the
+        # reverse: which classes inherit from it directly.
+        self._bases: dict[Node, frozenset[Node]] = {}
+        self._derived: dict[Node, set[Node]] = defaultdict(set)
         for path, module in self.modules.items():
             for qualified, item in module.symbols.items():
-                for target in self._uses(path, module, qualified, item):
-                    self._users[target].add((path, qualified))
+                if item.kind == "class":
+                    bases = frozenset(
+                        base
+                        for written in item.bases
+                        if (base := self._class(path, module, written)) is not None
+                    )
+                    self._bases[(path, qualified)] = bases
+                    for base in bases:
+                        self._derived[base].add((path, qualified))
+        # Per function, the classes its return annotation names.
+        self._returns: dict[Node, frozenset[Node]] = {}
+        for path, module in self.modules.items():
+            for qualified, item in module.symbols.items():
+                returned = frozenset(
+                    cls
+                    for written in item.returns
+                    if (cls := self._class(path, module, written)) is not None
+                )
+                if returned:
+                    self._returns[(path, qualified)] = returned
+        self._heirs: dict[Node, frozenset[Node]] = {}
+        uses = {
+            (path, qualified): self._uses(path, module, qualified, item)
+            for path, module in self.modules.items()
+            for qualified, item in module.symbols.items()
+        }
+        self._call_methods(uses)
+        self._users: dict[Node, set[Node]] = defaultdict(set)
+        for node, targets in uses.items():
+            targets.discard(node)
+            for target in targets:
+                self._users[target].add(node)
         self._reaching: dict[Node, frozenset[Node]] = {}
 
     def locate(self, dotted: str) -> tuple[str, list[str]] | None:
@@ -157,6 +229,28 @@ class CallGraph:
             return None
         return self._resolve(".".join([target, *rest[1:]]), hops + 1)
 
+    def _class(self, path: str, module: ModuleReferences, written: str) -> Node | None:
+        """The class a name written in a module stands for: its own, or one an import binds."""
+        node: Node | None = None
+        if written in module.symbols:
+            node = (path, written)
+        else:
+            root, _, rest = written.partition(".")
+            if bound := module.imports.get(root):
+                node = self.resolve(f"{bound}.{rest}" if rest else bound)
+        if node is None or self.modules[node[0]].symbols[node[1]].kind != "class":
+            return None
+        return node
+
+    def _family(self, node: Node) -> Node | None:
+        """The class whose instance `self` is in a symbol: its own, or the nearest enclosing."""
+        path, qualified = node
+        while qualified:
+            if (path, qualified) in self._bases:
+                return path, qualified
+            qualified = qualified.rpartition(".")[0]
+        return None
+
     def _uses(
         self, path: str, module: ModuleReferences, qualified: str, item: SymbolReferences
     ) -> set[Node]:
@@ -179,22 +273,93 @@ class CallGraph:
                 found = self.locate(loaded)
                 if found and "<module>" in self.modules[found[0]].symbols:
                     uses.add((found[0], "<module>"))
-        uses.discard((path, qualified))
         return uses
+
+    def _call_methods(self, uses: Mapping[Node, set[Node]]) -> None:
+        """Add to each symbol's uses the methods it may call on instances of the classes it knows.
+
+        `cart.total()` names no class, so the call is followed through the classes the symbol
+        knows, wherever they live: those it uses — making one, annotating with it, or inheriting
+        from it — and those the functions it calls are annotated to return. An instance holds
+        what its class inherits and the instances its class body names, as a dataclass's fields
+        do. A class's members also know the class and whatever any of them knows, since
+        `self.cart = Cart()` in `__init__` holds what `self.cart.total()` calls in another
+        method, and every symbol of a module knows what the module's top-level code does. An
+        attribute the symbol uses reaches the method of that name on each class it so knows,
+        and what that method returns is known in turn. A subclass's override is reached only
+        where the subclass is known: following every override from a base class would credit a
+        test of one subclass with all of its siblings.
+        """
+        named = {
+            node: {
+                cls
+                for target in targets
+                for cls in ((target,) if target in self._bases else self._returns.get(target, ()))
+            }
+            for node, targets in uses.items()
+        }
+        holds = {cls: self._bases[cls] | named[cls] for cls in self._bases}
+        held: dict[Node, frozenset[Node]] = {}
+        # The attributes each symbol uses: the names of the methods it may call.
+        calls = {
+            (path, qualified): frozenset(bare_name(name) for name in item.attributes)
+            for path, module in self.modules.items()
+            for qualified, item in module.symbols.items()
+        }
+
+        def known(start: Iterable[Node], called: frozenset[str]) -> set[Node]:
+            """The classes code knows from `start`: what their instances hold, and what the
+            methods it calls on them return, transitively."""
+            seen: set[Node] = set()
+            pending = list(start)
+            while pending:
+                cls = pending.pop()
+                if cls in seen:
+                    continue
+                if cls not in held:
+                    held[cls] = _closure(cls, holds)
+                for item in held[cls] - seen:
+                    seen.add(item)
+                    for name, methods in self._methods.get(item, {}).items():
+                        if name in called:
+                            for method in methods:
+                                pending.extend(self._returns.get((item[0], method), ()))
+            return seen
+
+        own = {node: known(named[node], calls[node]) for node in uses}
+        shared: dict[Node, set[Node]] = defaultdict(set)
+        for node, classes in own.items():
+            if (family := self._family(node)) is not None:
+                shared[family].update(classes, (family,))
+        for node, targets in uses.items():
+            if not calls[node]:
+                continue
+            start = own[node] | own.get((node[0], "<module>"), set())
+            if (family := self._family(node)) is not None:
+                start |= shared[family]
+            for cls in known(start, calls[node]):
+                for name, methods in self._methods.get(cls, {}).items():
+                    if name in calls[node]:
+                        targets.update((cls[0], method) for method in methods)
+
+    def receivers(self, node: Node) -> frozenset[Node]:
+        """The classes whose instances reach a method by its name: its own and every class that
+        inherits from it, and none for any other symbol."""
+        path, qualified = node
+        module = self.modules.get(path)
+        item = module.symbols.get(qualified) if module else None
+        if item is None or item.kind not in METHOD_KINDS:
+            return frozenset()
+        owner = (path, qualified.rpartition(".")[0])
+        if owner not in self._heirs:
+            self._heirs[owner] = _closure(owner, self._derived)
+        return self._heirs[owner]
 
     def reaching(self, node: Node) -> frozenset[Node]:
         """Every symbol from which `node` is reached, itself included."""
-        cached = self._reaching.get(node)
-        if cached is None:
-            seen = {node}
-            pending = [node]
-            while pending:
-                for user in self._users.get(pending.pop(), ()):
-                    if user not in seen:
-                        seen.add(user)
-                        pending.append(user)
-            cached = self._reaching[node] = frozenset(seen)
-        return cached
+        if node not in self._reaching:
+            self._reaching[node] = _closure(node, self._users)
+        return self._reaching[node]
 
 
 def build_call_graph(

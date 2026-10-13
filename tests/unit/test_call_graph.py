@@ -92,6 +92,145 @@ def test_an_attribute_of_some_other_object_is_not_a_same_named_function() -> Non
     assert ("src/shop/view.py", "render") not in graph.reaching(("src/shop/cache.py", "get"))
 
 
+STORE = {
+    "src/store/__init__.py": "from .cart import Cart\n",
+    "src/store/cart.py": (
+        "class Cart:\n"
+        "    def total(self):\n"
+        "        return 0\n\n"
+        "    def save(self):\n"
+        "        return 1\n\n\n"
+        "class BigCart(Cart, dict):\n"
+        "    def total(self):\n"
+        "        return self.save()\n"
+    ),
+    "src/store/checkout.py": (
+        "from store.cart import Cart\n"
+        "from store.gift import GiftCart\n\n\n"
+        "def checkout():\n"
+        "    cart = Cart()\n"
+        "    return cart.total()\n\n\n"
+        "def pay(cart: Cart):\n"
+        "    return cart.total()\n\n\n"
+        "def render(store):\n"
+        "    return store.total()\n\n\n"
+        "def wrap():\n"
+        "    gift = GiftCart()\n"
+        "    return gift.save() + gift.total()\n"
+    ),
+    "src/store/shop.py": (
+        "from store import Cart\n\n\n"
+        "class Shop:\n"
+        "    def __init__(self):\n"
+        "        self.cart = Cart()\n\n"
+        "    def checkout(self):\n"
+        "        return self.cart.total()\n"
+    ),
+    "src/store/gift.py": (
+        "from store import cart\n\n\n"
+        "class GiftCart(cart.Cart):\n"
+        "    def total(self):\n"
+        "        return self.save()\n"
+    ),
+    "src/store/default.py": (
+        "from store.cart import Cart\n\n"
+        "CART = Cart()\n\n\n"
+        "def current_total():\n"
+        "    return CART.total()\n"
+    ),
+    "src/store/catalog.py": (
+        "from dataclasses import dataclass\n\n"
+        "from store.cart import Cart\n\n\n"
+        "def fresh_cart() -> Cart:\n"
+        "    return Cart()\n\n\n"
+        "@dataclass\n"
+        "class Order:\n"
+        "    cart: Cart\n\n\n"
+        "class Shelf:\n"
+        "    def take(self) -> Cart:\n"
+        "        return Cart()\n"
+    ),
+    "src/store/browse.py": (
+        "from store.catalog import Order, Shelf, fresh_cart\n\n\n"
+        "def quote():\n"
+        "    return fresh_cart().total()\n\n\n"
+        "def settle(order: Order):\n"
+        "    return order.cart.total()\n\n\n"
+        "def pick(shelf: Shelf):\n"
+        "    return shelf.take().total()\n\n\n"
+        "def count():\n"
+        "    cart = fresh_cart()\n"
+        "    total = 0\n"
+        "    return cart, total\n"
+    ),
+}
+CART_TOTAL = ("src/store/cart.py", "Cart.total")
+
+
+@pytest.mark.parametrize("caller", ["checkout", "pay"])
+def test_a_call_on_an_instance_reaches_the_method_of_a_class_from_another_module(
+    caller: str,
+) -> None:
+    """`checkout` makes the `Cart` that `cart.py` defines, and `pay` is handed one."""
+    assert ("src/store/checkout.py", caller) in graph_of(STORE).reaching(CART_TOTAL)
+
+
+def test_a_method_reaches_what_another_method_of_its_class_keeps_on_self() -> None:
+    """`Shop.__init__` keeps a `Cart`, imported through the package, that `checkout` totals."""
+    assert ("src/store/shop.py", "Shop.checkout") in graph_of(STORE).reaching(CART_TOTAL)
+
+
+def test_a_module_level_instance_is_known_to_the_functions_of_its_module() -> None:
+    assert ("src/store/default.py", "current_total") in graph_of(STORE).reaching(CART_TOTAL)
+
+
+def test_an_instance_reaches_the_methods_its_class_inherits() -> None:
+    """`GiftCart` inherits `save` from a base that another module defines."""
+    reaching = graph_of(STORE).reaching(("src/store/cart.py", "Cart.save"))
+    assert ("src/store/gift.py", "GiftCart.total") in reaching
+    assert ("src/store/checkout.py", "wrap") in reaching
+
+
+@pytest.mark.parametrize(
+    "caller",
+    [
+        "quote",  # `fresh_cart()` is annotated to return a `Cart`
+        "settle",  # an `Order` holds a `Cart` in a field
+        "pick",  # `Shelf.take()`, a method, is annotated to return one
+    ],
+)
+def test_an_instance_is_followed_through_return_annotations_and_fields(caller: str) -> None:
+    assert ("src/store/browse.py", caller) in graph_of(STORE).reaching(CART_TOTAL)
+
+
+def test_only_an_attribute_calls_a_method() -> None:
+    """`count` holds a `Cart` and a local variable named `total`, which calls nothing."""
+    assert ("src/store/browse.py", "count") not in graph_of(STORE).reaching(CART_TOTAL)
+
+
+def test_an_object_of_no_known_class_reaches_no_method() -> None:
+    """`render` gets `store` from its caller, and `pay` a `Cart` that may be a `GiftCart`."""
+    graph = graph_of(STORE)
+    assert ("src/store/checkout.py", "render") not in graph.reaching(CART_TOTAL)
+    assert ("src/store/checkout.py", "pay") not in graph.reaching(
+        ("src/store/gift.py", "GiftCart.total")
+    )
+
+
+def test_a_method_is_reached_through_its_class_and_every_class_that_inherits_it() -> None:
+    """`dict`, the other base of `BigCart`, is no class of the repository and is left out."""
+    graph = graph_of(STORE)
+    assert graph.receivers(("src/store/cart.py", "Cart.save")) == {
+        ("src/store/cart.py", "Cart"),
+        ("src/store/cart.py", "BigCart"),
+        ("src/store/gift.py", "GiftCart"),
+    }
+    assert graph.receivers(CART_TOTAL) == graph.receivers(("src/store/cart.py", "Cart.save"))
+    assert graph.receivers(("src/store/checkout.py", "checkout")) == frozenset()
+    assert graph.receivers(("src/store/missing.py", "Cart.total")) == frozenset()
+    assert CART_TOTAL in graph.methods
+
+
 class FakeRepository:
     def __init__(self, files: dict[str, str]) -> None:
         self.objects = {path: f"{index + 1:040x}" for index, path in enumerate(sorted(files))}

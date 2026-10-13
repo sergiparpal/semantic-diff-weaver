@@ -39,17 +39,21 @@ MAX_TEST_INDEX_BYTES = 8 * 1024 * 1024
 class IndexedTest:
     path: str
     symbol: str
+    # As written, since case tells `from shop import Cart`, a class `shop/__init__.py` may
+    # re-export, from the module `shop.cart`. Matching a changed module by name folds it.
     imports: frozenset[str]
     # Words as well as whole identifiers: category terminology reads these.
     name_tokens: frozenset[str]
     body_tokens: frozenset[str]
     # Whole identifiers, for whether the body uses a changed symbol or module by name.
     body_identifiers: frozenset[str] = frozenset()
-    # Modules the test's file runs as a program, as `python -m` or `runpy` does.
+    # Modules the test's file runs as a program, as `python -m` or `runpy` does, as written.
     modules_run: frozenset[str] = frozenset()
     # Identifiers the test uses together with those of the same file's helpers and fixtures it
     # names: `run_args_from(...)` reaches `cli.main` although the test never spells `main`.
     reach_names: frozenset[str] = frozenset()
+    # The attributes among them, which alone call a method on an instance the test holds.
+    reach_attributes: frozenset[str] = frozenset()
 
 
 @dataclass
@@ -144,19 +148,25 @@ def _code_names(node: ast.AST) -> frozenset[str]:
     return frozenset(names)
 
 
-def _reach_names(node: ast.AST, helpers: Mapping[str, frozenset[str]]) -> frozenset[str]:
-    """What a test uses, with what each same-file helper or fixture it names uses in turn."""
-    names = set(_code_names(node))
+def _attributes(node: ast.AST) -> frozenset[str]:
+    """The attributes code uses, read as bodies are."""
+    return frozenset(
+        name
+        for child in ast.walk(node)
+        if isinstance(child, ast.Attribute) and (name := bare_name(child.attr))
+    )
+
+
+def _helpers_named(names: frozenset[str], helpers: Mapping[str, frozenset[str]]) -> set[str]:
+    """The same-file helpers and fixtures code names, with those they name in turn."""
     pending = [name for name in names if name in helpers]
     visited: set[str] = set()
     while pending:
         helper = pending.pop()
-        if helper in visited:
-            continue
-        visited.add(helper)
-        names |= helpers[helper]
-        pending.extend(name for name in helpers[helper] if name in helpers)
-    return frozenset(names)
+        if helper not in visited:
+            visited.add(helper)
+            pending.extend(name for name in helpers[helper] if name in helpers)
+    return visited
 
 
 def _test_functions(
@@ -178,19 +188,22 @@ def _index_source(path: str, source: str) -> list[IndexedTest]:
     tree = ast.parse(source)
     imports_visitor = _ImportVisitor()
     imports_visitor.visit(tree)
-    imports = frozenset(item.casefold() for item in imports_visitor.imports)
+    imports = frozenset(imports_visitor.imports)
     runs_visitor = _ModuleRunVisitor()
     runs_visitor.visit(tree)
-    modules_run = frozenset(item.casefold() for item in runs_visitor.modules)
-    helpers = {
-        bare_name(node.name): _code_names(node)
+    modules_run = frozenset(runs_visitor.modules)
+    helper_nodes = {
+        bare_name(node.name): node
         for node in tree.body
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
         and not node.name.startswith("test")
     }
+    helpers = {name: _code_names(node) for name, node in helper_nodes.items()}
     indexed: list[IndexedTest] = []
     for symbol, node in _test_functions(tree.body):
         body_text = redact_text(ast.unparse(node), max_chars=4000)
+        names = _code_names(node)
+        named_helpers = _helpers_named(names, helpers)
         indexed.append(
             IndexedTest(
                 path=path,
@@ -200,7 +213,10 @@ def _index_source(path: str, source: str) -> list[IndexedTest]:
                 body_tokens=_tokens(body_text),
                 body_identifiers=_identifiers(body_text),
                 modules_run=modules_run,
-                reach_names=_reach_names(node, helpers),
+                reach_names=names.union(*(helpers[helper] for helper in named_helpers)),
+                reach_attributes=_attributes(node).union(
+                    *(_attributes(helper_nodes[helper]) for helper in named_helpers)
+                ),
             )
         )
     return indexed
@@ -344,7 +360,8 @@ def map_candidate_tests(
 
     With ``graph``, a test is followed from the modules it imports or runs through every call
     their symbols make, into other modules through their imports, to the changed symbols it
-    reaches, which no name or import in the test shows.
+    reaches, which no name or import in the test shows. A test that reaches a class may hold
+    one of its instances, and reaches the methods it calls on it by name.
     """
     result: dict[int, list[CandidateTest]] = {}
     tests = index.tests
@@ -366,14 +383,21 @@ def map_candidate_tests(
     # so it indexes directly. Keeping it out of the module scan below means the import signal
     # costs one pass per distinct module rather than one per distinct (module, symbol) pair.
     import_leaf_positions: dict[str, set[int]] = defaultdict(set)
+    # Every attribute a test's code uses, with its same-file helpers': a method it calls on an
+    # instance shows only as one.
+    attribute_positions: dict[str, set[int]] = defaultdict(set)
     all_tokens_by_test: list[frozenset[str]] = []
+    # Changed modules and symbols are matched by name, regardless of case.
+    folded_imports = [frozenset(name.casefold() for name in test.imports) for test in tests]
     for position, test in enumerate(tests):
         all_tokens_by_test.append(test.name_tokens | test.body_tokens)
+        for attribute in test.reach_attributes:
+            attribute_positions[attribute].add(position)
         for identifier in test.body_identifiers:
             body_identifier_positions[identifier].add(position)
         for module_run in test.modules_run:
-            run_positions[module_run].add(position)
-        for import_path in test.imports:
+            run_positions[module_run.casefold()].add(position)
+        for import_path in folded_imports[position]:
             _, dot, leaf = import_path.rpartition(".")
             if dot:
                 import_leaf_positions[leaf].add(position)
@@ -398,12 +422,12 @@ def map_candidate_tests(
         module_suffix = f".{module}"
         return frozenset(
             position
-            for position, test in enumerate(tests)
+            for position, imports in enumerate(folded_imports)
             if any(
                 imported == module
                 or imported.startswith(module_prefix)
                 or imported.endswith(module_suffix)
-                for imported in test.imports
+                for imported in imports
             )
         )
 
@@ -411,8 +435,8 @@ def map_candidate_tests(
     def package_imported_for(module: str) -> frozenset[int]:
         return frozenset(
             position
-            for position, test in enumerate(tests)
-            if any(module.startswith(f"{imported}.") for imported in test.imports)
+            for position, imports in enumerate(folded_imports)
+            if any(module.startswith(f"{imported}.") for imported in imports)
         )
 
     @cache
@@ -440,11 +464,25 @@ def map_candidate_tests(
                     for name in test.reach_names
                     for symbol in graph.named(found[0], name)
                 )
+            # `from shop import Cart` names a class that `shop/__init__.py` only re-exports. The
+            # file imports it for all of its tests, and only those that use it start from it.
+            if bare_name(imported_name.rpartition(".")[2]) in test.reach_names and (
+                imported_symbol := graph.resolve(imported_name)
+            ):
+                entries.add(imported_symbol)
         for program in test.modules_run:
             found = graph.locate(f"{program}.__main__")
             if found is not None and not found[1]:
                 entries.add((found[0], "<module>"))
         return frozenset(entries)
+
+    @cache
+    def class_reachers(cls: Node) -> frozenset[int]:
+        """The tests that reach a class, and so may hold one of its instances."""
+        ancestors = graph.reaching(cls) if graph is not None else frozenset()
+        return frozenset(
+            position for position in range(len(tests)) if entries_of(position) & ancestors
+        )
 
     def reaches(position: int, path: str, ancestors: frozenset[Node], local: bool) -> bool:
         if entries_of(position) & ancestors:
@@ -523,14 +561,29 @@ def map_candidate_tests(
                 for position in range(len(tests))
                 if reaches(position, candidate.path, ancestors, position in local)
             }
+            # `cart = make_cart(); cart.total()`: a test that reaches a class through its calls
+            # and uses a method's name as an attribute reaches the method. Only the classes its
+            # own entries reach count, not those of the methods it reaches this way.
+            for method in ancestors & graph.methods:
+                callers = (
+                    attribute_positions.get(bare_name(method[1].rpartition(".")[2]), empty)
+                    - reaching
+                )
+                for receiver in graph.receivers(method) if callers else ():
+                    reaching |= callers & class_reachers(receiver)
         related = mapped | mirrored | imported | ran
         if candidate.symbol == "<module>":
             # Loading a module runs its top-level code, which the import or run already counted,
             # and loading it through other modules is true of nearly every test.
             reached = reached_elsewhere = empty
         else:
-            reached = (reaching & related) - bodied
+            reached = reaching & related
             reached_elsewhere = reaching - related
+        # A mention in the body and a reach are one piece of evidence, that the test exercises
+        # the symbol, and the reach is the stronger, so it replaces the mention. A test calling
+        # the symbol directly used to keep its mention, 0.10, below one reaching the symbol
+        # through other calls, 0.15, while a reach from afar added to the mention.
+        mentioned = bodied - reached - reached_elsewhere
         # Reaching the module through another is what importing its package could only suggest,
         # so the package import adds nothing more to such a test.
         package -= reached_elsewhere
@@ -604,7 +657,7 @@ def map_candidate_tests(
             if test_position in named:
                 score += 0.20
                 reasons.append("changed symbol token in test name")
-            if test_position in bodied:
+            if test_position in mentioned:
                 score += 0.10
                 reasons.append("changed symbol token in bounded test body")
             # More than a body mention: the test exercises the symbol through what it calls.
@@ -644,6 +697,16 @@ def map_candidate_tests(
             ranked.append(
                 best if len(items) == 1 else best.model_copy(update={"symbol": WHOLE_TEST_FILE})
             )
-        ranked.sort(key=lambda item: (-item.match_score, item.path, item.symbol))
+        # Among equal scores, a test whose body names the symbol is about it, while one reaching
+        # it through other calls may be about anything along the way.
+        naming = {(tests[position].path, tests[position].symbol) for position in bodied}
+        ranked.sort(
+            key=lambda item: (
+                -item.match_score,
+                (item.path, item.symbol) not in naming,
+                item.path,
+                item.symbol,
+            )
+        )
         result[candidate_index] = ranked[: config.rules.max_candidate_tests_per_obligation]
     return result
