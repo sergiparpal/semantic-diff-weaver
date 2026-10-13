@@ -118,6 +118,26 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-10-13, running without a model)
+
+The CLI's `--no-llm`, a CLI without a provider, and the Claude Code server run without a model by
+design; the server never has one. Every such result still warned "No inference model was
+provided; returned deterministic fallback findings." and listed "LLM interpretation was
+unavailable; deterministic fallback was used." among its limitations. The interpreter's own
+comment already called this "not necessarily a failure", but read in a brief it was one: a
+Claude Code session reviewing `distiller` reported that the tool had fallen back to a degraded
+mode.
+
+No model being supplied is no longer a warning, and its limitation now reads "No model
+interpreted the findings; each comes from a deterministic structural rule." A model that was
+called and produced nothing usable is a fallback, and keeps the warning of its failed batches
+and the old limitation. The `deterministic_fallback` origin and `deterministic_mode` keep their
+values, which the README documents for runs without a provider; only the prose changes. When the
+CLI cannot load a provider, it still says why on stderr.
+
+The sixteen evaluation goldens with findings lose the warning and carry the new limitation;
+nothing else in them changes, nor does any finding, score, or obligation.
+
 ## Output-affecting corrections (2026-10-13, pooled candidate reasons)
 
 An obligation that stands for several findings pools their candidate tests. For a test more than

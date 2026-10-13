@@ -31,7 +31,6 @@ MAX_OBLIGATIONS_PER_BEHAVIOR = 6
 LLM_CONFIDENCE_CAP_EXISTING = 0.98
 LLM_CONFIDENCE_CAP_NEW = 0.85
 # Reported whenever no model was supplied, which is a normal configuration rather than a fault.
-NO_MODEL_WARNING = "No inference model was provided; returned deterministic fallback findings."
 UNINFORMATIVE_SHARED_CALLS = {
     "bool",
     "dict",
@@ -551,8 +550,10 @@ def interpret_candidates(
     if not candidates:
         return InterpreterResult(candidates=[], suggestions=[], status=LlmStatus())
     if llm is None:
-        # Not necessarily a failure, so nothing here names a host: the CLI's `--no-llm`, a CLI
-        # without a provider, and the Claude Code server all run without a model by design.
+        # Not a failure, so nothing here names a host or warns: the CLI's `--no-llm`, a CLI
+        # without a provider, and the Claude Code server all run without a model by design, and
+        # a warning on every such result read as a degraded analysis. The result's limitations
+        # say that no model interpreted the findings.
         if not config.rules.deterministic_fallback:
             raise WeaverError(
                 ErrorCode.LLM_UNAVAILABLE,
@@ -565,7 +566,6 @@ def interpret_candidates(
             candidates=candidates,
             suggestions=[],
             status=LlmStatus(attempted=False, available=False),
-            warnings=[NO_MODEL_WARNING],
         )
     batches, omitted_batches, oversized_symbols, truncated_symbols = _batch_candidates(
         candidates, config
