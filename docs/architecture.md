@@ -50,7 +50,10 @@ batches the call ceiling could not accommodate or that retries left unvisited wi
 `model_input_symbol_limit` for a single symbol whose payload cannot fit one call, and
 `model_evidence_limit` for a symbol whose evidence was truncated to fit.
 A bounded, redacted committed README excerpt may provide repository purpose context. `test_mapper.py`
-parses committed tests statically and always labels matches as unverified candidates.
+parses committed tests statically and always labels matches as unverified candidates. Tests that
+match only through evidence about their file — a mapping, a mirrored name, an import, a run, or a
+package import — cannot be told apart by it, so several of them stand as one candidate for the
+file, with the symbol `<module>`.
 
 When global file or line limits are exceeded, explicitly configured critical paths are analyzed first
 and every omitted count/reason is carried into canonical scope and Markdown. Parse-incomplete files

@@ -14,7 +14,7 @@ from typing import ClassVar
 
 from .errors import WeaverError
 from .git_diff import GitRepository
-from .models import BehaviorCategory, CandidateTest, WeaverConfig
+from .models import WHOLE_TEST_FILE, BehaviorCategory, CandidateTest, WeaverConfig
 from .path_policy import (
     exclusion_reason,
     glob_matches,
@@ -435,6 +435,12 @@ def map_candidate_tests(
         module_bodied = module_named & body_identifier_positions.get(stem, empty) if stem else empty
         terminology = terminology_for(candidate.category)
         ranked: list[CandidateTest] = []
+        # A mapping, a mirrored name, an import, a run, or a package is evidence about a test
+        # file, shared by every test in it, so it cannot single out the tests that exercise the
+        # changed symbol. Tests matched by it alone stand as their file: one `cli.py` helper got
+        # the first five of eight tests in `test_cli.py`, alphabetically, as five candidates.
+        specific = named | bodied | module_named
+        by_file: dict[str, list[CandidateTest]] = defaultdict(list)
         # Only a structural hit can produce a candidate, so tests outside this union would
         # score identically to being skipped. Terminology alone never clears the threshold.
         structural = mapped | mirrored | imported | package | ran | named | bodied | module_named
@@ -476,14 +482,21 @@ def map_candidate_tests(
                 reasons.append("behavior-category terminology")
             score = min(1.0, score)
             if score >= 0.35:
-                ranked.append(
-                    CandidateTest(
-                        path=test.path,
-                        symbol=test.symbol,
-                        match_score=round(score, 2),
-                        match_reasons=reasons,
-                    )
+                item = CandidateTest(
+                    path=test.path,
+                    symbol=test.symbol,
+                    match_score=round(score, 2),
+                    match_reasons=reasons,
                 )
+                if test_position in specific:
+                    ranked.append(item)
+                else:
+                    by_file[test.path].append(item)
+        for items in by_file.values():
+            best = max(items, key=lambda item: item.match_score)
+            ranked.append(
+                best if len(items) == 1 else best.model_copy(update={"symbol": WHOLE_TEST_FILE})
+            )
         ranked.sort(key=lambda item: (-item.match_score, item.path, item.symbol))
         result[candidate_index] = ranked[: config.rules.max_candidate_tests_per_obligation]
     return result

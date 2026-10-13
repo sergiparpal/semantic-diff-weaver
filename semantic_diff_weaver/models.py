@@ -241,6 +241,11 @@ class BehaviorChange(StrictModel):
     score_explanation: ScoreExplanation
 
 
+# The `symbol` of a candidate that stands for a whole test file: file-level evidence links the
+# file to the change, but not any one test in it.
+WHOLE_TEST_FILE = "<module>"
+
+
 class CandidateTest(StrictModel):
     path: str = Field(min_length=1)
     symbol: str = Field(min_length=1)

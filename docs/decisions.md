@@ -118,6 +118,38 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-10-13, file-level candidates)
+
+A mirrored file name, an import, a configured mapping, a `python -m` run, and a package import
+are evidence about a test file: every test in it has the same. On `distiller` a mirrored name
+plus an import scored 0.50 for each of `test_cli.py`'s eight tests and every symbol of `cli.py`,
+so a helper that no test names, such as `_parser` or `pr_number`, got the first five of those
+tests in alphabetical order, as five pieces of evidence. A function no test reaches would have
+got the same five.
+
+Counting those signals once instead of summing them was measured and rejected: `_parser`,
+`_run_command`, and `pr_number` lost every candidate, and so did `__main__`, whose mirrored name
+and run are both evidence about its file, although `test_cli.py` exercises the helpers through
+`main`. Their test gap would have read as no test at all. So the scores stay and the
+presentation changes. A test with evidence of its own — the changed symbol or module named in
+its name or body — is listed as before. The other tests that qualify are grouped by file. A file
+with more than one stands as a single candidate with the symbol `<module>`, the best of their
+scores, and that test's reasons, and the brief shows it as the file. A file with one such test
+still names it, which keeps `__main__`'s `test_python_m_distiller_exits_with_what_main_returns`.
+
+This does not tell a tested helper from an untested one in the same module: both get the file.
+That needs to know which functions the tests reach through the module's own calls, which the
+mapper does not compute.
+
+Measured: no score or risk changes anywhere. `distiller` changes 6 of 11 candidate lists, and
+`_parser`, `_run_command`, and `pr_number` now have only `tests/test_cli.py`; its one obligation
+shows the same five tests, which outrank the file. `meal-manager` is unchanged. In this
+repository's `v0.3.0..main` 50 of 147 findings gain a whole-file entry, and two obligations
+change: four of the five candidates of the `authorization_change` in
+`semantic_candidates._classify_condition` were tests of `test_candidate_mapping.py`, chosen
+alphabetically, and it now lists three files and two single tests. The 17-case corpus is
+unchanged.
+
 ## Output-affecting corrections (2026-10-13, package imports)
 
 Candidate mapping counted a test as importing the changed module when it imported any package

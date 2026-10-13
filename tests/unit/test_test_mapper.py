@@ -358,7 +358,9 @@ def test_a_module_mention_in_the_body_adds_only_to_a_test_named_after_it() -> No
     assert bodied not in reasons.get("test_every_handler_answers", [])
 
 
-def symbol_reasons(path: str, symbol: str, source: str) -> dict[str, list[str]]:
+def symbol_reasons(
+    path: str, symbol: str, source: str, test_path: str = "tests/test_suite.py"
+) -> dict[str, list[str]]:
     candidate = build_candidates(
         [
             StructuralDelta(
@@ -373,9 +375,7 @@ def symbol_reasons(path: str, symbol: str, source: str) -> dict[str, list[str]]:
             )
         ]
     )[0]
-    index = TestIndex(
-        tests=_index_source("tests/test_suite.py", source), incomplete=False, warnings=[]
-    )
+    index = TestIndex(tests=_index_source(test_path, source), incomplete=False, warnings=[])
     mapped = map_candidate_tests([candidate], index, WeaverConfig())[0]
     return {item.symbol: item.match_reasons for item in mapped}
 
@@ -565,3 +565,27 @@ def test_a_test_that_imports_the_module_gets_no_package_signal_on_top() -> None:
         "direct module or symbol import",
         SYMBOL_IN_NAME,
     ]
+
+
+def test_tests_matched_only_by_their_file_stand_as_the_file() -> None:
+    """A mirrored name and an import say which file tests `cli.py`, not which of its tests.
+
+    Each of them used to be a candidate of its own, cut to five in alphabetical order.
+    """
+    reasons = symbol_reasons(
+        "src/cli.py",
+        "pr_number",
+        "import cli\n"
+        "def test_a_command_line_is_parsed():\n    assert cli.main([])\n"
+        "def test_an_unknown_option_exits_with_two():\n    assert cli.main(['-x'])\n"
+        "def test_pr_number_rejects_zero():\n    assert cli.main(['--pr', '0'])\n",
+        test_path="tests/test_cli.py",
+    )
+    assert reasons == {
+        "<module>": ["mirrored source/test path", "direct module or symbol import"],
+        "test_pr_number_rejects_zero": [
+            "mirrored source/test path",
+            "direct module or symbol import",
+            SYMBOL_IN_NAME,
+        ],
+    }
