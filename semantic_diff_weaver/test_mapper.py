@@ -5,13 +5,14 @@ from __future__ import annotations
 import ast
 import re
 from collections import defaultdict
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from functools import cache, lru_cache
 from itertools import pairwise
 from pathlib import PurePosixPath
 from typing import ClassVar
 
+from .ast_diff import SymbolReferences
 from .errors import WeaverError
 from .git_diff import GitRepository
 from .models import WHOLE_TEST_FILE, BehaviorCategory, CandidateTest, WeaverConfig
@@ -46,6 +47,9 @@ class IndexedTest:
     body_identifiers: frozenset[str] = frozenset()
     # Modules the test's file runs as a program, as `python -m` or `runpy` does.
     modules_run: frozenset[str] = frozenset()
+    # Identifiers the test uses together with those of the same file's helpers and fixtures it
+    # names: `run_args_from(...)` reaches `cli.main` although the test never spells `main`.
+    reach_names: frozenset[str] = frozenset()
 
 
 @dataclass
@@ -135,6 +139,38 @@ def _identifiers(text: str) -> frozenset[str]:
     return frozenset(name for item in TOKEN_RE.findall(text) if (name := _bare(item)))
 
 
+def _code_names(node: ast.AST) -> frozenset[str]:
+    """The identifiers code uses — names, attributes, and parameters — read as bodies are."""
+    names: set[str] = set()
+    for child in ast.walk(node):
+        if isinstance(child, ast.Name):
+            raw = child.id
+        elif isinstance(child, ast.Attribute):
+            raw = child.attr
+        elif isinstance(child, ast.arg):
+            raw = child.arg
+        else:
+            continue
+        if name := _bare(raw):
+            names.add(name)
+    return frozenset(names)
+
+
+def _reach_names(node: ast.AST, helpers: Mapping[str, frozenset[str]]) -> frozenset[str]:
+    """What a test uses, with what each same-file helper or fixture it names uses in turn."""
+    names = set(_code_names(node))
+    pending = [name for name in names if name in helpers]
+    visited: set[str] = set()
+    while pending:
+        helper = pending.pop()
+        if helper in visited:
+            continue
+        visited.add(helper)
+        names |= helpers[helper]
+        pending.extend(name for name in helpers[helper] if name in helpers)
+    return frozenset(names)
+
+
 def _test_functions(
     body: list[ast.stmt], prefix: str = ""
 ) -> Iterator[tuple[str, ast.FunctionDef | ast.AsyncFunctionDef]]:
@@ -158,6 +194,12 @@ def _index_source(path: str, source: str) -> list[IndexedTest]:
     runs_visitor = _ModuleRunVisitor()
     runs_visitor.visit(tree)
     modules_run = frozenset(item.casefold() for item in runs_visitor.modules)
+    helpers = {
+        _bare(node.name): _code_names(node)
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and not node.name.startswith("test")
+    }
     indexed: list[IndexedTest] = []
     for symbol, node in _test_functions(tree.body):
         body_text = redact_text(ast.unparse(node), max_chars=4000)
@@ -170,6 +212,7 @@ def _index_source(path: str, source: str) -> list[IndexedTest]:
                 body_tokens=_tokens(body_text),
                 body_identifiers=_identifiers(body_text),
                 modules_run=modules_run,
+                reach_names=_reach_names(node, helpers),
             )
         )
     return indexed
@@ -299,12 +342,22 @@ def _mirrored(source_path: str, test_path: str) -> bool:
     return not source_parts or not test_parts or source_parts[-2:] == test_parts[-2:]
 
 
+def _is_private(name: str) -> bool:
+    return name.startswith("_") and not (name.startswith("__") and name.endswith("__"))
+
+
 def map_candidate_tests(
     candidates: list[SemanticCandidate],
     index: TestIndex,
     config: WeaverConfig,
+    references: Mapping[str, Mapping[str, SymbolReferences]] | None = None,
 ) -> dict[int, list[CandidateTest]]:
-    """Return capped static candidates; terminology alone can never create a match."""
+    """Return capped static candidates; terminology alone can never create a match.
+
+    ``references`` holds, per changed file, what each of its head symbols uses: with it a test
+    related to the module is followed through the module's own calls to the symbols it
+    reaches, which no name or import in the test shows.
+    """
     result: dict[int, list[CandidateTest]] = {}
     tests = index.tests
     # Every signal below is resolved into a set of test positions, memoized on the only input
@@ -375,6 +428,54 @@ def map_candidate_tests(
         )
 
     @cache
+    def ran_for(module: str) -> frozenset[int]:
+        # `python -m pkg` runs `pkg/__main__.py`, which no import reaches. Running any other
+        # module relates a test to all of its symbols, as coarsely as an import already does.
+        if not module.endswith(".__main__"):
+            return frozenset()
+        return frozenset(run_positions.get(module.removesuffix(".__main__"), ()))
+
+    @cache
+    def reached_for(path: str, module: str) -> dict[int, frozenset[str]]:
+        """Per test that file-level evidence relates to the module, every symbol it reaches.
+
+        A test reaches what it names and, from there, whatever those symbols name in turn:
+        `cli.main` calls `_run_command`, which builds `_parser`, which hands `pr_number` to
+        argparse. Loading the module runs its top-level code too.
+        """
+        symbols = references.get(path) if references else None
+        if not symbols:
+            return {}
+        by_name: dict[str, set[str]] = defaultdict(set)
+        for qualified in symbols:
+            by_name[_bare(qualified.rsplit(".", 1)[-1])].add(qualified)
+        uses = {
+            qualified: {target for name in item.names for target in by_name.get(_bare(name), ())}
+            for qualified, item in symbols.items()
+        }
+        # Making an instance runs its class's protocol methods, which nothing calls by name.
+        for qualified in symbols:
+            owner, _, leaf = qualified.rpartition(".")
+            if owner in uses and leaf.startswith("__") and leaf.endswith("__"):
+                uses[owner].add(qualified)
+        loaded = module_imported_for(module) | ran_for(module)
+        reached: dict[int, frozenset[str]] = {}
+        for position in mapped_for(path) | mirrored_for(path) | loaded:
+            pending = [
+                target for name in tests[position].reach_names for target in by_name.get(name, ())
+            ]
+            if position in loaded and "<module>" in symbols:
+                pending.append("<module>")
+            seen: set[str] = set()
+            while pending:
+                current = pending.pop()
+                if current not in seen:
+                    seen.add(current)
+                    pending.extend(uses[current] - seen)
+            reached[position] = frozenset(seen)
+        return reached
+
+    @cache
     def named_for(words: str) -> frozenset[int]:
         # Whole words only: `register_cooked_meal` names `test_register_cooked_meal_rollback`,
         # but `cooked_meal` must not match `test_uncooked_meals`.
@@ -407,13 +508,7 @@ def map_candidate_tests(
         # module of `distiller`, and with category terminology alone a test crossed the
         # threshold for modules it never touches. It now confirms a test name, never alone.
         package = package_imported_for(module) - imported
-        # `python -m pkg` runs `pkg/__main__.py`, which no import reaches. Running any other
-        # module relates a test to all of its symbols, as coarsely as an import already does.
-        ran = (
-            run_positions.get(module.removesuffix(".__main__"), empty)
-            if module.endswith(".__main__")
-            else empty
-        )
+        ran = ran_for(module)
         # Whole identifiers: by its words, `run` was in the body of every test that called
         # `run_args_from(...)`, and every test name was in its own body through the `def` line.
         body_key = _bare(name)
@@ -433,17 +528,34 @@ def map_candidate_tests(
         # mention is everywhere — this suite writes `mcp_server.X` in tests of anything — and
         # with the package-import rule it promoted unrelated tests over the real ones.
         module_bodied = module_named & body_identifier_positions.get(stem, empty) if stem else empty
+        reach = reached_for(candidate.path, module)
+        reaching = {position for position, symbols in reach.items() if candidate.symbol in symbols}
+        # Loading a module runs its top-level code, which the import or run already counted.
+        reached = reaching - bodied if candidate.symbol != "<module>" else empty
         terminology = terminology_for(candidate.category)
         ranked: list[CandidateTest] = []
         # A mapping, a mirrored name, an import, a run, or a package is evidence about a test
         # file, shared by every test in it, so it cannot single out the tests that exercise the
         # changed symbol. Tests matched by it alone stand as their file: one `cli.py` helper got
         # the first five of eight tests in `test_cli.py`, alphabetically, as five candidates.
-        specific = named | bodied | module_named
+        specific = named | bodied | module_named | reached
         by_file: dict[str, list[CandidateTest]] = defaultdict(list)
         # Only a structural hit can produce a candidate, so tests outside this union would
         # score identically to being skipped. Terminology alone never clears the threshold.
         structural = mapped | mirrored | imported | package | ran | named | bodied | module_named
+        module_symbols = references.get(candidate.path) if references else None
+        if (
+            reach
+            and module_symbols
+            and candidate.symbol in module_symbols
+            and _is_private(name)
+            and not module_symbols[candidate.symbol].decorated
+            and not (reaching or bodied or named)
+        ):
+            # A private helper is reached only through its own module, so when no test related
+            # to the module reaches or names it, neither their file nor a test named after the
+            # module is evidence that it is tested. Only a configured mapping still counts.
+            structural = mapped
         for test_position in sorted(structural):
             test = tests[test_position]
             score = 0.0
@@ -470,6 +582,10 @@ def map_candidate_tests(
             if test_position in bodied:
                 score += 0.10
                 reasons.append("changed symbol token in bounded test body")
+            # As strong as a body mention: the test reaches the symbol through what it calls.
+            if test_position in reached:
+                score += 0.10
+                reasons.append("changed symbol reached through calls")
             # As strong as a mirrored file name: the test is named after the changed module.
             if test_position in module_named:
                 score += 0.25

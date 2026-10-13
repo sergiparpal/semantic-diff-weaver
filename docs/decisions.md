@@ -118,6 +118,46 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Candidate tests through a module's own calls (2026-10-13)
+
+Once file-level evidence stood as the test file, a helper no test names, such as `distiller`'s
+`_parser` or `pr_number`, got `tests/test_cli.py` as its candidate, and so did a helper nothing
+calls. The test gap could not tell them apart, nor could a reader.
+
+The AST stage now records, for each symbol of a changed file's head revision, the names its code
+uses — references rather than calls, because `type=pr_number` hands a function to argparse and
+`{"x": _handle_x}` to a dispatcher, which call it later. For every test that file-level evidence
+relates to the module — a configured mapping, a mirrored name, a direct import, or a `python -m` run
+— the mapper takes the names the test uses, with those of the same file's helpers and fixtures it
+names (`run_args_from(...)` calls `cli.main`), and follows them through the module: a test reaches
+whatever it names, whatever that names in turn, the protocol methods of a class it reaches, and the
+module's top-level code, which loading runs. Reaching a symbol is per-test evidence, "changed symbol
+reached through calls", worth 0.10 like a body mention and not added on top of one. Loading a module
+is not counted again for its `<module>` symbol, since the import or the run already is.
+
+A private, undecorated helper is called only through its own module. When tests relate to the module
+and none reaches or names it, neither their file nor a test named after the module is evidence that
+it is tested, and only a configured mapping still counts: such a helper has no candidate. A public
+function may be called from elsewhere and a decorator may register a helper with something that
+calls it, so both keep the file. Without any test related to the module that way, nothing is ruled
+unreached: `meal-manager` loads its handlers with `importlib`, and its tests named after a handler
+stay candidates.
+
+Static reach over-approximates: a name shared by unrelated symbols counts for all of them, and
+a branch a test never takes counts as reached. It cannot see dynamic dispatch, which is why only
+private, undecorated helpers are ever ruled out.
+
+Measured: on `distiller` `main..skeleton`, `_parser`, `_run_command`, and `pr_number` gain the
+tests that reach them, at 0.60, and fall four or five points; 7 of 11 lists change and the overall
+risk stays 42. On a scratch copy of that branch with an unused `_describe` helper added to
+`cli.py`, `_describe` and `_parser` had both scored 40 with `tests/test_cli.py`; now `_describe` has
+its own obligation reading "none (no_candidate_found)", at 46, and `_parser` scores 35.
+`meal-manager` (`8894749`, and `v0.2.0..HEAD` over `src/**`) is unchanged. This repository's
+`v0.3.0..main` changes 92 of 152 lists, and 24 private helpers reached through their module's
+public functions, such as `mcp_server._dispatch` through `McpServer.handle`, gain their first
+candidate and fall six or seven points. No changed private helper in these ranges is unreached,
+so none loses its candidates. The 17-case corpus has no test file and is unchanged.
+
 ## Output-affecting corrections (2026-10-13, added and removed symbols)
 
 Every added or removed symbol read "A callable or structural symbol was added without a reliable

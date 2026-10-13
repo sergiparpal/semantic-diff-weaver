@@ -650,7 +650,7 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
     )
     state.warnings.extend(test_index.warnings)
     mapped_by_index = map_candidate_tests(
-        [item.candidate for item in reportable], test_index, config
+        [item.candidate for item in reportable], test_index, config, ast_result.references
     )
     reportable = [
         replace(item, tests=mapped_by_index.get(index, [])) for index, item in enumerate(reportable)

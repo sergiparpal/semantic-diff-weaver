@@ -183,6 +183,41 @@ def test_a_brief_names_the_test_file_when_none_of_its_tests_names_the_change(
     ) in envelope["markdown"]
 
 
+def test_a_helper_the_tests_reach_is_told_apart_from_one_nothing_calls(repo_factory) -> None:
+    """Both used to get the module's test file; only `_parser` is reached through `main`."""
+    tests = (
+        "import cli\n\n"
+        "def invoke(argv):\n    return cli.main(argv)\n\n"
+        "def test_a_command_line_is_parsed():\n    assert invoke(['x']) == 2\n\n"
+        "def test_no_arguments_parse_to_one():\n    assert invoke([]) == 1\n"
+    )
+    module = "def main(argv):\n    return _parser(argv)\n\n\ndef _parser(argv):\n    return {}\n"
+    unused = "\n\ndef _describe(argv):\n    return str(argv)\n"
+    repo, base, head = repo_factory(
+        {"src/cli.py": module.format("len(argv)"), "tests/test_cli.py": tests},
+        {"src/cli.py": module.format("len(argv) + 1") + unused, "tests/test_cli.py": tests},
+    )
+    result = analyze(
+        {"repo_path": str(repo), "base_ref": base, "head_ref": head, "output_format": "json"}
+    )
+    symbols = {item["id"]: item["evidence"][0]["symbol"] for item in result["behavior_changes"]}
+    reasons = {
+        (symbols[behavior_id], test["symbol"]): test["match_reasons"]
+        for obligation in result["test_obligations"]
+        for behavior_id in obligation["behavior_change_ids"]
+        for test in obligation["candidate_existing_tests"]
+    }
+    assert (
+        "changed symbol reached through calls"
+        in reasons[("_parser", "test_a_command_line_is_parsed")]
+    )
+    assert {
+        obligation["coverage_status"]
+        for obligation in result["test_obligations"]
+        if any(symbols[item] == "_describe" for item in obligation["behavior_change_ids"])
+    } == {"no_candidate_found"}
+
+
 def test_a_test_that_runs_the_package_covers_its_changed_main_module(repo_factory) -> None:
     """`python -m pkg` is how a test reaches `pkg/__main__.py`; nothing imports it."""
     test_main = (

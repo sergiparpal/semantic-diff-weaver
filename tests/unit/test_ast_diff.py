@@ -123,3 +123,20 @@ def test_an_added_or_removed_symbol_shows_what_it_was_rather_than_its_signature(
         "from pkg import cli\nraise SystemExit(cli.main())"
     )
     assert deltas[("Args", "symbol_removed")].old == "class Args: pr: int"
+
+
+def test_the_analysis_keeps_what_each_head_symbol_uses_for_files_that_remain() -> None:
+    kept = changed("def main():\n    return 1\n", "@app.get\ndef main():\n    return helper()\n")
+    deleted = SourceRevisionPair(
+        path="src/gone.py",
+        old_path="src/gone.py",
+        new_path=None,
+        hunks=(SourceHunk(id="hunk-001", old_start=1, old_count=2, new_start=0, new_count=0),),
+        old_text="def gone():\n    return 1\n",
+        new_text=None,
+    )
+    references = analyze_ast([kept, deleted]).references
+    assert set(references) == {"src/sample.py"}
+    main = references["src/sample.py"]["main"]
+    assert "helper" in main.names
+    assert main.decorated is True

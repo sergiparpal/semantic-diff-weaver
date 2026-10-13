@@ -3,11 +3,12 @@ from __future__ import annotations
 import pytest
 
 import semantic_diff_weaver.test_mapper as test_mapper
-from semantic_diff_weaver.ast_diff import StructuralDelta
+from semantic_diff_weaver.ast_diff import StructuralDelta, analyze_ast
 from semantic_diff_weaver.errors import ErrorCode, WeaverError
 from semantic_diff_weaver.git_diff import GitTreeEntry
 from semantic_diff_weaver.models import LineRange, MappingRule, WeaverConfig
 from semantic_diff_weaver.semantic_candidates import build_candidates
+from semantic_diff_weaver.source import SourceHunk, SourceRevisionPair
 from semantic_diff_weaver.test_mapper import (
     IndexedTest,
     TestIndex,
@@ -588,4 +589,147 @@ def test_tests_matched_only_by_their_file_stand_as_the_file() -> None:
             "direct module or symbol import",
             SYMBOL_IN_NAME,
         ],
+    }
+
+
+CLI_MODULE = """import argparse
+
+HANDLERS = {"run": _dispatch}
+
+
+def main(argv):
+    return _run(_parser().parse_args(argv))
+
+
+def _parser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--pr", type=pr_number)
+    return parser
+
+
+def pr_number(text):
+    return int(text)
+
+
+def _run(options):
+    return 0
+
+
+def _dispatch():
+    return 2
+
+
+def _describe(options):
+    return str(options)
+
+
+def describe_all(options):
+    return str(options)
+
+
+@register
+def _on_startup():
+    return 1
+"""
+
+CLI_TESTS = """import cli
+
+
+def invoke(argv):
+    return cli.main(argv)
+
+
+def test_a_command_line_is_parsed():
+    assert invoke(["--pr", "7"]) == 0
+
+
+def test_an_unknown_option_is_rejected():
+    assert invoke(["--x"]) == 2
+"""
+
+REACHED = "changed symbol reached through calls"
+FILE_ONLY = ["mirrored source/test path", "direct module or symbol import"]
+
+
+def reach_reasons(
+    symbol: str,
+    tests: str = CLI_TESTS,
+    test_path: str = "tests/test_cli.py",
+    module_path: str = "src/cli.py",
+) -> dict[str, list[str]]:
+    module = SourceRevisionPair(
+        path=module_path,
+        old_path=None,
+        new_path=module_path,
+        hunks=(SourceHunk(id="hunk-001", old_start=0, old_count=0, new_start=1, new_count=60),),
+        old_text=None,
+        new_text=CLI_MODULE,
+    )
+    candidate = build_candidates(
+        [
+            StructuralDelta(
+                path=module_path,
+                symbol=symbol,
+                kind="symbol_added",
+                old=None,
+                new="(text)",
+                old_lines=None,
+                new_lines=LineRange(start=1, end=2),
+                hunk_id=f"{module_path}#hunk-001",
+            )
+        ]
+    )[0]
+    index = TestIndex(tests=_index_source(test_path, tests), incomplete=False, warnings=[])
+    references = analyze_ast([module]).references
+    mapped = map_candidate_tests([candidate], index, WeaverConfig(), references)[0]
+    return {item.symbol: item.match_reasons for item in mapped}
+
+
+def test_a_test_reaches_what_its_same_file_helpers_call() -> None:
+    [first, _] = _index_source("tests/test_cli.py", CLI_TESTS)
+    assert {"invoke", "cli", "main"} <= first.reach_names
+
+
+@pytest.mark.parametrize("symbol", ["_parser", "_run", "pr_number", "_dispatch"])
+def test_a_helper_the_tests_reach_through_the_module_calls_is_theirs(symbol: str) -> None:
+    """`main` calls `_run` and `_parser`, which hands `pr_number` to argparse.
+
+    `_dispatch` is reached by loading the module, which puts it in a dispatch table. Each test
+    used to be file-level evidence at best: the test file, standing for all of its tests.
+    """
+    assert reach_reasons(symbol) == {
+        "test_a_command_line_is_parsed": [*FILE_ONLY, REACHED],
+        "test_an_unknown_option_is_rejected": [*FILE_ONLY, REACHED],
+    }
+
+
+def test_a_private_helper_no_test_reaches_has_no_candidate() -> None:
+    """Nothing calls `_describe`, so the test file is no evidence that it is tested."""
+    assert reach_reasons("_describe") == {}
+
+
+@pytest.mark.parametrize("symbol", ["describe_all", "_on_startup"])
+def test_what_another_module_or_a_decorator_may_call_keeps_the_test_file(symbol: str) -> None:
+    """A public function has callers elsewhere; a decorator may register a private one."""
+    assert reach_reasons(symbol) == {"<module>": FILE_ONLY}
+
+
+def test_without_a_test_that_loads_the_module_nothing_is_ruled_untested() -> None:
+    """Tests that load a module dynamically show no reach, which is no evidence of none.
+
+    `meal-manager` loads each handler with `importlib`, and its tests named after the handler
+    stay its candidates.
+    """
+    loads = "    assert importlib.import_module('src.meal_handler')\n"
+    tests = (
+        "import importlib\n"
+        f"def test_meal_handler_rejects_bad_input():\n{loads}"
+        f"def test_meal_handler_accepts_good_input():\n{loads}"
+    )
+    reasons = reach_reasons(
+        "_describe", tests, test_path="test_integration.py", module_path="src/meal_handler.py"
+    )
+    assert set(reasons) == {
+        "test_meal_handler_rejects_bad_input",
+        "test_meal_handler_accepts_good_input",
     }

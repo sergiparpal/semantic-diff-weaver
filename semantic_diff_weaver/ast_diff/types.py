@@ -58,10 +58,22 @@ class SymbolSnapshot:
     # What an added or removed symbol's evidence shows. The signature alone said `bases()` for a
     # dataclass and `module` for a whole `__main__.py`; empty means "show the signature".
     display: str = ""
+    # The identifiers the symbol's code uses, as written: what candidate mapping follows to
+    # find which of a module's symbols a test reaches through the module's own calls.
+    references: frozenset[str] = frozenset()
 
     @property
     def signature_shape(self) -> str:
         return reparameterize(self.signature)
+
+
+@dataclass(frozen=True)
+class SymbolReferences:
+    """What one symbol of a changed file's head revision uses, for test reachability."""
+
+    names: frozenset[str]
+    # A decorator may register the symbol with a framework that calls it, which no name shows.
+    decorated: bool
 
 
 @dataclass
@@ -88,6 +100,8 @@ class AstAnalysis:
     failed_files: int
     changed_symbols: int
     resource_limited_files: int = 0
+    # Per head path, each symbol's references. A file that did not parse has none.
+    references: dict[str, dict[str, SymbolReferences]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
