@@ -57,9 +57,14 @@ file, with the symbol `<module>`. `call_graph.py` reads the head revision of the
 import and of the changed ones, then follows their imports, under file, byte, and time bounds and
 the AST stage's parse budgets. For each symbol it keeps the names and attribute chains its code
 uses, and for each module what its imports bind, so `messages.unexpected_failure` resolves to a
-symbol of another module, through re-exporting packages too. From what each test names, with the
-same-file helpers it calls, and the modules it imports or runs, the mapper follows those uses
-across modules: a test reaches whatever it names, whatever that uses in turn, and the top-level
+symbol of another module, through re-exporting packages too. It also keeps which symbols are
+classes, their bases, and each function's return annotation, so a call on an instance,
+`cart.total()`, reaches the method of each class the calling code knows: one it uses, one a
+function it calls returns, one held in such a class's fields, one its own class or module knows,
+and the bases they inherit from, but no subclass's override. From what each test names, with the
+same-file helpers it calls, the modules it imports or runs, and the names it imports through
+re-exporting packages, the mapper follows those uses across modules: a test reaches whatever it
+names, whatever that uses in turn, the methods it calls on a class it reaches, and the top-level
 code of every module loading brings in. Reaching a symbol from a module the test imports counts
 more than reaching it only through another module, which never makes a strong candidate on its
 own. A reach replaces a mention of the symbol in the test's body, the weaker evidence of the same

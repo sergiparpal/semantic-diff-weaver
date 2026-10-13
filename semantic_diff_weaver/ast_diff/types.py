@@ -73,9 +73,21 @@ class SymbolReferences:
     names: frozenset[str]
     # A decorator may register the symbol with a framework that calls it, which no name shows.
     decorated: bool
+    # As extraction labels it: `class`, `function`, `method`, and so on. A class's methods are
+    # what a call on one of its instances reaches.
+    kind: str
     # Attribute chains rooted at a name, such as `messages.unexpected_failure`, which the
     # module's imports resolve to a symbol of another module.
     dotted: frozenset[str] = frozenset()
+    # The attributes among the names, which alone call a method on an instance: a local
+    # variable named `ordered` is not `LineRange.ordered`.
+    attributes: frozenset[str] = frozenset()
+    # A class's bases as written, each a name or an attribute chain: its instances inherit
+    # their methods.
+    bases: tuple[str, ...] = ()
+    # The names and attribute chains in a function's return annotation: whoever calls it
+    # holds an instance of the class it returns.
+    returns: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)

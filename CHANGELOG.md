@@ -13,6 +13,21 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Feature:** a call on an instance is followed into its class's module. `cart = Cart();
+  cart.total()` stopped at `cart.total`, since `cart` is a local variable, so a method of a class
+  from another module was reached only by tests that imported its module and named the method.
+  The call graph now records which symbols are classes, their bases, and each function's return
+  annotation. A symbol knows the classes it makes, annotates with, or inherits from, those the
+  functions it calls are annotated to return, those their fields hold, what any member of its
+  class knows (`self.cart = Cart()` in `__init__`), and what its module's top-level code makes,
+  and an attribute it uses reaches the method of that name on those classes and the bases they
+  inherit from. A subclass's override is reached only where the subclass is known. A test that
+  reaches a class and calls a method on it reaches the method too, and a test now starts from what
+  it imports through a re-exporting package, such as `from shop import Cart`, for which import
+  names keep their case. On this repository's `v0.3.0..main`, 14 candidate lists change and
+  `StructuralDelta` falls five points; taking each of its 94 methods as changed, 70 have candidates
+  instead of 68. `distiller` and `meal-manager` are unchanged.
+
 - **Fix:** a test that calls a changed symbol no longer ranks below the tests that reach it
   through other calls. A mention of the symbol in a test's body and a reach through its calls
   were meant as one piece of evidence, never added together, but a reach from a module the test

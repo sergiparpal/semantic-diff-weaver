@@ -812,3 +812,63 @@ def test_a_helper_reached_only_through_another_module_is_not_ruled_untested() ->
 
 def test_a_graph_cut_short_by_its_bounds_rules_no_helper_untested() -> None:
     assert cross_reasons("_unused", incomplete=True) == {"tests/test_utils.py::<module>": FILE_ONLY}
+
+
+BILLING_MODULES = {
+    "src/shop/__init__.py": "from .billing import Invoice\n",
+    "src/shop/billing.py": "class Invoice:\n    def total(self):\n        return 0\n",
+    "src/shop/api.py": (
+        "from shop.billing import Invoice\n\n\n"
+        "def make_invoice():\n    return Invoice()\n\n\n"
+        "def report():\n    return {'total': 0}\n"
+    ),
+}
+BILLING_TESTS = (
+    "from shop import api\n"
+    "from shop import Invoice\n\n"
+    "def test_a_made_invoice_is_empty():\n"
+    "    invoice = api.make_invoice()\n"
+    "    assert invoice.total() == 0\n\n"
+    "def test_a_new_invoice_is_empty():\n"
+    "    assert Invoice().total() == 0\n\n"
+    "def test_an_invoice_is_made():\n"
+    "    assert api.make_invoice()\n\n"
+    "def test_the_report_sums_nothing():\n"
+    "    assert api.report().total == 0\n\n"
+    "def test_a_fresh_invoice_starts_from_nothing():\n"
+    "    invoice, total = api.make_invoice(), 0\n"
+    "    assert invoice and total == 0\n"
+)
+
+
+def test_a_test_reaches_the_methods_it_calls_on_an_instance_of_a_class_it_reaches() -> None:
+    """`api.make_invoice()` hands the test an `Invoice`, and `shop` re-exports the class.
+
+    Neither test imports `billing`. A test that reaches the class without calling `total` on
+    it, or calls `total` on what `api.report()` returns, does not reach the method.
+    """
+    graph = CallGraph(
+        {path: module_references(text, package_of(path)) for path, text in BILLING_MODULES.items()}
+    )
+    index = TestIndex(
+        tests=_index_source("tests/test_api.py", BILLING_TESTS), incomplete=False, warnings=[]
+    )
+    candidate = build_candidates(
+        [
+            StructuralDelta(
+                path="src/shop/billing.py",
+                symbol="Invoice.total",
+                kind="symbol_added",
+                old=None,
+                new="(self)",
+                old_lines=None,
+                new_lines=LineRange(start=2, end=3),
+                hunk_id="src/shop/billing.py#hunk-001",
+            )
+        ]
+    )[0]
+    mapped = map_candidate_tests([candidate], index, WeaverConfig(), graph)[0]
+    assert {item.symbol: item.match_reasons for item in mapped} == {
+        "test_a_made_invoice_is_empty": [REACHED_ELSEWHERE],
+        "test_a_new_invoice_is_empty": [REACHED_ELSEWHERE],
+    }

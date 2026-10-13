@@ -245,6 +245,41 @@ def test_a_test_reaches_a_change_through_a_module_the_diff_leaves_alone(repo_fac
     }
 
 
+def test_a_test_reaches_a_changed_method_through_an_instance_another_module_makes(
+    repo_factory,
+) -> None:
+    """`checkout` makes a `Cart` from another module and calls `cart.total()`, which changed."""
+    checkout = (
+        "from shop import Cart\n\n\ndef checkout():\n    cart = Cart()\n    return cart.total()\n"
+    )
+    tests = "from shop import checkout\n\ndef test_an_empty_order_costs_nothing():\n"
+    tests += "    assert checkout.checkout() == 0\n"
+    unchanged = {
+        "src/shop/__init__.py": "from .cart import Cart\n",
+        "src/shop/checkout.py": checkout,
+        "tests/test_checkout.py": tests,
+    }
+    cart = "class Cart:\n    def total(self):\n        return {}\n"
+    repo, base, head = repo_factory(
+        {**unchanged, "src/shop/cart.py": cart.format(0)},
+        {**unchanged, "src/shop/cart.py": cart.format("sum([])")},
+    )
+    result = analyze(
+        {"repo_path": str(repo), "base_ref": base, "head_ref": head, "output_format": "json"}
+    )
+    assert result["scope"]["analyzed_files"] == ["src/shop/cart.py"]
+    candidates = {
+        (test["path"], test["symbol"]): test["match_reasons"]
+        for obligation in result["test_obligations"]
+        for test in obligation["candidate_existing_tests"]
+    }
+    assert candidates == {
+        ("tests/test_checkout.py", "test_an_empty_order_costs_nothing"): [
+            "changed symbol reached through another module's calls"
+        ]
+    }
+
+
 def test_a_test_that_runs_the_package_covers_its_changed_main_module(repo_factory) -> None:
     """`python -m pkg` is how a test reaches `pkg/__main__.py`; nothing imports it."""
     test_main = (

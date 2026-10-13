@@ -114,6 +114,45 @@ def test_a_symbol_records_the_names_its_code_uses_called_or_not() -> None:
     assert module.symbols["<module>"].decorated is False
 
 
+def test_each_symbol_records_its_kind_and_a_class_its_bases() -> None:
+    """A call on an instance reaches its class's methods, and the ones its bases define."""
+    source = (
+        "import abc\n"
+        "class Box(Base, abc.ABC, Generic[T], make_base(), metaclass=Meta):\n"
+        "    def open(self):\n"
+        "        def inner():\n"
+        "            return 1\n"
+        "        return inner()\n"
+        "    async def close(self):\n"
+        "        return 0\n"
+        "def build():\n"
+        "    return Box()\n"
+    )
+    symbols = module_references(source, package="pkg").symbols
+    assert {name: item.kind for name, item in symbols.items()} == {
+        "Box": "class",
+        "Box.open": "method",
+        "Box.open.inner": "function",
+        "Box.close": "async_method",
+        "build": "function",
+        "<module>": "module",
+    }
+    assert symbols["Box"].bases == ("Base", "abc.ABC", "Generic")
+    assert symbols["build"].bases == ()
+
+
+def test_a_function_records_its_return_annotation_and_the_attributes_it_uses() -> None:
+    """A caller holds what a function returns, and calls a method only as an attribute."""
+    source = (
+        "def build(order) -> list[shop.Cart] | None:\n    total = order.items\n    return total\n"
+    )
+    build = module_references(source, package="pkg").symbols["build"]
+    assert build.returns == {"list", "shop", "shop.Cart"}
+    assert "items" in build.attributes
+    assert "total" not in build.attributes
+    assert {"order", "total", "items"} <= build.names
+
+
 def test_imports_bind_names_to_absolute_modules_and_symbols() -> None:
     source = (
         "import os.path\n"

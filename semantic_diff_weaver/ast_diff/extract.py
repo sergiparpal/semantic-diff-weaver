@@ -465,21 +465,51 @@ def _dotted(node: ast.Attribute) -> str | None:
     return ".".join(reversed(parts))
 
 
-def symbol_references(node: ast.AST) -> SymbolReferences:
+def _bases(node: ast.ClassDef) -> tuple[str, ...]:
+    """Each base a class names, as a name or an attribute chain: `Generic[T]` names `Generic`."""
+    bases: list[str] = []
+    for base in node.bases:
+        if isinstance(base, ast.Subscript):
+            base = base.value
+        if isinstance(base, ast.Name):
+            bases.append(base.id)
+        elif isinstance(base, ast.Attribute) and (chain := _dotted(base)):
+            bases.append(chain)
+    return tuple(bases)
+
+
+def _written_names(node: ast.AST) -> frozenset[str]:
+    """Every name and attribute chain rooted at a name in an expression, such as an annotation."""
+    written: set[str] = set()
+    for child in ast.walk(node):
+        if isinstance(child, ast.Name):
+            written.add(child.id)
+        elif isinstance(child, ast.Attribute) and (chain := _dotted(child)):
+            written.add(chain)
+    return frozenset(written)
+
+
+def symbol_references(node: ast.AST, kind: str) -> SymbolReferences:
     """What a symbol's code uses — every name and attribute, called or not — and its chains."""
     names: set[str] = set()
     dotted: set[str] = set()
+    attributes: set[str] = set()
     for child in ast.walk(node):
         if isinstance(child, ast.Name):
             names.add(child.id)
         elif isinstance(child, ast.Attribute):
-            names.add(child.attr)
+            attributes.add(child.attr)
             if chain := _dotted(child):
                 dotted.add(chain)
+    returns = getattr(node, "returns", None)
     return SymbolReferences(
-        names=frozenset(names),
+        names=frozenset(names | attributes),
         decorated=bool(getattr(node, "decorator_list", None)),
+        kind=kind,
         dotted=frozenset(dotted),
+        attributes=frozenset(attributes),
+        bases=_bases(node) if isinstance(node, ast.ClassDef) else (),
+        returns=_written_names(returns) if isinstance(returns, ast.expr) else frozenset(),
     )
 
 
@@ -523,15 +553,16 @@ def module_references(
 ) -> ModuleReferences:
     """What each symbol of a module uses and what its imports bind, for test reachability.
 
-    Bounded like extraction, and lighter: only names, attribute chains, and imports are read.
+    Bounded like extraction, and lighter: only names, attribute chains, class bases, and imports
+    are read.
     """
     effective_budget = budget or AstBudget.default()
     tree = parse_module(source)
     _validate_ast_budget(tree, effective_budget)
     symbols: dict[str, SymbolReferences] = {}
-    for name, _, node in _symbol_nodes(tree.body):
+    for name, kind, node in _symbol_nodes(tree.body):
         if len(symbols) >= effective_budget.max_symbols_per_file:
             raise AstResourceLimit("symbol budget exceeded")
-        symbols[name] = symbol_references(node)
+        symbols[name] = symbol_references(node, kind)
     bindings, loads = import_bindings(tree, package)
     return ModuleReferences(symbols=symbols, imports=bindings, loads=loads)
