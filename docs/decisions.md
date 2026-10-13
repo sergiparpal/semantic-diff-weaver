@@ -118,6 +118,43 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-10-13, symbol names in tests)
+
+Candidate mapping matched a changed symbol against the single words of a test's name and body:
+each identifier was kept together with its underscore-separated words. A compound name was never
+among a test name's words, so `pr_number` could not match `test_pr_number_rejects_zero`, nor
+`messages.unexpected_failure` the `distiller` test named
+`test_an_unexpected_failure_is_one_line_that_names_only_its_class`. A single word matched too much:
+`report.run` found `run` in the name and body of `test_evaluate_gets_its_options_as_run_args` and
+ranked that test of another module first. The body was read from the whole unparsed function, so
+its `def` line put every word of the test's name in its body too, and a name match always scored
+the body's 0.10 as well.
+
+A symbol's name now matches a test name as whole words in sequence, as a module's already did:
+`RunArgs` and `_run_args` both read as `run_args`. A body is read by whole identifiers, so
+`run_args_from` is not `run`, and a test's own name is one identifier rather than its words. A
+single word turns up in test names about something else, so it names the symbol only in a test
+whose body uses it. Two first versions were wrong. Exact identifiers lost this repository's tests
+that call `_serve(...)` and `_analyze(...)`, private wrappers of the changed `serve` and
+`analyze`, so a leading or trailing underscore is ignored. Ignoring it everywhere made `__init__`
+read as `init`, which matched `test_dii_init_resolves_aliases` to five constructors in
+`meal-manager`, so a dunder stays whole and no test name names it. Category terminology still
+reads words.
+
+Measured: `distiller` `main..skeleton` changes 5 of 11 candidate lists.
+`messages.unexpected_failure` gains the test named after it and falls from 49 to 42; `_run_args`
+and `RunArgs` find `test_evaluate_gets_its_options_as_run_args` by name, and `report.run` no
+longer proposes it. `meal-manager` `8894749` changes 8 of 91 lists. `atomic_write_json`,
+`validate_state`, and `from_dict` gain their first candidates, six risk scores fall by six or
+seven points, and `atomic_write_json`'s side-effect finding moves from `high` to `medium`.
+`JsonTuningRepository.load` loses its one candidate, a test of another repository's `load`, and
+rises from 46 to 52. `v0.2.0..HEAD` over `src/**` moves the same seven scores. This repository's
+`v0.3.0..main` changes 16 of 142 lists, 14 of them in their first candidate, mostly to the test
+named after the symbol — `test_counts_for_an_unmatched_file_are_zero` for
+`CoverageMap.counts_for` — and one score. A generic word still finds unrelated tests:
+`mcp_server._error` now ranks tests whose names say `error` and whose bodies read an `"error"`
+key, a configuration test among them. The 17-case corpus has no test file and is unchanged.
+
 ## Output-affecting corrections (2026-10-13, merged obligations)
 
 Equivalent obligations merged by normalized Given/When/Then, as the plan-conformance closure

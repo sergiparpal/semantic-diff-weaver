@@ -13,6 +13,18 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Fix:** a test named after a changed symbol is found when the name has more than one word,
+  and a single word no longer finds tests about something else. Test names and bodies were split
+  into single words, so `pr_number` could never match `test_pr_number_rejects_zero`, while `run`
+  matched any test whose name or body held `run_args` or `run_args_from`. A symbol's name now
+  matches a test name as whole words in sequence — `RunArgs` and `_run_args` read as `run_args` —
+  and a test body by whole identifiers, a private wrapper such as `_serve` reading as `serve`. A
+  single word names the symbol only in a test whose body also uses it, a dunder such as
+  `__init__` names nothing, and a test's own name no longer counts as part of its body. On
+  `meal-manager`, `atomic_write_json`, `validate_state`, and `from_dict` gain their tests and six
+  risk scores fall by six or seven points; on `distiller`, `messages.unexpected_failure` gains the
+  test named after it.
+
 - **Fix:** an obligation no longer shows one finding's candidate tests for another that has none.
   Equivalent scenarios merged on their template's wording, which names no symbol, so every finding
   of a category shared one obligation, its candidate tests pooled and its status

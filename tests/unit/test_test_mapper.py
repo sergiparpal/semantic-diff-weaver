@@ -355,3 +355,96 @@ def test_a_module_mention_in_the_body_adds_only_to_a_test_named_after_it() -> No
     assert bodied in reasons["test_cooked_meal_is_saved"]
     assert bodied not in reasons["test_cooked_meal_is_listed"]
     assert bodied not in reasons.get("test_every_handler_answers", [])
+
+
+def symbol_reasons(path: str, symbol: str, source: str) -> dict[str, list[str]]:
+    candidate = build_candidates(
+        [
+            StructuralDelta(
+                path=path,
+                symbol=symbol,
+                kind="symbol_added",
+                old=None,
+                new="(text)",
+                old_lines=None,
+                new_lines=LineRange(start=1, end=2),
+                hunk_id=f"{path}#hunk-001",
+            )
+        ]
+    )[0]
+    index = TestIndex(
+        tests=_index_source("tests/test_suite.py", source), incomplete=False, warnings=[]
+    )
+    mapped = map_candidate_tests([candidate], index, WeaverConfig())[0]
+    return {item.symbol: item.match_reasons for item in mapped}
+
+
+SYMBOL_IN_NAME = "changed symbol token in test name"
+SYMBOL_IN_BODY = "changed symbol token in bounded test body"
+
+
+def test_a_compound_symbol_name_matches_a_test_name_as_whole_words() -> None:
+    """Split into single words, `pr_number` could never name `test_pr_number_rejects_zero`."""
+    reasons = symbol_reasons(
+        "src/cli.py",
+        "pr_number",
+        "import cli\n"
+        "def test_pr_number_rejects_zero():\n    assert cli\n"
+        "def test_a_parsed_pr_number_is_an_int():\n    assert cli\n"
+        "def test_xpr_number_is_another_option():\n    assert cli\n"
+        "def test_pr_numbers_are_listed():\n    assert cli\n",
+    )
+    assert SYMBOL_IN_NAME in reasons["test_pr_number_rejects_zero"]
+    assert SYMBOL_IN_NAME in reasons["test_a_parsed_pr_number_is_an_int"]
+    assert "test_xpr_number_is_another_option" not in reasons
+    assert "test_pr_numbers_are_listed" not in reasons
+
+
+@pytest.mark.parametrize("symbol", ["RunArgs", "_run_args", "Command.run_args"])
+def test_a_class_or_private_name_reads_as_its_snake_case_words(symbol: str) -> None:
+    reasons = symbol_reasons(
+        "src/cli.py", symbol, "import cli\ndef test_options_become_run_args():\n    assert cli\n"
+    )
+    assert SYMBOL_IN_NAME in reasons["test_options_become_run_args"]
+
+
+def test_a_single_word_names_a_symbol_only_in_a_test_that_uses_it() -> None:
+    """`run` is a word of `test_options_become_run_args`, which tests something else.
+
+    Its body calls `run_args_from`, which no longer reads as `run`, and its own name no longer
+    counts as its body through the `def` line.
+    """
+    reasons = symbol_reasons(
+        "src/cli.py",
+        "run",
+        "import cli\n"
+        "def test_options_become_run_args():\n    assert cli.run_args_from([])\n"
+        "def test_run_returns_its_exit_code():\n    assert cli.run([]) == 0\n",
+    )
+    assert "test_options_become_run_args" not in reasons
+    assert reasons["test_run_returns_its_exit_code"] == [
+        "direct module or symbol import",
+        SYMBOL_IN_NAME,
+        SYMBOL_IN_BODY,
+    ]
+
+
+def test_the_body_uses_a_symbol_by_its_whole_identifier_or_a_private_wrapper() -> None:
+    reasons = symbol_reasons(
+        "src/server.py",
+        "serve",
+        "import server\n"
+        "def test_lines_are_answered():\n    assert _serve(b'')\n"
+        "def test_one_line_is_answered():\n    assert server.serve_once(b'')\n",
+    )
+    assert SYMBOL_IN_BODY in reasons["test_lines_are_answered"]
+    assert "test_one_line_is_answered" not in reasons
+
+
+def test_a_dunder_method_is_not_named_by_a_word_of_a_test_name() -> None:
+    reasons = symbol_reasons(
+        "src/store.py",
+        "Store.__init__",
+        "import store\ndef test_init_resolves_aliases():\n    assert store.init()\n",
+    )
+    assert "test_init_resolves_aliases" not in reasons
