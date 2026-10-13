@@ -53,12 +53,17 @@ A bounded, redacted committed README excerpt may provide repository purpose cont
 parses committed tests statically and always labels matches as unverified candidates. Tests that
 match only through evidence about their file — a mapping, a mirrored name, an import, a run, or a
 package import — cannot be told apart by it, so several of them stand as one candidate for the
-file, with the symbol `<module>`. The AST stage also records, for each symbol of a changed file's
-head revision, the names its code uses. From the tests that load the module, together with the
-same-file helpers they call, the mapper follows those names through the module's own calls: a
-test reaches whatever it names and whatever that names in turn, and the module's top-level code
-when it loads it. A private, undecorated helper that no such test reaches or names gets no
-candidate from their file, since only its module calls it.
+file, with the symbol `<module>`. `call_graph.py` reads the head revision of the modules tests
+import and of the changed ones, then follows their imports, under file, byte, and time bounds and
+the AST stage's parse budgets. For each symbol it keeps the names and attribute chains its code
+uses, and for each module what its imports bind, so `messages.unexpected_failure` resolves to a
+symbol of another module, through re-exporting packages too. From what each test names, with the
+same-file helpers it calls, and the modules it imports or runs, the mapper follows those uses
+across modules: a test reaches whatever it names, whatever that uses in turn, and the top-level
+code of every module loading brings in. Reaching a symbol from a module the test imports counts
+more than reaching it only through another module, which never makes a strong candidate on its
+own. A private, undecorated helper that no test reaches or names gets no candidate from a test
+file, since only its module calls it, unless the graph was cut short by its bounds.
 
 When global file or line limits are exceeded, explicitly configured critical paths are analyzed first
 and every omitted count/reason is carried into canonical scope and Markdown. Parse-incomplete files

@@ -3,12 +3,12 @@ from __future__ import annotations
 import pytest
 
 import semantic_diff_weaver.test_mapper as test_mapper
-from semantic_diff_weaver.ast_diff import StructuralDelta, analyze_ast
+from semantic_diff_weaver.ast_diff import StructuralDelta, module_references
+from semantic_diff_weaver.call_graph import CallGraph, package_of
 from semantic_diff_weaver.errors import ErrorCode, WeaverError
 from semantic_diff_weaver.git_diff import GitTreeEntry
 from semantic_diff_weaver.models import LineRange, MappingRule, WeaverConfig
 from semantic_diff_weaver.semantic_candidates import build_candidates
-from semantic_diff_weaver.source import SourceHunk, SourceRevisionPair
 from semantic_diff_weaver.test_mapper import (
     IndexedTest,
     TestIndex,
@@ -657,14 +657,6 @@ def reach_reasons(
     test_path: str = "tests/test_cli.py",
     module_path: str = "src/cli.py",
 ) -> dict[str, list[str]]:
-    module = SourceRevisionPair(
-        path=module_path,
-        old_path=None,
-        new_path=module_path,
-        hunks=(SourceHunk(id="hunk-001", old_start=0, old_count=0, new_start=1, new_count=60),),
-        old_text=None,
-        new_text=CLI_MODULE,
-    )
     candidate = build_candidates(
         [
             StructuralDelta(
@@ -680,8 +672,8 @@ def reach_reasons(
         ]
     )[0]
     index = TestIndex(tests=_index_source(test_path, tests), incomplete=False, warnings=[])
-    references = analyze_ast([module]).references
-    mapped = map_candidate_tests([candidate], index, WeaverConfig(), references)[0]
+    graph = CallGraph({module_path: module_references(CLI_MODULE, package_of(module_path))})
+    mapped = map_candidate_tests([candidate], index, WeaverConfig(), graph)[0]
     return {item.symbol: item.match_reasons for item in mapped}
 
 
@@ -733,3 +725,74 @@ def test_without_a_test_that_loads_the_module_nothing_is_ruled_untested() -> Non
         "test_meal_handler_rejects_bad_input",
         "test_meal_handler_accepts_good_input",
     }
+
+
+SHOP_MODULES = {
+    "src/shop/api.py": (
+        "from shop import utils\n\n\ndef handle(order):\n    return utils._normalize(order)\n"
+    ),
+    "src/shop/utils.py": (
+        "def _normalize(order):\n    return order\n\n\ndef _unused(order):\n    return order\n"
+    ),
+}
+# `import shop` gives the package signal and "review" the category's terminology, neither of
+# which adds to a test whose only tie to `utils` is reaching it through `api`.
+API_TESTS = (
+    "import shop\nimport shop.api\n\n"
+    "def test_an_order_under_review_is_handled():\n    assert shop.api.handle({}) == {}\n"
+)
+UTILS_TESTS = (
+    "from shop import utils\n\n"
+    "def test_the_module_loads():\n    assert utils\n\n"
+    "def test_the_module_has_a_name():\n    assert utils.__name__\n"
+)
+REACHED_ELSEWHERE = "changed symbol reached through another module's calls"
+
+
+def cross_reasons(symbol: str, *, incomplete: bool = False) -> dict[str, list[str]]:
+    graph = CallGraph(
+        {path: module_references(text, package_of(path)) for path, text in SHOP_MODULES.items()},
+        incomplete=incomplete,
+    )
+    index = TestIndex(
+        tests=[
+            *_index_source("tests/test_api.py", API_TESTS),
+            *_index_source("tests/test_utils.py", UTILS_TESTS),
+        ],
+        incomplete=False,
+        warnings=[],
+    )
+    candidate = build_candidates(
+        [
+            StructuralDelta(
+                path="src/shop/utils.py",
+                symbol=symbol,
+                kind="symbol_added",
+                old=None,
+                new="(order)",
+                old_lines=None,
+                new_lines=LineRange(start=1, end=2),
+                hunk_id="src/shop/utils.py#hunk-001",
+            )
+        ]
+    )[0]
+    mapped = map_candidate_tests([candidate], index, WeaverConfig(), graph)[0]
+    return {f"{item.path}::{item.symbol}": item.match_reasons for item in mapped}
+
+
+def test_a_test_reaches_a_module_it_does_not_import_through_another() -> None:
+    """`test_api.py` never imports `utils`; it calls `api.handle`, which calls into it."""
+    reasons = cross_reasons("_normalize")
+    assert reasons["tests/test_api.py::test_an_order_under_review_is_handled"] == [
+        REACHED_ELSEWHERE
+    ]
+
+
+def test_a_helper_reached_only_through_another_module_is_not_ruled_untested() -> None:
+    """`test_utils.py` loads `utils` and calls neither helper; only `_normalize` is reached."""
+    assert "tests/test_utils.py::<module>" in cross_reasons("_normalize")
+    assert cross_reasons("_unused") == {}
+
+
+def test_a_graph_cut_short_by_its_bounds_rules_no_helper_untested() -> None:
+    assert cross_reasons("_unused", incomplete=True) == {"tests/test_utils.py::<module>": FILE_ONLY}

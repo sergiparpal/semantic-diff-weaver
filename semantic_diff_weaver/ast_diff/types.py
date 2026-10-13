@@ -58,9 +58,6 @@ class SymbolSnapshot:
     # What an added or removed symbol's evidence shows. The signature alone said `bases()` for a
     # dataclass and `module` for a whole `__main__.py`; empty means "show the signature".
     display: str = ""
-    # The identifiers the symbol's code uses, as written: what candidate mapping follows to
-    # find which of a module's symbols a test reaches through the module's own calls.
-    references: frozenset[str] = frozenset()
 
     @property
     def signature_shape(self) -> str:
@@ -69,11 +66,28 @@ class SymbolSnapshot:
 
 @dataclass(frozen=True)
 class SymbolReferences:
-    """What one symbol of a changed file's head revision uses, for test reachability."""
+    """What one symbol's code uses, for which symbols a test reaches through calls."""
 
+    # Every name and attribute it uses, called or not: `type=pr_number` hands a function to
+    # argparse, which calls it later.
     names: frozenset[str]
     # A decorator may register the symbol with a framework that calls it, which no name shows.
     decorated: bool
+    # Attribute chains rooted at a name, such as `messages.unexpected_failure`, which the
+    # module's imports resolve to a symbol of another module.
+    dotted: frozenset[str] = frozenset()
+
+
+@dataclass(frozen=True)
+class ModuleReferences:
+    """A module's symbols and what each name its imports bind stands for."""
+
+    symbols: dict[str, SymbolReferences]
+    # Local name to absolute dotted name: `from distiller import messages` binds `messages` to
+    # `distiller.messages`, a module, and `from .analyze import run` binds `run` to a symbol.
+    imports: dict[str, str]
+    # Every absolute name an import loads, bound or not: `import a.b` binds only `a`.
+    loads: frozenset[str] = frozenset()
 
 
 @dataclass
@@ -100,8 +114,6 @@ class AstAnalysis:
     failed_files: int
     changed_symbols: int
     resource_limited_files: int = 0
-    # Per head path, each symbol's references. A file that did not parse has none.
-    references: dict[str, dict[str, SymbolReferences]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

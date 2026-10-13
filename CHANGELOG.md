@@ -13,6 +13,22 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Feature:** a test is followed into modules it never imports. Candidate mapping stopped at
+  the module a test imported, so a test of `cli.main` did not count for `messages`, which `main`
+  calls, and a helper changed beneath an unchanged module counted no test that reaches it through
+  that module. The new `call_graph.py` reads the modules tests import and the changed ones at
+  head, follows their imports under file, byte, and time bounds, and resolves each attribute chain
+  through the module's imports and re-exporting packages, so `messages.unexpected_failure` is that
+  function and `store.get` on some object is not `cache.get`. A test that reaches a changed symbol
+  only through another module is a candidate, "changed symbol reached through another module's
+  calls", but never a strong one on its own, since static reach through an orchestrator such as
+  `service.analyze` takes every branch; a package import and category terminology no longer add
+  to it. Reaching a symbol from a module the test imports now counts 0.15 instead of 0.10, so such
+  a test ranks above one that reaches it only from afar. A graph cut short by its bounds rules no
+  helper untested. On `distiller`, `unexpected_failure` gains the tests that reach it through
+  `cli.main` and `evaluate.run` the one that runs `python -m distiller`; no risk score changes
+  there, and two change on this repository's `v0.3.0..main`.
+
 - **Feature:** candidate mapping tells a helper the tests reach from one nothing calls. A test
   that loads a changed module is now followed through the module's own calls — `cli.main` calls
   `_run_command`, which builds `_parser`, which hands `pr_number` to argparse — and through the

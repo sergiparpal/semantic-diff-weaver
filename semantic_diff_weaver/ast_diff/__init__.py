@@ -8,18 +8,27 @@ passes an :class:`AstBudget` rather than reaching through this facade to patch a
 from __future__ import annotations
 
 from .analyze import analyze_ast
-from .extract import AstResourceLimit, extract_symbols
+from .extract import AstResourceLimit, extract_symbols, module_references
 from .limits import AstBudget
-from .types import AstAnalysis, StructuralDelta, SymbolPair, SymbolReferences, SymbolSnapshot
+from .types import (
+    AstAnalysis,
+    ModuleReferences,
+    StructuralDelta,
+    SymbolPair,
+    SymbolReferences,
+    SymbolSnapshot,
+)
 
 __all__ = [
     "AstAnalysis",
     "AstBudget",
     "AstResourceLimit",
+    "ModuleReferences",
     "StructuralDelta",
     "SymbolPair",
     "SymbolReferences",
     "SymbolSnapshot",
     "analyze_ast",
     "extract_symbols",
+    "module_references",
 ]
