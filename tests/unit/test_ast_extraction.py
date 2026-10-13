@@ -154,6 +154,30 @@ def test_a_function_records_its_return_annotation_and_the_attributes_it_uses() -
     assert {"order", "total"} <= build.names
 
 
+def test_a_method_records_apart_what_it_reads_on_its_own_instance() -> None:
+    """`self.weight` names a member of the method's class; `other.size` could be anything's."""
+    source = (
+        "class Box:\n"
+        "    def open(self, other):\n"
+        "        return self.lid.lift() + other.size + self.weight\n"
+        "    @classmethod\n"
+        "    def make(cls):\n"
+        "        return cls.default()\n"
+        "    @staticmethod\n"
+        "    def check(self):\n"
+        "        return self.ok\n"
+        "def free(self):\n"
+        "    return self.loose\n"
+    )
+    symbols = module_references(source, package="pkg").symbols
+    assert symbols["Box.open"].own_attributes == {"lid", "weight"}
+    assert symbols["Box.open"].attributes == {"lift", "size"}
+    assert symbols["Box.make"].own_attributes == {"default"}
+    assert symbols["Box.check"].own_attributes == frozenset()
+    assert symbols["Box.check"].attributes == {"ok"}
+    assert symbols["free"].attributes == {"loose"}
+
+
 def test_a_module_records_what_each_of_its_variables_holds() -> None:
     """A variable holds what its value is, not every name in it: `JsonStore(path)` is a store.
 

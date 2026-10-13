@@ -13,6 +13,16 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Fix:** an attribute a method reads on `self` is a member of its own class. A class's members
+  know whatever any of them knows, so once `meal-manager`'s repositories kept the shared
+  `DataDirLock` as `self.lock`, every `self.path` they read, their own data file, reached the
+  lock's `path` property: 115 symbols reached it instead of 34. Module references now record the
+  attributes a method reads on its own instance or class apart from the others, and the call graph
+  looks them up only on that class and the classes it inherits from, still following what they
+  return; `self.lock.path` reads the lock's. On `meal-manager` the graph loses those 19 edges and
+  gains none, and `DataDirLock.path` is reached from 46 symbols; this repository's graph is
+  unchanged, and so are candidate tests everywhere.
+
 - **Fix:** a `src` directory that is itself a package keeps its name in the call graph. Module
   names drop a leading `src` or `lib`, as a `src` layout needs: `src/distiller/cli.py` is
   `distiller.cli`. But `meal-manager`'s `src` has an `__init__.py` and is imported as a package, so

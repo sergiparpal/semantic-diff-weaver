@@ -79,9 +79,12 @@ class SymbolReferences:
     # Attribute chains rooted at a name, such as `messages.unexpected_failure`, which the
     # module's imports resolve to a symbol of another module.
     dotted: frozenset[str] = frozenset()
-    # Every attribute it uses, which alone calls a method on an instance: a local variable
-    # named `ordered` is not `LineRange.ordered`.
+    # Every attribute it reads on something other than its own instance, which alone calls a
+    # method on another: a local variable named `ordered` is not `LineRange.ordered`.
     attributes: frozenset[str] = frozenset()
+    # The attributes a method reads on its own instance or class, `self.path`, which only its
+    # class and the classes it inherits from define.
+    own_attributes: frozenset[str] = frozenset()
     # A class's bases as written, each a name or an attribute chain: its instances inherit
     # their methods.
     bases: tuple[str, ...] = ()

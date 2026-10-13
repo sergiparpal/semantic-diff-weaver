@@ -118,6 +118,30 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-10-13, attributes of `self`)
+
+A class's members know whatever any of them knows, so that `self.cart.total()` in one method
+reaches what `self.cart = Cart()` in `__init__` holds, and an attribute any member reads was
+looked up on every class so known. Once `from .. import data_lock` resolved, each of
+`meal-manager`'s repositories knew the `DataDirLock` it keeps as `self.lock`, and every
+`self.path` they read, their own data file, reached the lock's `path` property: 115 symbols
+reached it, where 34 had before the lock resolved.
+
+An attribute read directly on a method's own instance or class — its first parameter, `self` or
+`cls`, unless it is a static method — names a member of that class or of a class it inherits from,
+never of another class it knows: Python finds it there, or in the instance's own attributes, which
+are not methods. Module references now record those attributes apart, and the call graph looks
+them up only along the class's bases, still following what the methods they reach return, so
+`self.key().turn()` reaches what an inherited `key` returns. Every other attribute is looked up as
+before: `self.lock.path` reads `path` on whatever `self.lock` holds, the lock included.
+
+Measured over `meal-manager`'s head with every module read, the graph loses those 19 edges, from
+each repository method to `DataDirLock.path`, and gains none: the property is reached from 46
+symbols, among them the modules that now load the lock, the repositories' `configure`, and the
+plugin's `register`. This repository's graph keeps all of its 1,214 edges. Candidate tests and risk scores are unchanged on
+`distiller` `main..skeleton`, on `meal-manager` (`8894749`, and `v0.2.0..HEAD` over `src/**`), on
+this repository's `v0.3.0..main`, and on the 17-case corpus.
+
 ## Output-affecting corrections (2026-10-13, a `src` package)
 
 The call graph names a module as code imports it, and drops a leading `src` or `lib`, the

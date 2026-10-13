@@ -352,7 +352,7 @@ class CallGraph:
     ) -> set[Node]:
         named = self._named[path]
         uses: set[Node] = set()
-        for name in item.names | item.attributes:
+        for name in item.names | item.attributes | item.own_attributes:
             # A name in the module's own code, by name alone: `self._helper()` reaches the
             # method, at the cost of every other symbol called `_helper`.
             uses.update((path, symbol) for symbol in named.get(bare_name(name), ()))
@@ -383,9 +383,9 @@ class CallGraph:
         `dish_repo = JsonDishRepository(path)`. An instance holds what its class inherits and the
         instances its class body names, as a dataclass's fields do. A class's members also know
         the class and whatever any of them knows, since `self.cart = Cart()` in `__init__` holds
-        what `self.cart.total()` calls in another method. An attribute the symbol uses reaches
-        the method of that name on each class it so knows, and what that method returns is known
-        in turn. A subclass's override is reached only where the subclass is known: following
+        what `self.cart.total()` calls in another method, while `self.path` reads a member of
+        the class itself. Any other attribute the symbol uses reaches the method of that name on
+        each class it so knows, and what that method returns is known in turn. A subclass's override is reached only where the subclass is known: following
         every override from a base class would credit a test of one subclass with all of its
         siblings.
         """
@@ -443,11 +443,24 @@ class CallGraph:
             if (family := self._family(node)) is not None:
                 shared[family].update(classes, (family,))
         for node, targets in uses.items():
+            path, qualified = node
+            family = self._family(node)
+            start = set(own[node])
+            if family is not None:
+                start |= shared[family]
+                # `self.path` is a member of the method's own class or of one it inherits from,
+                # never of another class its class knows.
+                own_calls = {
+                    bare_name(name) for name in self.modules[path].symbols[qualified].own_attributes
+                }
+                for cls in _closure(family, self._bases):
+                    for name, methods in self._methods.get(cls, {}).items():
+                        if name in own_calls:
+                            for method in methods:
+                                targets.add((cls[0], method))
+                                start.update(self._returns.get((cls[0], method), ()))
             if not calls[node]:
                 continue
-            start = set(own[node])
-            if (family := self._family(node)) is not None:
-                start |= shared[family]
             for cls in known(start, calls[node]):
                 for name, methods in self._methods.get(cls, {}).items():
                     if name in calls[node]:

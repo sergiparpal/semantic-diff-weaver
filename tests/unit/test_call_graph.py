@@ -331,6 +331,39 @@ def test_variables_that_hold_each_other_hold_nothing_else() -> None:
     assert graph.instances("loop.first") == frozenset()
 
 
+VAULT = {
+    "src/vault/lock.py": (
+        "class Key:\n    def turn(self):\n        return 1\n\n\n"
+        "class Lock:\n"
+        "    @property\n    def path(self):\n        return '/'\n\n"
+        "    def release(self):\n        return None\n\n\n"
+        "class Vaulted:\n    def key(self) -> Key:\n        return Key()\n"
+    ),
+    "src/vault/store.py": (
+        "from vault.lock import Lock, Vaulted\n\n\n"
+        "class Store(Vaulted):\n"
+        "    def __init__(self, path):\n        self.path = path\n        self.lock = Lock()\n\n"
+        "    def read(self):\n        return self.path\n\n"
+        "    def where(self):\n        return self.lock.path\n\n"
+        "    def unlock(self):\n        return self.key().turn()\n"
+    ),
+}
+
+
+def test_an_attribute_of_self_is_a_member_of_its_own_class() -> None:
+    """`Store` keeps a `Lock`, whose `path` is not the `self.path` every method reads.
+
+    Read through `self.lock`, it is; `self.key()` is inherited and returns a `Key`.
+    """
+    graph = graph_of(VAULT)
+    lock_path = graph.reaching(("src/vault/lock.py", "Lock.path"))
+    assert ("src/vault/store.py", "Store.read") not in lock_path
+    assert ("src/vault/store.py", "Store.where") in lock_path
+    assert ("src/vault/store.py", "Store.unlock") in graph.reaching(
+        ("src/vault/lock.py", "Key.turn")
+    )
+
+
 PLUGIN = {
     "__init__.py": "from .src.repositories import configure\n",
     "src/__init__.py": "from .filelock import data_lock\n",

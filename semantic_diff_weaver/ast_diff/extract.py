@@ -489,16 +489,37 @@ def _written_names(node: ast.AST) -> frozenset[str]:
     return frozenset(written)
 
 
+def _receiver(node: ast.AST, kind: str) -> str | None:
+    """The parameter a method's own instance or class arrives in, `self` or `cls`, and none for
+    a static method or anything but a method."""
+    if kind not in {"method", "async_method"} or not isinstance(
+        node, (ast.FunctionDef, ast.AsyncFunctionDef)
+    ):
+        return None
+    for decorator in node.decorator_list:
+        if (isinstance(decorator, ast.Name) and decorator.id == "staticmethod") or (
+            isinstance(decorator, ast.Attribute) and decorator.attr == "staticmethod"
+        ):
+            return None
+    parameters = [*node.args.posonlyargs, *node.args.args]
+    return parameters[0].arg if parameters else None
+
+
 def symbol_references(node: ast.AST, kind: str) -> SymbolReferences:
     """What a symbol's code uses — every name and attribute, called or not — and its chains."""
     names: set[str] = set()
     dotted: set[str] = set()
     attributes: set[str] = set()
+    own_attributes: set[str] = set()
+    receiver = _receiver(node, kind)
     for child in ast.walk(node):
         if isinstance(child, ast.Name):
             names.add(child.id)
         elif isinstance(child, ast.Attribute):
-            attributes.add(child.attr)
+            if isinstance(child.value, ast.Name) and child.value.id == receiver:
+                own_attributes.add(child.attr)
+            else:
+                attributes.add(child.attr)
             if chain := _dotted(child):
                 dotted.add(chain)
     returns = getattr(node, "returns", None)
@@ -508,6 +529,7 @@ def symbol_references(node: ast.AST, kind: str) -> SymbolReferences:
         kind=kind,
         dotted=frozenset(dotted),
         attributes=frozenset(attributes),
+        own_attributes=frozenset(own_attributes),
         bases=_bases(node) if isinstance(node, ast.ClassDef) else (),
         returns=_written_names(returns) if isinstance(returns, ast.expr) else frozenset(),
     )
