@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import ast
 import hashlib
-from collections import Counter
+from collections import Counter, defaultdict
 from collections.abc import Iterator
 
 from ..path_policy import redact_text
@@ -503,7 +503,7 @@ def symbol_references(node: ast.AST, kind: str) -> SymbolReferences:
                 dotted.add(chain)
     returns = getattr(node, "returns", None)
     return SymbolReferences(
-        names=frozenset(names | attributes),
+        names=frozenset(names),
         decorated=bool(getattr(node, "decorator_list", None)),
         kind=kind,
         dotted=frozenset(dotted),
@@ -548,13 +548,101 @@ def import_bindings(tree: ast.AST, package: str) -> tuple[dict[str, str], frozen
     return bindings, frozenset(loads)
 
 
+# Scopes of their own, whose assignments bind no module-level variable.
+_SCOPES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+# Statements, and the parts of `try` and `match` that hold statements.
+_BLOCKS = (ast.stmt, ast.excepthandler, ast.match_case)
+
+
+def _value_names(node: ast.expr) -> frozenset[str]:
+    """What an expression's value is: the class or function a call calls, the name or attribute
+    chain it reads, and the items a container, a conditional, or a comprehension yields.
+
+    `JsonDishRepository(path)` is a `JsonDishRepository` whatever `path` is, and
+    `dish_repo.load()` is whatever `load` returns, never `dish_repo` itself.
+    """
+    values: set[str] = set()
+    pending: list[ast.expr] = [node]
+    while pending:
+        item = pending.pop()
+        if isinstance(item, ast.Name):
+            values.add(item.id)
+        elif isinstance(item, ast.Attribute):
+            if chain := _dotted(item):
+                values.add(chain)
+        elif isinstance(item, ast.Call):
+            pending.append(item.func)
+        elif isinstance(item, (ast.List, ast.Tuple, ast.Set)):
+            pending.extend(item.elts)
+        elif isinstance(item, ast.Dict):
+            pending.extend(item.values)
+        elif isinstance(item, ast.IfExp):
+            pending.extend((item.body, item.orelse))
+        elif isinstance(item, ast.BoolOp):
+            pending.extend(item.values)
+        elif isinstance(item, (ast.ListComp, ast.SetComp, ast.GeneratorExp)):
+            pending.append(item.elt)
+        elif isinstance(item, ast.DictComp):
+            pending.append(item.value)
+        elif isinstance(item, (ast.Starred, ast.NamedExpr, ast.Await)):
+            pending.append(item.value)
+    return frozenset(values)
+
+
+def _bind(variables: dict[str, set[str]], target: ast.expr, value: ast.expr) -> None:
+    """Record what an assignment puts in each module-level variable its target binds."""
+    if isinstance(target, ast.Name):
+        variables[target.id] |= _value_names(value)
+    elif isinstance(target, (ast.Tuple, ast.List)):
+        # `a, b = A(), B()` pairs them; any other unpacking may put anything in each name.
+        values: list[ast.expr] = [value] * len(target.elts)
+        if (
+            isinstance(value, (ast.Tuple, ast.List))
+            and len(value.elts) == len(target.elts)
+            and not any(isinstance(item, ast.Starred) for item in (*target.elts, *value.elts))
+        ):
+            values = value.elts
+        for item, part in zip(target.elts, values, strict=True):
+            _bind(variables, item, part)
+    elif isinstance(target, ast.Starred):
+        _bind(variables, target.value, value)
+    elif isinstance(target, ast.Subscript) and isinstance(target.value, ast.Name):
+        # `HANDLERS["run"] = RunHandler()` puts a handler in the table.
+        variables[target.value.id] |= _value_names(value)
+
+
+def module_variables(tree: ast.Module) -> dict[str, frozenset[str]]:
+    """Each module-level variable, to what its assignments put in it and its annotation names.
+
+    Assignments inside a module-level `if`, `try`, or `with` count, and those inside a function
+    or class bind something else.
+    """
+    variables: dict[str, set[str]] = defaultdict(set)
+    pending: list[ast.AST] = list(tree.body)
+    while pending:
+        node = pending.pop()
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                _bind(variables, target, node.value)
+        elif isinstance(node, ast.AnnAssign):
+            if isinstance(node.target, ast.Name):
+                variables[node.target.id] |= _written_names(node.annotation)
+                if node.value is not None:
+                    variables[node.target.id] |= _value_names(node.value)
+        elif not isinstance(node, _SCOPES):
+            pending.extend(
+                child for child in ast.iter_child_nodes(node) if isinstance(child, _BLOCKS)
+            )
+    return {name: frozenset(written) for name, written in variables.items()}
+
+
 def module_references(
     source: str, package: str, budget: AstBudget | None = None
 ) -> ModuleReferences:
     """What each symbol of a module uses and what its imports bind, for test reachability.
 
-    Bounded like extraction, and lighter: only names, attribute chains, class bases, and imports
-    are read.
+    Bounded like extraction, and lighter: only names, attribute chains, class bases, imports,
+    and module-level assignments are read.
     """
     effective_budget = budget or AstBudget.default()
     tree = parse_module(source)
@@ -565,4 +653,6 @@ def module_references(
             raise AstResourceLimit("symbol budget exceeded")
         symbols[name] = symbol_references(node, kind)
     bindings, loads = import_bindings(tree, package)
-    return ModuleReferences(symbols=symbols, imports=bindings, loads=loads)
+    return ModuleReferences(
+        symbols=symbols, imports=bindings, loads=loads, variables=module_variables(tree)
+    )

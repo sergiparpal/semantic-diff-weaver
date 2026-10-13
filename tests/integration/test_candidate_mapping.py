@@ -280,6 +280,42 @@ def test_a_test_reaches_a_changed_method_through_an_instance_another_module_make
     }
 
 
+def test_a_test_reaches_a_changed_method_through_an_instance_another_module_holds(
+    repo_factory,
+) -> None:
+    """`handlers.list_items` calls `pantry.load()` on the instance `stores.py` makes on import."""
+    handlers = (
+        "from kitchen.stores import pantry\n\n\ndef list_items():\n    return pantry.load()\n"
+    )
+    tests = "from kitchen import handlers\n\ndef test_an_empty_pantry_lists_nothing():\n"
+    tests += "    assert not handlers.list_items()\n"
+    unchanged = {
+        "src/kitchen/__init__.py": "",
+        "src/kitchen/stores.py": "from kitchen.storage import JsonPantry\n\npantry = JsonPantry()\n",
+        "src/kitchen/handlers.py": handlers,
+        "tests/test_handlers.py": tests,
+    }
+    storage = "class JsonPantry:\n    def load(self):\n        return {}\n"
+    repo, base, head = repo_factory(
+        {**unchanged, "src/kitchen/storage.py": storage.format("[]")},
+        {**unchanged, "src/kitchen/storage.py": storage.format("list()")},
+    )
+    result = analyze(
+        {"repo_path": str(repo), "base_ref": base, "head_ref": head, "output_format": "json"}
+    )
+    assert result["scope"]["analyzed_files"] == ["src/kitchen/storage.py"]
+    candidates = {
+        (test["path"], test["symbol"]): test["match_reasons"]
+        for obligation in result["test_obligations"]
+        for test in obligation["candidate_existing_tests"]
+    }
+    assert candidates == {
+        ("tests/test_handlers.py", "test_an_empty_pantry_lists_nothing"): [
+            "changed symbol reached through another module's calls"
+        ]
+    }
+
+
 def test_a_test_that_runs_the_package_covers_its_changed_main_module(repo_factory) -> None:
     """`python -m pkg` is how a test reaches `pkg/__main__.py`; nothing imports it."""
     test_main = (

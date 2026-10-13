@@ -118,6 +118,40 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Candidate tests through imported instances (2026-10-13)
+
+A call on an instance was followed through the classes the calling code knows, and code knew an
+instance another module holds only by its class. `meal-manager`'s `repositories/__init__.py` makes
+one repository of each kind on import, `dish_repo: DishRepository = JsonDishRepository(path)`, and
+every handler imports one and calls `dish_repo.load()`. A module-level variable is no symbol, so
+neither the import nor the call resolved, and no handler reached a repository method.
+
+Module references now record each module-level variable, to what its assignments put in it and
+what its annotation names. What a value is, not every name it mentions: the class or function a
+call calls, the name or chain it reads, and the items a container, a conditional, or a
+comprehension holds, so `JsonDishRepository(path)` is a repository whatever `path` is, and
+`dish_repo.load()` is what `load` returns. Assignments inside a module-level `if`, `try`, or
+`with` count. A variable holds the classes such a value makes, what a function it calls is
+annotated to return, what another variable it copies holds, and what a method called on one
+returns. A symbol knows what the variables it uses hold, its own module's or ones it imports,
+through re-exporting packages like any other name, and through chains such as
+`stores.pantry.load()`.
+
+This replaces a rule of the previous section: every symbol of a module knew what the module's
+top-level code made, whether it used it or not, and now knows only what the variables it uses
+hold. An attribute also stopped resolving to a name an import binds, since `order.Cart` reads
+`order`, not the `Cart` imported beside it. Neither removed a single edge from the call graphs of
+this repository or `meal-manager`.
+
+Measured over `meal-manager`'s head with every module read, methods reached by some symbol go from
+69 to 96 of 105, and the graph gains 127 edges and loses none: `JsonDishRepository.load` is reached
+from 14 symbols instead of 3, and `JsonHistoryRepository.append_event` from `register_cooked_meal`
+instead of from none. Its candidate tests do not change (`8894749`, and `v0.2.0..HEAD` over
+`src/**`), because its tests load modules with `importlib`. `distiller` `main..skeleton` and this
+repository's `v0.3.0..main` have no module-level instance of their own classes: their candidates,
+risk scores, and graph edges are unchanged, and so is the pipeline's time. The 17-case corpus has
+no test file and is unchanged.
+
 ## Candidate tests through calls on instances (2026-10-13)
 
 The call graph followed a use only through a name it could resolve: one of the module's own

@@ -116,7 +116,9 @@ STORE = {
         "    return store.total()\n\n\n"
         "def wrap():\n"
         "    gift = GiftCart()\n"
-        "    return gift.save() + gift.total()\n"
+        "    return gift.save() + gift.total()\n\n\n"
+        "def note(order):\n"
+        "    return order.Cart\n"
     ),
     "src/store/shop.py": (
         "from store import Cart\n\n\n"
@@ -136,7 +138,9 @@ STORE = {
         "from store.cart import Cart\n\n"
         "CART = Cart()\n\n\n"
         "def current_total():\n"
-        "    return CART.total()\n"
+        "    return CART.total()\n\n\n"
+        "def any_total(thing):\n"
+        "    return thing.total()\n"
     ),
     "src/store/catalog.py": (
         "from dataclasses import dataclass\n\n"
@@ -180,8 +184,18 @@ def test_a_method_reaches_what_another_method_of_its_class_keeps_on_self() -> No
     assert ("src/store/shop.py", "Shop.checkout") in graph_of(STORE).reaching(CART_TOTAL)
 
 
-def test_a_module_level_instance_is_known_to_the_functions_of_its_module() -> None:
-    assert ("src/store/default.py", "current_total") in graph_of(STORE).reaching(CART_TOTAL)
+def test_a_module_level_instance_is_known_to_the_functions_that_use_it() -> None:
+    """`any_total` shares a module with `CART` and totals whatever its caller hands it."""
+    reaching = graph_of(STORE).reaching(CART_TOTAL)
+    assert ("src/store/default.py", "current_total") in reaching
+    assert ("src/store/default.py", "any_total") not in reaching
+
+
+def test_an_attribute_is_never_what_an_import_binds() -> None:
+    """`order.Cart` reads an attribute of `order`, not the `Cart` that `checkout.py` imports."""
+    assert ("src/store/checkout.py", "note") not in graph_of(STORE).reaching(
+        ("src/store/cart.py", "Cart")
+    )
 
 
 def test_an_instance_reaches_the_methods_its_class_inherits() -> None:
@@ -229,6 +243,80 @@ def test_a_method_is_reached_through_its_class_and_every_class_that_inherits_it(
     assert graph.receivers(("src/store/checkout.py", "checkout")) == frozenset()
     assert graph.receivers(("src/store/missing.py", "Cart.total")) == frozenset()
     assert CART_TOTAL in graph.methods
+
+
+KITCHEN = {
+    "src/kitchen/__init__.py": "from .stores import pantry\n",
+    "src/kitchen/storage.py": (
+        "from typing import Protocol\n\n\n"
+        "class Snapshot:\n    def count(self):\n        return 0\n\n\n"
+        "class Pantry(Protocol):\n    def load(self): ...\n\n\n"
+        "class JsonPantry:\n"
+        "    def load(self):\n        return []\n\n"
+        "    def snapshot(self) -> Snapshot:\n        return Snapshot()\n"
+    ),
+    "src/kitchen/stores.py": (
+        "from kitchen.storage import JsonPantry, Pantry\n\n"
+        "pantry: Pantry = JsonPantry()\n"
+        "spare = pantry\n"
+        "stock = pantry.snapshot()\n"
+    ),
+    "src/kitchen/handlers.py": (
+        "import kitchen\n"
+        "from kitchen import stores\n"
+        "from kitchen.stores import pantry, spare, stock\n\n"
+        "MIRROR = pantry\n"
+        "UNKNOWN = mystery\n"
+        "DEEP = pantry.shelf.items()\n\n\n"
+        "def list_items():\n    return pantry.load()\n\n\n"
+        "def list_mirror():\n    return MIRROR.load()\n\n\n"
+        "def list_spares():\n    return spare.load()\n\n\n"
+        "def list_from_module():\n    return stores.pantry.load()\n\n\n"
+        "def list_from_package():\n    return kitchen.pantry.load()\n\n\n"
+        "def count_stock():\n    return stock.count()\n\n\n"
+        "def describe(item):\n    return item.load()\n"
+    ),
+}
+PANTRY = ("src/kitchen/storage.py", "Pantry")
+JSON_PANTRY = ("src/kitchen/storage.py", "JsonPantry")
+
+
+@pytest.mark.parametrize(
+    "caller",
+    [
+        "list_items",  # imports the instance `stores.py` makes
+        "list_spares",  # imports a variable assigned that instance
+        "list_mirror",  # uses its own variable assigned the imported instance
+        "list_from_module",  # reaches it through the module that makes it
+        "list_from_package",  # through the package that re-exports it
+    ],
+)
+def test_a_call_on_an_imported_instance_reaches_the_method_of_its_class(caller: str) -> None:
+    reaching = graph_of(KITCHEN).reaching(("src/kitchen/storage.py", "JsonPantry.load"))
+    assert ("src/kitchen/handlers.py", caller) in reaching
+
+
+def test_an_imported_variable_holds_what_its_assignment_makes_or_returns() -> None:
+    """`stock` holds what `pantry.snapshot()` returns, and a class or a module holds nothing."""
+    graph = graph_of(KITCHEN)
+    assert graph.instances("kitchen.pantry") == {PANTRY, JSON_PANTRY}
+    assert graph.instances("kitchen.stores.stock") == {("src/kitchen/storage.py", "Snapshot")}
+    assert graph.instances("kitchen.storage.JsonPantry") == frozenset()
+    assert graph.instances("kitchen.storage") == frozenset()
+    # Nothing says what an unknown name or an attribute of an attribute holds.
+    assert graph.instances("kitchen.handlers.UNKNOWN") == frozenset()
+    assert graph.instances("kitchen.handlers.DEEP") == frozenset()
+    assert ("src/kitchen/handlers.py", "count_stock") in graph.reaching(
+        ("src/kitchen/storage.py", "Snapshot.count")
+    )
+    assert ("src/kitchen/handlers.py", "describe") not in graph.reaching(
+        ("src/kitchen/storage.py", "JsonPantry.load")
+    )
+
+
+def test_variables_that_hold_each_other_hold_nothing_else() -> None:
+    graph = graph_of({"src/loop.py": "first = second\nsecond = first\n"})
+    assert graph.instances("loop.first") == frozenset()
 
 
 class FakeRepository:

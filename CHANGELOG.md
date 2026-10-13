@@ -13,6 +13,19 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Feature:** a call on an instance another module holds is followed into its class.
+  `meal-manager`'s handlers call `dish_repo.load()` on the `JsonDishRepository` that
+  `repositories/__init__.py` makes on import and they import, and the call graph stopped there:
+  a module-level variable was no symbol, so neither the import nor the call resolved. Module
+  references now record what each module-level variable is assigned — the class a call makes, the
+  function it calls, another variable, a container's items — and its annotation, and a symbol
+  knows the classes a variable it uses holds, its own module's or one it imports, through
+  re-exporting packages and chains such as `stores.pantry.load()` too. This replaces the rule that
+  every symbol of a module knows what the module's top-level code makes, and an attribute no longer
+  resolves to a name an import binds. On `meal-manager`'s head, methods reached by some symbol go
+  from 69 to 96 of 105; its candidate tests are unchanged, since they load modules with
+  `importlib`. `distiller` and this repository have no such instances and are unchanged.
+
 - **Feature:** a call on an instance is followed into its class's module. `cart = Cart();
   cart.total()` stopped at `cart.total`, since `cart` is a local variable, so a method of a class
   from another module was reached only by tests that imported its module and named the method.

@@ -7,7 +7,8 @@ modules' own imports. A test that calls `cli.main`, which calls
 
 A call on an instance, `cart.total()`, names no class, so it is followed through the classes
 the calling code knows: those it names, wherever they live, those the functions it calls are
-annotated to return, and the classes their instances hold in fields.
+annotated to return, those the module-level variables it uses hold, imported or not, and the
+classes their instances hold in fields.
 
 Modules are read at the head revision, starting from the ones tests import and the changed
 ones and following imports from there, as untrusted source: parsed under the AST stage's
@@ -184,6 +185,9 @@ class CallGraph:
                 if returned:
                     self._returns[(path, qualified)] = returned
         self._heirs: dict[Node, frozenset[Node]] = {}
+        # What each module-level variable holds, and each dotted name that names one.
+        self._holdings: dict[tuple[str, str], frozenset[Node]] = {}
+        self._instances: dict[str, frozenset[Node]] = {}
         uses = {
             (path, qualified): self._uses(path, module, qualified, item)
             for path, module in self.modules.items()
@@ -229,18 +233,92 @@ class CallGraph:
             return None
         return self._resolve(".".join([target, *rest[1:]]), hops + 1)
 
+    def _symbol(self, path: str, module: ModuleReferences, written: str) -> Node | None:
+        """The symbol a name written in a module stands for: its own, or one an import binds."""
+        if written in module.symbols:
+            return path, written
+        root, _, rest = written.partition(".")
+        bound = module.imports.get(root)
+        if not bound:
+            return None
+        return self.resolve(f"{bound}.{rest}" if rest else bound)
+
     def _class(self, path: str, module: ModuleReferences, written: str) -> Node | None:
         """The class a name written in a module stands for: its own, or one an import binds."""
-        node: Node | None = None
-        if written in module.symbols:
-            node = (path, written)
-        else:
-            root, _, rest = written.partition(".")
-            if bound := module.imports.get(root):
-                node = self.resolve(f"{bound}.{rest}" if rest else bound)
+        node = self._symbol(path, module, written)
         if node is None or self.modules[node[0]].symbols[node[1]].kind != "class":
             return None
         return node
+
+    def instances(self, dotted: str) -> frozenset[Node]:
+        """The classes whose instances an absolute dotted name holds, when it names a module-level
+        variable, as `repositories.dish_repo` does, or a method called on one; none otherwise.
+
+        Followed through re-exporting imports like `resolve`.
+        """
+        if dotted not in self._instances:
+            # A cycle of re-exports holds nothing.
+            self._instances[dotted] = frozenset()
+            self._instances[dotted] = self._find_instances(dotted, 0)
+        return self._instances[dotted]
+
+    def _find_instances(self, dotted: str, hops: int) -> frozenset[Node]:
+        located = self.locate(dotted)
+        if located is None or not located[1]:
+            return frozenset()
+        path, (variable, *attributes) = located
+        module = self.modules[path]
+        if variable in module.variables and variable not in module.symbols:
+            return self._through(self._holding(path, variable), attributes)
+        target = module.imports.get(variable)
+        if target is None or hops >= MAX_REEXPORT_HOPS:
+            return frozenset()
+        return self._find_instances(".".join([target, *attributes]), hops + 1)
+
+    def _holding(self, path: str, variable: str) -> frozenset[Node]:
+        """The classes whose instances a module-level variable holds."""
+        key = (path, variable)
+        if key not in self._holdings:
+            # `a = b` and `b = a` hold nothing more than what else they are assigned.
+            self._holdings[key] = frozenset()
+            module = self.modules[path]
+            self._holdings[key] = frozenset(
+                cls
+                for written in module.variables[variable]
+                for cls in self._value(path, module, written)
+            )
+        return self._holdings[key]
+
+    def _value(self, path: str, module: ModuleReferences, written: str) -> frozenset[Node]:
+        """The classes whose instances a name written in a module stands for as a value: a
+        class itself, what a function returns, or what a module-level variable holds."""
+        node = self._symbol(path, module, written)
+        if node is not None:
+            if self.modules[node[0]].symbols[node[1]].kind == "class":
+                return frozenset((node,))
+            return self._returns.get(node, frozenset())
+        root, _, rest = written.partition(".")
+        if root in module.variables and root not in module.symbols:
+            return self._through(self._holding(path, root), rest.split(".") if rest else [])
+        if bound := module.imports.get(root):
+            return self.instances(f"{bound}.{rest}" if rest else bound)
+        return frozenset()
+
+    def _through(self, classes: frozenset[Node], attributes: list[str]) -> frozenset[Node]:
+        """What instances of `classes` give through `attributes`: themselves, or what a method of
+        theirs returns, `dish_repo.load()` being whatever `load` returns."""
+        if not attributes:
+            return classes
+        if len(attributes) > 1:
+            return frozenset()
+        name = bare_name(attributes[0])
+        return frozenset(
+            returned
+            for cls in classes
+            for ancestor in _closure(cls, self._bases)
+            for method in self._methods.get(ancestor, {}).get(name, ())
+            for returned in self._returns.get((ancestor[0], method), ())
+        )
 
     def _family(self, node: Node) -> Node | None:
         """The class whose instance `self` is in a symbol: its own, or the nearest enclosing."""
@@ -256,10 +334,12 @@ class CallGraph:
     ) -> set[Node]:
         named = self._named[path]
         uses: set[Node] = set()
-        for name in item.names:
+        for name in item.names | item.attributes:
             # A name in the module's own code, by name alone: `self._helper()` reaches the
             # method, at the cost of every other symbol called `_helper`.
             uses.update((path, symbol) for symbol in named.get(bare_name(name), ()))
+        for name in item.names:
+            # An attribute is never what an import binds: `self.messages` is not `messages`.
             if (bound := module.imports.get(name)) and (node := self.resolve(bound)):
                 uses.add(node)
         for chain in item.dotted:
@@ -280,24 +360,37 @@ class CallGraph:
 
         `cart.total()` names no class, so the call is followed through the classes the symbol
         knows, wherever they live: those it uses — making one, annotating with it, or inheriting
-        from it — and those the functions it calls are annotated to return. An instance holds
-        what its class inherits and the instances its class body names, as a dataclass's fields
-        do. A class's members also know the class and whatever any of them knows, since
-        `self.cart = Cart()` in `__init__` holds what `self.cart.total()` calls in another
-        method, and every symbol of a module knows what the module's top-level code does. An
-        attribute the symbol uses reaches the method of that name on each class it so knows,
-        and what that method returns is known in turn. A subclass's override is reached only
-        where the subclass is known: following every override from a base class would credit a
-        test of one subclass with all of its siblings.
+        from it — those the functions it calls are annotated to return, and those the
+        module-level variables it uses hold, its own module's or imported ones, such as
+        `dish_repo = JsonDishRepository(path)`. An instance holds what its class inherits and the
+        instances its class body names, as a dataclass's fields do. A class's members also know
+        the class and whatever any of them knows, since `self.cart = Cart()` in `__init__` holds
+        what `self.cart.total()` calls in another method. An attribute the symbol uses reaches
+        the method of that name on each class it so knows, and what that method returns is known
+        in turn. A subclass's override is reached only where the subclass is known: following
+        every override from a base class would credit a test of one subclass with all of its
+        siblings.
         """
-        named = {
-            node: {
+        named: dict[Node, set[Node]] = {}
+        for node, targets in uses.items():
+            path, qualified = node
+            module = self.modules[path]
+            item = module.symbols[qualified]
+            classes = {
                 cls
                 for target in targets
                 for cls in ((target,) if target in self._bases else self._returns.get(target, ()))
             }
-            for node, targets in uses.items()
-        }
+            for name in item.names:
+                if name in module.variables and name not in module.symbols:
+                    classes |= self._holding(path, name)
+                elif bound := module.imports.get(name):
+                    classes |= self.instances(bound)
+            for chain in item.dotted:
+                root, _, rest = chain.partition(".")
+                if bound := module.imports.get(root):
+                    classes |= self.instances(f"{bound}.{rest}")
+            named[node] = classes
         holds = {cls: self._bases[cls] | named[cls] for cls in self._bases}
         held: dict[Node, frozenset[Node]] = {}
         # The attributes each symbol uses: the names of the methods it may call.
@@ -334,7 +427,7 @@ class CallGraph:
         for node, targets in uses.items():
             if not calls[node]:
                 continue
-            start = own[node] | own.get((node[0], "<module>"), set())
+            start = set(own[node])
             if (family := self._family(node)) is not None:
                 start |= shared[family]
             for cls in known(start, calls[node]):

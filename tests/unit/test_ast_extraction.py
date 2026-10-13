@@ -107,7 +107,8 @@ def test_a_symbol_records_the_names_its_code_uses_called_or_not() -> None:
     )
     module = module_references(source, package="pkg")
     build = module.symbols["build"]
-    assert {"argparse", "ArgumentParser", "add_argument", "pr_number", "parser"} <= build.names
+    assert {"argparse", "pr_number", "parser", "messages"} <= build.names
+    assert {"ArgumentParser", "add_argument", "render"} <= build.attributes
     assert {"argparse.ArgumentParser", "messages.render", "parser.add_argument"} <= build.dotted
     assert build.decorated is True
     assert module.symbols["<module>"].names == {"HANDLERS", "dispatch"}
@@ -150,7 +151,58 @@ def test_a_function_records_its_return_annotation_and_the_attributes_it_uses() -
     assert build.returns == {"list", "shop", "shop.Cart"}
     assert "items" in build.attributes
     assert "total" not in build.attributes
-    assert {"order", "total", "items"} <= build.names
+    assert {"order", "total"} <= build.names
+
+
+def test_a_module_records_what_each_of_its_variables_holds() -> None:
+    """A variable holds what its value is, not every name in it: `JsonStore(path)` is a store.
+
+    `loaded` holds whatever `load` returns, and assignments inside a function or a class bind
+    something else.
+    """
+    source = (
+        "dish_repo: Store = JsonStore(PATH / 'x')\n"
+        "loaded = dish_repo.load()\n"
+        "a, b = A(), B()\n"
+        "c, *rest = make()\n"
+        "TABLE = {'x': X(), 'y': make_y()}\n"
+        "TABLE['z'] = Z()\n"
+        "pick = First() if FLAG else Second()\n"
+        "items = [Item(n) for n in range(3)]\n"
+        "GROUP = [Left(), Right()]\n"
+        "fallback = cache or Cache()\n"
+        "index = {key: Entry() for key in KEYS}\n"
+        "combined = [*base_items, Extra()]\n"
+        "named = (made := Made())\n"
+        "here = Path(__file__).parent\n"
+        "declared: Thing\n"
+        "obj.attr = Other()\n"
+        "obj.typed: int = 3\n"
+        "if FLAG:\n    guarded = Guarded()\n"
+        "try:\n    client = Client()\nexcept ImportError:\n    client = None\n"
+        "def build():\n    local = Local()\n"
+        "class Box:\n    inner = Inner()\n"
+    )
+    assert module_references(source, package="pkg").variables == {
+        "dish_repo": {"Store", "JsonStore"},
+        "loaded": {"dish_repo.load"},
+        "a": {"A"},
+        "b": {"B"},
+        "c": {"make"},
+        "rest": {"make"},
+        "TABLE": {"X", "make_y", "Z"},
+        "pick": {"First", "Second"},
+        "items": {"Item"},
+        "GROUP": {"Left", "Right"},
+        "fallback": {"cache", "Cache"},
+        "index": {"Entry"},
+        "combined": {"base_items", "Extra"},
+        "named": {"Made"},
+        "here": set(),
+        "declared": {"Thing"},
+        "guarded": {"Guarded"},
+        "client": {"Client"},
+    }
 
 
 def test_imports_bind_names_to_absolute_modules_and_symbols() -> None:
