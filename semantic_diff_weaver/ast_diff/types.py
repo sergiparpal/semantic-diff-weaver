@@ -68,8 +68,8 @@ class SymbolSnapshot:
 class SymbolReferences:
     """What one symbol's code uses, for which symbols a test reaches through calls."""
 
-    # Every name and attribute it uses, called or not: `type=pr_number` hands a function to
-    # argparse, which calls it later.
+    # Every name it uses, called or not: `type=pr_number` hands a function to argparse, which
+    # calls it later.
     names: frozenset[str]
     # A decorator may register the symbol with a framework that calls it, which no name shows.
     decorated: bool
@@ -79,9 +79,12 @@ class SymbolReferences:
     # Attribute chains rooted at a name, such as `messages.unexpected_failure`, which the
     # module's imports resolve to a symbol of another module.
     dotted: frozenset[str] = frozenset()
-    # The attributes among the names, which alone call a method on an instance: a local
-    # variable named `ordered` is not `LineRange.ordered`.
+    # Every attribute it reads on something other than its own instance, which alone calls a
+    # method on another: a local variable named `ordered` is not `LineRange.ordered`.
     attributes: frozenset[str] = frozenset()
+    # The attributes a method reads on its own instance or class, `self.path`, which only its
+    # class and the classes it inherits from define.
+    own_attributes: frozenset[str] = frozenset()
     # A class's bases as written, each a name or an attribute chain: its instances inherit
     # their methods.
     bases: tuple[str, ...] = ()
@@ -100,6 +103,10 @@ class ModuleReferences:
     imports: dict[str, str]
     # Every absolute name an import loads, bound or not: `import a.b` binds only `a`.
     loads: frozenset[str] = frozenset()
+    # Each module-level variable, to the names and attribute chains of what its assignments
+    # put in it and of its annotation: `dish_repo: DishRepository = JsonDishRepository(path)`
+    # holds a `JsonDishRepository`, whose methods a module importing `dish_repo` calls.
+    variables: dict[str, frozenset[str]] = field(default_factory=dict)
 
 
 @dataclass

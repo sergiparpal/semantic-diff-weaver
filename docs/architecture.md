@@ -60,8 +60,10 @@ uses, and for each module what its imports bind, so `messages.unexpected_failure
 symbol of another module, through re-exporting packages too. It also keeps which symbols are
 classes, their bases, and each function's return annotation, so a call on an instance,
 `cart.total()`, reaches the method of each class the calling code knows: one it uses, one a
-function it calls returns, one held in such a class's fields, one its own class or module knows,
-and the bases they inherit from, but no subclass's override. From what each test names, with the
+function it calls returns, one held in such a class's fields, one its own class knows, one a
+module-level variable it uses holds, its own module's or imported, and the bases they inherit
+from, but no subclass's override. An attribute a method reads on `self` names a member of its own
+class or its bases only. From what each test names, with the
 same-file helpers it calls, the modules it imports or runs, and the names it imports through
 re-exporting packages, the mapper follows those uses across modules: a test reaches whatever it
 names, whatever that uses in turn, the methods it calls on a class it reaches, and the top-level

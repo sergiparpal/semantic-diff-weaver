@@ -13,6 +13,39 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Fix:** an attribute a method reads on `self` is a member of its own class. A class's members
+  know whatever any of them knows, so once `meal-manager`'s repositories kept the shared
+  `DataDirLock` as `self.lock`, every `self.path` they read, their own data file, reached the
+  lock's `path` property: 115 symbols reached it instead of 34. Module references now record the
+  attributes a method reads on its own instance or class apart from the others, and the call graph
+  looks them up only on that class and the classes it inherits from, still following what they
+  return; `self.lock.path` reads the lock's. On `meal-manager` the graph loses those 19 edges and
+  gains none, and `DataDirLock.path` is reached from 46 symbols; this repository's graph is
+  unchanged, and so are candidate tests everywhere.
+
+- **Fix:** a `src` directory that is itself a package keeps its name in the call graph. Module
+  names drop a leading `src` or `lib`, as a `src` layout needs: `src/distiller/cli.py` is
+  `distiller.cli`. But `meal-manager`'s `src` has an `__init__.py` and is imported as a package, so
+  `from .. import data_lock` in `src/repositories/__init__.py` climbed to a package named `""`,
+  the name of the plugin's own `__init__.py`, and never reached the lock `src/__init__.py`
+  re-exports. A `src` or `lib` with an `__init__.py` now keeps its name, and its modules are still
+  found without it, after every other name. On `meal-manager` the graph gains 40 edges and loses
+  none, and `DataDirLock.configure` is reached from `register` and the repositories' `configure`;
+  candidate tests are unchanged on every measured range.
+
+- **Feature:** a call on an instance another module holds is followed into its class.
+  `meal-manager`'s handlers call `dish_repo.load()` on the `JsonDishRepository` that
+  `repositories/__init__.py` makes on import and they import, and the call graph stopped there:
+  a module-level variable was no symbol, so neither the import nor the call resolved. Module
+  references now record what each module-level variable is assigned — the class a call makes, the
+  function it calls, another variable, a container's items — and its annotation, and a symbol
+  knows the classes a variable it uses holds, its own module's or one it imports, through
+  re-exporting packages and chains such as `stores.pantry.load()` too. This replaces the rule that
+  every symbol of a module knows what the module's top-level code makes, and an attribute no longer
+  resolves to a name an import binds. On `meal-manager`'s head, methods reached by some symbol go
+  from 69 to 96 of 105; its candidate tests are unchanged, since they load modules with
+  `importlib`. `distiller` and this repository have no such instances and are unchanged.
+
 - **Feature:** a call on an instance is followed into its class's module. `cart = Cart();
   cart.total()` stopped at `cart.total`, since `cart` is a local variable, so a method of a class
   from another module was reached only by tests that imported its module and named the method.

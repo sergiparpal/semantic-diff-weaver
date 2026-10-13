@@ -9,6 +9,7 @@ from semantic_diff_weaver.call_graph import (
     build_call_graph,
     importable_name,
     package_of,
+    source_roots,
 )
 from semantic_diff_weaver.errors import ErrorCode, WeaverError
 from semantic_diff_weaver.git_diff import GitTreeEntry
@@ -34,10 +35,11 @@ SHOP = {
 
 
 def graph_of(sources: dict[str, str], *, incomplete: bool = False) -> CallGraph:
+    roots = source_roots(sources)
     modules = {
-        path: module_references(source, package_of(path)) for path, source in sources.items()
+        path: module_references(source, package_of(path, roots)) for path, source in sources.items()
     }
-    return CallGraph(modules, incomplete=incomplete)
+    return CallGraph(modules, incomplete=incomplete, roots=roots)
 
 
 @pytest.mark.parametrize(
@@ -52,6 +54,16 @@ def graph_of(sources: dict[str, str], *, incomplete: bool = False) -> CallGraph:
 def test_a_file_is_imported_by_its_module_name(path: str, name: str, package: str) -> None:
     assert importable_name(path) == name
     assert package_of(path) == package
+
+
+def test_a_src_that_is_a_package_keeps_its_name() -> None:
+    """`meal-manager`'s `src/__init__.py` makes `src` a package that relative imports climb to."""
+    roots = source_roots(["__init__.py", "src/__init__.py", "src/dish.py"])
+    assert roots == {"lib"}
+    assert importable_name("src/dish.py", roots) == "src.dish"
+    assert importable_name("src/__init__.py", roots) == "src"
+    assert package_of("src/handlers/add.py", roots) == "src.handlers"
+    assert package_of("__init__.py", roots) == ""
 
 
 def test_a_call_through_an_imported_module_reaches_into_it() -> None:
@@ -116,7 +128,9 @@ STORE = {
         "    return store.total()\n\n\n"
         "def wrap():\n"
         "    gift = GiftCart()\n"
-        "    return gift.save() + gift.total()\n"
+        "    return gift.save() + gift.total()\n\n\n"
+        "def note(order):\n"
+        "    return order.Cart\n"
     ),
     "src/store/shop.py": (
         "from store import Cart\n\n\n"
@@ -136,7 +150,9 @@ STORE = {
         "from store.cart import Cart\n\n"
         "CART = Cart()\n\n\n"
         "def current_total():\n"
-        "    return CART.total()\n"
+        "    return CART.total()\n\n\n"
+        "def any_total(thing):\n"
+        "    return thing.total()\n"
     ),
     "src/store/catalog.py": (
         "from dataclasses import dataclass\n\n"
@@ -180,8 +196,18 @@ def test_a_method_reaches_what_another_method_of_its_class_keeps_on_self() -> No
     assert ("src/store/shop.py", "Shop.checkout") in graph_of(STORE).reaching(CART_TOTAL)
 
 
-def test_a_module_level_instance_is_known_to_the_functions_of_its_module() -> None:
-    assert ("src/store/default.py", "current_total") in graph_of(STORE).reaching(CART_TOTAL)
+def test_a_module_level_instance_is_known_to_the_functions_that_use_it() -> None:
+    """`any_total` shares a module with `CART` and totals whatever its caller hands it."""
+    reaching = graph_of(STORE).reaching(CART_TOTAL)
+    assert ("src/store/default.py", "current_total") in reaching
+    assert ("src/store/default.py", "any_total") not in reaching
+
+
+def test_an_attribute_is_never_what_an_import_binds() -> None:
+    """`order.Cart` reads an attribute of `order`, not the `Cart` that `checkout.py` imports."""
+    assert ("src/store/checkout.py", "note") not in graph_of(STORE).reaching(
+        ("src/store/cart.py", "Cart")
+    )
 
 
 def test_an_instance_reaches_the_methods_its_class_inherits() -> None:
@@ -229,6 +255,140 @@ def test_a_method_is_reached_through_its_class_and_every_class_that_inherits_it(
     assert graph.receivers(("src/store/checkout.py", "checkout")) == frozenset()
     assert graph.receivers(("src/store/missing.py", "Cart.total")) == frozenset()
     assert CART_TOTAL in graph.methods
+
+
+KITCHEN = {
+    "src/kitchen/__init__.py": "from .stores import pantry\n",
+    "src/kitchen/storage.py": (
+        "from typing import Protocol\n\n\n"
+        "class Snapshot:\n    def count(self):\n        return 0\n\n\n"
+        "class Pantry(Protocol):\n    def load(self): ...\n\n\n"
+        "class JsonPantry:\n"
+        "    def load(self):\n        return []\n\n"
+        "    def snapshot(self) -> Snapshot:\n        return Snapshot()\n"
+    ),
+    "src/kitchen/stores.py": (
+        "from kitchen.storage import JsonPantry, Pantry\n\n"
+        "pantry: Pantry = JsonPantry()\n"
+        "spare = pantry\n"
+        "stock = pantry.snapshot()\n"
+    ),
+    "src/kitchen/handlers.py": (
+        "import kitchen\n"
+        "from kitchen import stores\n"
+        "from kitchen.stores import pantry, spare, stock\n\n"
+        "MIRROR = pantry\n"
+        "UNKNOWN = mystery\n"
+        "DEEP = pantry.shelf.items()\n\n\n"
+        "def list_items():\n    return pantry.load()\n\n\n"
+        "def list_mirror():\n    return MIRROR.load()\n\n\n"
+        "def list_spares():\n    return spare.load()\n\n\n"
+        "def list_from_module():\n    return stores.pantry.load()\n\n\n"
+        "def list_from_package():\n    return kitchen.pantry.load()\n\n\n"
+        "def count_stock():\n    return stock.count()\n\n\n"
+        "def describe(item):\n    return item.load()\n"
+    ),
+}
+PANTRY = ("src/kitchen/storage.py", "Pantry")
+JSON_PANTRY = ("src/kitchen/storage.py", "JsonPantry")
+
+
+@pytest.mark.parametrize(
+    "caller",
+    [
+        "list_items",  # imports the instance `stores.py` makes
+        "list_spares",  # imports a variable assigned that instance
+        "list_mirror",  # uses its own variable assigned the imported instance
+        "list_from_module",  # reaches it through the module that makes it
+        "list_from_package",  # through the package that re-exports it
+    ],
+)
+def test_a_call_on_an_imported_instance_reaches_the_method_of_its_class(caller: str) -> None:
+    reaching = graph_of(KITCHEN).reaching(("src/kitchen/storage.py", "JsonPantry.load"))
+    assert ("src/kitchen/handlers.py", caller) in reaching
+
+
+def test_an_imported_variable_holds_what_its_assignment_makes_or_returns() -> None:
+    """`stock` holds what `pantry.snapshot()` returns, and a class or a module holds nothing."""
+    graph = graph_of(KITCHEN)
+    assert graph.instances("kitchen.pantry") == {PANTRY, JSON_PANTRY}
+    assert graph.instances("kitchen.stores.stock") == {("src/kitchen/storage.py", "Snapshot")}
+    assert graph.instances("kitchen.storage.JsonPantry") == frozenset()
+    assert graph.instances("kitchen.storage") == frozenset()
+    # Nothing says what an unknown name or an attribute of an attribute holds.
+    assert graph.instances("kitchen.handlers.UNKNOWN") == frozenset()
+    assert graph.instances("kitchen.handlers.DEEP") == frozenset()
+    assert ("src/kitchen/handlers.py", "count_stock") in graph.reaching(
+        ("src/kitchen/storage.py", "Snapshot.count")
+    )
+    assert ("src/kitchen/handlers.py", "describe") not in graph.reaching(
+        ("src/kitchen/storage.py", "JsonPantry.load")
+    )
+
+
+def test_variables_that_hold_each_other_hold_nothing_else() -> None:
+    graph = graph_of({"src/loop.py": "first = second\nsecond = first\n"})
+    assert graph.instances("loop.first") == frozenset()
+
+
+VAULT = {
+    "src/vault/lock.py": (
+        "class Key:\n    def turn(self):\n        return 1\n\n\n"
+        "class Lock:\n"
+        "    @property\n    def path(self):\n        return '/'\n\n"
+        "    def release(self):\n        return None\n\n\n"
+        "class Vaulted:\n    def key(self) -> Key:\n        return Key()\n"
+    ),
+    "src/vault/store.py": (
+        "from vault.lock import Lock, Vaulted\n\n\n"
+        "class Store(Vaulted):\n"
+        "    def __init__(self, path):\n        self.path = path\n        self.lock = Lock()\n\n"
+        "    def read(self):\n        return self.path\n\n"
+        "    def where(self):\n        return self.lock.path\n\n"
+        "    def unlock(self):\n        return self.key().turn()\n"
+    ),
+}
+
+
+def test_an_attribute_of_self_is_a_member_of_its_own_class() -> None:
+    """`Store` keeps a `Lock`, whose `path` is not the `self.path` every method reads.
+
+    Read through `self.lock`, it is; `self.key()` is inherited and returns a `Key`.
+    """
+    graph = graph_of(VAULT)
+    lock_path = graph.reaching(("src/vault/lock.py", "Lock.path"))
+    assert ("src/vault/store.py", "Store.read") not in lock_path
+    assert ("src/vault/store.py", "Store.where") in lock_path
+    assert ("src/vault/store.py", "Store.unlock") in graph.reaching(
+        ("src/vault/lock.py", "Key.turn")
+    )
+
+
+PLUGIN = {
+    "__init__.py": "from .src.repositories import configure\n",
+    "src/__init__.py": "from .filelock import data_lock\n",
+    "src/filelock.py": (
+        "class DataDirLock:\n    def configure(self, path):\n        self.path = path\n\n\n"
+        "data_lock = DataDirLock()\n"
+    ),
+    "src/repositories/__init__.py": (
+        "from .. import data_lock\n\n\ndef configure(path):\n    data_lock.configure(path)\n"
+    ),
+}
+
+
+def test_an_import_that_climbs_to_a_src_package_reaches_what_it_re_exports() -> None:
+    """`from .. import data_lock` names the lock `src/__init__.py` re-exports.
+
+    Named without `src`, the package was `""`, the name of the plugin's own `__init__.py`.
+    """
+    graph = graph_of(PLUGIN)
+    assert ("src/repositories/__init__.py", "configure") in graph.reaching(
+        ("src/filelock.py", "DataDirLock.configure")
+    )
+    assert graph.locate("src.filelock") == ("src/filelock.py", [])
+    # Still found without `src`, as code that puts `src` on its path imports it.
+    assert graph.locate("filelock") == ("src/filelock.py", [])
 
 
 class FakeRepository:

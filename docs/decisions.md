@@ -118,6 +118,88 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-10-13, attributes of `self`)
+
+A class's members know whatever any of them knows, so that `self.cart.total()` in one method
+reaches what `self.cart = Cart()` in `__init__` holds, and an attribute any member reads was
+looked up on every class so known. Once `from .. import data_lock` resolved, each of
+`meal-manager`'s repositories knew the `DataDirLock` it keeps as `self.lock`, and every
+`self.path` they read, their own data file, reached the lock's `path` property: 115 symbols
+reached it, where 34 had before the lock resolved.
+
+An attribute read directly on a method's own instance or class — its first parameter, `self` or
+`cls`, unless it is a static method — names a member of that class or of a class it inherits from,
+never of another class it knows: Python finds it there, or in the instance's own attributes, which
+are not methods. Module references now record those attributes apart, and the call graph looks
+them up only along the class's bases, still following what the methods they reach return, so
+`self.key().turn()` reaches what an inherited `key` returns. Every other attribute is looked up as
+before: `self.lock.path` reads `path` on whatever `self.lock` holds, the lock included.
+
+Measured over `meal-manager`'s head with every module read, the graph loses those 19 edges, from
+each repository method to `DataDirLock.path`, and gains none: the property is reached from 46
+symbols, among them the modules that now load the lock, the repositories' `configure`, and the
+plugin's `register`. This repository's graph keeps all of its 1,214 edges. Candidate tests and risk scores are unchanged on
+`distiller` `main..skeleton`, on `meal-manager` (`8894749`, and `v0.2.0..HEAD` over `src/**`), on
+this repository's `v0.3.0..main`, and on the 17-case corpus.
+
+## Output-affecting corrections (2026-10-13, a `src` package)
+
+The call graph names a module as code imports it, and drops a leading `src` or `lib`, the
+directory a `src` layout keeps its packages in: `src/distiller/cli.py` is `distiller.cli`.
+`meal-manager`'s `src` is a package itself, with an `__init__.py`, which the plugin's own
+`__init__.py` imports as `.src`. Its modules were named without `src`, so `src/__init__.py` was
+`""`, a name the plugin's `__init__.py` held first, and `from .. import data_lock` in
+`src/repositories/__init__.py`, which climbs to `src`, bound `data_lock` to nothing the graph
+could find. The lock that `src/filelock.py` makes and `src/__init__.py` re-exports stayed out of
+reach, and so did every call on it.
+
+A `src` or `lib` with an `__init__.py` now keeps its name, in the modules' names and in the
+packages their relative imports resolve against: `src/dish.py` is `src.dish`. Its modules are also
+found by their names without it, after every other name, as code that puts `src` on its path
+imports them, so no lookup that resolved before stops resolving. A `src` layout, without an
+`__init__.py` in `src`, is named as before.
+
+Measured on `meal-manager`'s head with every module read: the graph gains 40 edges and loses none.
+`DataDirLock.configure` is reached from the plugin's `register` and the repositories' `configure`
+instead of from nothing, and the lock's locking methods from ten more symbols each. Candidate
+tests and risk scores are unchanged on `meal-manager` (`8894749`, and `v0.2.0..HEAD` over
+`src/**`), whose tests load modules with `importlib`, on `distiller` `main..skeleton` and this
+repository's `v0.3.0..main`, which have no `src` package, and on the 17-case corpus.
+
+## Candidate tests through imported instances (2026-10-13)
+
+A call on an instance was followed through the classes the calling code knows, and code knew an
+instance another module holds only by its class. `meal-manager`'s `repositories/__init__.py` makes
+one repository of each kind on import, `dish_repo: DishRepository = JsonDishRepository(path)`, and
+every handler imports one and calls `dish_repo.load()`. A module-level variable is no symbol, so
+neither the import nor the call resolved, and no handler reached a repository method.
+
+Module references now record each module-level variable, to what its assignments put in it and
+what its annotation names. What a value is, not every name it mentions: the class or function a
+call calls, the name or chain it reads, and the items a container, a conditional, or a
+comprehension holds, so `JsonDishRepository(path)` is a repository whatever `path` is, and
+`dish_repo.load()` is what `load` returns. Assignments inside a module-level `if`, `try`, or
+`with` count. A variable holds the classes such a value makes, what a function it calls is
+annotated to return, what another variable it copies holds, and what a method called on one
+returns. A symbol knows what the variables it uses hold, its own module's or ones it imports,
+through re-exporting packages like any other name, and through chains such as
+`stores.pantry.load()`.
+
+This replaces a rule of the previous section: every symbol of a module knew what the module's
+top-level code made, whether it used it or not, and now knows only what the variables it uses
+hold. An attribute also stopped resolving to a name an import binds, since `order.Cart` reads
+`order`, not the `Cart` imported beside it. Neither removed a single edge from the call graphs of
+this repository or `meal-manager`.
+
+Measured over `meal-manager`'s head with every module read, methods reached by some symbol go from
+69 to 96 of 105, and the graph gains 127 edges and loses none: `JsonDishRepository.load` is reached
+from 14 symbols instead of 3, and `JsonHistoryRepository.append_event` from `register_cooked_meal`
+instead of from none. Its candidate tests do not change (`8894749`, and `v0.2.0..HEAD` over
+`src/**`), because its tests load modules with `importlib`. `distiller` `main..skeleton` and this
+repository's `v0.3.0..main` have no module-level instance of their own classes: their candidates,
+risk scores, and graph edges are unchanged, and so is the pipeline's time. The 17-case corpus has
+no test file and is unchanged.
+
 ## Candidate tests through calls on instances (2026-10-13)
 
 The call graph followed a use only through a name it could resolve: one of the module's own
