@@ -8,6 +8,7 @@ from collections import defaultdict
 from collections.abc import Iterator
 from dataclasses import dataclass
 from functools import cache, lru_cache
+from itertools import pairwise
 from pathlib import PurePosixPath
 from typing import ClassVar
 
@@ -26,6 +27,9 @@ from .taxonomy import CATEGORY_PROFILES
 
 TOKEN_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 CAMEL_BOUNDARY_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
+MODULE_NAME_RE = re.compile(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*")
+# `-m pkg` inside one string: a shell command line, or what `shlex.split` is given.
+RUN_FLAG_RE = re.compile(r"(?<!\S)-m\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)")
 MAX_TEST_INDEX_FILES = 500
 MAX_TEST_INDEX_BYTES = 8 * 1024 * 1024
 
@@ -40,6 +44,8 @@ class IndexedTest:
     body_tokens: frozenset[str]
     # Whole identifiers, for whether the body uses a changed symbol or module by name.
     body_identifiers: frozenset[str] = frozenset()
+    # Modules the test's file runs as a program, as `python -m` or `runpy` does.
+    modules_run: frozenset[str] = frozenset()
 
 
 @dataclass
@@ -63,6 +69,44 @@ class _ImportVisitor(ast.NodeVisitor):
             self.imports.update(f"{node.module}.{alias.name}" for alias in node.names)
         elif node.level:
             self.imports.update(alias.name for alias in node.names)
+
+
+class _ModuleRunVisitor(ast.NodeVisitor):
+    """Collect the modules a test file runs as a program rather than imports.
+
+    `[sys.executable, "-m", "pkg"]`, `"python -m pkg"`, and `runpy.run_module("pkg")` all run
+    `pkg/__main__.py`, which no import reaches.
+    """
+
+    def __init__(self) -> None:
+        self.modules: set[str] = set()
+
+    def _add(self, value: object) -> None:
+        if isinstance(value, str) and MODULE_NAME_RE.fullmatch(value):
+            self.modules.add(value)
+
+    def _visit_sequence(self, node: ast.List | ast.Tuple) -> None:
+        values = [item.value if isinstance(item, ast.Constant) else None for item in node.elts]
+        for flag, value in pairwise(values):
+            if flag == "-m":
+                self._add(value)
+        self.generic_visit(node)
+
+    visit_List = _visit_sequence
+    visit_Tuple = _visit_sequence
+
+    def visit_Constant(self, node: ast.Constant) -> None:
+        if isinstance(node.value, str):
+            self.modules.update(RUN_FLAG_RE.findall(node.value))
+
+    def visit_Call(self, node: ast.Call) -> None:
+        function = node.func
+        runs_module = (isinstance(function, ast.Attribute) and function.attr == "run_module") or (
+            isinstance(function, ast.Name) and function.id == "run_module"
+        )
+        if runs_module and node.args and isinstance(node.args[0], ast.Constant):
+            self._add(node.args[0].value)
+        self.generic_visit(node)
 
 
 def _tokens(text: str) -> frozenset[str]:
@@ -111,6 +155,9 @@ def _index_source(path: str, source: str) -> list[IndexedTest]:
     imports_visitor = _ImportVisitor()
     imports_visitor.visit(tree)
     imports = frozenset(item.casefold() for item in imports_visitor.imports)
+    runs_visitor = _ModuleRunVisitor()
+    runs_visitor.visit(tree)
+    modules_run = frozenset(item.casefold() for item in runs_visitor.modules)
     indexed: list[IndexedTest] = []
     for symbol, node in _test_functions(tree.body):
         body_text = redact_text(ast.unparse(node), max_chars=4000)
@@ -122,6 +169,7 @@ def _index_source(path: str, source: str) -> list[IndexedTest]:
                 name_tokens=_tokens(node.name),
                 body_tokens=_tokens(body_text),
                 body_identifiers=_identifiers(body_text),
+                modules_run=modules_run,
             )
         )
     return indexed
@@ -240,7 +288,9 @@ def _name_words(name: str) -> str | None:
 def _mirrored(source_path: str, test_path: str) -> bool:
     source = PurePosixPath(source_path)
     test = PurePosixPath(test_path)
-    source_stem = source.stem
+    # A test file names a module without the underscores that make it private or special:
+    # `test_common.py` for `_common.py`, `test_main.py` for `__main__.py`.
+    source_stem = source.stem.strip("_")
     test_stem = test.stem.removeprefix("test_").removesuffix("_test")
     if source_stem != test_stem:
         return False
@@ -270,6 +320,7 @@ def map_candidate_tests(
         for mapping in config.mapping
     ]
     body_identifier_positions: dict[str, set[int]] = defaultdict(set)
+    run_positions: dict[str, set[int]] = defaultdict(set)
     # ``imported.endswith(f".{symbol}")`` is an exact match on a dotted import's last segment,
     # so it indexes directly. Keeping it out of the module scan below means the import signal
     # costs one pass per distinct module rather than one per distinct (module, symbol) pair.
@@ -279,6 +330,8 @@ def map_candidate_tests(
         all_tokens_by_test.append(test.name_tokens | test.body_tokens)
         for identifier in test.body_identifiers:
             body_identifier_positions[identifier].add(position)
+        for module_run in test.modules_run:
+            run_positions[module_run].add(position)
         for import_path in test.imports:
             _, dot, leaf = import_path.rpartition(".")
             if dot:
@@ -342,6 +395,13 @@ def map_candidate_tests(
         imported = module_imported_for(module) | (
             import_leaf_positions.get(symbol_token, empty) if symbol_token else empty
         )
+        # `python -m pkg` runs `pkg/__main__.py`, which no import reaches. Running any other
+        # module relates a test to all of its symbols, as coarsely as an import already does.
+        ran = (
+            run_positions.get(module.removesuffix(".__main__"), empty)
+            if module.endswith(".__main__")
+            else empty
+        )
         # Whole identifiers: by its words, `run` was in the body of every test that called
         # `run_args_from(...)`, and every test name was in its own body through the `def` line.
         body_key = _bare(name)
@@ -365,7 +425,7 @@ def map_candidate_tests(
         ranked: list[CandidateTest] = []
         # Only a structural hit can produce a candidate, so tests outside this union would
         # score identically to being skipped. Terminology alone never clears the threshold.
-        structural = mapped | mirrored | imported | named | bodied | module_named
+        structural = mapped | mirrored | imported | ran | named | bodied | module_named
         for test_position in sorted(structural):
             test = tests[test_position]
             score = 0.0
@@ -379,6 +439,10 @@ def map_candidate_tests(
             if test_position in imported:
                 score += 0.25
                 reasons.append("direct module or symbol import")
+            # As strong as an import: running the module is how a test reaches `__main__`.
+            if test_position in ran:
+                score += 0.25
+                reasons.append("changed module run with python -m")
             if test_position in named:
                 score += 0.20
                 reasons.append("changed symbol token in test name")

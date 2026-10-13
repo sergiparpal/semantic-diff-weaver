@@ -118,6 +118,30 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-10-13, `__main__` modules)
+
+A package's `__main__.py` has no test that imports it: its tests run the package as a program.
+Candidate mapping saw neither. Mirroring compared the file's stem, `__main__`, with a test
+file's, `main`, and only imports counted as a structural relation, so on `distiller`
+`main..skeleton` the changed `__main__.py` had no candidate and, at 49/100, was the riskiest
+finding — while `tests/test_main.py` runs exactly `python -P -m distiller`.
+
+A test file now names a module without the underscores that make it private or special, so
+`test_main.py` mirrors `__main__.py` and `test_common.py` mirrors `_common.py`. The test index
+also records the modules a test file runs as a program: `"-m"` followed by a module name in a
+list or tuple, `-m pkg` inside a string, and `runpy.run_module("pkg")`, collected once per file
+as imports are, so a command built at module level counts. A run of `pkg` relates the file's
+tests to `pkg/__main__.py` as an import would, for 0.25. A first version related a run of any
+module to it, and on this repository's `v0.3.0..main` the end-to-end MCP tests, which run
+`python -m semantic_diff_weaver.mcp_server`, rose to 0.50 for every symbol of `mcp_server.py`
+and displaced more specific tests in 19 lists. Running a module other than `__main__` is as
+coarse as importing it, which is already counted, so only `__main__.py` gets the signal.
+
+Measured: on `distiller`, `__main__` gains `test_python_m_distiller_exits_with_what_main_returns`
+at 0.50 and falls from 49 to 42, which is now the overall risk. `meal-manager` (`8894749`, and
+`v0.2.0..HEAD` over `src/**`), this repository's `v0.3.0..main`, and the 17-case corpus are
+unchanged.
+
 ## Output-affecting corrections (2026-10-13, symbol names in tests)
 
 Candidate mapping matched a changed symbol against the single words of a test's name and body:

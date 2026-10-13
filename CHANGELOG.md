@@ -13,6 +13,16 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Fix:** a changed `__main__.py` finds the tests that run it. No test imports a package's
+  `__main__.py`; they run it with `python -m pkg`, so a changed one never had a candidate and its
+  finding carried the full test gap. `tests/test_main.py` now mirrors `__main__.py` — a test file
+  names a module without the underscores that make it private or special, so `test_common.py`
+  also mirrors `_common.py` — and a test file that runs `pkg` as a program, as
+  `[sys.executable, "-m", "pkg"]`, `"python -m pkg"`, or `runpy.run_module("pkg")`, counts as
+  much as an import of `pkg/__main__.py` ("changed module run with python -m"). Running any other
+  module adds nothing, being as coarse as an import of it. On `distiller`, `__main__` gains
+  `test_python_m_distiller_exits_with_what_main_returns` and the overall risk falls from 49 to 42.
+
 - **Fix:** a test named after a changed symbol is found when the name has more than one word,
   and a single word no longer finds tests about something else. Test names and bodies were split
   into single words, so `pr_number` could never match `test_pr_number_rejects_zero`, while `run`

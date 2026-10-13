@@ -12,6 +12,7 @@ from semantic_diff_weaver.test_mapper import (
     IndexedTest,
     TestIndex,
     _index_source,
+    _mirrored,
     build_test_index,
     defines_tests,
     map_candidate_tests,
@@ -448,3 +449,85 @@ def test_a_dunder_method_is_not_named_by_a_word_of_a_test_name() -> None:
         "import store\ndef test_init_resolves_aliases():\n    assert store.init()\n",
     )
     assert "test_init_resolves_aliases" not in reasons
+
+
+@pytest.mark.parametrize(
+    ("source_path", "test_path", "expected"),
+    [
+        ("src/pkg/__main__.py", "tests/test_main.py", True),
+        ("src/pkg/_common.py", "tests/test_common.py", True),
+        ("src/pkg/cli.py", "tests/test_cli.py", True),
+        ("src/pkg/__main__.py", "tests/test_cli.py", False),
+    ],
+)
+def test_a_test_file_names_a_module_without_its_underscores(
+    source_path: str, test_path: str, expected: bool
+) -> None:
+    assert _mirrored(source_path, test_path) is expected
+
+
+@pytest.mark.parametrize(
+    ("source", "modules"),
+    [
+        (
+            "import subprocess, sys\n"
+            "def test_exit():\n"
+            "    subprocess.run([sys.executable, '-P', '-m', 'pkg', 'evaluate'])\n",
+            {"pkg"},
+        ),
+        ("def test_exit():\n    run('python -m pkg.tool --flag')\n", {"pkg.tool"}),
+        ("import sys\ndef test_exit():\n    run(f'{sys.executable} -m pkg')\n", {"pkg"}),
+        (
+            "import runpy\ndef test_exit():\n    runpy.run_module('pkg', run_name='__main__')\n",
+            {"pkg"},
+        ),
+        # A command built once for the whole file, as imports are.
+        ("COMMAND = ('python', '-m', 'pkg')\ndef test_exit():\n    run(COMMAND)\n", {"pkg"}),
+        ("def test_commit():\n    git(['commit', '-m', 'Fix the parser'])\n", set()),
+        ("def test_commit():\n    git(\"commit -m 'Fix the parser'\")\n", set()),
+    ],
+)
+def test_the_index_records_the_modules_a_test_file_runs_as_a_program(
+    source: str, modules: set[str]
+) -> None:
+    [indexed] = _index_source("tests/test_main.py", source)
+    assert indexed.modules_run == modules
+
+
+def main_module_reasons(test_path: str, source: str, changed: str) -> dict[str, list[str]]:
+    candidate = build_candidates(
+        [
+            StructuralDelta(
+                path=changed,
+                symbol="<module>",
+                kind="symbol_added",
+                old=None,
+                new="module",
+                old_lines=None,
+                new_lines=LineRange(start=1, end=4),
+                hunk_id=f"{changed}#hunk-001",
+            )
+        ]
+    )[0]
+    index = TestIndex(tests=_index_source(test_path, source), incomplete=False, warnings=[])
+    mapped = map_candidate_tests([candidate], index, WeaverConfig())[0]
+    return {item.symbol: item.match_reasons for item in mapped}
+
+
+RUNS_PKG = (
+    "import subprocess, sys\n"
+    "def test_exit_code():\n    subprocess.run([sys.executable, '-m', 'pkg', 'report'])\n"
+)
+
+
+def test_a_test_that_runs_the_package_is_a_candidate_for_its_main_module() -> None:
+    """`test_main.py` runs `python -m pkg`; no import ever reaches `pkg/__main__.py`."""
+    reasons = main_module_reasons("tests/test_main.py", RUNS_PKG, "src/pkg/__main__.py")
+    assert reasons == {
+        "test_exit_code": ["mirrored source/test path", "changed module run with python -m"]
+    }
+
+
+def test_running_a_package_is_no_evidence_about_its_other_modules() -> None:
+    """A run reaches the whole package, as coarsely as an import of it already says."""
+    assert main_module_reasons("tests/test_cli.py", RUNS_PKG, "src/pkg/cli.py") == {}
