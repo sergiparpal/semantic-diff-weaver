@@ -119,20 +119,40 @@ def _classify_symbol_lifecycle(
 ) -> Classification | None:
     if delta.kind not in {"symbol_added", "symbol_removed"}:
         return None
-    ambiguous = bool(delta.metadata.get("ambiguous_match"))
     direction = "added" if delta.kind == "symbol_added" else "removed"
-    assumptions = ["The runtime and caller contract is unavailable to static analysis."]
-    if ambiguous:
-        assumptions.append(
-            "Multiple near-equal symbol matches prevented a reliable rename or move correlation."
+    if delta.metadata.get("ambiguous_match"):
+        return (
+            BehaviorCategory.UNKNOWN,
+            f"A callable or structural symbol was {direction} without a reliable semantic match.",
+            "Callers or observable behavior may change; the intended compatibility contract needs "
+            "review.",
+            0.42,
+            [
+                "The runtime and caller contract is unavailable to static analysis.",
+                "Multiple near-equal symbol matches prevented a reliable rename or move correlation.",
+            ],
+            "SDW-RULE-AMBIGUOUS-SYMBOL",
+        )
+    # Without a near-equal symbol on the other side there was nothing to match, and only a
+    # removal has callers to break. Added code, a whole new file's included, has no earlier
+    # callers, only an intended contract for tests to pin down.
+    if delta.kind == "symbol_added":
+        return (
+            BehaviorCategory.UNKNOWN,
+            "A callable or structural symbol was added.",
+            "New behavior becomes reachable; its intended contract needs characterizing tests.",
+            0.58,
+            ["The intended contract of new code is unavailable to static analysis."],
+            "SDW-RULE-SYMBOL-LIFECYCLE",
         )
     return (
         BehaviorCategory.UNKNOWN,
-        f"A callable or structural symbol was {direction} without a reliable semantic match.",
-        "Callers or observable behavior may change; the intended compatibility contract needs review.",
-        0.42 if ambiguous else 0.58,
-        assumptions,
-        "SDW-RULE-AMBIGUOUS-SYMBOL" if ambiguous else "SDW-RULE-SYMBOL-LIFECYCLE",
+        "A callable or structural symbol was removed.",
+        "Callers that still use it may fail or change behavior; the intended compatibility "
+        "contract needs review.",
+        0.58,
+        ["The runtime and caller contract is unavailable to static analysis."],
+        "SDW-RULE-SYMBOL-LIFECYCLE",
     )
 
 

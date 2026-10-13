@@ -46,3 +46,49 @@ def test_docstrings_and_formatting_do_not_change_fingerprint() -> None:
 def test_parsing_does_not_execute_source() -> None:
     symbols = extract_symbols('raise RuntimeError("must not execute")\ndef safe():\n    return 1\n')
     assert any(item.qualified_name == "safe" for item in symbols)
+
+
+def test_an_added_class_or_module_is_shown_by_what_it_introduces() -> None:
+    """Its signature alone read `bases()` for a dataclass and `module` for a `__main__.py`."""
+    source = (
+        '"""Entry point."""\n'
+        "from dataclasses import dataclass\n"
+        "from pkg import cli\n\n"
+        "@dataclass(frozen=True)\n"
+        "class RunArgs:\n"
+        '    """One field per option."""\n'
+        "    pr: int\n"
+        "    rerun: str | None\n"
+        "    LIMIT = 3\n\n"
+        "    def run(self):\n"
+        "        return self.pr\n\n"
+        "class Failure(Exception, metaclass=type):\n"
+        "    pass\n\n"
+        "raise SystemExit(cli.main())\n"
+    )
+    symbols = {item.qualified_name: item for item in extract_symbols(source)}
+    assert (
+        symbols["RunArgs"].display == "@dataclass class RunArgs: pr: int, rerun: str | None, LIMIT"
+    )
+    assert symbols["RunArgs"].signature == "bases()"
+    assert symbols["Failure"].display == "class Failure(Exception, metaclass=type)"
+    assert symbols["RunArgs.run"].display == symbols["RunArgs.run"].signature
+    assert symbols["<module>"].display == (
+        "from dataclasses import dataclass\nfrom pkg import cli\nraise SystemExit(cli.main())"
+    )
+
+
+def test_a_long_class_or_module_display_ends_with_an_ellipsis() -> None:
+    fields = "".join(f"    field_{index}: int\n" for index in range(25))
+    statements = "".join(f"value_{index} = {index}\n" for index in range(8))
+    symbols = {
+        item.qualified_name: item for item in extract_symbols(f"class Wide:\n{fields}{statements}")
+    }
+    assert symbols["Wide"].display.endswith("field_19: int, …")
+    assert symbols["<module>"].display == "\n".join(
+        [*(f"value_{index} = {index}" for index in range(5)), "…"]
+    )
+    [module] = [
+        item for item in extract_symbols("def f():\n    return 1\n") if item.kind == "module"
+    ]
+    assert module.display == "module"

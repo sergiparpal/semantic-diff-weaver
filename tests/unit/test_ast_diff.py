@@ -99,3 +99,27 @@ def test_copy_is_reported_as_added_surface_not_an_unchanged_rename() -> None:
     )
     deltas = analyze_ast([copied]).deltas
     assert any(item.kind == "symbol_added" and item.symbol == "copied" for item in deltas)
+
+
+def test_an_added_or_removed_symbol_shows_what_it_was_rather_than_its_signature() -> None:
+    added = SourceRevisionPair(
+        path="pkg/__main__.py",
+        old_path=None,
+        new_path="pkg/__main__.py",
+        hunks=(SourceHunk(id="hunk-001", old_start=0, old_count=0, new_start=1, new_count=2),),
+        old_text=None,
+        new_text="from pkg import cli\nraise SystemExit(cli.main())\n",
+    )
+    removed = SourceRevisionPair(
+        path="pkg/args.py",
+        old_path="pkg/args.py",
+        new_path=None,
+        hunks=(SourceHunk(id="hunk-001", old_start=1, old_count=2, new_start=0, new_count=0),),
+        old_text="class Args:\n    pr: int\n",
+        new_text=None,
+    )
+    deltas = {(item.symbol, item.kind): item for item in analyze_ast([added, removed]).deltas}
+    assert deltas[("<module>", "symbol_added")].new == (
+        "from pkg import cli\nraise SystemExit(cli.main())"
+    )
+    assert deltas[("Args", "symbol_removed")].old == "class Args: pr: int"

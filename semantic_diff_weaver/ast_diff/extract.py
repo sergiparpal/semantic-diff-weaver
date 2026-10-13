@@ -317,6 +317,35 @@ def default_map(node: ast.FunctionDef | ast.AsyncFunctionDef) -> dict[str, str]:
     return result
 
 
+def class_display(node: ast.ClassDef, decorators: tuple[str, ...]) -> str:
+    """An added or removed class as source would introduce it: decorators, bases, and fields."""
+    header = "".join(f"@{name} " for name in decorators) + f"class {node.name}"
+    header += type_parameters(node)
+    bases = [unparse_redacted(item, 120) for item in (*node.bases, *node.keywords)]
+    if bases:
+        header += f"({', '.join(bases)})"
+    fields: list[str] = []
+    for item in body_without_docstring(node.body):
+        if isinstance(item, ast.AnnAssign) and isinstance(item.target, ast.Name):
+            fields.append(f"{item.target.id}: {unparse_redacted(item.annotation, 80)}")
+        elif isinstance(item, ast.Assign):
+            fields.extend(target.id for target in item.targets if isinstance(target, ast.Name))
+    if len(fields) > limits.MAX_DISPLAY_CLASS_FIELDS:
+        fields = [*fields[: limits.MAX_DISPLAY_CLASS_FIELDS], "…"]
+    return f"{header}: {', '.join(fields)}" if fields else header
+
+
+def module_display(body: list[ast.stmt]) -> str:
+    """An added or removed module's top-level code: its first statements, one per line."""
+    statements = body_without_docstring(body)
+    lines = [
+        unparse_redacted(item, 160) for item in statements[: limits.MAX_DISPLAY_MODULE_STATEMENTS]
+    ]
+    if len(statements) > limits.MAX_DISPLAY_MODULE_STATEMENTS:
+        lines.append("…")
+    return "\n".join(lines) or "module"
+
+
 def snapshot_symbol(node: ast.AST, qualified_name: str, kind: str) -> SymbolSnapshot:
     body = list(getattr(node, "body", []))
     visitor = FeatureVisitor(node)
@@ -325,15 +354,18 @@ def snapshot_symbol(node: ast.AST, qualified_name: str, kind: str) -> SymbolSnap
         signature = function_signature(node)
         defaults = default_map(node)
         decorators = tuple(decorator_name(item) for item in node.decorator_list)
+        display = signature
     elif isinstance(node, ast.ClassDef):
         bases = ", ".join(unparse_redacted(item, 120) for item in node.bases)
         signature = f"{type_parameters(node)}bases({bases})"
         defaults = {}
         decorators = tuple(decorator_name(item) for item in node.decorator_list)
+        display = class_display(node, decorators)
     else:
         signature = "module"
         defaults = {}
         decorators = ()
+        display = module_display(body)
     return SymbolSnapshot(
         qualified_name=qualified_name,
         kind=kind,
@@ -347,6 +379,7 @@ def snapshot_symbol(node: ast.AST, qualified_name: str, kind: str) -> SymbolSnap
         statement_order=tuple(visitor.statement_order),
         node_inventory=node_inventory(body),
         probes={name: tuple(values) for name, values in visitor.probes.items()},
+        display=display,
     )
 
 

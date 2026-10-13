@@ -118,6 +118,35 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-10-13, added and removed symbols)
+
+Every added or removed symbol read "A callable or structural symbol was added without a reliable
+semantic match." with "Callers or observable behavior may change; the intended compatibility
+contract needs review." That describes a rename or move the matcher could not correlate, which is
+what the ambiguous near-match case is. For the rest it was wrong twice: added code, a whole new
+file's included, has nothing to match and no earlier callers. On `distiller` `main..skeleton`,
+where all eleven findings are new code, it read as eleven failed renames. An added symbol now
+reads "A callable or structural symbol was added." with "New behavior becomes reachable; its
+intended contract needs characterizing tests.", and a removed one "A callable or structural
+symbol was removed." with "Callers that still use it may fail or change behavior; the intended
+compatibility contract needs review." The ambiguous case keeps its wording, its two assumptions,
+and its rule ID. Each other case keeps one assumption and its 0.58 baseline, so no confidence
+moves.
+
+Their evidence showed the snapshot's signature, which is what comparisons read: a callable's
+parameters, but `bases(...)` for a class and `module` for a module. A snapshot now also carries a
+display text for these two deltas only. A class shows its decorators by name, its bases and
+keywords, and up to 20 fields, as `@dataclass class RunArgs: pr: int, head: str, …`, and a module
+its first five top-level statements after any docstring, one per line. A callable's display is
+its signature, and the signature itself is unchanged.
+
+Measured: no score, confidence, or obligation changes. `distiller` rewords its eleven findings,
+and `__main__` and `RunArgs` now show their code. `meal-manager` rewords 14 of 91 findings on
+`8894749` and 24 of 122 on `v0.2.0..HEAD` over `src/**`, and this repository 43 of 149 on
+`v0.3.0..main`. One, two, and six class excerpts change, as `bases(TimeoutError)` becoming
+`class DataLockTimeout(TimeoutError)`. The 17-case corpus has no added or removed symbol and is
+unchanged.
+
 ## Output-affecting corrections (2026-10-13, running without a model)
 
 The CLI's `--no-llm`, a CLI without a provider, and the Claude Code server run without a model by

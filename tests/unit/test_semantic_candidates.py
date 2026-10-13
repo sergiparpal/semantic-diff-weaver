@@ -75,6 +75,48 @@ def test_complete_taxonomy_rules(change: StructuralDelta, category: BehaviorCate
     assert confidence_score(weakened, truncated=True) < complete_confidence
 
 
+@pytest.mark.parametrize(
+    ("kind", "ambiguous", "summary", "impact"),
+    [
+        (
+            "symbol_added",
+            False,
+            "A callable or structural symbol was added.",
+            "New behavior becomes reachable; its intended contract needs characterizing tests.",
+        ),
+        (
+            "symbol_removed",
+            False,
+            "A callable or structural symbol was removed.",
+            "Callers that still use it may fail or change behavior; the intended compatibility "
+            "contract needs review.",
+        ),
+        (
+            "symbol_added",
+            True,
+            "A callable or structural symbol was added without a reliable semantic match.",
+            "Callers or observable behavior may change; the intended compatibility contract needs "
+            "review.",
+        ),
+    ],
+)
+def test_an_added_or_removed_symbol_is_worded_for_what_happened(
+    kind: str, ambiguous: bool, summary: str, impact: str
+) -> None:
+    """Every added symbol, a new file's included, read as a failed rename that broke callers.
+
+    Only a near-equal symbol on the other side makes it "without a reliable semantic match", and
+    only a removal, or a possible rename, has callers to break.
+    """
+    change = StructuralDelta(**{**delta(kind, None, "(x)").__dict__, "metadata": {}})
+    if ambiguous:
+        change.metadata["ambiguous_match"] = True
+    [candidate] = build_candidates([change])
+    assert candidate.category is BehaviorCategory.UNKNOWN
+    assert (candidate.summary, candidate.observable_impact) == (summary, impact)
+    assert len(candidate.assumptions) == (2 if ambiguous else 1)
+
+
 def test_same_symbol_category_merges_evidence() -> None:
     candidates = build_candidates(
         [
