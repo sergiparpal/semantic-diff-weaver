@@ -361,10 +361,17 @@ def map_candidate_tests(
             if any(
                 imported == module
                 or imported.startswith(module_prefix)
-                or module.startswith(f"{imported}.")
                 or imported.endswith(module_suffix)
                 for imported in test.imports
             )
+        )
+
+    @cache
+    def package_imported_for(module: str) -> frozenset[int]:
+        return frozenset(
+            position
+            for position, test in enumerate(tests)
+            if any(module.startswith(f"{imported}.") for imported in test.imports)
         )
 
     @cache
@@ -395,6 +402,11 @@ def map_candidate_tests(
         imported = module_imported_for(module) | (
             import_leaf_positions.get(symbol_token, empty) if symbol_token else empty
         )
+        # Importing a package reaches a module in it only if something along the way imports
+        # that module. Counted as a direct import, `from distiller import cli` imported every
+        # module of `distiller`, and with category terminology alone a test crossed the
+        # threshold for modules it never touches. It now confirms a test name, never alone.
+        package = package_imported_for(module) - imported
         # `python -m pkg` runs `pkg/__main__.py`, which no import reaches. Running any other
         # module relates a test to all of its symbols, as coarsely as an import already does.
         ran = (
@@ -425,7 +437,7 @@ def map_candidate_tests(
         ranked: list[CandidateTest] = []
         # Only a structural hit can produce a candidate, so tests outside this union would
         # score identically to being skipped. Terminology alone never clears the threshold.
-        structural = mapped | mirrored | imported | ran | named | bodied | module_named
+        structural = mapped | mirrored | imported | package | ran | named | bodied | module_named
         for test_position in sorted(structural):
             test = tests[test_position]
             score = 0.0
@@ -443,6 +455,9 @@ def map_candidate_tests(
             if test_position in ran:
                 score += 0.25
                 reasons.append("changed module run with python -m")
+            if test_position in package:
+                score += 0.15
+                reasons.append("changed module's package imported")
             if test_position in named:
                 score += 0.20
                 reasons.append("changed symbol token in test name")

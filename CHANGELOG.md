@@ -13,6 +13,17 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Fix:** importing a package no longer counts as a direct import of every module in it.
+  `from distiller import cli` records `distiller`, and every module under an imported package was
+  treated as imported, as "direct module or symbol import". With category terminology alone that
+  reached the 0.35 threshold, so tests of one module were proposed for modules they never touch:
+  on this repository, the skill's risk-formula test for most of `mcp_server.py`, and other
+  scripts' tests for `scripts/verify_wheel.py`. The relation is now its own signal, "changed
+  module's package imported", at 0.15: enough to confirm a test named after the change —
+  `distiller`'s `unexpected_failure` keeps its test — and never enough with terminology alone. On
+  this repository's `v0.3.0..main`, 28 findings lose candidates that were all unrelated and score
+  six or seven points higher; `distiller` and `meal-manager` keep every candidate.
+
 - **Fix:** a changed `__main__.py` finds the tests that run it. No test imports a package's
   `__main__.py`; they run it with `python -m pkg`, so a changed one never had a candidate and its
   finding carried the full test gap. `tests/test_main.py` now mirrors `__main__.py` — a test file
