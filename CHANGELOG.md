@@ -13,6 +13,16 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Fix:** a `src` directory that is itself a package keeps its name in the call graph. Module
+  names drop a leading `src` or `lib`, as a `src` layout needs: `src/distiller/cli.py` is
+  `distiller.cli`. But `meal-manager`'s `src` has an `__init__.py` and is imported as a package, so
+  `from .. import data_lock` in `src/repositories/__init__.py` climbed to a package named `""`,
+  the name of the plugin's own `__init__.py`, and never reached the lock `src/__init__.py`
+  re-exports. A `src` or `lib` with an `__init__.py` now keeps its name, and its modules are still
+  found without it, after every other name. On `meal-manager` the graph gains 40 edges and loses
+  none, and `DataDirLock.configure` is reached from `register` and the repositories' `configure`;
+  candidate tests are unchanged on every measured range.
+
 - **Feature:** a call on an instance another module holds is followed into its class.
   `meal-manager`'s handlers call `dish_repo.load()` on the `JsonDishRepository` that
   `repositories/__init__.py` makes on import and they import, and the call graph stopped there:

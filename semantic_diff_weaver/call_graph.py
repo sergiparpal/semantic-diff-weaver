@@ -54,34 +54,49 @@ def bare_name(identifier: str) -> str:
     return folded.strip("_")
 
 
-def importable_name(path: str) -> str:
+# Directories that hold a repository's packages rather than being one.
+SOURCE_ROOTS = frozenset({"src", "lib"})
+
+
+def source_roots(paths: Iterable[str]) -> frozenset[str]:
+    """The source roots of a repository: a `src` or `lib` with an `__init__.py` is a package."""
+    files = set(paths)
+    return frozenset(root for root in SOURCE_ROOTS if f"{root}/__init__.py" not in files)
+
+
+def importable_name(path: str, roots: frozenset[str] = SOURCE_ROOTS) -> str:
     """The dotted name code imports a file by.
 
     `src/distiller/cli.py` is `distiller.cli`, and a package's `__init__.py` is the package.
+    A `src` that is a package itself, as `meal-manager`'s is, keeps its name: `src/dish.py` is
+    `src.dish`, the module that `from .. import dish` in `src/handlers` climbs to.
     """
     parts = list(PurePosixPath(path).with_suffix("").parts)
-    if parts and parts[0] in {"src", "lib"}:
+    if parts and parts[0] in roots:
         parts = parts[1:]
     if parts and parts[-1] == "__init__":
         parts = parts[:-1]
     return ".".join(parts)
 
 
-def package_of(path: str) -> str:
+def package_of(path: str, roots: frozenset[str] = SOURCE_ROOTS) -> str:
     """The package a file's relative imports resolve against."""
-    name = importable_name(path)
+    name = importable_name(path, roots)
     return name if PurePosixPath(path).name == "__init__.py" else name.rpartition(".")[0]
 
 
-def _locator(paths: Iterable[str]) -> dict[str, str]:
+def _locator(paths: Iterable[str], roots: frozenset[str]) -> dict[str, str]:
     """Importable name to path; the first path in order wins a shared name.
 
     Case counts, as it does for Python's imports: `shop.Cart` is what `shop/__init__.py` binds,
-    perhaps a class it re-exports, and never the module `shop/cart.py`.
+    perhaps a class it re-exports, and never the module `shop/cart.py`. A module under a `src`
+    package is also found by its name without `src`, after every other name.
     """
+    ordered = sorted(paths)
     located: dict[str, str] = {}
-    for path in sorted(paths):
-        located.setdefault(importable_name(path), path)
+    for names in (roots, SOURCE_ROOTS):
+        for path in ordered:
+            located.setdefault(importable_name(path, names), path)
     return located
 
 
@@ -122,11 +137,14 @@ class CallGraph:
         *,
         incomplete: bool = False,
         warnings: Iterable[str] = (),
+        roots: frozenset[str] | None = None,
     ) -> None:
         self.modules = dict(modules)
         self.incomplete = incomplete
         self.warnings = list(warnings)
-        self._located = _locator(self.modules)
+        self._located = _locator(
+            self.modules, source_roots(self.modules) if roots is None else roots
+        )
         self._named: dict[str, dict[str, frozenset[str]]] = {}
         # Per module, each class's protocol methods, which making an instance runs although
         # nothing calls them by name.
@@ -484,7 +502,8 @@ def build_call_graph(
         and not any(glob_matches(path, pattern) for pattern in config.paths.exclude)
         and not is_test_support_path(path, config.paths.test_roots)
     ]
-    located = _locator(product)
+    roots = source_roots(repository_files)
+    located = _locator(product, roots)
     known = set(product)
     seeds = {path for path in changed if path in known}
     seeds.update(found[0] for name in imports if (found := _locate(located, name)))
@@ -522,7 +541,7 @@ def build_call_graph(
                 continue
             read_bytes += len(source.encode("utf-8"))
             try:
-                module = module_references(source, package_of(path))
+                module = module_references(source, package_of(path, roots))
             except (
                 AstResourceLimit,
                 MemoryError,
@@ -545,4 +564,4 @@ def build_call_graph(
             "At least one module could not be read within bounds for following calls; tests "
             "that reach a change through it may be missing."
         )
-    return CallGraph(modules, incomplete=incomplete, warnings=warnings)
+    return CallGraph(modules, incomplete=incomplete, warnings=warnings, roots=roots)

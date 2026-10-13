@@ -118,6 +118,30 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-10-13, a `src` package)
+
+The call graph names a module as code imports it, and drops a leading `src` or `lib`, the
+directory a `src` layout keeps its packages in: `src/distiller/cli.py` is `distiller.cli`.
+`meal-manager`'s `src` is a package itself, with an `__init__.py`, which the plugin's own
+`__init__.py` imports as `.src`. Its modules were named without `src`, so `src/__init__.py` was
+`""`, a name the plugin's `__init__.py` held first, and `from .. import data_lock` in
+`src/repositories/__init__.py`, which climbs to `src`, bound `data_lock` to nothing the graph
+could find. The lock that `src/filelock.py` makes and `src/__init__.py` re-exports stayed out of
+reach, and so did every call on it.
+
+A `src` or `lib` with an `__init__.py` now keeps its name, in the modules' names and in the
+packages their relative imports resolve against: `src/dish.py` is `src.dish`. Its modules are also
+found by their names without it, after every other name, as code that puts `src` on its path
+imports them, so no lookup that resolved before stops resolving. A `src` layout, without an
+`__init__.py` in `src`, is named as before.
+
+Measured on `meal-manager`'s head with every module read: the graph gains 40 edges and loses none.
+`DataDirLock.configure` is reached from the plugin's `register` and the repositories' `configure`
+instead of from nothing, and the lock's locking methods from ten more symbols each. Candidate
+tests and risk scores are unchanged on `meal-manager` (`8894749`, and `v0.2.0..HEAD` over
+`src/**`), whose tests load modules with `importlib`, on `distiller` `main..skeleton` and this
+repository's `v0.3.0..main`, which have no `src` package, and on the 17-case corpus.
+
 ## Candidate tests through imported instances (2026-10-13)
 
 A call on an instance was followed through the classes the calling code knows, and code knew an

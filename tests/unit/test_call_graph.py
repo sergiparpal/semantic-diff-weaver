@@ -9,6 +9,7 @@ from semantic_diff_weaver.call_graph import (
     build_call_graph,
     importable_name,
     package_of,
+    source_roots,
 )
 from semantic_diff_weaver.errors import ErrorCode, WeaverError
 from semantic_diff_weaver.git_diff import GitTreeEntry
@@ -34,10 +35,11 @@ SHOP = {
 
 
 def graph_of(sources: dict[str, str], *, incomplete: bool = False) -> CallGraph:
+    roots = source_roots(sources)
     modules = {
-        path: module_references(source, package_of(path)) for path, source in sources.items()
+        path: module_references(source, package_of(path, roots)) for path, source in sources.items()
     }
-    return CallGraph(modules, incomplete=incomplete)
+    return CallGraph(modules, incomplete=incomplete, roots=roots)
 
 
 @pytest.mark.parametrize(
@@ -52,6 +54,16 @@ def graph_of(sources: dict[str, str], *, incomplete: bool = False) -> CallGraph:
 def test_a_file_is_imported_by_its_module_name(path: str, name: str, package: str) -> None:
     assert importable_name(path) == name
     assert package_of(path) == package
+
+
+def test_a_src_that_is_a_package_keeps_its_name() -> None:
+    """`meal-manager`'s `src/__init__.py` makes `src` a package that relative imports climb to."""
+    roots = source_roots(["__init__.py", "src/__init__.py", "src/dish.py"])
+    assert roots == {"lib"}
+    assert importable_name("src/dish.py", roots) == "src.dish"
+    assert importable_name("src/__init__.py", roots) == "src"
+    assert package_of("src/handlers/add.py", roots) == "src.handlers"
+    assert package_of("__init__.py", roots) == ""
 
 
 def test_a_call_through_an_imported_module_reaches_into_it() -> None:
@@ -317,6 +329,33 @@ def test_an_imported_variable_holds_what_its_assignment_makes_or_returns() -> No
 def test_variables_that_hold_each_other_hold_nothing_else() -> None:
     graph = graph_of({"src/loop.py": "first = second\nsecond = first\n"})
     assert graph.instances("loop.first") == frozenset()
+
+
+PLUGIN = {
+    "__init__.py": "from .src.repositories import configure\n",
+    "src/__init__.py": "from .filelock import data_lock\n",
+    "src/filelock.py": (
+        "class DataDirLock:\n    def configure(self, path):\n        self.path = path\n\n\n"
+        "data_lock = DataDirLock()\n"
+    ),
+    "src/repositories/__init__.py": (
+        "from .. import data_lock\n\n\ndef configure(path):\n    data_lock.configure(path)\n"
+    ),
+}
+
+
+def test_an_import_that_climbs_to_a_src_package_reaches_what_it_re_exports() -> None:
+    """`from .. import data_lock` names the lock `src/__init__.py` re-exports.
+
+    Named without `src`, the package was `""`, the name of the plugin's own `__init__.py`.
+    """
+    graph = graph_of(PLUGIN)
+    assert ("src/repositories/__init__.py", "configure") in graph.reaching(
+        ("src/filelock.py", "DataDirLock.configure")
+    )
+    assert graph.locate("src.filelock") == ("src/filelock.py", [])
+    # Still found without `src`, as code that puts `src` on its path imports it.
+    assert graph.locate("filelock") == ("src/filelock.py", [])
 
 
 class FakeRepository:
