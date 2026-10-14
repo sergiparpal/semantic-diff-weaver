@@ -1165,3 +1165,74 @@ def test_a_test_loading_the_root_package_imports_the_root_init() -> None:
     assert reasons == {
         "test_wiring_hands_back_the_context": ["direct module or symbol import", REACHED]
     }
+
+
+ERROR_MODULES = {
+    "src/store/__init__.py": "from .disk import Repo\n",
+    "src/store/disk.py": (
+        "def write(path, data):\n    raise OSError(path)\n\n\n"
+        "class Repo:\n    def save(self, data):\n        return write('x', data)\n\n\n"
+        "def export(data):\n    return Repo().save(data)\n"
+    ),
+}
+ERROR_TESTS = (
+    "from store import Repo, disk\n\n"
+    "def test_an_error_propagates_from_the_disk():\n    assert disk.write('y', {})\n\n"
+    "def test_the_data_reaches_the_disk():\n    assert disk.write('x', {})\n\n"
+    "def test_a_failure_to_store_is_an_error():\n    assert Repo().save({})\n\n"
+    "def test_an_export_failure_is_an_error():\n    assert disk.export({})\n"
+)
+
+
+def error_reasons(symbol: str) -> dict[str, list[str]]:
+    roots = source_roots(ERROR_MODULES)
+    graph = CallGraph(
+        {
+            path: module_references(text, package_of(path, roots))
+            for path, text in ERROR_MODULES.items()
+        },
+        roots=roots,
+    )
+    index = TestIndex(
+        tests=_index_source("tests/test_store.py", ERROR_TESTS), incomplete=False, warnings=[]
+    )
+    candidate = build_candidates(
+        [
+            StructuralDelta(
+                path="src/store/disk.py",
+                symbol=symbol,
+                kind="raise_change",
+                old="raise ValueError(path)",
+                new="raise OSError(path)",
+                old_lines=LineRange(start=2, end=2),
+                new_lines=LineRange(start=2, end=2),
+                hunk_id="src/store/disk.py#hunk-001",
+            )
+        ]
+    )[0]
+    mapped = map_candidate_tests([candidate], index, WeaverConfig(), graph)[0]
+    return {item.symbol: item.match_reasons for item in mapped}
+
+
+IMPORTED = "direct module or symbol import"
+WORDED = "behavior-category terminology"
+
+
+def test_category_words_confirm_a_test_that_calls_the_change_not_one_that_reaches_it() -> None:
+    """A test reaching `write` through `Repo.save` is about saving, and its words about failure
+    describe that. Counted, they ranked it above a test calling `write` without them, as tests
+    reaching `atomic_write_json` through a repository outranked the tests calling it."""
+    assert list(error_reasons("write").items()) == [
+        ("test_an_error_propagates_from_the_disk", [IMPORTED, REACHED, WORDED]),
+        ("test_the_data_reaches_the_disk", [IMPORTED, REACHED]),
+        ("test_a_failure_to_store_is_an_error", [IMPORTED, REACHED]),
+        ("test_an_export_failure_is_an_error", [IMPORTED, REACHED]),
+    ]
+
+
+def test_a_method_called_on_an_instance_the_test_makes_is_called_directly() -> None:
+    """`Repo().save()` calls `save` on a `Repo` the test makes, through the class `store`
+    re-exports; `disk.export()` calls it on one `export` makes."""
+    reasons = error_reasons("Repo.save")
+    assert reasons["test_a_failure_to_store_is_an_error"] == [IMPORTED, REACHED, WORDED]
+    assert reasons["test_an_export_failure_is_an_error"] == [IMPORTED, REACHED]

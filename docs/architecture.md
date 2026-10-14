@@ -76,8 +76,11 @@ reaches through calls, or one a module-level variable it reads holds — and the
 every module loading brings in. Reaching a symbol from a module the test imports counts
 more than reaching it only through another module, which never makes a strong candidate on its
 own. A reach replaces a mention of the symbol in the test's body, the weaker evidence of the same
-thing, and among equal scores a test that names the symbol ranks first. A private, undecorated helper that no test reaches or names gets no candidate from a test
-file, since only its module calls it, unless the graph was cut short by its bounds.
+thing, and among equal scores a test that names the symbol ranks first. Category terminology adds
+only to a test named after the symbol or its module, one that calls the symbol itself, or one only
+its file ties to the change. A private, undecorated helper that no test reaches or names gets no
+candidate from a test file, since only its module calls it, unless the graph was cut short by its
+bounds.
 
 When global file or line limits are exceeded, explicitly configured critical paths are analyzed first
 and every omitted count/reason is carried into canonical scope and Markdown. Parse-incomplete files
