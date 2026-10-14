@@ -118,6 +118,46 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-10-14, order among tests reaching a change alike)
+
+Candidates with equal scores are ordered by whether the test's body names the symbol, then by
+path and name. Most tests that reach a change only through other calls score alike, an import
+and a reach at 0.40, or a reach from another module at 0.35, and none names the symbol, so the
+five kept were the first five paths and names among dozens: `meal-manager`'s
+`_sweep_stale_temps` was led by `test_alias_repository`, and `DishRepository` by whichever
+integration test sorted first. Category words had ordered them until the previous section, and
+were measured as an order of their own and left out, because they describe a test's topic: they
+put a session test first for `DishRepository`.
+
+A test whose name or file shares words with what changed is likelier about it. The changed
+symbol's subject is the words of its class, its function, and its module, a package's own for
+an `__init__.py`, split at underscores and capitals, without words of two letters, a short list
+of words that say nothing, and dunders or `<module>`: `JsonFridgeRepository.load_entries` in
+`json_fridge.py` reads json, fridge, repository, load, and entries. Among equal scores, after a
+test naming the symbol in its body, the test sharing more of those words with its name and its
+file's comes first; category words break what is left, then path and name. The order changes
+alone: no score, reason, or risk score.
+
+Measured: no risk score moves on any range. On `meal-manager`'s `8894749`, 41 of 91 lists change
+which five tests they keep and 20 first candidates change: `_apply_target_mode` is led by
+`test_atomic_write_preserves_file_mode`, `_sweep_stale_temps` by
+`test_atomic_write_sweeps_stale_temps`, `_merge_expiry` by
+`test_merge_ingredient_alias_keeps_expiry`, `DataDirLock`'s methods by
+`test_data_lock_configure_rejects_while_held`, `JsonTuningRepository.load` by
+`test_online_weight_tuning`, and `finalize_session`'s error handling by
+`test_dii_finalize_rollback` again. `v0.2.0..HEAD` over `src/**` changes 52 of 122 lists and 31
+first candidates, `HistoryRepository` led by `test_list_cooking_history` and
+`TuningRepository` by `test_online_weight_tuning`. One shared word still decides alone where
+another would have been better: `JsonDishRepository.__init__` gets
+`test_atomic_write_json_cleans_up_on_failure`, which shares json, before `test_add_dish_dict`,
+which shares dish, and the category's words break that tie. This repository's `v0.3.0..2f3840a`
+changes 92 of 157 lists and 62 first candidates, `_group_overflow` led by the test of a grouped
+overflow obligation, `_mirrored` by the test of a file naming a module without its underscores,
+and `build_test_index` by `test_test_index_batches_reads_and_honors_exclusions`. On `distiller`
+`main..skeleton`, `report.run` is led by `test_report_gets_the_record_files`, and
+`test_evaluate_gets_its_options_as_run_args` enters the five kept for `evaluate.run`. The
+17-case corpus is unchanged.
+
 ## Output-affecting corrections (2026-10-14, category terminology and direct tests)
 
 A test whose words match the change's category gains 0.10, "behavior-category terminology". The

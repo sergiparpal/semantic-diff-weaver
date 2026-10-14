@@ -13,6 +13,16 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Fix:** tests that reach a change alike are ordered by what they are about. Among candidates
+  with equal scores and no test naming the symbol in its body, the order fell to paths and
+  names, and the five kept could be any of dozens of integration tests. A test whose name or file
+  shares more words with the changed symbol's class, function, or module now comes first, and
+  category words only break what is left: `meal-manager`'s `_sweep_stale_temps` is led by
+  `test_atomic_write_sweeps_stale_temps`, `_merge_expiry` by
+  `test_merge_ingredient_alias_keeps_expiry`, and `DataDirLock`'s methods by
+  `test_data_lock_configure_rejects_while_held`, each in place of an unrelated test. Only the
+  order changes: no score, reason, or risk score moves.
+
 - **Fix:** category terminology no longer ranks a test that reaches a change above one that
   calls it. A test's words matching the change's category added 0.10 to any test that imports
   the module and reaches the symbol, so `meal-manager`'s tests reaching `atomic_write_json`

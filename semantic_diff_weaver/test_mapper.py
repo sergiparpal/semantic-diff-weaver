@@ -28,6 +28,41 @@ from .taxonomy import CATEGORY_PROFILES
 
 TOKEN_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 CAMEL_BOUNDARY_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
+WORD_SPLIT_RE = re.compile(r"[^a-z0-9]+")
+# Words that say nothing about what a test or a changed symbol is about.
+SUBJECT_STOP_WORDS = frozenset(
+    {
+        "all",
+        "and",
+        "any",
+        "are",
+        "can",
+        "does",
+        "each",
+        "every",
+        "for",
+        "from",
+        "has",
+        "have",
+        "into",
+        "its",
+        "never",
+        "not",
+        "one",
+        "only",
+        "test",
+        "tests",
+        "than",
+        "that",
+        "the",
+        "then",
+        "this",
+        "two",
+        "was",
+        "when",
+        "with",
+    }
+)
 MODULE_NAME_RE = re.compile(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*")
 # `-m pkg` inside one string: a shell command line, or what `shlex.split` is given.
 RUN_FLAG_RE = re.compile(r"(?<!\S)-m\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)")
@@ -673,6 +708,29 @@ def _distinctive_stem(path: str) -> str | None:
     return stem
 
 
+@lru_cache(maxsize=65536)
+def _words(text: str) -> frozenset[str]:
+    """The words of identifiers and paths: `JsonFridgeRepository.load_entries` reads json,
+    fridge, repository, load, and entries."""
+    folded = CAMEL_BOUNDARY_RE.sub("_", text).casefold()
+    return frozenset(
+        word
+        for word in WORD_SPLIT_RE.split(folded)
+        if len(word) > 2 and word not in SUBJECT_STOP_WORDS
+    )
+
+
+def _subject_words(path: str, symbol: str) -> frozenset[str]:
+    """The words of what changed: its class, its function, and its module, a package's own
+    for an `__init__.py`. A dunder or `<module>` says nothing about it."""
+    parts = [
+        part
+        for part in symbol.split(".")
+        if part != "<module>" and not (part.startswith("__") and part.endswith("__"))
+    ]
+    return _words(" ".join([*parts, PurePosixPath(_as_module(path)).stem]))
+
+
 def _name_words(name: str) -> str | None:
     """A changed symbol's name as the snake_case words a test name spells it in.
 
@@ -1129,12 +1187,24 @@ def map_candidate_tests(
                 best if len(items) == 1 else best.model_copy(update={"symbol": WHOLE_TEST_FILE})
             )
         # Among equal scores, a test whose body names the symbol is about it, while one reaching
-        # it through other calls may be about anything along the way.
+        # it through other calls may be about anything along the way. Among those, one whose
+        # name or file shares more words with what changed — its class, function, or module —
+        # is likelier about it: `test_fridge_unreadable_file_degrades_quietly` for
+        # `JsonFridgeRepository.load_entries`, and `test_add_dish_dict` for `DishRepository`.
+        # Category words only break what is left, as they describe a test's topic rather than
+        # the change's subject: they had ranked a session test first for `DishRepository`.
         naming = {(tests[position].path, tests[position].symbol) for position in bodied}
+        wording = {
+            (tests[position].path, tests[position].symbol)
+            for position in terminology_for(candidate.category)
+        }
+        subject = _subject_words(candidate.path, candidate.symbol)
         ranked.sort(
             key=lambda item: (
                 -item.match_score,
                 (item.path, item.symbol) not in naming,
+                -len(subject & _words(f"{PurePosixPath(item.path).stem} {item.symbol}")),
+                (item.path, item.symbol) not in wording,
                 item.path,
                 item.symbol,
             )
