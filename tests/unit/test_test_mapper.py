@@ -1370,3 +1370,58 @@ def test_a_shared_word_weighs_by_how_few_neighbouring_symbols_name_it() -> None:
         "test_a_json_write_cleans_up",
     ]
     assert mapped[0].match_score == mapped[1].match_score
+
+
+TABLE_MODULES = {
+    "src/checks/__init__.py": "",
+    "src/checks/rules.py": (
+        "def _classify_condition(delta):\n    raise OSError(delta)\n\n\n"
+        "CLASSIFIERS = (_classify_condition,)\n\n\n"
+        "def classify(delta):\n    return [rule(delta) for rule in CLASSIFIERS]\n\n\n"
+        "def symbols(text):\n    return text.split()\n"
+    ),
+}
+TABLE_TESTS = (
+    "from checks import rules\n\n"
+    "def test_a_text_is_split_into_symbols():\n    assert rules.symbols('a b')\n\n"
+    "def test_each_rule_judges_a_delta():\n    assert rules.classify(0)\n\n"
+    "def test_a_condition_site_is_found():\n    assert rules.symbols('if x')\n"
+)
+
+
+def test_a_test_reaching_a_change_through_calls_ranks_before_one_only_loading_it() -> None:
+    """All three load `rules.py`, whose table names `_classify_condition`, so they reach it
+    and score alike. The one calling the code that runs the table comes before the one that
+    only splits text, and after the one named after a condition, which is likelier about it."""
+    roots = source_roots(TABLE_MODULES)
+    graph = CallGraph(
+        {
+            path: module_references(text, package_of(path, roots))
+            for path, text in TABLE_MODULES.items()
+        },
+        roots=roots,
+    )
+    index = TestIndex(
+        tests=_index_source("tests/test_checks.py", TABLE_TESTS), incomplete=False, warnings=[]
+    )
+    candidate = build_candidates(
+        [
+            StructuralDelta(
+                path="src/checks/rules.py",
+                symbol="_classify_condition",
+                kind="raise_change",
+                old="raise ValueError(delta)",
+                new="raise OSError(delta)",
+                old_lines=LineRange(start=2, end=2),
+                new_lines=LineRange(start=2, end=2),
+                hunk_id="src/checks/rules.py#hunk-001",
+            )
+        ]
+    )[0]
+    mapped = map_candidate_tests([candidate], index, WeaverConfig(), graph)[0]
+    assert [item.symbol for item in mapped] == [
+        "test_a_condition_site_is_found",
+        "test_each_rule_judges_a_delta",
+        "test_a_text_is_split_into_symbols",
+    ]
+    assert len({item.match_score for item in mapped}) == 1

@@ -118,6 +118,48 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-10-14, tables of functions and tests that only load)
+
+`_classify_condition` was led by `test_every_condition_site_records_its_probe`, which extracts
+symbols and never classifies a delta, ahead of
+`test_the_condition_rule_reads_comparisons_from_operators`. Both import `semantic_candidates`,
+both share `condition` with the change, and both reached it the same way. `classify_delta` runs
+each classifier of `CLASSIFIERS`, a module-level tuple, so no call names `_classify_condition`,
+and the call graph reached it only through the module's top-level code, which names it in the
+table. Loading the module reached it for every test importing it, and the order fell to names.
+
+Two changes tell them apart. The graph follows a table of functions: code using a module-level
+variable uses what the variable's value names without calling it — the items of a tuple, list,
+set, or dict, the variables and imports it copies, and the arguments of a call in it, as
+`partial(check, strict=True)` hands over `check` — so `classify_delta` reaches each classifier
+through a call. What a call in the value calls is left out, because the call ran when the module
+loaded: counted, `tuning_repo = JsonTuningRepository(path)` had every handler reading
+`tuning_repo` call the class and its `__init__`, and handlers' tests took over the constructor's
+list. A variable's annotation is left out too, as it names a type rather than a value. And among
+equal scores and equally weighed shared words, a test reaching the symbol through calls — the
+graph's callers, which never pass through a module's top-level code — comes before one that only
+loads a module naming it, which may never run it.
+
+That key comes after the shared words, not before them. Placed first, it put `meal-manager`'s
+`dii_finalize` tests, which reach the `DishRepository` and `FridgeRepository` protocols through
+functions annotated with them, ahead of `test_add_dish_dict` and the tests sharing the
+protocols' words.
+
+Measured: no score, reason, or risk score moves. `distiller` `main..skeleton` and
+`meal-manager`'s `8894749` are unchanged. `v0.2.0..HEAD` over `src/**` changes the five tests
+kept in 6 of 122 lists, all repository constructors: `JsonDishRepository.__init__` is led by
+`test_dish_repo_restore_adds_back`, `JsonHistoryRepository.__init__` by
+`test_history_corruption`, and `JsonFridgeRepository.__init__` keeps
+`test_fridge_entries_grammar` and `test_fridge_mutations_preserve_expiry`, which make a
+repository, in place of tests using the one the package makes on import. This repository's
+`v0.3.0..2f3840a` reorders 13 of 157 lists and changes the five kept in 9 of them:
+`_classify_condition` is led by `test_the_condition_rule_reads_comparisons_from_operators` in
+each of its four categories, `verify_wheel._installed_script` by
+`test_main_installs_only_after_both_archives_pass`, the other checks of `verify_wheel` keep the
+tests reaching them through `main` in place of tests calling only another check, and
+`_classify_symbol_lifecycle` trades the performance test that only runs the AST stage for tests
+that build candidates. The 17-case corpus is unchanged.
+
 ## Output-affecting corrections (2026-10-14, weighing the shared words)
 
 The words a test's name shares with a change ordered tests that reach it alike, each counting

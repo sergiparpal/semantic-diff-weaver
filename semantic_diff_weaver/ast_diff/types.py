@@ -107,6 +107,10 @@ class ModuleReferences:
     # put in it and of its annotation: `dish_repo: DishRepository = JsonDishRepository(path)`
     # holds a `JsonDishRepository`, whose methods a module importing `dish_repo` calls.
     variables: dict[str, frozenset[str]] = field(default_factory=dict)
+    # Each module-level variable, to what its value refers to without calling it: a table of
+    # functions, `CLASSIFIERS = (_classify_error, ...)`, that the code reading it calls later.
+    # `repo = Repository()` called its class when the module loaded, and refers to nothing.
+    tables: dict[str, frozenset[str]] = field(default_factory=dict)
 
 
 @dataclass

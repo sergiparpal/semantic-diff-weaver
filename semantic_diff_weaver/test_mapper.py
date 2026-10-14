@@ -1041,6 +1041,10 @@ def map_candidate_tests(
         reaching: set[int] = set()
         # The tests that call the symbol itself rather than something that calls it.
         direct: set[int] = set()
+        # The tests that reach it through calls. The others only load a module whose top-level
+        # code names it, as a table of functions does, which runs it only once something calls
+        # the code that reads the table.
+        called: set[int] = set()
         if graph is not None and in_graph:
             node = (candidate.path, candidate.symbol)
             ancestors = graph.reaching(node)
@@ -1049,6 +1053,12 @@ def map_candidate_tests(
                 position
                 for position in range(len(tests))
                 if reaches(position, candidate.path, ancestors, position in local)
+            }
+            through_calls = graph.callers(node)
+            called = {
+                position
+                for position in reaching
+                if reaches(position, candidate.path, through_calls, position in local)
             }
             # They start from it, naming it in a module they import, through a helper too, or
             # call it on an instance of a class they make or name themselves or read from a
@@ -1079,7 +1089,9 @@ def map_candidate_tests(
                     - reaching
                 )
                 for receiver in graph.receivers(method) if callers else ():
-                    reaching |= callers & class_reachers(receiver)
+                    holding = callers & class_reachers(receiver)
+                    reaching |= holding
+                    called |= holding
         related = mapped | mirrored | imported | ran
         if candidate.symbol == "<module>":
             # Loading a module runs its top-level code, which the import or run already counted,
@@ -1215,10 +1227,14 @@ def map_candidate_tests(
         # Each word weighs by how few symbols beside it name it too, an inverse document
         # frequency over the modules of its directory: counted alike, `json`, in the name of
         # every repository, had put a test of atomic JSON writes before `test_add_dish_dict` for
-        # `JsonDishRepository`. Category words only break what is left, as they describe a
-        # test's topic rather than the change's subject: they had ranked a session test first
-        # for `DishRepository`.
+        # `JsonDishRepository`. Then a test reaching the symbol through calls comes before one
+        # that only loads a module naming it, which may never run it:
+        # `test_every_condition_site_records_its_probe` extracts symbols and loads the module
+        # whose table names `_classify_condition`. Category words only break what is left, as
+        # they describe a test's topic rather than the change's subject: they had ranked a
+        # session test first for `DishRepository`.
         naming = {(tests[position].path, tests[position].symbol) for position in bodied}
+        calling = {(tests[position].path, tests[position].symbol) for position in called}
         wording = {
             (tests[position].path, tests[position].symbol)
             for position in terminology_for(candidate.category)
@@ -1238,6 +1254,7 @@ def map_candidate_tests(
                     weights[word]
                     for word in subject & _words(f"{PurePosixPath(item.path).stem} {item.symbol}")
                 ),
+                (item.path, item.symbol) not in calling,
                 (item.path, item.symbol) not in wording,
                 item.path,
                 item.symbol,
