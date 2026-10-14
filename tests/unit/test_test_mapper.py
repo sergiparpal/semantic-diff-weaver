@@ -4,7 +4,7 @@ import pytest
 
 import semantic_diff_weaver.test_mapper as test_mapper
 from semantic_diff_weaver.ast_diff import StructuralDelta, module_references
-from semantic_diff_weaver.call_graph import CallGraph, package_of
+from semantic_diff_weaver.call_graph import CallGraph, package_of, source_roots
 from semantic_diff_weaver.errors import ErrorCode, WeaverError
 from semantic_diff_weaver.git_diff import GitTreeEntry
 from semantic_diff_weaver.models import LineRange, MappingRule, WeaverConfig
@@ -12,8 +12,10 @@ from semantic_diff_weaver.semantic_candidates import build_candidates
 from semantic_diff_weaver.test_mapper import (
     IndexedTest,
     TestIndex,
+    _distinctive_stem,
     _index_source,
     _mirrored,
+    _module_name,
     build_test_index,
     defines_tests,
     map_candidate_tests,
@@ -1085,4 +1087,81 @@ def test_a_test_holds_an_instance_it_makes_or_reads_not_one_a_module_makes_on_im
     assert {item.symbol: item.match_reasons for item in mapped} == {
         "test_the_store_returns_the_key": [REACHED_ELSEWHERE],
         "test_a_new_store_returns_the_key": [REACHED_ELSEWHERE],
+    }
+
+
+def test_a_package_init_is_named_by_its_package() -> None:
+    """Tests import, mirror, and name a package, never its `__init__`."""
+    assert _module_name("src/shop/__init__.py") == "shop"
+    assert _module_name("__init__.py") == ""
+    assert _module_name("src/shop/cart.py") == "shop.cart"
+    assert _mirrored("src/shop/__init__.py", "tests/test_shop.py")
+    assert not _mirrored("src/shop/__init__.py", "tests/test_init.py")
+    assert not _mirrored("__init__.py", "tests/test_init.py")
+    assert _distinctive_stem("src/meal_planner/__init__.py") == "meal_planner"
+    assert _distinctive_stem("__init__.py") is None
+
+
+def init_reasons(modules: dict[str, str], tests: str, test_path: str, path: str, symbol: str):
+    roots = source_roots(modules)
+    graph = CallGraph(
+        {item: module_references(text, package_of(item, roots)) for item, text in modules.items()},
+        roots=roots,
+    )
+    index = TestIndex(tests=_index_source(test_path, tests), incomplete=False, warnings=[])
+    candidate = build_candidates(
+        [
+            StructuralDelta(
+                path=path,
+                symbol=symbol,
+                kind="symbol_added",
+                old=None,
+                new="()",
+                old_lines=None,
+                new_lines=LineRange(start=1, end=2),
+                hunk_id=f"{path}#hunk-001",
+            )
+        ]
+    )[0]
+    mapped = map_candidate_tests([candidate], index, WeaverConfig(), graph)[0]
+    return {item.symbol: item.match_reasons for item in mapped}
+
+
+def test_a_test_importing_a_package_imports_its_init_and_one_importing_a_module_does_not() -> None:
+    """Importing `shop.cart` runs `shop/__init__.py`, as loading any module runs what it
+    imports, which no test counts; importing the package or a name it binds does."""
+    modules = {
+        "src/shop/__init__.py": "def total():\n    return 0\n",
+        "src/shop/cart.py": "class Cart:\n    pass\n",
+    }
+    tests = (
+        "def test_the_package_sums_nothing():\n"
+        "    from shop import total\n"
+        "    assert total() == 0\n\n"
+        "def test_a_cart_is_made():\n"
+        "    from shop.cart import Cart\n"
+        "    assert Cart()\n"
+    )
+    reasons = init_reasons(modules, tests, "tests/test_shop.py", "src/shop/__init__.py", "total")
+    assert reasons == {
+        "test_the_package_sums_nothing": [
+            "mirrored source/test path",
+            "direct module or symbol import",
+            REACHED,
+        ]
+    }
+
+
+def test_a_test_loading_the_root_package_imports_the_root_init() -> None:
+    """`meal-manager`'s tests load the plugin's own `__init__.py` as the root package."""
+    modules = {"__init__.py": "def register(ctx):\n    return ctx\n", "src/__init__.py": ""}
+    tests = (
+        "import importlib\nfrom pathlib import Path\n\n"
+        "_PLUGIN_DIR = Path(__file__).resolve().parent\n"
+        "_pkg = importlib.import_module(_PLUGIN_DIR.name)\n\n"
+        "def test_wiring_hands_back_the_context():\n    assert _pkg.register({}) == {}\n"
+    )
+    reasons = init_reasons(modules, tests, "test_plugin.py", "__init__.py", "register")
+    assert reasons == {
+        "test_wiring_hands_back_the_context": ["direct module or symbol import", REACHED]
     }

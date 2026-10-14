@@ -118,6 +118,39 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-10-14, a package's `__init__.py`)
+
+Candidate mapping named a changed file by its path, so a package's `__init__.py` was
+`shop.__init__`. No test importing `shop` counted as importing it, a `test_init.py` file mirrored
+every `__init__.py` in a matching directory, and the module never named a test, since `__init__`
+reads as private. A package's `__init__.py` is now named like the package's own file, `shop.py`,
+for the import, the mirrored name, and the module name in a test's name, and the repository's own
+`__init__.py` is the root package, `""`.
+
+Named so, the import rule that matches a module and the symbols imported from it,
+`imported.startswith(f"{module}.")`, made importing any module of a package an import of its
+`__init__.py`: the previous section measured that, and left it out. Python does run a package's
+`__init__.py` before any of its modules, as loading a module runs what it imports, which no test
+counts. So a test imports a package's `__init__.py` when the call graph locates one of its imports
+there: the package itself, as `from shop import total` and the `meal-manager` tests' `.src` load
+do, or a name the package binds, re-exports included; `src.repositories.json_fridge` locates in
+its own module, and does not. Without a graph nothing imports a package's `__init__.py`, as before.
+
+Measured: on `meal-manager`'s `8894749`, 14 of 91 lists change and 4 risk scores fall.
+`test_register_wires_every_tool` is now a strong candidate for the plugin's `register`, at 0.60.
+`atomic_write_json`'s own test becomes a strong one, its risk falling from 42 to 38, and the unit
+tests that load `src` and write through it replace the dish tests reaching `_apply_target_mode`
+from afar. The top-level code of `src`, `src/handlers`, and `src/repositories` gains the test
+files that load each package, falling from 57 to 51. The overall falls from 57 to 56.
+`v0.2.0..HEAD` over `src/**` changes 15 of 122 lists and also strengthens
+`test_data_lock_configure_rejects_while_held` for `repositories.configure`, from 48 to 43. Among
+tests that import and reach `atomic_write_json`, those whose words match a category still outrank
+its direct tests in that category's list, as they would for any module. This repository's
+`v0.3.0..2f3840a` changes one list, `ast_diff/__init__.py`'s top-level code gaining the test files
+that import the package, from 57 to 51; `distiller` `main..skeleton` and the 17-case corpus are
+unchanged. A first draft named the root `__init__.py` `""` without guarding the path it builds,
+and a change to that file failed the analysis; the integration suite now covers it.
+
 ## Candidate tests that load their own package (2026-10-13)
 
 `meal-manager`'s tests load the plugin package they live in by their directory's name:
