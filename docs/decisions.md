@@ -155,11 +155,11 @@ error-handling list keeps both of its own tests; `load_entries` is still led by
 `test_fridge_unreadable_file_degrades_quietly`, which calls it on a repository it makes;
 `DataDirLock.__init__` stops being led by `test_calculate_score_basic` and
 `update_fridge_inventory`'s `_fmt` by a cooking-history test, and `finalizer.commit` is led by its
-unit test instead of an integration test. `v0.2.0..HEAD` over `src/**` changes 17 of 122 lists. This repository's
-`v0.3.0..2f3840a` changes 63 of 157 lists and 39 first candidates, mostly to a test that calls the
-symbol, as for `compare_symbol`, `score_risk`, `classify_delta`, and `map_candidate_tests`, and
-otherwise among tests that reach it indirectly, now in the order of their paths and names.
-`distiller` `main..skeleton` and the 17-case corpus are unchanged.
+unit test instead of an integration test. `v0.2.0..HEAD` over `src/**` changes 17 of 122 lists.
+This repository's `v0.3.0..2f3840a` changes 63 of 157 lists and 39 first candidates, mostly to a
+test that calls the symbol, as for `compare_symbol`, `score_risk`, `classify_delta`, and
+`map_candidate_tests`, and otherwise among tests that reach it indirectly, now in the order of
+their paths and names. `distiller` `main..skeleton` and the 17-case corpus are unchanged.
 
 ## Output-affecting corrections (2026-10-14, a package's `__init__.py`)
 
