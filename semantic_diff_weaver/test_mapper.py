@@ -637,9 +637,21 @@ def build_test_index(repo: GitRepository, head_commit: str, config: WeaverConfig
     return TestIndex(tests=tests, incomplete=incomplete, warnings=sorted(set(warnings)))
 
 
-def _module_name(path: str) -> str:
+def _as_module(path: str) -> str:
+    """The path a changed file is named by: a package's `__init__.py` as the package's own
+    file, `src/shop/__init__.py` as `src/shop.py`, and the repository's as the root package,
+    `""`. Tests name a package, never its `__init__`."""
     pure = PurePosixPath(path)
-    parts = list(pure.with_suffix("").parts)
+    if pure.name != "__init__.py":
+        return path
+    return "" if pure.parent == PurePosixPath(".") else f"{pure.parent}.py"
+
+
+def _module_name(path: str) -> str:
+    named = _as_module(path)
+    if not named:
+        return ""
+    parts = list(PurePosixPath(named).with_suffix("").parts)
     if parts and parts[0] in {"src", "lib"}:
         parts = parts[1:]
     return ".".join(parts)
@@ -652,9 +664,10 @@ def _distinctive_stem(path: str) -> str | None:
     `run` — so the changed symbol cannot find its tests, while the tests name the module:
     `test_register_cooked_meal_rollback` calls `register_cooked_meal(...)`. A multi-word stem
     is that specific; a single word such as `store` or `base` turns up in tests about anything,
-    and private or dunder modules (`_common`, `__init__`) are not named by tests at all.
+    and private or dunder modules (`_common`, `__main__`) are not named by tests at all. A
+    package's `__init__.py` is named by its package.
     """
-    stem = PurePosixPath(path).stem.casefold()
+    stem = PurePosixPath(_as_module(path)).stem.casefold()
     if stem.startswith("_") or "_" not in stem:
         return None
     return stem
@@ -673,7 +686,7 @@ def _name_words(name: str) -> str | None:
 
 @lru_cache(maxsize=16384)
 def _mirrored(source_path: str, test_path: str) -> bool:
-    source = PurePosixPath(source_path)
+    source = PurePosixPath(_as_module(source_path))
     test = PurePosixPath(test_path)
     # A test file names a module without the underscores that make it private or special:
     # `test_common.py` for `_common.py`, `test_main.py` for `__main__.py`.
@@ -768,6 +781,27 @@ def map_candidate_tests(
                 or imported.startswith(module_prefix)
                 or imported.endswith(module_suffix)
                 for imported in imports
+            )
+        )
+
+    @cache
+    def init_imported_for(path: str) -> frozenset[int]:
+        """The tests that import a package's `__init__.py`: the package itself, or a name it
+        binds, which the call graph locates in it.
+
+        Importing one of the package's modules, `src.repositories.json_fridge`, runs the
+        `__init__.py` too, as loading any module runs what it imports, which no test counts.
+        Counted, every integration test of `meal-manager` imported `src/__init__.py`, and with
+        category terminology outranked the unit tests of `atomic_write_json` it defines.
+        """
+        if graph is None:
+            return frozenset()
+        return frozenset(
+            position
+            for position, test in enumerate(tests)
+            if any(
+                (found := graph.locate(name)) is not None and found[0] == path
+                for name in test.imports
             )
         )
 
@@ -890,9 +924,11 @@ def map_candidate_tests(
         mapped = mapped_for(candidate.path)
         mirrored = mirrored_for(candidate.path)
         empty: set[int] = set()
-        imported = module_imported_for(module) | (
-            import_leaf_positions.get(symbol_token, empty) if symbol_token else empty
-        )
+        imported = (
+            init_imported_for(candidate.path)
+            if PurePosixPath(candidate.path).name == "__init__.py"
+            else module_imported_for(module)
+        ) | (import_leaf_positions.get(symbol_token, empty) if symbol_token else empty)
         # Importing a package reaches a module in it only if something along the way imports
         # that module. Counted as a direct import, `from distiller import cli` imported every
         # module of `distiller`, and with category terminology alone a test crossed the

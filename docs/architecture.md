@@ -56,7 +56,9 @@ modules loaded with `importlib.import_module` under a name the file writes out o
 package's name, and the names its file binds to what such a load returns. Tests that
 match only through evidence about their file — a mapping, a mirrored name, an import, a run, or a
 package import — cannot be told apart by it, so several of them stand as one candidate for the
-file, with the symbol `<module>`. `call_graph.py` reads the head revision of the modules tests
+file, with the symbol `<module>`. A package's `__init__.py` is named by its package for each of
+them, and a test imports it by importing the package or a name the package binds, never by
+importing one of its modules. `call_graph.py` reads the head revision of the modules tests
 import and of the changed ones, then follows their imports, under file, byte, and time bounds and
 the AST stage's parse budgets. For each symbol it keeps the names and attribute chains its code
 uses, and for each module what its imports bind, so `messages.unexpected_failure` resolves to a

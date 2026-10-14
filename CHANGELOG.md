@@ -13,6 +13,19 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Fix:** a package's `__init__.py` is named by its package. Candidate mapping named it
+  `shop.__init__`, so no test importing `shop` counted as importing it, a `test_init.py` mirrored
+  every `__init__.py`, and its module never named a test. It is now named like `shop.py` for each
+  of those, and the repository's own `__init__.py` is the root package. A test imports a package's
+  `__init__.py` when the call graph locates one of its imports there — the package itself, or a
+  name it binds — and not when it imports one of the package's modules, which runs the
+  `__init__.py` as loading any module runs what it imports. On `meal-manager`, the test that loads
+  the plugin package becomes a strong candidate for its `register`, `atomic_write_json`'s own test
+  becomes a strong one, and the top-level code of `src`, `src/handlers`, and `src/repositories`
+  gains the test files that load them: four risk scores fall, the overall from 57 to 56. One risk
+  score falls on this repository, `ast_diff/__init__.py`'s, and `distiller` is unchanged. A change
+  to the root `__init__.py` no longer fails the analysis, which an earlier draft of this change did.
+
 - **Feature:** a test that loads the package it lives in is related to it. `meal-manager`'s tests
   load the plugin itself as `importlib.import_module(_PLUGIN_DIR.name)`, where
   `_PLUGIN_DIR = Path(__file__).resolve().parent`, and call `_pkg.register(...)`; the name is

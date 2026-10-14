@@ -393,6 +393,39 @@ def test_a_test_reaches_a_change_through_the_package_it_lives_in(repo_factory) -
     }
 
 
+def test_a_change_to_the_root_init_reaches_the_test_that_loads_the_root_package(
+    repo_factory,
+) -> None:
+    """The plugin's own `__init__.py` is the package `meal-manager`'s tests load by name."""
+    tests = (
+        "import importlib\nfrom pathlib import Path\n\n"
+        "_PLUGIN_DIR = Path(__file__).resolve().parent\n"
+        "_pkg = importlib.import_module(_PLUGIN_DIR.name)\n\n\n"
+        "def test_wiring_hands_back_the_context():\n    assert _pkg.register({}) == {}\n"
+    )
+    plugin = "def register(ctx):\n    return {}\n"
+    unchanged = {"src/__init__.py": "", "test_plugin.py": tests}
+    repo, base, head = repo_factory(
+        {**unchanged, "__init__.py": plugin.format("ctx")},
+        {**unchanged, "__init__.py": plugin.format("dict(ctx)")},
+    )
+    result = analyze(
+        {"repo_path": str(repo), "base_ref": base, "head_ref": head, "output_format": "json"}
+    )
+    assert result["scope"]["analyzed_files"] == ["__init__.py"]
+    candidates = {
+        (test["path"], test["symbol"]): test["match_reasons"]
+        for obligation in result["test_obligations"]
+        for test in obligation["candidate_existing_tests"]
+    }
+    assert candidates == {
+        ("test_plugin.py", "test_wiring_hands_back_the_context"): [
+            "direct module or symbol import",
+            "changed symbol reached through calls",
+        ]
+    }
+
+
 def test_a_test_that_runs_the_package_covers_its_changed_main_module(repo_factory) -> None:
     """`python -m pkg` is how a test reaches `pkg/__main__.py`; nothing imports it."""
     test_main = (
