@@ -1257,6 +1257,13 @@ def test_the_subject_of_a_change_is_the_words_of_its_class_function_and_module()
         "dii",
     }
     assert _subject_words("src/shop/the_cart.py", "<module>") == {"cart"}
+    # A function named by one word, a verb tests use for anything; a class named by one, a noun.
+    assert _subject_words("semantic_diff_weaver/call_graph.py", "CallGraph._uses") == {
+        "call",
+        "graph",
+    }
+    assert _subject_words("src/distiller/report.py", "run") == {"report"}
+    assert _subject_words("src/dish.py", "Dish") == {"dish"}
 
 
 SWEEP_MODULES = {
@@ -1310,3 +1317,56 @@ def test_tests_reaching_a_change_alike_are_ordered_by_the_words_they_share_with_
         ("test_a_save_error_is_reported", 0.65),
         ("test_a_save_returns_its_path", 0.65),
     ]
+
+
+REPOSITORY_MODULES = {
+    "src/repos/__init__.py": (
+        "from .json_dish import JsonDishRepository\n\ndish_repo = JsonDishRepository()\n"
+    ),
+    "src/repos/json_dish.py": "class JsonDishRepository:\n    def __init__(self):\n        self.rows = []\n",
+    "src/repos/json_fridge.py": (
+        "class JsonFridgeRepository:\n    def __init__(self):\n        self.rows = []\n"
+    ),
+    "src/repos/json_alias.py": (
+        "class JsonAliasRepository:\n    def __init__(self):\n        self.rows = []\n"
+    ),
+}
+REPOSITORY_TESTS = (
+    "import repos\n\n"
+    "def test_a_json_write_cleans_up():\n    assert repos\n\n"
+    "def test_the_dish_is_added():\n    assert repos\n"
+)
+
+
+def test_a_shared_word_weighs_by_how_few_neighbouring_symbols_name_it() -> None:
+    """Both tests reach `JsonDishRepository.__init__` by loading `repos`, alike. `json` is in the
+    name of every repository beside it and `dish` in one, so the test about dishes comes first."""
+    graph = CallGraph(
+        {
+            path: module_references(text, package_of(path))
+            for path, text in REPOSITORY_MODULES.items()
+        }
+    )
+    index = TestIndex(
+        tests=_index_source("tests/test_store.py", REPOSITORY_TESTS), incomplete=False, warnings=[]
+    )
+    candidate = build_candidates(
+        [
+            StructuralDelta(
+                path="src/repos/json_dish.py",
+                symbol="JsonDishRepository.__init__",
+                kind="symbol_added",
+                old=None,
+                new="(self)",
+                old_lines=None,
+                new_lines=LineRange(start=2, end=3),
+                hunk_id="src/repos/json_dish.py#hunk-001",
+            )
+        ]
+    )[0]
+    mapped = map_candidate_tests([candidate], index, WeaverConfig(), graph)[0]
+    assert [item.symbol for item in mapped] == [
+        "test_the_dish_is_added",
+        "test_a_json_write_cleans_up",
+    ]
+    assert mapped[0].match_score == mapped[1].match_score

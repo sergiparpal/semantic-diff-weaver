@@ -13,6 +13,16 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Fix:** the words a test shares with a change weigh by how much they single it out. Every
+  shared word counted once, so `json`, in the name of every repository of `meal-manager`, put a
+  test of atomic JSON writes before `test_add_dish_dict` for `JsonDishRepository`. A word now
+  weighs by how few symbols of the modules in the changed file's directory name it too, an
+  inverse document frequency, and a function named by one word, a verb such as `run` or
+  `_uses`, adds none, as the name signal already held: `CallGraph._uses` keeps the graph's own
+  tests rather than the mapper's tests whose names say "uses". Only the order changes again:
+  `JsonDishRepository`, `JsonAliasRepository`, `JsonHistoryRepository`, and
+  `JsonTuningRepository` keep their own domain's tests instead of the atomic-write ones.
+
 - **Fix:** tests that reach a change alike are ordered by what they are about. Among candidates
   with equal scores and no test naming the symbol in its body, the order fell to paths and
   names, and the five kept could be any of dozens of integration tests. A test whose name or file

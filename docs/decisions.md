@@ -118,6 +118,40 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-10-14, weighing the shared words)
+
+The words a test's name shares with a change ordered tests that reach it alike, each counting
+once, so one generic word weighed as much as one that singles the change out:
+`JsonDishRepository.__init__` was led by `test_atomic_write_json_cleans_up_on_failure`, sharing
+`json`, ahead of `test_add_dish_dict`, sharing `dish`.
+
+What makes `json` generic there is the change's neighbours: it is in the name of all five
+repositories of `meal-manager`'s `repositories` package, and `dish` in one of them and its
+protocol. Counted over the whole repository, the frequencies point the other way: `json` is in 4
+test names and 59 symbols, `dish` in 34 and 75, so a frequency over tests or over every symbol
+would have weighed `json` more. A shared word now weighs by an inverse document frequency over
+the symbols of the modules in the changed file's directory that the call graph read,
+`log((1 + symbols) / (1 + symbols naming the word))`: a word every neighbour names weighs
+nothing, and without the graph every word still counts once.
+
+Weighed so, a common verb that names a function weighed most, since symbols rarely share it
+while test names, written as sentences, often do: `CallGraph._uses` was led by the mapper's tests
+whose names say "uses". A function named by one word now adds no word to the subject, as the
+name signal holds that such a word turns up in test names about anything; a class named by one,
+a noun such as `Dish`, still does.
+
+Measured: no score, reason, or risk score moves. On `meal-manager`'s `8894749` no list changes
+which five tests it keeps, and `IngredientSessionStore._sweep_candidates` is led by
+`test_dii_store_ttl_and_recovery`. `v0.2.0..HEAD` over `src/**` changes 6 of 122 lists:
+`_sweep_candidates` is led by `test_dii_orphan_sweep_takes_the_oldest_backup`,
+`JsonDishRepository.__init__` by `test_add_dish_dict`, and the alias, history, and tuning
+repositories keep their own tests instead of the atomic-write ones. This repository's
+`v0.3.0..2f3840a` changes 17 of 157 lists: `snapshot_symbol` and `SymbolSnapshot` are led by
+the test of a snapshot without probes, `class_display` by the test of the class shell, and
+`_classify_condition` by `test_every_condition_site_records_its_probe`, while `CallGraph._uses`
+keeps the graph's tests. On `distiller` `main..skeleton`, `report.run` stops crediting
+`test_evaluate_gets_its_options_as_run_args` for `run`. The 17-case corpus is unchanged.
+
 ## Output-affecting corrections (2026-10-14, order among tests reaching a change alike)
 
 Candidates with equal scores are ordered by whether the test's body names the symbol, then by
