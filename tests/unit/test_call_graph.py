@@ -338,6 +338,70 @@ def test_an_imported_variable_holds_what_its_assignment_makes_or_returns() -> No
 def test_variables_that_hold_each_other_hold_nothing_else() -> None:
     graph = graph_of({"src/loop.py": "first = second\nsecond = first\n"})
     assert graph.instances("loop.first") == frozenset()
+    assert graph.contents("loop.first") == frozenset()
+
+
+RULES = {
+    "src/rules/__init__.py": "from .table import CLASSIFIERS\n",
+    "src/rules/extra.py": "def classify_extra(delta, strict):\n    return None\n",
+    "src/rules/table.py": (
+        "from functools import partial\n\n"
+        "from rules.extra import classify_extra\n\n\n"
+        "def classify_error(delta):\n    return None\n\n\n"
+        "def classify_condition(delta):\n    return None\n\n\n"
+        "BASE = (classify_error,)\n"
+        "CLASSIFIERS = (*BASE, classify_condition, partial(classify_extra, strict=True))\n\n\n"
+        "def classify(delta):\n    return [rule(delta) for rule in CLASSIFIERS]\n"
+    ),
+    "src/rules/service.py": (
+        "from rules import CLASSIFIERS\n\n\n"
+        "def run(delta):\n    return [rule(delta) for rule in CLASSIFIERS]\n"
+    ),
+}
+CONDITION = ("src/rules/table.py", "classify_condition")
+ERROR = ("src/rules/table.py", "classify_error")
+EXTRA = ("src/rules/extra.py", "classify_extra")
+
+
+@pytest.mark.parametrize(
+    "caller",
+    [
+        ("src/rules/table.py", "classify"),  # reads its own module's table
+        ("src/rules/service.py", "run"),  # imports it through the package that re-exports it
+    ],
+)
+@pytest.mark.parametrize(
+    "rule",
+    [
+        CONDITION,  # named in the table
+        ERROR,  # in a table it copies
+        EXTRA,  # imported, and handed to the call that makes an entry
+    ],
+)
+def test_code_reading_a_table_of_functions_calls_each_of_them(
+    caller: tuple[str, str], rule: tuple[str, str]
+) -> None:
+    """No call names `classify_condition`; `classify` runs each rule its table holds."""
+    assert caller in graph_of(RULES).callers(rule)
+
+
+def test_a_table_names_what_its_value_refers_to_without_calling_it() -> None:
+    """`CART = Cart()` called `Cart` when its module loaded: totalling it later calls a method
+    of the cart, never its class. A function, a module, or a cycle of re-exports names nothing."""
+    graph = graph_of(RULES)
+    assert graph.contents("rules.CLASSIFIERS") == {CONDITION, ERROR, EXTRA}
+    assert graph.contents("rules.table.BASE") == {ERROR}
+    assert graph.contents("rules.table.classify") == frozenset()
+    assert graph.contents("rules.table") == frozenset()
+    assert graph.contents("rules.missing") == frozenset()
+    store = graph_of(STORE)
+    assert store.contents("store.default.CART") == frozenset()
+    assert ("src/store/default.py", "current_total") in store.callers(CART_TOTAL)
+    assert ("src/store/default.py", "current_total") not in store.callers(
+        ("src/store/cart.py", "Cart")
+    )
+    looping = graph_of({"src/one.py": "from two import x\n", "src/two.py": "from one import x\n"})
+    assert looping.contents("one.x") == frozenset()
 
 
 VAULT = {

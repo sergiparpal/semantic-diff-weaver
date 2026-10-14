@@ -229,6 +229,30 @@ def test_a_module_records_what_each_of_its_variables_holds() -> None:
     }
 
 
+def test_a_module_records_what_each_of_its_variables_refers_to_without_calling_it() -> None:
+    """A table of functions names them for the code that calls them later. `JsonStore(PATH)`
+    called its class when the module loaded, and refers to the argument it was handed only;
+    an annotation refers to nothing."""
+    source = (
+        "dish_repo: Store = JsonStore(PATH)\n"
+        "RULES = (check_a, check_b)\n"
+        "HANDLERS = {'run': run, 'stop': handlers.stop}\n"
+        "HANDLERS['pause'] = pause\n"
+        "ALL = [*RULES, partial(check_c, strict=True)]\n"
+        "declared: Thing\n"
+        "def build():\n    local = (check_d,)\n"
+    )
+    references = module_references(source, package="pkg")
+    assert references.tables == {
+        "dish_repo": {"PATH"},
+        "RULES": {"check_a", "check_b"},
+        "HANDLERS": {"run", "handlers.stop", "pause"},
+        "ALL": {"RULES", "check_c"},
+    }
+    assert references.variables["dish_repo"] == {"Store", "JsonStore"}
+    assert references.variables["declared"] == {"Thing"}
+
+
 def test_imports_bind_names_to_absolute_modules_and_symbols() -> None:
     source = (
         "import os.path\n"

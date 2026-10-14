@@ -576,12 +576,14 @@ _SCOPES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
 _BLOCKS = (ast.stmt, ast.excepthandler, ast.match_case)
 
 
-def _value_names(node: ast.expr) -> frozenset[str]:
+def _value_names(node: ast.expr, *, called: bool = True) -> frozenset[str]:
     """What an expression's value is: the class or function a call calls, the name or attribute
     chain it reads, and the items a container, a conditional, or a comprehension yields.
 
     `JsonDishRepository(path)` is a `JsonDishRepository` whatever `path` is, and
-    `dish_repo.load()` is whatever `load` returns, never `dish_repo` itself.
+    `dish_repo.load()` is whatever `load` returns, never `dish_repo` itself. Not `called`, the
+    names are what the value refers to without calling: a call's arguments rather than what it
+    calls, which ran when the module loaded.
     """
     values: set[str] = set()
     pending: list[ast.expr] = [node]
@@ -593,7 +595,10 @@ def _value_names(node: ast.expr) -> frozenset[str]:
             if chain := _dotted(item):
                 values.add(chain)
         elif isinstance(item, ast.Call):
-            pending.append(item.func)
+            if called:
+                pending.append(item.func)
+            else:
+                pending.extend((*item.args, *(keyword.value for keyword in item.keywords)))
         elif isinstance(item, (ast.List, ast.Tuple, ast.Set)):
             pending.extend(item.elts)
         elif isinstance(item, ast.Dict):
@@ -611,10 +616,10 @@ def _value_names(node: ast.expr) -> frozenset[str]:
     return frozenset(values)
 
 
-def _bind(variables: dict[str, set[str]], target: ast.expr, value: ast.expr) -> None:
+def _bind(variables: dict[str, set[str]], target: ast.expr, value: ast.expr, called: bool) -> None:
     """Record what an assignment puts in each module-level variable its target binds."""
     if isinstance(target, ast.Name):
-        variables[target.id] |= _value_names(value)
+        variables[target.id] |= _value_names(value, called=called)
     elif isinstance(target, (ast.Tuple, ast.List)):
         # `a, b = A(), B()` pairs them; any other unpacking may put anything in each name.
         values: list[ast.expr] = [value] * len(target.elts)
@@ -625,19 +630,20 @@ def _bind(variables: dict[str, set[str]], target: ast.expr, value: ast.expr) -> 
         ):
             values = value.elts
         for item, part in zip(target.elts, values, strict=True):
-            _bind(variables, item, part)
+            _bind(variables, item, part, called)
     elif isinstance(target, ast.Starred):
-        _bind(variables, target.value, value)
+        _bind(variables, target.value, value, called)
     elif isinstance(target, ast.Subscript) and isinstance(target.value, ast.Name):
         # `HANDLERS["run"] = RunHandler()` puts a handler in the table.
-        variables[target.value.id] |= _value_names(value)
+        variables[target.value.id] |= _value_names(value, called=called)
 
 
-def module_variables(tree: ast.Module) -> dict[str, frozenset[str]]:
+def module_variables(tree: ast.Module, *, called: bool = True) -> dict[str, frozenset[str]]:
     """Each module-level variable, to what its assignments put in it and its annotation names.
 
     Assignments inside a module-level `if`, `try`, or `with` count, and those inside a function
-    or class bind something else.
+    or class bind something else. Not `called`, each variable maps to what its value refers to
+    without calling, as a table of functions does, and annotations are left out.
     """
     variables: dict[str, set[str]] = defaultdict(set)
     pending: list[ast.AST] = list(tree.body)
@@ -645,12 +651,13 @@ def module_variables(tree: ast.Module) -> dict[str, frozenset[str]]:
         node = pending.pop()
         if isinstance(node, ast.Assign):
             for target in node.targets:
-                _bind(variables, target, node.value)
+                _bind(variables, target, node.value, called)
         elif isinstance(node, ast.AnnAssign):
             if isinstance(node.target, ast.Name):
-                variables[node.target.id] |= _written_names(node.annotation)
+                if called:
+                    variables[node.target.id] |= _written_names(node.annotation)
                 if node.value is not None:
-                    variables[node.target.id] |= _value_names(node.value)
+                    variables[node.target.id] |= _value_names(node.value, called=called)
         elif not isinstance(node, _SCOPES):
             pending.extend(
                 child for child in ast.iter_child_nodes(node) if isinstance(child, _BLOCKS)
@@ -676,5 +683,9 @@ def module_references(
         symbols[name] = symbol_references(node, kind)
     bindings, loads = import_bindings(tree, package)
     return ModuleReferences(
-        symbols=symbols, imports=bindings, loads=loads, variables=module_variables(tree)
+        symbols=symbols,
+        imports=bindings,
+        loads=loads,
+        variables=module_variables(tree),
+        tables=module_variables(tree, called=False),
     )

@@ -213,6 +213,9 @@ class CallGraph:
         # What each module-level variable holds, and each dotted name that names one.
         self._holdings: dict[tuple[str, str], frozenset[Node]] = {}
         self._instances: dict[str, frozenset[Node]] = {}
+        # What each module-level variable's value names, and each dotted name naming one.
+        self._contents: dict[tuple[str, str], frozenset[Node]] = {}
+        self._imported_contents: dict[str, frozenset[Node]] = {}
         uses = {
             (path, qualified): self._uses(path, module, qualified, item)
             for path, module in self.modules.items()
@@ -302,6 +305,47 @@ class CallGraph:
             return frozenset()
         return self._find_instances(".".join([target, *attributes]), hops + 1)
 
+    def _contents_of(self, path: str, variable: str) -> frozenset[Node]:
+        """The symbols a module-level variable's value names: the functions of a dispatch
+        table, through the variables and imports it copies."""
+        key = (path, variable)
+        if key not in self._contents:
+            # `a = b` and `b = a` name nothing more than what else they are assigned.
+            self._contents[key] = frozenset()
+            module = self.modules[path]
+            found: set[Node] = set()
+            for written in module.tables.get(variable, frozenset()):
+                if (node := self._symbol(path, module, written)) is not None:
+                    found.add(node)
+                elif written in module.variables and written not in module.symbols:
+                    found |= self._contents_of(path, written)
+                elif bound := module.imports.get(written):
+                    found |= self.contents(bound)
+            self._contents[key] = frozenset(found)
+        return self._contents[key]
+
+    def contents(self, dotted: str) -> frozenset[Node]:
+        """The symbols named by the value of the module-level variable an absolute dotted name
+        names, through re-exporting imports like `resolve`; none for anything else."""
+        if dotted not in self._imported_contents:
+            # A cycle of re-exports names nothing.
+            self._imported_contents[dotted] = frozenset()
+            self._imported_contents[dotted] = self._find_contents(dotted, 0)
+        return self._imported_contents[dotted]
+
+    def _find_contents(self, dotted: str, hops: int) -> frozenset[Node]:
+        located = self.locate(dotted)
+        if located is None or len(located[1]) != 1:
+            return frozenset()
+        path, [variable] = located
+        module = self.modules[path]
+        if variable in module.variables and variable not in module.symbols:
+            return self._contents_of(path, variable)
+        target = module.imports.get(variable)
+        if target is None or hops >= MAX_REEXPORT_HOPS:
+            return frozenset()
+        return self._find_contents(target, hops + 1)
+
     def _holding(self, path: str, variable: str) -> frozenset[Node]:
         """The classes whose instances a module-level variable holds."""
         key = (path, variable)
@@ -369,6 +413,12 @@ class CallGraph:
             # An attribute is never what an import binds: `self.messages` is not `messages`.
             if (bound := module.imports.get(name)) and (node := self.resolve(bound)):
                 uses.add(node)
+            # A table of functions is how code calls them later: `classify_delta` runs each of
+            # the classifiers `CLASSIFIERS` names, which no call names.
+            if name in module.variables and name not in module.symbols:
+                uses |= self._contents_of(path, name)
+            elif bound:
+                uses |= self.contents(bound)
         for chain in item.dotted:
             root, _, rest = chain.partition(".")
             if (bound := module.imports.get(root)) and (node := self.resolve(f"{bound}.{rest}")):

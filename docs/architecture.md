@@ -68,7 +68,10 @@ classes, their bases, and each function's return annotation, so a call on an ins
 function it calls returns, one held in such a class's fields, one its own class knows, one a
 module-level variable it uses holds, its own module's or imported, and the bases they inherit
 from, but no subclass's override. An attribute a method reads on `self` names a member of its own
-class or its bases only. From what each test names, with the
+class or its bases only. Code reading a module-level variable calls what its value names without
+calling it, as a table of functions does — `classify_delta` runs each classifier `CLASSIFIERS`
+holds — through the variables and imports the value copies; what a call in the value calls ran
+when the module loaded, and is left out. From what each test names, with the
 same-file helpers it calls, the modules it imports or runs, and the names it imports through
 re-exporting packages, the mapper follows those uses across modules: a test reaches whatever it
 names, whatever that uses in turn, the methods it calls on an instance it holds — of a class it
@@ -78,10 +81,11 @@ more than reaching it only through another module, which never makes a strong ca
 own. A reach replaces a mention of the symbol in the test's body, the weaker evidence of the same
 thing, and among equal scores a test that names the symbol ranks first, then one whose name shares
 more words with the symbol's class, function, or module, each weighed by how few symbols of the
-modules beside it name it too. Category terminology adds only to a test named after the symbol or
-its module, one that calls the symbol itself, or one only its file ties to the change. A private,
-undecorated helper that no test reaches or names gets no candidate from a test file, since only
-its module calls it, unless the graph was cut short by its bounds.
+modules beside it name it too, then one reaching the symbol through calls rather than only by
+loading a module whose top-level code names it. Category terminology adds only to a test named
+after the symbol or its module, one that calls the symbol itself, or one only its file ties to the
+change. A private, undecorated helper that no test reaches or names gets no candidate from a test
+file, since only its module calls it, unless the graph was cut short by its bounds.
 
 When global file or line limits are exceeded, explicitly configured critical paths are analyzed first
 and every omitted count/reason is carried into canonical scope and Markdown. Parse-incomplete files

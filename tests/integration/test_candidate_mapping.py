@@ -316,6 +316,45 @@ def test_a_test_reaches_a_changed_method_through_an_instance_another_module_hold
     }
 
 
+def test_a_test_running_a_table_of_functions_comes_first_for_a_changed_one(repo_factory) -> None:
+    """`rules.classify` runs each function `CLASSIFIERS` holds, though no call names them, and
+    loading `rules.py` names `_classify_condition` without running it."""
+    rules = (
+        "def _classify_condition(delta):\n    return delta {} 1\n\n\n"
+        "CLASSIFIERS = (_classify_condition,)\n\n\n"
+        "def classify(delta):\n    return [rule(delta) for rule in CLASSIFIERS]\n\n\n"
+        "def symbols(text):\n    return text.split()\n"
+    )
+    tests = (
+        "from checks import rules\n\n"
+        "def test_a_text_is_split_into_symbols():\n    assert rules.symbols('a b')\n\n"
+        "def test_each_rule_judges_a_delta():\n    assert rules.classify(0)\n"
+    )
+    unchanged = {"src/checks/__init__.py": "", "tests/test_checks.py": tests}
+    repo, base, head = repo_factory(
+        {**unchanged, "src/checks/rules.py": rules.format("<")},
+        {**unchanged, "src/checks/rules.py": rules.format("<=")},
+    )
+    result = analyze(
+        {"repo_path": str(repo), "base_ref": base, "head_ref": head, "output_format": "json"}
+    )
+    assert result["scope"]["analyzed_files"] == ["src/checks/rules.py"]
+    candidates = [
+        [(test["symbol"], test["match_reasons"]) for test in obligation["candidate_existing_tests"]]
+        for obligation in result["test_obligations"]
+    ]
+    reasons = ["direct module or symbol import", "changed symbol reached through calls"]
+    assert candidates
+    assert all(
+        found
+        == [
+            ("test_each_rule_judges_a_delta", reasons),
+            ("test_a_text_is_split_into_symbols", reasons),
+        ]
+        for found in candidates
+    )
+
+
 def test_a_test_reaches_a_change_in_a_module_it_loads_with_importlib(repo_factory) -> None:
     """`meal-manager`'s integration tests load each handler with `importlib` through a helper."""
     tests = (

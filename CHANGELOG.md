@@ -13,6 +13,20 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Fix:** a test that runs a changed function comes before one that only loads its module.
+  `semantic_candidates.py` runs its classifiers from `CLASSIFIERS`, a table no call names them in,
+  so the call graph reached `_classify_condition` only by loading the module, alike for every test
+  importing it: `test_every_condition_site_records_its_probe`, which extracts symbols, led ahead
+  of `test_the_condition_rule_reads_comparisons_from_operators`. Code reading a module-level
+  variable now uses what its value names without calling it — functions in a tuple, list, set,
+  or dict, through the variables and imports it copies and a call's arguments — while
+  `repo = Repository(path)` called its class when the module loaded and names none. Among equal
+  scores and shared words, a test reaching the symbol through calls now comes before one that
+  only loads a module naming it: `_classify_condition` is led by the condition rule's test,
+  `verify_wheel._installed_script` by `test_main_installs_only_after_both_archives_pass`, and
+  `meal-manager`'s repository constructors by the tests that make a repository. Only the order
+  changes: no score, reason, or risk score moves.
+
 - **Fix:** the words a test shares with a change weigh by how much they single it out. Every
   shared word counted once, so `json`, in the name of every repository of `meal-manager`, put a
   test of atomic JSON writes before `test_add_dish_dict` for `JsonDishRepository`. A word now
