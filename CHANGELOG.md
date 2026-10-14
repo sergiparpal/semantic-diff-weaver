@@ -13,6 +13,18 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Fix:** category terminology no longer ranks a test that reaches a change above one that
+  calls it. A test's words matching the change's category added 0.10 to any test that imports
+  the module and reaches the symbol, so `meal-manager`'s tests reaching `atomic_write_json`
+  through a repository's `save`, whose words were about errors, pushed the tests that call it out
+  of its error-handling list. The words now count for a test named after the symbol or its
+  module, one that calls the symbol itself — naming it in a module it imports, through a helper
+  too, or calling it on an instance of a class it makes or reads — or one only its file ties to
+  the change, and no longer for a test that reaches the symbol through other calls. A mention in
+  the test's text is no call: a message saying "resolve" does not call `CallGraph._resolve`.
+  Candidate order changes on `meal-manager` (18 of 91 lists) and this repository (63 of 157), and
+  no risk score moves; `distiller` is unchanged.
+
 - **Fix:** a package's `__init__.py` is named by its package. Candidate mapping named it
   `shop.__init__`, so no test importing `shop` counted as importing it, a `test_init.py` mirrored
   every `__init__.py`, and its module never named a test. It is now named like `shop.py` for each

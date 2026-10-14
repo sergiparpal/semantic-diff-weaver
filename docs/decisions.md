@@ -118,6 +118,49 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-10-14, category terminology and direct tests)
+
+A test whose words match the change's category gains 0.10, "behavior-category terminology". The
+words confirm a test tied to the change itself, and a test that reaches the symbol only from
+another module had already stopped gaining them, because they describe whatever that test is
+about. A test that imports the module and reaches the symbol through other calls still gained
+them, and a test calling the symbol without such words could not catch up: a reach replaces a
+mention, so a direct call and an indirect reach both score the import and the reach. On
+`meal-manager`, the unit tests reaching `atomic_write_json` through a repository's `save`, whose
+words were about errors, scored 0.50 in its error-handling list, and its own tests
+`test_atomic_write_preserves_file_mode` and `test_atomic_write_sweeps_stale_temps`, at 0.40, fell
+out of the five kept.
+
+The words now count for a test tied to the change: named after the symbol or its module, calling
+the symbol itself, or tied to it only by its file, as a mirrored or importing test file standing
+for all of its tests is. A test calls the symbol itself when the call graph starts it there,
+naming it in a module it imports, through a same-file helper too, or when it calls it as a method
+on an instance of a class it makes or names itself, or reads from a module-level variable:
+`repo = JsonFridgeRepository(path); repo.load_entries()`. A test that reaches the symbol
+through other calls is about what it calls and gains nothing from its words.
+
+The mention in a test's body was not used as the call, though it decides ties: it reads the
+test's text, strings included, and a message saying "resolve to the same commit" or a path
+ending in `__init__.py` kept the words for end-to-end tests over `CallGraph._resolve` and
+`CallGraph.__init__`, above the graph's own tests. Calling a method on an instance whose class
+the test reaches only deep inside what it calls is no direct call either: `.resolve()` on a path
+had made the same tests call `_resolve`. Ordering the indirect tests by their words, without
+scoring them, was measured and left out: it kept some first candidates the words had chosen, such
+as `test_dii_finalize_rollback` for `finalize_session`'s error handling, and put a session test
+before the dish test leading `DishRepository`, for the reason the words are not counted at all.
+
+Measured: no risk score moves on any range, since no candidate crossed 0.60 by its words alone.
+On `meal-manager`'s `8894749`, 18 of 91 lists change and 7 first candidates. `atomic_write_json`'s
+error-handling list keeps both of its own tests; `load_entries` is still led by
+`test_fridge_unreadable_file_degrades_quietly`, which calls it on a repository it makes;
+`DataDirLock.__init__` stops being led by `test_calculate_score_basic` and
+`update_fridge_inventory`'s `_fmt` by a cooking-history test, and `finalizer.commit` is led by its
+unit test instead of an integration test. `v0.2.0..HEAD` over `src/**` changes 17 of 122 lists. This repository's
+`v0.3.0..2f3840a` changes 63 of 157 lists and 39 first candidates, mostly to a test that calls the
+symbol, as for `compare_symbol`, `score_risk`, `classify_delta`, and `map_candidate_tests`, and
+otherwise among tests that reach it indirectly, now in the order of their paths and names.
+`distiller` `main..skeleton` and the 17-case corpus are unchanged.
+
 ## Output-affecting corrections (2026-10-14, a package's `__init__.py`)
 
 Candidate mapping named a changed file by its path, so a package's `__init__.py` was

@@ -960,14 +960,37 @@ def map_candidate_tests(
             and candidate.symbol in graph.modules[candidate.path].symbols
         )
         reaching: set[int] = set()
+        # The tests that call the symbol itself rather than something that calls it.
+        direct: set[int] = set()
         if graph is not None and in_graph:
-            ancestors = graph.reaching((candidate.path, candidate.symbol))
+            node = (candidate.path, candidate.symbol)
+            ancestors = graph.reaching(node)
             local = mapped | mirrored
             reaching = {
                 position
                 for position in range(len(tests))
                 if reaches(position, candidate.path, ancestors, position in local)
             }
+            # They start from it, naming it in a module they import, through a helper too, or
+            # call it on an instance of a class they make or name themselves or read from a
+            # module-level variable: `repo = JsonFridgeRepository(path); repo.load_entries()`.
+            # A mention in their text is no call: a message saying "resolve" and a path ending
+            # in `__init__.py` name no method, and neither does `.resolve()` on a path in a test
+            # that reaches the class only deep inside what it calls.
+            direct = {
+                position
+                for position in reaching
+                if node in entries_of(position)
+                or (position in local and body_key in tests[position].reach_names)
+            }
+            if node in graph.methods:
+                callers = attribute_positions.get(body_key, empty)
+                for receiver in graph.receivers(node) if callers else ():
+                    direct.update(
+                        position
+                        for position in callers
+                        if receiver in entries_of(position) or receiver in held_of(position)
+                    )
             # `cart = make_cart(); cart.total()`: a test that reaches a class through its calls
             # and uses a method's name as an attribute reaches the method. Only the classes its
             # own entries reach count, not those of the methods it reaches this way.
@@ -995,12 +1018,13 @@ def map_candidate_tests(
         # so the package import adds nothing more to such a test.
         package -= reached_elsewhere
         terminology = terminology_for(candidate.category)
-        # Category words confirm a test tied to the change itself. In one that reaches it only
-        # from afar they describe whatever that test is about, and they had end-to-end tests
-        # outrank a unit test that imports the module and reaches the symbol.
-        terminology -= reached_elsewhere - (
-            mapped | mirrored | imported | ran | named | bodied | module_named
-        )
+        # Category words confirm a test tied to the change itself: one named after the symbol
+        # or its module, one that calls the symbol, or one that only its file ties to the
+        # change. A test reaching the symbol through other calls is about what it calls, and
+        # its words describe that. Counted, they had end-to-end tests outrank a unit test that
+        # imports the module and reaches the symbol, and tests reaching `atomic_write_json`
+        # through a repository's `save` outrank the tests that call it.
+        terminology -= (reached | reached_elsewhere) - (named | module_named | direct)
         ranked: list[CandidateTest] = []
         # A mapping, a mirrored name, an import, a run, or a package is evidence about a test
         # file, shared by every test in it, so it cannot single out the tests that exercise the
