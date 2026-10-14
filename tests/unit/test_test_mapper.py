@@ -16,6 +16,7 @@ from semantic_diff_weaver.test_mapper import (
     _index_source,
     _mirrored,
     _module_name,
+    _subject_words,
     build_test_index,
     defines_tests,
     map_candidate_tests,
@@ -1236,3 +1237,76 @@ def test_a_method_called_on_an_instance_the_test_makes_is_called_directly() -> N
     reasons = error_reasons("Repo.save")
     assert reasons["test_a_failure_to_store_is_an_error"] == [IMPORTED, REACHED, WORDED]
     assert reasons["test_an_export_failure_is_an_error"] == [IMPORTED, REACHED]
+
+
+def test_the_subject_of_a_change_is_the_words_of_its_class_function_and_module() -> None:
+    """A dunder and `<module>` name nothing, and an `__init__.py` is its package."""
+    assert _subject_words(
+        "src/repositories/json_fridge.py", "JsonFridgeRepository.load_entries"
+    ) == {
+        "json",
+        "fridge",
+        "repository",
+        "load",
+        "entries",
+    }
+    assert _subject_words("src/dii/__init__.py", "IngredientSessionStore.__init__") == {
+        "ingredient",
+        "session",
+        "store",
+        "dii",
+    }
+    assert _subject_words("src/shop/the_cart.py", "<module>") == {"cart"}
+
+
+SWEEP_MODULES = {
+    "src/store/__init__.py": "",
+    "src/store/disk.py": (
+        "def _sweep_stale_temps(path):\n    raise OSError(path)\n\n\n"
+        "def save(path):\n    return _sweep_stale_temps(path)\n"
+    ),
+}
+SWEEP_TESTS = (
+    "from store import disk\n\n"
+    "def test_a_save_returns_its_path():\n    assert disk.save('x')\n\n"
+    "def test_a_save_error_is_reported():\n    assert disk.save('y')\n\n"
+    "def test_stale_temps_are_swept_on_save():\n    assert disk.save('z')\n"
+)
+
+
+def test_tests_reaching_a_change_alike_are_ordered_by_the_words_they_share_with_it() -> None:
+    """All three mirror `disk.py`, import it, and reach `_sweep_stale_temps` through `save`, so
+    they score alike. The one named after stale temps comes first, then the one whose words are
+    about errors, the change's category, which describe a test's topic rather than the change's
+    subject."""
+    roots = source_roots(SWEEP_MODULES)
+    graph = CallGraph(
+        {
+            path: module_references(text, package_of(path, roots))
+            for path, text in SWEEP_MODULES.items()
+        },
+        roots=roots,
+    )
+    index = TestIndex(
+        tests=_index_source("tests/test_disk.py", SWEEP_TESTS), incomplete=False, warnings=[]
+    )
+    candidate = build_candidates(
+        [
+            StructuralDelta(
+                path="src/store/disk.py",
+                symbol="_sweep_stale_temps",
+                kind="raise_change",
+                old="raise ValueError(path)",
+                new="raise OSError(path)",
+                old_lines=LineRange(start=2, end=2),
+                new_lines=LineRange(start=2, end=2),
+                hunk_id="src/store/disk.py#hunk-001",
+            )
+        ]
+    )[0]
+    mapped = map_candidate_tests([candidate], index, WeaverConfig(), graph)[0]
+    assert [(item.symbol, item.match_score) for item in mapped] == [
+        ("test_stale_temps_are_swept_on_save", 0.65),
+        ("test_a_save_error_is_reported", 0.65),
+        ("test_a_save_returns_its_path", 0.65),
+    ]
