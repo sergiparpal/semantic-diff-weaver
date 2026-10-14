@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import math
 import re
 from collections import defaultdict
 from collections.abc import Iterable, Iterator, Mapping
@@ -722,12 +723,17 @@ def _words(text: str) -> frozenset[str]:
 
 def _subject_words(path: str, symbol: str) -> frozenset[str]:
     """The words of what changed: its class, its function, and its module, a package's own
-    for an `__init__.py`. A dunder or `<module>` says nothing about it."""
+    for an `__init__.py`. A dunder or `<module>` says nothing about it, and neither does a
+    function named by one word, `run` or `_uses`: the word turns up in test names about
+    anything, as the name signal also holds. A class named by one, `Dish`, is a noun of the
+    code's own."""
     parts = [
         part
         for part in symbol.split(".")
         if part != "<module>" and not (part.startswith("__") and part.endswith("__"))
     ]
+    if parts and not parts[-1].lstrip("_")[:1].isupper() and len(_words(parts[-1])) == 1:
+        parts.pop()
     return _words(" ".join([*parts, PurePosixPath(_as_module(path)).stem]))
 
 
@@ -841,6 +847,21 @@ def map_candidate_tests(
                 for imported in imports
             )
         )
+
+    @cache
+    def neighbour_words(directory: str) -> tuple[int, Mapping[str, int]]:
+        """How many symbols the modules of a directory hold in the call graph, and how many of
+        those name each word, to tell a word that singles out a symbol from one its neighbours
+        share: every repository of `meal-manager` is `Json`, and one is about dishes."""
+        counts: dict[str, int] = defaultdict(int)
+        total = 0
+        for path, module in graph.modules.items() if graph is not None else ():
+            if str(PurePosixPath(path).parent) == directory:
+                for qualified in module.symbols:
+                    total += 1
+                    for word in _subject_words(path, qualified):
+                        counts[word] += 1
+        return total, counts
 
     @cache
     def init_imported_for(path: str) -> frozenset[int]:
@@ -1191,19 +1212,32 @@ def map_candidate_tests(
         # name or file shares more words with what changed — its class, function, or module —
         # is likelier about it: `test_fridge_unreadable_file_degrades_quietly` for
         # `JsonFridgeRepository.load_entries`, and `test_add_dish_dict` for `DishRepository`.
-        # Category words only break what is left, as they describe a test's topic rather than
-        # the change's subject: they had ranked a session test first for `DishRepository`.
+        # Each word weighs by how few symbols beside it name it too, an inverse document
+        # frequency over the modules of its directory: counted alike, `json`, in the name of
+        # every repository, had put a test of atomic JSON writes before `test_add_dish_dict` for
+        # `JsonDishRepository`. Category words only break what is left, as they describe a
+        # test's topic rather than the change's subject: they had ranked a session test first
+        # for `DishRepository`.
         naming = {(tests[position].path, tests[position].symbol) for position in bodied}
         wording = {
             (tests[position].path, tests[position].symbol)
             for position in terminology_for(candidate.category)
         }
         subject = _subject_words(candidate.path, candidate.symbol)
+        total, counts = neighbour_words(str(PurePosixPath(candidate.path).parent))
+        # Without the graph every shared word counts once.
+        weights = {
+            word: math.log((1 + total) / (1 + counts.get(word, 0))) if total else 1.0
+            for word in subject
+        }
         ranked.sort(
             key=lambda item: (
                 -item.match_score,
                 (item.path, item.symbol) not in naming,
-                -len(subject & _words(f"{PurePosixPath(item.path).stem} {item.symbol}")),
+                -sum(
+                    weights[word]
+                    for word in subject & _words(f"{PurePosixPath(item.path).stem} {item.symbol}")
+                ),
                 (item.path, item.symbol) not in wording,
                 item.path,
                 item.symbol,
