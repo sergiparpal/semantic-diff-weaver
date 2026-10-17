@@ -23,8 +23,10 @@ imports, executes, builds, or modifies the repository.
    `include` (for example `src/**`, then `scripts/**`) instead of reading the whole file.
    Narrow with `include`, never with `exclude`: `include` limits only which changed files are
    analyzed, while `exclude` also hides files from candidate-test discovery, so excluding a
-   tests directory silently drops every candidate test. Ask for `output_format: "json"` only
-   on a narrowed call, when you need fields the brief leaves out, such as score explanations.
+   tests directory silently drops every candidate test. By default, changed tests are candidate
+   tests rather than behavior under review: they are set aside before `include` applies, so an
+   `include` that covers only tests analyzes nothing. Ask for `output_format: "json"` only on a
+   narrowed call, when you need fields the brief leaves out, such as score explanations.
    IDs (`bc-`, `to-`, `ev-`) number positions within one result, and a narrowed call renumbers
    them: quote IDs only from the result you are reporting.
 4. **On an error result**, read its `error` code and `remediation`. `path_outside_repository`

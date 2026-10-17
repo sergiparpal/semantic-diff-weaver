@@ -88,6 +88,28 @@ def test_include_narrows_the_analysis_but_not_candidate_test_discovery(repo_fact
     assert _candidate_tests(excluded) == []
 
 
+def test_an_include_that_covers_only_tests_analyzes_nothing(repo_factory) -> None:
+    """The Claude Code skill warns that `include` cannot bring changed tests into the analysis.
+
+    A session kept from reading `src/` narrowed its call to `tests/**` to review only the tests.
+    Changed tests are set aside before `include` applies, so such a call analyzes no file at all,
+    and its low overall risk says nothing about the change.
+    """
+    tests = "from src.api import allowed\n\ndef test_allowed_boundary():\n    assert allowed(5)\n"
+    repo, base, head = repo_factory(
+        {"src/api.py": "def allowed(x):\n    return x < 5\n"},
+        {"src/api.py": "def allowed(x):\n    return x <= 5\n", "tests/test_api.py": tests},
+    )
+    request = {"repo_path": str(repo), "base_ref": base, "head_ref": head, "output_format": "json"}
+
+    result = analyze({**request, "include": ["tests/**"]})
+    assert result["scope"]["analyzed_files"] == []
+    assert result["scope"]["excluded_counts"] == {"path_filter": 1, "test_file": 1}
+    assert result["behavior_changes"] == []
+    assert result["test_obligations"] == []
+    assert any("no included changed Python" in item for item in result["limitations"])
+
+
 def test_a_test_changed_with_its_code_is_a_candidate_and_not_a_finding(repo_factory) -> None:
     """Analyzed as product code, every changed test became a finding of its own.
 
