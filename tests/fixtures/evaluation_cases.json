@@ -64,6 +64,14 @@
     "obligation_concepts": ["allowed transition"]
   },
   {
+    "name": "module constant",
+    "old_files": {"src/case.py": "ROOTS = ('core', 'tools')\n\n\ndef roots():\n    return ROOTS\n"},
+    "new_files": {"src/case.py": "ROOTS = ('core', 'tools', 'reports')\n\n\ndef roots():\n    return ROOTS\n"},
+    "expected": ["unknown_semantic_change"],
+    "anchors": [{"path": "src/case.py", "symbol": "<module>", "kind": "assignment_change"}],
+    "obligation_concepts": ["clarify and characterize"]
+  },
+  {
     "name": "dependency arguments",
     "old_files": {"src/case.py": "def fetch(client, x):\n    return client.fetch(x)\n"},
     "new_files": {"src/case.py": "def fetch(client, x):\n    return client.fetch(x, strict=True)\n"},

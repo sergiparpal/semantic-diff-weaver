@@ -30,7 +30,7 @@ class CategoryProbe:
     The display text keeps string literals verbatim and is redacted and cut, so it cannot tell
     code from strings: a message's words read as keywords, a `'<'` inside a literal read as a
     comparison, and redaction could turn `token == expected` into `token =[REDACTED] expected`.
-    Internal to classification and never reported.
+    An assignment's probe reads its targets only. Internal to classification and never reported.
     """
 
     # Identifiers, attribute and keyword names, and string literals without whitespace.

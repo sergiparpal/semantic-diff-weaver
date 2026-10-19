@@ -174,7 +174,7 @@ Every inferred behavior change must use one or more stable categories.
 | `boundary_change` | Comparison, threshold, range, or limit changed | Test values below, at, and above the boundary |
 | `validation_change` | Accepted or rejected input conditions changed | Test newly valid and newly invalid inputs |
 | `error_handling_change` | Exception, fallback, or error response changed | Test trigger, propagated error, and recovery behavior |
-| `state_transition_change` | Allowed state movement or assignment changed | Test valid, invalid, and repeated transitions |
+| `state_transition_change` | Allowed state movement or a state assignment changed | Test valid, invalid, and repeated transitions |
 | `authorization_change` | Permission, ownership, role, or identity check changed | Test allowed and denied principals |
 | `retry_timeout_change` | Retry count, delay, timeout, or stop condition changed | Test recoverable, terminal, and limit conditions |
 | `output_contract_change` | Return shape, field, type, status, or value changed | Test consumer-visible output contract |

@@ -56,6 +56,14 @@ SIDE_EFFECT_TERMS = (
     "persist",
     "enqueue",
 )
+STATE_TERMS = (
+    "state",
+    "states",
+    "status",
+    "statuses",
+    "transition",
+    "transitions",
+)
 
 COMPARISON_OPERATORS = ("<", ">", "==", "!=")
 Classification = tuple[BehaviorCategory, str, str, float, list[str], str]
@@ -239,13 +247,24 @@ def _classify_assignment(
 ) -> Classification | None:
     if delta.kind != "assignment_change":
         return None
+    if _contains(combined, STATE_TERMS):
+        return (
+            BehaviorCategory.STATE_TRANSITION,
+            "A state assignment or transition appears to have changed.",
+            "The operation may now enter, retain, or reject a different observable state.",
+            0.82,
+            [],
+            "SDW-RULE-STATE",
+        )
+    # Most assignments hold configuration, data, or intermediate values. A module constant
+    # that gained an entry is no transition to test as allowed, invalid, and repeated.
     return (
-        BehaviorCategory.STATE_TRANSITION,
-        "A state assignment or transition appears to have changed.",
-        "The operation may now enter, retain, or reject a different observable state.",
-        0.82,
-        [],
-        "SDW-RULE-STATE",
+        BehaviorCategory.UNKNOWN,
+        "An assigned value changed without enough local contract context.",
+        "Code that reads the value may now behave differently; the observable effect needs review.",
+        0.55,
+        ["Whether the value is state, configuration, or data is unavailable to static analysis."],
+        "SDW-RULE-UNKNOWN-ASSIGNMENT",
     )
 
 
