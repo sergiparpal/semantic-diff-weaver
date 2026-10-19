@@ -154,6 +154,7 @@ def _merge_duplicate(existing: SemanticCandidate, incoming: SemanticCandidate) -
         rule_ids=tuple(sorted({*existing.rule_ids, *incoming.rule_ids})),
         related_calls=existing.related_calls | incoming.related_calls,
         related_paths=existing.related_paths | incoming.related_paths,
+        assigned_names=existing.assigned_names | incoming.assigned_names,
         origin=(
             Origin.LLM_SUPPORTED if incoming.origin is Origin.LLM_SUPPORTED else existing.origin
         ),

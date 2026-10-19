@@ -61,7 +61,9 @@ match only through evidence about their file — a mapping, a mirrored name, an 
 package import — cannot be told apart by it, so several of them stand as one candidate for the
 file, with the symbol `<module>`. A package's `__init__.py` is named by its package for each of
 them, and a test imports it by importing the package or a name the package binds, never by
-importing one of its modules. `call_graph.py` reads the head revision of the modules tests
+importing one of its modules. Top-level code is no name a test can use, but a changed assignment
+names the variables it writes to, so a test whose body or name uses one, as `CODE_ROOTS`, is listed
+on its own. `call_graph.py` reads the head revision of the modules tests
 import and of the changed ones, then follows their imports, under file, byte, and time bounds and
 the AST stage's parse budgets. For each symbol it keeps the names and attribute chains its code
 uses, and for each module what its imports bind, so `messages.unexpected_failure` resolves to a

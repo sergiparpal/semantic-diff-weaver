@@ -587,3 +587,59 @@ def test_a_test_named_after_a_handler_module_is_its_candidate(repo_factory) -> N
     # is that module's.
     assert "test_every_tool_answers" not in candidates
     assert "test_delete_dish_returns_the_name" not in candidates
+
+
+def test_a_test_reading_a_changed_module_variable_is_named_as_its_candidate(
+    repo_factory,
+) -> None:
+    """A module constant that gains an entry changes the module's top-level code.
+
+    Its tests used to stand only as their file, although two of them read the constant, as
+    with a real project's `CODE_ROOTS`. Each test reading it is now named, the rest of its file
+    stays one entry, and a test reading a constant of that name from elsewhere is none.
+    """
+    module = (
+        "from pathlib import Path\n\n"
+        "REPO = Path('.')\n"
+        "CODE_ROOTS = {}\n"
+        "DIGEST_CHARS = 16\n\n\n"
+        "def source_files():\n    return [REPO / root for root in CODE_ROOTS]\n"
+    )
+    tests = (
+        "from harness import provenance\n"
+        "from harness.provenance import CODE_ROOTS\n\n"
+        "def test_does_not_include_the_tests():\n"
+        "    assert 'tests' not in provenance.CODE_ROOTS\n\n"
+        "def test_every_root_is_named():\n"
+        "    assert all(CODE_ROOTS)\n\n"
+        "def test_the_digest_has_its_length():\n"
+        "    assert provenance.DIGEST_CHARS == 16\n\n"
+        "def test_the_repository_is_found():\n"
+        "    assert provenance.REPO\n"
+    )
+    elsewhere = "CODE_ROOTS = ('other',)\n\n\ndef test_other_roots():\n    assert CODE_ROOTS\n"
+    files = {
+        "harness/__init__.py": "",
+        "tests/test_provenance.py": tests,
+        "tests/test_other.py": elsewhere,
+    }
+    repo, base, head = repo_factory(
+        {**files, "harness/provenance.py": module.format("('harness', 'rung2')")},
+        {**files, "harness/provenance.py": module.format("('harness', 'rung2', 'escalations')")},
+    )
+    result = analyze(
+        {"repo_path": str(repo), "base_ref": base, "head_ref": head, "output_format": "json"}
+    )
+    reasons = {
+        (test["path"], test["symbol"]): test["match_reasons"]
+        for obligation in result["test_obligations"]
+        for test in obligation["candidate_existing_tests"]
+    }
+    variable = "changed module variable in bounded test body"
+    assert variable in reasons[("tests/test_provenance.py", "test_does_not_include_the_tests")]
+    assert variable in reasons[("tests/test_provenance.py", "test_every_root_is_named")]
+    assert set(reasons) == {
+        ("tests/test_provenance.py", "test_does_not_include_the_tests"),
+        ("tests/test_provenance.py", "test_every_root_is_named"),
+        ("tests/test_provenance.py", "<module>"),
+    }

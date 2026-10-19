@@ -277,3 +277,25 @@ def test_imports_bind_names_to_absolute_modules_and_symbols() -> None:
         "load": "distiller.commands.lazy.load",
     }
     assert {"os.path", "distiller", "distiller.commands.report", "helpers"} <= module.loads
+
+
+def test_each_assignment_records_the_variables_it_writes_to() -> None:
+    """The name it binds or unpacks into, or the variable whose item or attribute it sets."""
+    source = (
+        "ROOTS = ('a',)\n"
+        "first, *rest = load()\n"
+        "HANDLERS['run'] = run\n"
+        "config.timeout = 5\n"
+        "LIMIT: int = 3\n"
+        "COUNT += 1\n"
+    )
+    module = {item.qualified_name: item for item in extract_symbols(source)}["<module>"]
+    assert len(module.assigned) == len(module.features["assignments"])
+    assert module.assigned == (
+        frozenset({"ROOTS"}),
+        frozenset({"first", "rest"}),
+        frozenset({"HANDLERS"}),
+        frozenset({"config"}),
+        frozenset({"LIMIT"}),
+        frozenset({"COUNT"}),
+    )

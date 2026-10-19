@@ -93,6 +93,8 @@ class SemanticCandidate:
     rule_ids: tuple[str, ...] = ()
     related_calls: frozenset[str] = frozenset()
     related_paths: frozenset[str] = frozenset()
+    # The variables its changed assignments write to, which name a module-level change.
+    assigned_names: frozenset[str] = frozenset()
 
 
 def evidence_identity(evidence: Sequence[Evidence]) -> tuple[str, str]:
@@ -519,6 +521,7 @@ class _CandidateAccumulator:
     rule_ids: list[str] = field(default_factory=list)
     related_calls: set[str] = field(default_factory=set)
     related_paths: set[str] = field(default_factory=set)
+    assigned_names: set[str] = field(default_factory=set)
 
     def build(self, path: str, symbol: str, category: BehaviorCategory) -> SemanticCandidate:
         return SemanticCandidate(
@@ -533,6 +536,7 @@ class _CandidateAccumulator:
             rule_ids=tuple(self.rule_ids),
             related_calls=frozenset(self.related_calls),
             related_paths=frozenset(self.related_paths),
+            assigned_names=frozenset(self.assigned_names),
         )
 
 
@@ -569,6 +573,9 @@ def build_candidates(
             if isinstance((path := delta.metadata.get(field_name)), str)
         }
         related_paths.add(delta.path)
+        assigned_names = {
+            name for name in delta.metadata.get("assigned_names", []) if isinstance(name, str)
+        }
         if key in grouped:
             current = grouped[key]
             current.evidence.append(evidence)
@@ -577,6 +584,7 @@ def build_candidates(
             current.rule_ids.append(rule_id)
             current.related_calls.update(related_calls)
             current.related_paths.update(related_paths)
+            current.assigned_names.update(assigned_names)
         else:
             grouped[key] = _CandidateAccumulator(
                 summary=summary,
@@ -587,6 +595,7 @@ def build_candidates(
                 rule_ids=[rule_id],
                 related_calls=related_calls,
                 related_paths=related_paths,
+                assigned_names=assigned_names,
             )
     candidates = [
         accumulator.build(path, symbol, category)
