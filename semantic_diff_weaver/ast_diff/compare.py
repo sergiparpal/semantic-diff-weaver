@@ -288,6 +288,11 @@ def compare_symbol(
     if old is None:
         if new is None:
             return []
+        if new.kind == "module" and new.docstring_only:
+            # Top-level code that is only a docstring runs nothing when the module is imported,
+            # like an empty `__init__.py`, whose diff has no hunk to report. Its definitions
+            # are symbols of their own, and a removed module still breaks what imported it.
+            return []
         return [
             make_structural_delta(
                 path,

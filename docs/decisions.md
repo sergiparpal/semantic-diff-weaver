@@ -128,6 +128,25 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-10-19, modules that are only a docstring)
+
+An added module was a `symbol_added` finding whenever its diff had a hunk, even with nothing but a
+docstring. Every package of `adaptive-policy-compilation` opens with an `__init__.py` that only
+says what the package is for, and each was reported as "New behavior becomes reachable", a
+medium-risk unknown change, beside the package's real functions. An empty `__init__.py` never was,
+since its diff has no hunk.
+
+An added module whose top-level code, without its definitions, is only a docstring, comments, or
+nothing is now no change either. Its functions and classes are symbols of their own and are
+reported as before. A removed one still is, since what imported it now fails, and so is an added
+module that runs anything, an import included.
+
+Measured on every commit against its first parent. On `adaptive-policy-compilation`, 16 findings
+go, one per package's `__init__.py`, and no risk score or obligation count moves. Two of its
+ranges at the 100-symbol bound each fit one more real symbol, `students/score.py`'s `on_test` and
+`blind/score.py`'s `verdicts`, which the bound had cut. This repository's 102 pairs are unchanged,
+and so is the 18-case corpus.
+
 ## Output-affecting corrections (2026-10-19, the GitHub Action's base revision)
 
 The action's `base-ref` defaulted to `github.event.pull_request.base.sha`, and the analyzer

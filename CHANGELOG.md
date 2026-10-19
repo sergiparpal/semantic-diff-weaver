@@ -13,6 +13,14 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Fix:** an added module that is only a docstring is no longer a finding. Each package of
+  `adaptive-policy-compilation` opens with an `__init__.py` that only describes it, and each was
+  reported as new behavior beside the package's functions, while an empty `__init__.py`, whose
+  diff has no hunk, never was. An added module whose top-level code is only a docstring, comments,
+  or nothing now produces no finding; its definitions are still reported, and so are a removed
+  module and an added one that runs anything. On `adaptive-policy-compilation`, 16 findings go and
+  no risk score moves, and two ranges at the 100-symbol bound fit one more real symbol each.
+
 - **Fix:** the GitHub Action reviews a pull request from where it branched off. `base-ref`
   defaulted to `github.event.pull_request.base.sha`, the base branch as it stood when the pull
   request opened, and the analyzer compares two trees as they are: commits the base branch gained

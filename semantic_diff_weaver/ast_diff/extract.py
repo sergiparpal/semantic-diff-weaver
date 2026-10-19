@@ -408,6 +408,7 @@ def snapshot_symbol(node: ast.AST, qualified_name: str, kind: str) -> SymbolSnap
         node_inventory=node_inventory(body),
         probes={name: tuple(values) for name, values in visitor.probes.items()},
         assigned=tuple(visitor.assigned),
+        docstring_only=not body_without_docstring(body),
         display=display,
     )
 

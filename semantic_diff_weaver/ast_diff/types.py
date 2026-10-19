@@ -57,6 +57,9 @@ class SymbolSnapshot:
     probes: dict[str, tuple[CategoryProbe, ...]] = field(default_factory=dict)
     # Per assignment, in the order of `features["assignments"]`, the variables it writes to.
     assigned: tuple[frozenset[str], ...] = ()
+    # Whether its body holds nothing but a docstring, or nothing at all. A module's body is its
+    # top-level code without its definitions, which are symbols of their own.
+    docstring_only: bool = False
     # What an added or removed symbol's evidence shows. The signature alone said `bases()` for a
     # dataclass and `module` for a whole `__main__.py`; empty means "show the signature".
     display: str = ""
