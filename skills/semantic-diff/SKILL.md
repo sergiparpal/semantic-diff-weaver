@@ -9,10 +9,18 @@ The `analyze_semantic_diff` tool from the `semantic-diff-weaver` MCP server read
 committed Git revisions and returns evidence-backed, risk-ranked test obligations. It never
 imports, executes, builds, or modifies the repository.
 
-1. **Pick the refs.** `head_ref` defaults to `HEAD`. For `base_ref`, use what the user named;
-   otherwise the branch the work will merge into — usually `main` or `origin/main`, which
-   `git rev-parse --abbrev-ref origin/HEAD` confirms. Only *committed* changes are analyzed:
-   if `git status` shows uncommitted edits to Python files, say that they are not included.
+1. **Pick the refs.** `head_ref` defaults to `HEAD`. The base is what the user named, or else
+   the branch the work will merge into: `git symbolic-ref --short refs/remotes/origin/HEAD`
+   names the remote's default branch when one is recorded, and `main` or `master` stands in
+   when none is. A local branch can lag behind its remote copy, and a stale `main` would count
+   work that is already merged as part of this change, so when both exist, use the one that
+   contains the other (`git merge-base --is-ancestor main origin/main` succeeds when
+   `origin/main` does), and ask the user if they have diverged. Then pass
+   `git merge-base <base> <head>` as `base_ref`, unless the user asked to compare the two
+   revisions as they stand: the tool diffs the two trees directly, so commits the base gained
+   after the work branched off would read as reverted by it. None of this needs a `git fetch`.
+   Say which base and merge-base commit you used. Only *committed* changes are analyzed: if
+   `git status` shows uncommitted edits to Python files, say that they are not included.
 2. **Call the tool** with `repo_path` set to the project directory (`.` works), `base_ref`,
    and `head_ref`, and leave `output_format` unset. The default is the Markdown brief: every
    finding and obligation with its ID, at about half the size of the JSON. When a large brief

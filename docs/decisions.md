@@ -67,7 +67,7 @@ dependencies. Four consequences are deliberate:
 
 The Claude Code plugin is a second transport for the Hermes tool, not a second tool. Claude Code
 does not load Python into its own process, so the adapter is an MCP stdio server that serves a
-copy of `ANALYZE_SEMANTIC_DIFF_SCHEMA` and delegates to `handle_analyze_semantic_diff`. Five choices
+copy of `ANALYZE_SEMANTIC_DIFF_SCHEMA` and delegates to `handle_analyze_semantic_diff`. Six choices
 are deliberate:
 
 - **The protocol subset is implemented by hand.** A tool-only server needs `initialize`, `ping`,
@@ -109,6 +109,16 @@ are deliberate:
   reuses a local package's cached build until a cache key changes, and its default key is
   `pyproject.toml` alone, so a working copy installed through a local marketplace kept serving the
   code it was first built from. `[tool.uv] cache-keys` adds the package's Python sources.
+- **The skill reviews a branch from its merge-base (2026-10-19).** The tool diffs the base and
+  head trees as they are, so a base that moved on after the branch point reads as the branch
+  reverting the base's new commits, and a local `main` behind `origin/main` counts commits that
+  are already merged. The skill used to suggest `main` or `origin/main`, confirmed by
+  `origin/HEAD`, which a repository pushed after `git init` never records. On
+  `adaptive-policy-compilation`, whose local `main` was six commits behind, only Claude's own
+  judgment kept branch `escalations-hash` from a review of already-merged work. The skill now
+  takes the branch the work merges into, prefers whichever of its local and remote copies
+  contains the other, and passes `git merge-base <base> <head>` as `base_ref`.
+  `tests/integration/test_service.py` pins the tree-to-tree comparison it relies on.
 
 The server is declared inline in `.claude-plugin/plugin.json`, not in a root `.mcp.json`. Claude Code
 reads a root `.mcp.json` as the repository's own project MCP configuration too, where
