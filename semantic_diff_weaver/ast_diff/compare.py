@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Iterable, Sequence
 from typing import Any
 
@@ -206,6 +207,24 @@ def _maybe_drop_return_when_call_explained(
     return result
 
 
+def _changed_assignment_targets(old: SymbolSnapshot, new: SymbolSnapshot) -> list[str]:
+    """The variables written by the assignments that differ between the two sides.
+
+    A module's assignment delta shows every module-level assignment, so only this tells which
+    changed: `CODE_ROOTS` when that tuple alone gained an entry. A snapshot built without the
+    targets it writes to names none.
+    """
+    sides: list[Counter[tuple[str, frozenset[str]]]] = []
+    for snapshot in (old, new):
+        values = snapshot.features["assignments"]
+        if len(snapshot.assigned) != len(values):
+            return []
+        sides.append(Counter(zip((text for text, _ in values), snapshot.assigned, strict=True)))
+    old_side, new_side = sides
+    changed = (old_side - new_side) + (new_side - old_side)
+    return sorted({name for _, names in changed for name in names})
+
+
 def _append_feature_deltas(
     result: list[StructuralDelta],
     path: str,
@@ -223,6 +242,11 @@ def _append_feature_deltas(
             if feature == "conditions" and sorted(old_values) == sorted(new_values)
             else kind
         )
+        metadata = (
+            {"assigned_names": _changed_assignment_targets(old, new)}
+            if feature == "assignments"
+            else {}
+        )
         result.append(
             make_structural_delta(
                 path,
@@ -233,6 +257,7 @@ def _append_feature_deltas(
                 join_feature_values(old.features[feature]),
                 join_feature_values(new.features[feature]),
                 probe=join_probes(old, new, feature),
+                **metadata,
             )
         )
 

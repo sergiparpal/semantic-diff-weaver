@@ -128,6 +128,56 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-10-19, pooled candidates from several test files)
+
+Behaviors that share an obligation pool their candidate tests, which are cut to five, and among
+equal scores the cut went by path. On `adaptive-policy-compilation` `06cb75e..65f79f7`, the
+`CODE_ROOTS` change shares its obligation with 37 findings of a new package. Every candidate
+scored 0.60, so all five places went to `tests/test_escalations.py`, and the two tests reading
+`CODE_ROOTS`, found by name since the entry below, never showed.
+
+Among equal scores the test files now take turns: each file's first test in the old order, then
+each file's second, and so on. A lower score still never comes before a higher one, and only
+pooled lists are reordered. The range's obligation now shows three escalation tests and both
+tests of `CODE_ROOTS`.
+
+Measured on the same pairs as the entry below, against it. On `adaptive-policy-compilation`, 65
+of 493 obligations show other tests and 18 only reorder them, and the distinct test files in
+those 65 lists go from 100 to 187. On this repository, 184 of 726 show other tests and 37 reorder
+them, with test files going from 490 to 723. No finding, score, or coverage status moves, and the
+18-case corpus is unchanged.
+
+## Output-affecting corrections (2026-10-19, tests that read a changed module variable)
+
+A change to a module's top-level code has the symbol `<module>`, which no test can name, so its
+candidates were only evidence about test files, a mirrored name or an import, shared by every test
+in a file and shown as the file. On `adaptive-policy-compilation`, adding `"escalations"` to the
+`CODE_ROOTS` tuple in `harness/provenance.py` got `tests/test_provenance.py` as a whole file,
+although two of its tests read the tuple, `TestCodeDigest.test_does_not_include_the_tests` and
+`TestEveryWriterRecordsEnvironment.test_no_JSON_writer_is_left_without_env`, and
+`tests/test_writer_lists.py` holds a third.
+
+The AST stage now records what each assignment writes to: the names it binds or unpacks into, or
+the variable whose item or attribute it sets. A changed assignment delta carries the variables of
+the assignments that differ, `CODE_ROOTS` alone where the delta shows `REPO`, `CODE_ROOTS`, and
+`DIGEST_CHARS`. The mapper looks those variables up as it looks up a symbol's name. A test whose
+body uses one as a whole identifier, or whose name spells it, has evidence of its own —
+`changed module variable in bounded test body` (0.10) or `changed module variable in test name`
+(0.20) — and is listed by name, while the rest of its file still stands as the file. As for a
+symbol, a mention only adds to a test the file already ties to the change, so a test reading a
+variable of the same name from another module is no candidate.
+
+Measured on every commit against its first parent, comparing each finding's candidates. On
+`adaptive-policy-compilation`, 41 module findings named the variables they changed; 31 gained 86
+named tests, the three for `CODE_ROOTS` each time a package joined the tuple among them, and
+obligation lists changed in 12 of 417 pairs. On this repository, 77 module findings named
+variables and 31 gained 55 tests: `__version__` finds
+`test_the_declared_version_matches_the_packaging_metadata`, `EXCLUSION_PHRASES` finds
+`test_every_exclusion_reason_the_pipeline_emits_has_a_phrase`, and the scoring weights find
+`test_every_risk_score_is_the_stated_combination_of_its_axes`. Five risk scores fell, each where a
+module change without a candidate gained one, and obligation lists changed in 13 of 100 pairs. No
+other finding's candidates moved, and the 18-case corpus is unchanged.
+
 ## Output-affecting corrections (2026-10-19, assignments named for state)
 
 `SDW-RULE-STATE` made every changed assignment a `state_transition_change`, whatever it assigned.

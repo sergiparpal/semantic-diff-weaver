@@ -7,6 +7,7 @@ duplicate definitions, cross-file moves, ambiguous near-ties, and the immutable 
 from __future__ import annotations
 
 import ast
+from dataclasses import replace
 
 import pytest
 
@@ -281,3 +282,44 @@ def test_a_module_loses_its_symbol_count_when_only_generic_deltas_are_dropped() 
 
     assert [item.symbol for item in filtered] == ["handler"]
     assert filtered_keys == {("a.py", "handler")}
+
+
+def _assignment_delta(old: str, new: str) -> StructuralDelta:
+    (delta,) = [
+        item
+        for item in analyze_ast(
+            [
+                SourceRevisionPair(
+                    path="m.py",
+                    old_path="m.py",
+                    new_path="m.py",
+                    hunks=(WIDE_HUNK,),
+                    old_text=old,
+                    new_text=new,
+                )
+            ]
+        ).deltas
+        if item.kind == "assignment_change"
+    ]
+    return delta
+
+
+def test_a_module_assignment_change_names_only_the_variables_that_changed() -> None:
+    """The delta shows every module-level assignment; its metadata says which changed."""
+    old = "REPO = '.'\nROOTS = ('a', 'b')\nDIGEST = 16\n"
+    delta = _assignment_delta(old, old.replace("'b')", "'b', 'c')"))
+    assert delta.symbol == "<module>"
+    assert "DIGEST = 16" in (delta.new or "")
+    assert delta.metadata["assigned_names"] == ["ROOTS"]
+    renamed = _assignment_delta(old, old.replace("ROOTS", "CODE_ROOTS"))
+    assert renamed.metadata["assigned_names"] == ["CODE_ROOTS", "ROOTS"]
+
+
+def test_a_snapshot_without_assignment_targets_names_no_variable() -> None:
+    old, new = (
+        {item.qualified_name: item for item in extract_symbols(source)}["<module>"]
+        for source in ("ROOTS = ('a',)\n", "ROOTS = ('a', 'b')\n")
+    )
+    (delta,) = compare_symbol("m.py", replace(old, assigned=()), new, (WIDE_HUNK,))
+    assert delta.kind == "assignment_change"
+    assert delta.metadata["assigned_names"] == []

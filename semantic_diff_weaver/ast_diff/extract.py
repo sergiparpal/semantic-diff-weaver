@@ -71,6 +71,22 @@ def category_probe(*nodes: ast.AST | None) -> CategoryProbe:
     return CategoryProbe(words=text, compares=compares)
 
 
+def _assigned_variables(*targets: ast.expr) -> frozenset[str]:
+    """The variables assignment targets write to: each name they bind or unpack into, and the
+    variable whose item or attribute they set, `HANDLERS` for `HANDLERS["run"] = ...`."""
+    names: set[str] = set()
+    pending = list(targets)
+    while pending:
+        target = pending.pop()
+        if isinstance(target, ast.Name):
+            names.add(target.id)
+        elif isinstance(target, (ast.Tuple, ast.List)):
+            pending.extend(target.elts)
+        elif isinstance(target, (ast.Starred, ast.Attribute, ast.Subscript)):
+            pending.append(target.value)
+    return frozenset(names)
+
+
 def parse_module(source: str) -> ast.Module:
     """Parse committed source, preferring type comments but never failing because of them.
 
@@ -180,6 +196,7 @@ class FeatureVisitor(ast.NodeVisitor):
         self.contexts: list[tuple[str, int]] = []
         self.statement_order: list[str] = []
         self.probes: dict[str, list[CategoryProbe]] = {name: [] for name in limits.PROBED_FEATURES}
+        self.assigned: list[frozenset[str]] = []
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         if node is self.root:
@@ -253,6 +270,7 @@ class FeatureVisitor(ast.NodeVisitor):
         # names state without moving any.
         self.assignments.append((text, lineno))
         self.probes["assignments"].append(category_probe(*targets))
+        self.assigned.append(_assigned_variables(*targets))
 
     def visit_Assign(self, node: ast.Assign) -> None:
         targets = ", ".join(unparse_redacted(item, 100) for item in node.targets)
@@ -389,6 +407,7 @@ def snapshot_symbol(node: ast.AST, qualified_name: str, kind: str) -> SymbolSnap
         statement_order=tuple(visitor.statement_order),
         node_inventory=node_inventory(body),
         probes={name: tuple(values) for name, values in visitor.probes.items()},
+        assigned=tuple(visitor.assigned),
         display=display,
     )
 

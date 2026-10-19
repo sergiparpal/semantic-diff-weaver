@@ -61,7 +61,9 @@ match only through evidence about their file — a mapping, a mirrored name, an 
 package import — cannot be told apart by it, so several of them stand as one candidate for the
 file, with the symbol `<module>`. A package's `__init__.py` is named by its package for each of
 them, and a test imports it by importing the package or a name the package binds, never by
-importing one of its modules. `call_graph.py` reads the head revision of the modules tests
+importing one of its modules. Top-level code is no name a test can use, but a changed assignment
+names the variables it writes to, so a test whose body or name uses one, as `CODE_ROOTS`, is listed
+on its own. `call_graph.py` reads the head revision of the modules tests
 import and of the changed ones, then follows their imports, under file, byte, and time bounds and
 the AST stage's parse budgets. For each symbol it keeps the names and attribute chains its code
 uses, and for each module what its imports bind, so `messages.unexpected_failure` resolves to a
@@ -147,8 +149,10 @@ same path, and above an uncovered one off it.
 **Obligations.** `generate_obligations` receives a per-behavior grounded state and prefers it
 over static candidate matching. Obligations merge by normalized Given/When/Then semantics only
 between behaviors with the same coverage status, so one obligation can stand for several
-behaviors while its status and candidate tests hold for each of them. The obligation that groups
-high-risk overflow past the global cap reports its least-tested behavior's status.
+behaviors while its status and candidate tests hold for each of them. Their candidates are pooled
+and cut to the per-obligation cap, and among equal scores the test files take turns, so one file's
+tests cannot fill every place. The obligation that groups high-risk overflow past the global cap
+reports its least-tested behavior's status.
 
 `AnalysisResult.coverage` reports what the report actually matched — source format, matched and
 unmatched file counts, and changed/covered/uncovered line counts — so a reader can audit the

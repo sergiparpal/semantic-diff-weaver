@@ -990,6 +990,24 @@ def map_candidate_tests(
         )
 
     @cache
+    def name_signals(name: str) -> tuple[frozenset[int], frozenset[int]]:
+        """The tests whose body uses a name, and those named after it."""
+        # Whole identifiers: by its words, `run` was in the body of every test that called
+        # `run_args_from(...)`, and every test name was in its own body through the `def` line.
+        key = bare_name(name)
+        bodied = frozenset(body_identifier_positions.get(key, ())) if key else frozenset()
+        # Whole words in sequence, as for a module: by single words, a compound name such as
+        # `pr_number` could never match `test_pr_number_rejects_zero`.
+        words = _name_words(name)
+        named = named_for(words) if words else frozenset()
+        if words and "_" not in words:
+            # A single word turns up in test names about something else — `run` in
+            # `test_evaluate_gets_its_options_as_run_args` — so it names the symbol only in a
+            # test whose body uses the symbol too.
+            named = named & bodied
+        return bodied, named
+
+    @cache
     def terminology_for(category: BehaviorCategory) -> frozenset[int]:
         terms = CATEGORY_PROFILES[category].test_terms
         return frozenset(
@@ -1014,19 +1032,18 @@ def map_candidate_tests(
         # threshold for modules it never touches. It now confirms a test name, never alone.
         package = package_imported_for(module) - imported
         ran = ran_for(module)
-        # Whole identifiers: by its words, `run` was in the body of every test that called
-        # `run_args_from(...)`, and every test name was in its own body through the `def` line.
         body_key = bare_name(name)
-        bodied = body_identifier_positions.get(body_key, empty) if body_key else empty
-        # Whole words in sequence, as for a module: by single words, a compound name such as
-        # `pr_number` could never match `test_pr_number_rejects_zero`.
-        words = _name_words(name)
-        named = named_for(words) if words else empty
-        if words and "_" not in words:
-            # A single word turns up in test names about something else — `run` in
-            # `test_evaluate_gets_its_options_as_run_args` — so it names the symbol only in a
-            # test whose body uses the symbol too.
-            named = named & bodied
+        bodied, named = name_signals(name)
+        # Top-level code is no name a test can use, but the variables its changed assignments
+        # write to are: a test reading `CODE_ROOTS` is about the tuple that gained an entry,
+        # where the rest of its file only imports the module.
+        changed_name = "symbol token"
+        if candidate.symbol == "<module>" and candidate.assigned_names:
+            changed_name = "module variable"
+            for variable in sorted(candidate.assigned_names):
+                variable_bodied, variable_named = name_signals(variable)
+                bodied |= variable_bodied
+                named |= variable_named
         stem = _distinctive_stem(candidate.path)
         module_named = named_for(stem) if stem else empty
         # The body only confirms a test already named after the module. On its own a module
@@ -1178,10 +1195,10 @@ def map_candidate_tests(
                 reasons.append("changed module's package imported")
             if test_position in named:
                 score += 0.20
-                reasons.append("changed symbol token in test name")
+                reasons.append(f"changed {changed_name} in test name")
             if test_position in mentioned:
                 score += 0.10
-                reasons.append("changed symbol token in bounded test body")
+                reasons.append(f"changed {changed_name} in bounded test body")
             # More than a body mention: the test exercises the symbol through what it calls.
             if test_position in reached:
                 score += 0.15
