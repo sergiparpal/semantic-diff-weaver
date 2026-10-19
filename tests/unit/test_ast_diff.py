@@ -123,3 +123,45 @@ def test_an_added_or_removed_symbol_shows_what_it_was_rather_than_its_signature(
         "from pkg import cli\nraise SystemExit(cli.main())"
     )
     assert deltas[("Args", "symbol_removed")].old == "class Args: pr: int"
+
+
+def _added(path: str, text: str) -> SourceRevisionPair:
+    lines = len(text.splitlines())
+    return SourceRevisionPair(
+        path=path,
+        old_path=None,
+        new_path=path,
+        hunks=(SourceHunk(id="hunk-001", old_start=0, old_count=0, new_start=1, new_count=lines),),
+        old_text=None,
+        new_text=text,
+    )
+
+
+def test_an_added_module_of_only_a_docstring_is_no_change() -> None:
+    """It runs nothing when imported, like an empty `__init__.py`, whose diff has no hunk.
+
+    A module that runs anything is still added, and a removed one still breaks what imported it.
+    """
+    docstring = '"""What the package is for."""\n'
+    result = analyze_ast(
+        [
+            _added("pkg/__init__.py", docstring),
+            _added("pkg/notes.py", "# Nothing runs here.\n"),
+            _added("pkg/exports.py", docstring + "from pkg.core import run\n"),
+        ]
+    )
+    assert [(item.path, item.symbol, item.kind) for item in result.deltas] == [
+        ("pkg/exports.py", "<module>", "symbol_added")
+    ]
+    assert result.changed_symbols == 1
+    removed = SourceRevisionPair(
+        path="pkg/__init__.py",
+        old_path="pkg/__init__.py",
+        new_path=None,
+        hunks=(SourceHunk(id="hunk-001", old_start=1, old_count=1, new_start=0, new_count=0),),
+        old_text=docstring,
+        new_text=None,
+    )
+    assert [(item.symbol, item.kind) for item in analyze_ast([removed]).deltas] == [
+        ("<module>", "symbol_removed")
+    ]

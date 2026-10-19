@@ -354,3 +354,24 @@ def test_the_refs_are_diffed_as_trees_so_a_branch_is_reviewed_from_its_merge_bas
     assert changed_symbols(moved_base) == {"allowed", "blocked"}
     assert git(repo, "merge-base", moved_base, head) == branch_point
     assert changed_symbols(branch_point) == {"allowed"}
+
+
+def test_a_new_package_reports_its_code_and_not_its_documented_init(repo_factory) -> None:
+    """A docstring-only `__init__.py` was reported as new behavior beside the package's code."""
+    repo, base, head = repo_factory(
+        {"README.md": "old\n"},
+        {
+            "README.md": "old\n",
+            "pkg/__init__.py": '"""What the package is for."""\n',
+            "pkg/core.py": "def run(x):\n    return x < 5\n",
+        },
+    )
+    result = analyze(
+        {"repo_path": str(repo), "base_ref": base, "head_ref": head, "output_format": "json"}
+    )
+    assert [
+        (item["evidence"][0]["path"], item["evidence"][0]["symbol"])
+        for item in result["behavior_changes"]
+    ] == [("pkg/core.py", "run")]
+    assert result["scope"]["changed_symbols"] == 1
+    assert "pkg/__init__.py" in result["scope"]["analyzed_files"]
