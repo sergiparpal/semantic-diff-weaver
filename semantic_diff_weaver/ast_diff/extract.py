@@ -247,15 +247,24 @@ class FeatureVisitor(ast.NodeVisitor):
         self.statement_order.append(f"return:{unparse_redacted(node.value, 120)}")
         self.generic_visit(node)
 
+    def _record_assignment(self, text: str, lineno: int, *targets: ast.expr) -> None:
+        # The probe reads the targets alone: what a value is written to tells state from
+        # configuration or data, while a value such as `get_state()` or `RandomState(0)`
+        # names state without moving any.
+        self.assignments.append((text, lineno))
+        self.probes["assignments"].append(category_probe(*targets))
+
     def visit_Assign(self, node: ast.Assign) -> None:
         targets = ", ".join(unparse_redacted(item, 100) for item in node.targets)
-        self.assignments.append((f"{targets} = {unparse_redacted(node.value, 250)}", node.lineno))
+        self._record_assignment(
+            f"{targets} = {unparse_redacted(node.value, 250)}", node.lineno, *node.targets
+        )
         self.statement_order.append(f"assign:{targets}")
         self.generic_visit(node)
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
         value = f"{unparse_redacted(node.target, 100)} = {unparse_redacted(node.value, 250)}"
-        self.assignments.append((value, node.lineno))
+        self._record_assignment(value, node.lineno, node.target)
         self.statement_order.append(f"assign:{unparse_redacted(node.target, 100)}")
         self.generic_visit(node)
 
@@ -264,7 +273,7 @@ class FeatureVisitor(ast.NodeVisitor):
             f"{unparse_redacted(node.target, 100)} {type(node.op).__name__}= "
             f"{unparse_redacted(node.value, 250)}"
         )
-        self.assignments.append((value, node.lineno))
+        self._record_assignment(value, node.lineno, node.target)
         self.statement_order.append(f"assign:{unparse_redacted(node.target, 100)}")
         self.generic_visit(node)
 

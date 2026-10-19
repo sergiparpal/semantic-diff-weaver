@@ -7,6 +7,7 @@
   "exception type": ["error_handling_change"],
   "inclusive boundary": ["boundary_change"],
   "mixed parseable and unparseable Python": ["boundary_change", "unknown_semantic_change"],
+  "module constant": ["unknown_semantic_change"],
   "moved renamed function": [],
   "no changed Python source": [],
   "output field": ["output_contract_change"],

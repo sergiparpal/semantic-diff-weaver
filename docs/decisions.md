@@ -118,6 +118,48 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-10-19, assignments named for state)
+
+`SDW-RULE-STATE` made every changed assignment a `state_transition_change`, whatever it assigned.
+On `adaptive-policy-compilation` `06cb75e..65f79f7`, adding `"escalations"` to the `CODE_ROOTS`
+tuple in `harness/provenance.py` became a state transition at 86% confidence. The category's
+impact of 78 made it the range's overall risk, 51 where every other finding scored 42, and its
+three obligations led the brief: verify an allowed transition, reject an invalid one, and repeat
+it, none of which a module constant has. The corpus never showed this, since its one assignment
+case assigns a local named `state`.
+
+An assignment is now a state transition only when what it writes to, or the symbol it is in, is
+named for state: `state`, `status`, or `transition`, singular or plural, as whole words the way
+the keyword rules split names, so `order_status` and `currentState` count. Any other is an
+`unknown_semantic_change`, "An assigned value changed without enough local contract context",
+on the footing of a condition no keyword explains: a 0.55 baseline and the assumption that
+whether the value is state, configuration, or data is unavailable to static analysis. The words
+come from a probe of the assignment's targets, built from the AST like the other probes, so
+neither prose in the value nor a value that merely names state counts: `get_state()` reads state
+and `RandomState(1)` makes a random generator, and neither moves one.
+
+Measured on every commit against its first parent. `adaptive-policy-compilation`'s 417 pairs on
+`origin/main` held 197 assignment classifications, all state transitions before; 194 are now
+unknown changes and 3 stay, each on a word rather than a state machine: a `status` holding
+`git status` output, a search's `_prefix_states`, and a verdict label named `state`. This
+repository's 98 pairs, one of them over the changed-line bound either way, held 329; 310 move and
+19 stay: 7 on the pipeline's `state`, 7 on coverage status, from `coverage_status` to the
+`CoverageStatus` enum, 2 on the `status` field of `InterpreterResult`, and 3 on git's
+`name_status`. No other classification moved, none of the moved ones was a state machine, and
+every risk score that changed fell: in 36 and 43 pairs respectively, with obligation counts
+changing in 47 and 50.
+
+`06cb75e..65f79f7` now scores 42, and its four obligations become one. That obligation is the one
+every unknown change of the range shares, so `tests/test_provenance.py`, the `CODE_ROOTS`
+change's candidate at 0.50, is pooled with the escalation tests at 0.60 and cut by the
+five-candidate cap — the pooling the merged-obligation entry below describes, not this rule.
+
+A new corpus case, `module constant`, pins a module-level constant as an unknown change. The
+other 17 goldens are unchanged, and precision and recall stay at 100%, now 16 of 16. One limit
+remains: the words are the targets of every assignment the delta shows, so an unchanged
+`state = ...` beside a changed `count = ...` still makes the change a state transition, as the
+condition and call rules read every value they show.
+
 ## Output-affecting corrections (2026-10-14, tables of functions and tests that only load)
 
 `_classify_condition` was led by `test_every_condition_site_records_its_probe`, which extracts

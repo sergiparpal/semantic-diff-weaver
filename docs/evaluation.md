@@ -2,9 +2,9 @@
 
 The MVP evaluation corpus is repository-local, deterministic, and derived from the supported
 taxonomy. Fixtures cover boundary/default/error/retry/authorization/output/state/dependency/
-side-effect/ordering changes, a return-annotation signature change, stable refactors, ambiguous
-syntax, a function move between files that both remain, no-Python changes, parse failure, and bounded
-oversized input.
+side-effect/ordering changes, a return-annotation signature change, a changed module constant that
+is not state, stable refactors, ambiguous syntax, a function move between files that both remain,
+no-Python changes, parse failure, and bounded oversized input.
 
 Metrics are calculated from machine-readable expected categories and evidence anchors:
 
@@ -25,12 +25,12 @@ fabricated evidence references, an obligation for every high/critical behavior, 
 described as verified coverage. The corpus is intentionally small and synthetic; it does not validate
 dynamic behavior or external business contracts.
 
-## Local result (corpus 2026-07-25, suite re-measured 2026-07-26)
+## Local result (corpus 2026-10-19, suite re-measured 2026-07-26)
 
-On CPython 3.12.3 / Linux with Git 2.43.0, the 17-case corpus (eleven material signature/taxonomy
-patterns plus refactor, ambiguity, cross-file move, no-Python, mixed-parse, and
-critical-prioritization cases) produced 100.00% material precision (15 of 15 predicted categories),
-100% supported-pattern recall (15 of 15), 100% evidence-anchor correctness, 100% required
+On CPython 3.12.3 / Linux with Git 2.43.0, the 18-case corpus (eleven material signature/taxonomy
+patterns plus refactor, ambiguity, module-constant, cross-file move, no-Python, mixed-parse, and
+critical-prioritization cases) produced 100.00% material precision (16 of 16 predicted categories),
+100% supported-pattern recall (16 of 16), 100% evidence-anchor correctness, 100% required
 obligation-concept match, and zero fabricated evidence references. Every high/critical finding had a
 linked obligation, and every candidate test remained explicitly unverified. The corpus now emits no
 prediction outside its reviewed expected labels.
@@ -57,10 +57,12 @@ coverage in every critical module — the lowest is `obligations.py` at 90.48%, 
 `ANTHROPIC_API_KEY` in the environment: no live LLM call or credential was used, and none is
 required.
 
-The corpus figures are dated 2026-07-25 and still hold after the 2026-07-26 review fixes:
-`tests/fixtures/golden/canonical_outputs.json` is byte-identical across them, and precision,
+The 17-case figures, dated 2026-07-25, held after the 2026-07-26 review fixes:
+`tests/fixtures/golden/canonical_outputs.json` was byte-identical across them, and precision,
 recall, evidence anchors, and obligation concepts are all computed from exactly those pinned
-analyses. See `docs/decisions.md`, "Output-affecting corrections (2026-07-26)".
+analyses. See `docs/decisions.md`, "Output-affecting corrections (2026-07-26)". The 2026-10-19
+`module constant` case added one predicted and one expected category, and left the other seventeen
+goldens unchanged; see "Output-affecting corrections (2026-10-19, assignments named for state)".
 
 An earlier 2026-07-19 entry also recorded 100% material precision, but that figure was never measured
 on the reviewed 17-case corpus: the two `ordering_change` findings are present in the reviewed

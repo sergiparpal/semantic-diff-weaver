@@ -1142,6 +1142,120 @@
       "Could not parse changed Python source 'src/bad.py'; analysis is incomplete."
     ]
   },
+  "module constant": {
+    "analysis_id": "<analysis-id>",
+    "behavior_changes": [
+      {
+        "assumptions": [
+          "Whether the value is state, configuration, or data is unavailable to static analysis."
+        ],
+        "category": "unknown_semantic_change",
+        "confidence": 0.68,
+        "evidence": [
+          {
+            "hunk_id": "src/case.py#hunk-001",
+            "id": "ev-001",
+            "kind": "assignment_change",
+            "new": "ROOTS = ('core', 'tools', 'reports')",
+            "new_lines": {
+              "end": 5,
+              "start": 1
+            },
+            "old": "ROOTS = ('core', 'tools')",
+            "old_lines": {
+              "end": 5,
+              "start": 1
+            },
+            "parser_complete": true,
+            "path": "src/case.py",
+            "symbol": "<module>"
+          }
+        ],
+        "id": "bc-001",
+        "observable_impact": "Code that reads the value may now behave differently; the observable effect needs review.",
+        "origin": "deterministic_fallback",
+        "presentation": "finding",
+        "risk": "medium",
+        "risk_score": 49,
+        "score_explanation": {
+          "behavioral_impact": 55.0,
+          "change_surface_weight": 30.0,
+          "critical_path_weight": 10.0,
+          "test_gap_weight": 90.0
+        },
+        "summary": "An assigned value changed without enough local contract context."
+      }
+    ],
+    "coverage": null,
+    "deterministic_mode": true,
+    "limitations": [
+      "Candidate test mapping is static and does not prove runtime coverage.",
+      "Only committed Python source at the resolved refs was inspected.",
+      "Repository code and tests were not imported, executed, built, installed, or modified.",
+      "No model interpreted the findings; each comes from a deterministic structural rule."
+    ],
+    "llm": {
+      "attempted": false,
+      "available": false,
+      "calls": 0,
+      "failures": 0,
+      "usage": null
+    },
+    "repository": {
+      "base_commit": "<base-commit>",
+      "base_ref": "<base-ref>",
+      "head_commit": "<head-commit>",
+      "head_ref": "<head-ref>",
+      "path": "."
+    },
+    "schema_version": "1.1",
+    "scope": {
+      "analyzed_files": [
+        "src/case.py"
+      ],
+      "changed_files_total": 1,
+      "changed_lines": 2,
+      "changed_symbols": 1,
+      "excluded_counts": {},
+      "omitted": [],
+      "truncated": false
+    },
+    "success": true,
+    "summary": {
+      "behavior_changes": 1,
+      "changed_files": 1,
+      "changed_symbols": 1,
+      "overall_confidence": 0.68,
+      "overall_risk": "medium",
+      "risk_counts": {
+        "critical": 0,
+        "high": 0,
+        "low": 0,
+        "medium": 1
+      },
+      "risk_score": 49,
+      "test_obligations": 1
+    },
+    "test_obligations": [
+      {
+        "behavior_change_ids": [
+          "bc-001"
+        ],
+        "candidate_existing_tests": [],
+        "confidence": 0.68,
+        "coverage_status": "no_candidate_found",
+        "given": "The missing runtime or business contract is identified",
+        "id": "to-001",
+        "origin": "deterministic_fallback",
+        "priority": 60,
+        "then": "Expected observable outcomes are documented and tested",
+        "title": "Clarify and characterize the changed contract",
+        "type": "review",
+        "when": "The changed cases are reviewed"
+      }
+    ],
+    "warnings": []
+  },
   "moved renamed function": {
     "analysis_id": "<analysis-id>",
     "behavior_changes": [],

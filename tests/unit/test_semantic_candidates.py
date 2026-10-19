@@ -49,6 +49,10 @@ def delta(kind: str, old: str | None, new: str | None) -> StructuralDelta:
             delta("assignment_change", "state = old", "state = new"),
             BehaviorCategory.STATE_TRANSITION,
         ),
+        (
+            delta("assignment_change", "ROOTS = ('a',)", "ROOTS = ('a', 'b')"),
+            BehaviorCategory.UNKNOWN,
+        ),
         (delta("call_change", None, "notify(user)"), BehaviorCategory.SIDE_EFFECT),
         (delta("call_order_change", "first; second", "second; first"), BehaviorCategory.ORDERING),
         (

@@ -34,7 +34,8 @@ FEATURE_NAMES: tuple[str, ...] = (
 
 # The features whose deltas the category rules search for keywords, and so the only ones that
 # record a probe (see `extract.category_probe`). The other kinds are classified by structure alone.
-PROBED_FEATURES: tuple[str, ...] = ("comparisons", "conditions", "calls")
+# An assignment's probe covers its targets only, not the value it assigns.
+PROBED_FEATURES: tuple[str, ...] = ("comparisons", "conditions", "calls", "assignments")
 MAX_PROBE_CHARS_PER_FEATURE = 500
 # A safety bound only: a side's probe already covers no more values than its display text.
 MAX_PROBE_CHARS_PER_SIDE = 3_000

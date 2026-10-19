@@ -32,11 +32,14 @@ matching, and comparison phases and counts as spent once reached, so a coarse pl
 let an exhausted budget read as live.
 
 Deterministic rules create evidence before model use. Their term-based probes read the changed
-expressions together with the symbol name, because names carry authorization, validation, and retry
-meaning. For comparisons, conditions, and calls they read a probe built from the AST at extraction
-rather than the display text: identifiers, attribute and keyword names, and string literals without
-whitespace (keys, headers, permission names), but not literals containing whitespace, whose words are
-prose about the code. A probe covers exactly the values the delta's bounded display text shows. The
+expressions together with the symbol name, because names carry authorization, validation, retry, and
+state meaning. For comparisons, conditions, calls, and assignments they read a probe built from the
+AST at extraction rather than the display text: identifiers, attribute and keyword names, and string
+literals without whitespace (keys, headers, permission names), but not literals containing
+whitespace, whose words are prose about the code. An assignment's probe holds its targets only, so a
+changed assignment is a state transition when what it writes to, or its symbol, is named for state;
+any other is an unknown change for review. A probe covers exactly the values the delta's bounded
+display text shows. The
 condition rule's boundary check reads the same probe: whether a value contains an ordering or
 equality comparison (`<`, `<=`, `>`, `>=`, `==`, `!=`), taken from its operators and never from
 characters in its text, where a literal's `'<'`, a shift, or a synthetic `<module>` name would count

@@ -132,6 +132,35 @@ def test_every_condition_site_records_its_probe(body: str) -> None:
     assert snapshot.probes["conditions"] == (CategoryProbe(words="value limit", compares=True),)
 
 
+@pytest.mark.parametrize(
+    ("body", "words"),
+    [
+        pytest.param("    order.status = compute(value)\n", {"order", "status"}, id="attribute"),
+        pytest.param("    total: int = value\n", {"total"}, id="annotated"),
+        pytest.param("    total += value\n", {"total"}, id="augmented"),
+        pytest.param("    first = second = value\n", {"first", "second"}, id="chained"),
+        pytest.param("    head, *tail = value\n", {"head", "tail"}, id="unpacked"),
+        pytest.param("    cache[key] = value\n", {"cache", "key"}, id="subscript"),
+    ],
+)
+def test_every_assignment_site_records_a_probe_of_its_targets(body: str, words: set[str]) -> None:
+    """Assignments record their probe beside their value, read from what they assign to.
+
+    Values and probes are paired by position, like conditions, so a site recording only the
+    value would turn any analysis changing such an assignment into an `internal_error`.
+    """
+    snapshot = _calls(f"def run(order, cache, key, value):\n{body}")
+    assert len(snapshot.probes["assignments"]) == len(snapshot.features["assignments"])
+    (probe,) = snapshot.probes["assignments"]
+    assert set(probe.words.split()) == words
+
+
+def test_an_assignment_probe_leaves_out_the_value() -> None:
+    """`get_state()` reads state and `'Invalid state'` is prose: neither is written to state."""
+    snapshot = _calls("def run():\n    total = get_state('Invalid state')\n")
+    assert snapshot.probes["assignments"] == (CategoryProbe(words="total", compares=False),)
+
+
 def test_a_snapshot_without_probes_falls_back_to_display_text() -> None:
     snapshot = _calls("def run():\n    step()\n")
     assert join_probes(replace(snapshot, probes={}), snapshot, "calls") is None
@@ -258,6 +287,66 @@ def test_classification_reads_code_not_prose(
     assert expected in categories
     if absent is not None:
         assert absent not in categories
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "expected", "absent"),
+    [
+        pytest.param(
+            "ROOTS = ('core', 'tools')\n",
+            "ROOTS = ('core', 'tools', 'reports')\n",
+            "unknown_semantic_change",
+            "state_transition_change",
+            id="a-module-constant-is-not-state",
+        ),
+        pytest.param(
+            "def width(text):\n    margin = 2\n    return len(text) + margin\n",
+            "def width(text):\n    margin = 4\n    return len(text) + margin\n",
+            "unknown_semantic_change",
+            "state_transition_change",
+            id="a-local-variable-is-not-state",
+        ),
+        pytest.param(
+            "def explain(code):\n    message = 'Invalid state transition'\n    return message\n",
+            "def explain(code):\n    message = 'Invalid transition'\n    return message\n",
+            "unknown_semantic_change",
+            "state_transition_change",
+            id="prose-in-the-value-is-not-state",
+        ),
+        pytest.param(
+            "def pick(items):\n    chooser = RandomState(1)\n    return chooser.choice(items)\n",
+            "def pick(items):\n    chooser = RandomState(2)\n    return chooser.choice(items)\n",
+            "unknown_semantic_change",
+            "state_transition_change",
+            id="a-value-naming-state-is-not-state",
+        ),
+        pytest.param(
+            "def close(order):\n    order.status = 'closing'\n",
+            "def close(order):\n    order.status = 'closed'\n",
+            "state_transition_change",
+            "unknown_semantic_change",
+            id="an-attribute-named-for-state",
+        ),
+        pytest.param(
+            "def advance_state(machine):\n    step = 1\n    return machine.run(step)\n",
+            "def advance_state(machine):\n    step = 2\n    return machine.run(step)\n",
+            "state_transition_change",
+            "unknown_semantic_change",
+            id="a-symbol-named-for-state",
+        ),
+    ],
+)
+def test_an_assignment_is_a_state_change_only_when_named_for_state(
+    repo_factory, old: str, new: str, expected: str, absent: str
+) -> None:
+    """A changed assignment used to be a state transition whatever it assigned.
+
+    A module constant gaining an entry, `CODE_ROOTS` in a real project, became the top
+    obligations to test an allowed, an invalid, and a repeated transition.
+    """
+    categories = _categories(repo_factory, old, new)
+    assert expected in categories
+    assert absent not in categories
 
 
 def _condition_evidence(repo_factory, old: str, new: str) -> tuple[str, dict]:
