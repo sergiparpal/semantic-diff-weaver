@@ -9,6 +9,7 @@ import semantic_diff_weaver.ast_diff.limits as ast_limits
 import semantic_diff_weaver.service as service
 from semantic_diff_weaver.plugin import handle_analyze_semantic_diff
 from semantic_diff_weaver.service import _read_readme_excerpt, analyze
+from tests.conftest import git
 
 
 @pytest.mark.parametrize("output_format", ["json", "markdown", "both"])
@@ -320,3 +321,36 @@ def test_critical_path_prioritization_is_explicit_in_canonical_scope(repo_factor
     assert result["scope"]["analyzed_files"] == ["critical.py"]
     assert result["scope"]["truncated"] is True
     assert any(item["reason"] == "resource_prioritization" for item in result["scope"]["omitted"])
+
+
+def test_the_refs_are_diffed_as_trees_so_a_branch_is_reviewed_from_its_merge_base(
+    repo_factory,
+) -> None:
+    """A base that moved on after the branch point reads as the branch reverting its commits.
+
+    The Claude Code skill passes `git merge-base <base> HEAD` as `base_ref` for this reason.
+    Against the moved base, the branch appears to undo the base's own change to `blocked`;
+    against the merge-base, only the branch's change to `allowed` remains.
+    """
+    source = "def allowed(x):\n    return x {}\n\n\ndef blocked(x):\n    return x {}\n"
+    repo, branch_point, head = repo_factory(
+        {"api.py": source.format("< 5", "> 9")}, {"api.py": source.format("<= 5", "> 9")}
+    )
+    git(repo, "checkout", "-q", "--detach", branch_point)
+    (repo / "api.py").write_text(source.format("< 5", ">= 9"), encoding="utf-8", newline="")
+    git(repo, "commit", "-q", "--all", "-m", "the base moves on")
+    moved_base = git(repo, "rev-parse", "HEAD")
+
+    def changed_symbols(base: str) -> set[str]:
+        result = analyze(
+            {"repo_path": str(repo), "base_ref": base, "head_ref": head, "output_format": "json"}
+        )
+        return {
+            evidence["symbol"]
+            for behavior in result["behavior_changes"]
+            for evidence in behavior["evidence"]
+        }
+
+    assert changed_symbols(moved_base) == {"allowed", "blocked"}
+    assert git(repo, "merge-base", moved_base, head) == branch_point
+    assert changed_symbols(branch_point) == {"allowed"}
