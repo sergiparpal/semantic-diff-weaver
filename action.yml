@@ -13,9 +13,11 @@ branding:
 # dependency surface stays visible in this file instead of inside a registry artifact.
 inputs:
   base-ref:
-    description: Base revision. Defaults to the pull request's base commit.
+    description: >-
+      Base revision, compared as given. Defaults to where the pull request's head branched off
+      its base branch: the merge-base of the two.
     required: false
-    default: ${{ github.event.pull_request.base.sha }}
+    default: ""
   head-ref:
     description: Head revision. Defaults to the pull request's head commit.
     required: false
@@ -71,30 +73,50 @@ runs:
       shell: bash
       run: python -m pip install --disable-pip-version-check "${{ github.action_path }}"
 
-    - name: Verify the base revision is present
+    - name: Resolve the base revision
+      id: revisions
       shell: bash
       env:
         BASE_REF: ${{ inputs.base-ref }}
         HEAD_REF: ${{ inputs.head-ref }}
+        PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        PR_BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
       run: |
         set -euo pipefail
-        if [ -z "${BASE_REF}" ]; then
+        present() { git cat-file -e "$1^{commit}" 2>/dev/null; }
+        missing() {
+          echo "::error::Revision '$1' is not present locally. Check out with actions/checkout and fetch-depth: 0 — the analyzer reads committed Git objects and never fetches." >&2
+          exit 1
+        }
+        head="${HEAD_REF:-HEAD}"
+        present "${head}" || missing "${head}"
+        if [ -n "${BASE_REF}" ]; then
+          present "${BASE_REF}" || missing "${BASE_REF}"
+          exit 0
+        fi
+        if [ -z "${PR_BASE_SHA}" ]; then
           echo "::error::base-ref is empty. Set it explicitly when the event is not a pull_request." >&2
           exit 1
         fi
-        for ref in "${BASE_REF}" "${HEAD_REF}"; do
-          [ -z "${ref}" ] && continue
-          if ! git cat-file -e "${ref}^{commit}" 2>/dev/null; then
-            echo "::error::Revision '${ref}' is not present locally. Check out with actions/checkout and fetch-depth: 0 — the analyzer reads committed Git objects and never fetches." >&2
-            exit 1
-          fi
-        done
+        # The event's base commit is the base branch as it stood when the pull request opened,
+        # and the analyzer compares two trees as they are: from there, commits the branch gained
+        # later read as reverted, or as the pull request's own once merged into its head. Review
+        # from where the head branched off the base branch as checked out, which fetch-depth: 0
+        # brings, or else off the event's base commit.
+        tip="refs/remotes/origin/${PR_BASE_BRANCH}"
+        present "${tip}" || tip="${PR_BASE_SHA}"
+        present "${tip}" || missing "${PR_BASE_SHA}"
+        if ! base="$(git merge-base "${tip}" "${head}")"; then
+          echo "::error::The head shares no history with the pull request's base branch. Set base-ref explicitly." >&2
+          exit 1
+        fi
+        echo "base=${base}" >> "${GITHUB_OUTPUT}"
 
     - name: Analyze the diff
       id: analyze
       shell: bash
       env:
-        BASE_REF: ${{ inputs.base-ref }}
+        BASE_REF: ${{ steps.revisions.outputs.base || inputs.base-ref }}
         HEAD_REF: ${{ inputs.head-ref }}
         INCLUDE_GLOBS: ${{ inputs.include }}
         EXCLUDE_GLOBS: ${{ inputs.exclude }}

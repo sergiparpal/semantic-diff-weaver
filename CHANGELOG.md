@@ -13,6 +13,15 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Fix:** the GitHub Action reviews a pull request from where it branched off. `base-ref`
+  defaulted to `github.event.pull_request.base.sha`, the base branch as it stood when the pull
+  request opened, and the analyzer compares two trees as they are: commits the base branch gained
+  before then read as reverted by the pull request, and once the head merged the base branch, as
+  its own. Unless `base-ref` is set, the action now reviews from `git merge-base` of the base
+  branch as checked out, which `fetch-depth: 0` already fetches, and the head, with the event's
+  base commit standing in when that branch is missing. An explicit `base-ref` is compared as
+  given.
+
 - **Fix:** an obligation that several findings share no longer gives every place to one test
   file. Findings sharing an obligation pool their candidate tests, cut to five, and among equal
   scores the cut went by path: on `adaptive-policy-compilation`, a new package's 37 findings and a

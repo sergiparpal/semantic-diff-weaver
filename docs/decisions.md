@@ -128,6 +128,25 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-10-19, the GitHub Action's base revision)
+
+The action's `base-ref` defaulted to `github.event.pull_request.base.sha`, and the analyzer
+compares two trees as they are. That commit is the base branch as it stood when the pull request
+opened, not where its head branched off, as Ruff found for its own change detection
+(astral-sh/ruff#16857). Commits the base branch gained before the pull request opened read as
+reverted by it, and once the head merged the base branch, the commits it brought in read as the
+pull request's own. The skill passes a merge-base for the same reason; see the Claude Code plugin
+entry.
+
+Unless `base-ref` is set, a step now resolves the base as `git merge-base` of the base branch as
+checked out, `refs/remotes/origin/<base>`, and the head. `fetch-depth: 0`, which the action
+already requires, fetches every branch; if that ref is still missing, the event's base commit
+stands in, which covers a base that moved on but not one merged into the head. An explicit
+`base-ref` is compared as given, and an event without a pull request still fails asking for one.
+`tests/contract/test_github_action.py` runs the step's own script on both histories, the fallback,
+an explicit base, and the two failures. The analyzer is unchanged, and so is the 18-case corpus:
+what changes is the range an action run reviews.
+
 ## Output-affecting corrections (2026-10-19, pooled candidates from several test files)
 
 Behaviors that share an obligation pool their candidate tests, which are cut to five, and among
