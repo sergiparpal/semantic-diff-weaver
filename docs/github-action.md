@@ -57,13 +57,28 @@ The analyzer reads committed Git objects and **never fetches** — no network, n
 commit, so without `fetch-depth: 0` the base revision simply is not on disk.
 
 The action checks for this before analyzing and fails with an explicit message naming the
-missing revision, rather than silently analyzing the wrong range.
+missing revision, rather than silently analyzing the wrong range. The full fetch also brings the
+base branch itself, from which the action finds where the pull request branched off.
+
+## The base is where the pull request branched off
+
+The analyzer compares the base and head trees as they are. The event's
+`github.event.pull_request.base.sha` is the base branch as it stood when the pull request was
+opened, not where the head branched off: compared from it, commits the base branch gained before
+the pull request opened read as reverted by it, and once the head merges the base branch, the
+commits it brings in read as the pull request's own.
+
+So unless `base-ref` is set, the action reviews from `git merge-base` of the base branch as
+checked out, `refs/remotes/origin/<base>`, and the head. If that ref is missing, as with a
+checkout that fetches only some branches, the event's base commit stands in for it: that still
+covers a base that moved on, but not one merged into the head. A `base-ref` you set is compared
+as given.
 
 ## Inputs
 
 | Input | Default | Meaning |
 | --- | --- | --- |
-| `base-ref` | `${{ github.event.pull_request.base.sha }}` | base revision |
+| `base-ref` | *(where the pull request branched off)* | base revision, compared as given |
 | `head-ref` | `${{ github.event.pull_request.head.sha }}` | head revision |
 | `include` | *(empty)* | newline-separated include globs |
 | `exclude` | *(empty)* | newline-separated exclude globs |
@@ -75,8 +90,8 @@ missing revision, rather than silently analyzing the wrong range.
 
 Outputs: `analysis` (path to the JSON envelope under `RUNNER_TEMP`) and `overall-risk`.
 
-Set `base-ref` explicitly on any event that is not `pull_request` — the default expression is
-empty there, and the action fails with a message saying so rather than guessing a range.
+Set `base-ref` explicitly on any event that is not `pull_request` — there is no pull request to
+branch off, and the action fails with a message saying so rather than guessing a range.
 
 ## Passing a coverage report from a prior job
 

@@ -13,6 +13,46 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Fix:** the GitHub Action reviews a pull request from where it branched off. `base-ref`
+  defaulted to `github.event.pull_request.base.sha`, the base branch as it stood when the pull
+  request opened, and the analyzer compares two trees as they are: commits the base branch gained
+  before then read as reverted by the pull request, and once the head merged the base branch, as
+  its own. Unless `base-ref` is set, the action now reviews from `git merge-base` of the base
+  branch as checked out, which `fetch-depth: 0` already fetches, and the head, with the event's
+  base commit standing in when that branch is missing. An explicit `base-ref` is compared as
+  given.
+
+- **Fix:** an obligation that several findings share no longer gives every place to one test
+  file. Findings sharing an obligation pool their candidate tests, cut to five, and among equal
+  scores the cut went by path: on `adaptive-policy-compilation`, a new package's 37 findings and a
+  changed `CODE_ROOTS` tuple shared one obligation, every candidate scored 0.60, and all five
+  places went to `tests/test_escalations.py`. Among equal scores the test files now take turns,
+  so that obligation shows three of those tests and both tests reading `CODE_ROOTS`. A lower score
+  never comes before a higher one, and no finding, score, or coverage status moves; 65 of 493
+  obligations there and 184 of 726 on this repository show other tests.
+
+- **Fix:** the tests that read a changed module variable are named. A change to a module's
+  top-level code has the symbol `<module>`, which no test can name, so its tests stood only as
+  their file: adding an entry to `adaptive-policy-compilation`'s `CODE_ROOTS` tuple got
+  `tests/test_provenance.py` as a whole file, although two of its tests read the tuple. An
+  assignment change now carries the variables it writes to, `CODE_ROOTS` alone among the
+  module's assignments, and a test whose body or name uses one is listed by name with the reason
+  `changed module variable in bounded test body` or `changed module variable in test name`; the
+  rest of its file still stands as the file. Over their first-parent histories, 31 module findings
+  of `adaptive-policy-compilation` gain 86 named tests and 31 of this repository's gain 55, and
+  five risk scores fall where a module change without a candidate gains one.
+
+- **Fix:** a changed assignment is a state transition only when it is named for state.
+  `SDW-RULE-STATE` made every changed assignment a `state_transition_change`, so adding an entry
+  to a module constant, `CODE_ROOTS`, led a brief with obligations to verify, reject, and repeat
+  a transition, and set its overall risk at 51 where every other finding scored 42. The rule now
+  needs `state`, `status`, or `transition` in what the assignment writes to or in its symbol's
+  name, read from the AST so that prose and values do not count; any other changed assignment is
+  an `unknown_semantic_change` under the new `SDW-RULE-UNKNOWN-ASSIGNMENT`. Of 197 assignment
+  classifications on `adaptive-policy-compilation` and 329 on this repository, 194 and 310 move
+  to unknown, no other classification moves, and every risk score that changes falls. A new
+  corpus case, `module constant`, keeps it, and the corpus stays at 100% precision and recall.
+
 - **Fix:** a test that runs a changed function comes before one that only loads its module.
   `semantic_candidates.py` runs its classifiers from `CLASSIFIERS`, a table no call names them in,
   so the call graph reached `_classify_condition` only by loading the module, alike for every test
