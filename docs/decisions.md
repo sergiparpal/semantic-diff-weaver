@@ -128,6 +128,25 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-10-19, pooled candidates from several test files)
+
+Behaviors that share an obligation pool their candidate tests, which are cut to five, and among
+equal scores the cut went by path. On `adaptive-policy-compilation` `06cb75e..65f79f7`, the
+`CODE_ROOTS` change shares its obligation with 37 findings of a new package. Every candidate
+scored 0.60, so all five places went to `tests/test_escalations.py`, and the two tests reading
+`CODE_ROOTS`, found by name since the entry below, never showed.
+
+Among equal scores the test files now take turns: each file's first test in the old order, then
+each file's second, and so on. A lower score still never comes before a higher one, and only
+pooled lists are reordered. The range's obligation now shows three escalation tests and both
+tests of `CODE_ROOTS`.
+
+Measured on the same pairs as the entry below, against it. On `adaptive-policy-compilation`, 65
+of 493 obligations show other tests and 18 only reorder them, and the distinct test files in
+those 65 lists go from 100 to 187. On this repository, 184 of 726 show other tests and 37 reorder
+them, with test files going from 490 to 723. No finding, score, or coverage status moves, and the
+18-case corpus is unchanged.
+
 ## Output-affecting corrections (2026-10-19, tests that read a changed module variable)
 
 A change to a module's top-level code has the symbol `<module>`, which no test can name, so its

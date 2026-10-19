@@ -149,8 +149,10 @@ same path, and above an uncovered one off it.
 **Obligations.** `generate_obligations` receives a per-behavior grounded state and prefers it
 over static candidate matching. Obligations merge by normalized Given/When/Then semantics only
 between behaviors with the same coverage status, so one obligation can stand for several
-behaviors while its status and candidate tests hold for each of them. The obligation that groups
-high-risk overflow past the global cap reports its least-tested behavior's status.
+behaviors while its status and candidate tests hold for each of them. Their candidates are pooled
+and cut to the per-obligation cap, and among equal scores the test files take turns, so one file's
+tests cannot fill every place. The obligation that groups high-risk overflow past the global cap
+reports its least-tested behavior's status.
 
 `AnalysisResult.coverage` reports what the report actually matched — source format, matched and
 unmatched file counts, and changed/covered/uncovered line counts — so a reader can audit the

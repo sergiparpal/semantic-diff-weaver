@@ -349,3 +349,44 @@ def test_grouped_overflow_counts_the_absorbed_obligation_as_omitted() -> None:
         behavior_id for obligation in obligations for behavior_id in obligation.behavior_change_ids
     }
     assert linked == {"bc-001", "bc-002", "bc-003"}
+
+
+def test_pooled_candidates_of_equal_score_take_turns_between_test_files() -> None:
+    """Ordered by path, one file took every place, and a behavior tested elsewhere showed none.
+
+    A test of lower score still never comes before one of higher score.
+    """
+
+    def candidate(path: str, symbol: str, score: float) -> CandidateTest:
+        return CandidateTest(
+            path=path,
+            symbol=symbol,
+            match_score=score,
+            match_reasons=["direct module or symbol import"],
+        )
+
+    package = [candidate("tests/test_escalations.py", f"test_{index}", 0.6) for index in range(5)]
+    roots = [
+        candidate("tests/test_provenance.py", "test_does_not_include_the_tests", 0.6),
+        candidate("tests/test_provenance.py", "test_every_root_is_named", 0.6),
+        candidate("tests/test_writer_lists.py", "test_it_walks_the_roots", 0.35),
+    ]
+    best = candidate("tests/test_zones.py", "test_the_strongest_match", 0.7)
+    obligations, _ = generate_obligations(
+        [
+            behavior(BehaviorCategory.BOUNDARY, index=1),
+            behavior(BehaviorCategory.BOUNDARY, index=2),
+        ],
+        {"bc-001": package, "bc-002": [*roots, best]},
+        False,
+        WeaverConfig().rules,
+    )
+    assert obligations
+    for obligation in obligations:
+        assert [(item.path, item.symbol) for item in obligation.candidate_existing_tests] == [
+            ("tests/test_zones.py", "test_the_strongest_match"),
+            ("tests/test_escalations.py", "test_0"),
+            ("tests/test_provenance.py", "test_does_not_include_the_tests"),
+            ("tests/test_escalations.py", "test_1"),
+            ("tests/test_provenance.py", "test_every_root_is_named"),
+        ]

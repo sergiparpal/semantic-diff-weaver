@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
@@ -36,6 +37,10 @@ def _merge_candidate_tests(
 
     Two behaviors can match one test for different reasons. Their union shown beside the best
     score no longer added up to it: a test at 0.60 listed four reasons worth 0.80.
+
+    Among equal scores the test files take turns. Ordered by path, every place of an obligation
+    that a new package's findings shared with a changed `CODE_ROOTS` tuple went to
+    `test_escalations.py`, and none of the tests reading the tuple showed.
     """
     merged: dict[tuple[str, str], CandidateTest] = {
         (item.path, item.symbol): item.model_copy(deep=True) for item in current
@@ -44,7 +49,15 @@ def _merge_candidate_tests(
         key = (item.path, item.symbol)
         if key not in merged or item.match_score > merged[key].match_score:
             merged[key] = item.model_copy(deep=True)
-    return sorted(merged.values(), key=lambda item: (-item.match_score, item.path, item.symbol))
+    turns: Counter[tuple[float, str]] = Counter()
+    ranked: list[tuple[tuple[float, int, str, str], CandidateTest]] = []
+    for item in sorted(
+        merged.values(), key=lambda item: (-item.match_score, item.path, item.symbol)
+    ):
+        turn = turns[(item.match_score, item.path)]
+        turns[(item.match_score, item.path)] += 1
+        ranked.append(((-item.match_score, turn, item.path, item.symbol), item))
+    return [item for _, item in sorted(ranked, key=lambda pair: pair[0])]
 
 
 def _coverage_status(
