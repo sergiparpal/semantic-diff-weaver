@@ -97,11 +97,12 @@ The CLI then adds the evidence-backed inference layer to the deterministic findi
 defaults to `claude-opus-5` and is overridable with `--model ID` or `SEMANTIC_DIFF_WEAVER_MODEL`.
 `--no-llm` skips provider resolution entirely.
 
-The adapter shapes each request to what the named model family accepts — sampling parameters are
-dropped for families that removed them, and the `thinking` parameter is omitted entirely for
-families whose thinking is always on rather than sent as disabled. A parameter a family rejects
-fails *every* call, and the run then degrades to deterministic findings with only a generic
-per-batch warning to show for it. So check an override against the prefix lists in
+The adapter never sends sampling parameters, which API version 2026-10-21, the default from SDK
+2.0, rejects on every model. It shapes `thinking` to what the named model family accepts: the
+parameter is omitted for families whose thinking is always on, sent as `between_tools` to
+`claude-sonnet-5-5`, and sent as disabled everywhere else. A parameter a family rejects fails
+*every* call, and the run then degrades to deterministic findings with only a generic per-batch
+warning to show for it. So check an override against the prefix lists in
 `semantic_diff_weaver/providers/anthropic_client.py` before setting it in CI; the reasoning is in
 [docs/decisions.md](docs/decisions.md).
 
