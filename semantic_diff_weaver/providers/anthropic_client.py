@@ -7,23 +7,23 @@ already understands.
 
 Two request-shape decisions are load-bearing and are not arbitrary:
 
-*Sampling parameters are omitted on models that reject them.* `semantic_interpreter._call`
-passes `temperature=0.1`, but `temperature`, `top_p`, and `top_k` were removed on the current
-model generation and a request carrying one returns HTTP 400. Forwarding the value verbatim
-would make every call fail on the default model, so it is forwarded only to models that still
-accept it. Where it is forwarded, it goes through `extra_body` rather than as a keyword
-argument: SDK 1.0 removed `temperature` from the `messages.create` signature, so the keyword
-raises `TypeError` before any request is sent, while `extra_body` is merged into the request
-JSON unchanged on every SDK version the extra allows.
+*Sampling parameters are never sent.* `semantic_interpreter._call` passes `temperature=0.1`,
+but API version 2026-10-21, the default from SDK 2.0, returns HTTP 400 for `temperature`,
+`top_p`, or `top_k` on every model, and the current model generation already did on the version
+SDK 1.x sends. Forwarding the value only through older SDKs would make the same call sample
+differently depending on which SDK release happens to be installed, so it is not forwarded at
+all: models that still honor it sample at their default.
 
-*Thinking is disabled where the model allows it.* `max_tokens` caps thinking and response
+*Thinking is turned off where the model allows it.* `max_tokens` caps thinking and response
 text together, and the interpreter's budget is deliberately small. With thinking on by default
 on current models, a 2000-token budget can be consumed before the JSON is emitted, truncating
-it. Disabling thinking keeps the caller's bound meaningful, and the response is
-schema-constrained anyway. On model families whose thinking is always on, an explicit
-`disabled` is rejected with HTTP 400, so the parameter is omitted for them rather than sent —
-forwarding it unconditionally failed *every* call on those models and silently collapsed the
-whole analysis into deterministic fallback.
+it. Turning thinking off keeps the caller's bound meaningful, and the response is
+schema-constrained anyway. Most families turn it off with `{"type": "disabled"}`; Claude Sonnet
+5.5 rejects that with HTTP 400 and takes `{"type": "between_tools"}`, which no other family
+accepts. On families whose thinking is always on, any value that turns it off is rejected with
+HTTP 400, so the parameter is omitted for them rather than sent — forwarding `disabled`
+unconditionally failed *every* call on those models and silently collapsed the whole analysis
+into deterministic fallback.
 """
 
 from __future__ import annotations
@@ -37,24 +37,19 @@ MODEL_ENV = "SEMANTIC_DIFF_WEAVER_MODEL"
 API_KEY_ENV = "ANTHROPIC_API_KEY"
 DEFAULT_MODEL = "claude-opus-5"
 
-# Model families that removed `temperature`/`top_p`/`top_k`; sending one returns HTTP 400.
-# Matched as prefixes so dated snapshots and aliases behave identically.
-SAMPLING_REMOVED_PREFIXES = (
-    "claude-fable-5",
-    "claude-mythos-5",
-    "claude-opus-5",
-    "claude-opus-4-8",
-    "claude-opus-4-7",
-    "claude-sonnet-5",
-)
-
-# Model families whose thinking is always on: an explicit `{"type": "disabled"}` returns HTTP
-# 400 at any effort level, and the parameter has to be omitted entirely. Matched as prefixes so
+# Model families whose thinking is always on: any value that turns it off returns HTTP 400 at
+# every effort level, and the parameter has to be omitted entirely. Matched as prefixes so
 # dated snapshots and aliases behave identically.
 THINKING_ALWAYS_ON_PREFIXES = (
     "claude-fable-5",
     "claude-mythos-5",
+    "claude-opus-5-5",
 )
+
+# Model families that return HTTP 400 for `{"type": "disabled"}` and turn thinking off with
+# `{"type": "between_tools"}` instead, which every other family rejects. Matched as prefixes,
+# so `claude-sonnet-5` itself is not one of them.
+THINKING_BETWEEN_TOOLS_PREFIXES = ("claude-sonnet-5-5",)
 
 # The interpreter reads the structured payload out of a response shaped like this.
 CONTENT_TYPE_JSON = "json"
@@ -95,13 +90,13 @@ def resolve_model(override: str | None = None) -> str:
     return configured if configured else DEFAULT_MODEL
 
 
-def accepts_sampling_parameters(model: str) -> bool:
-    return not model.startswith(SAMPLING_REMOVED_PREFIXES)
-
-
-def accepts_disabled_thinking(model: str) -> bool:
-    """Whether the model tolerates an explicit ``thinking: {"type": "disabled"}``."""
-    return not model.startswith(THINKING_ALWAYS_ON_PREFIXES)
+def thinking_parameter(model: str) -> dict[str, str] | None:
+    """The ``thinking`` value that turns thinking off on `model`, or None to omit it."""
+    if model.startswith(THINKING_ALWAYS_ON_PREFIXES):
+        return None
+    if model.startswith(THINKING_BETWEEN_TOOLS_PREFIXES):
+        return {"type": "between_tools"}
+    return {"type": "disabled"}
 
 
 class AnthropicClient:
@@ -155,6 +150,7 @@ class AnthropicClient:
         purpose: str,
     ) -> StructuredResult:
         del schema_name, purpose  # Recorded by the caller; the request shape has no slot.
+        del temperature  # Never sent: see the module docstring.
         request: dict[str, Any] = {
             "model": self.model,
             "max_tokens": max_tokens,
@@ -162,12 +158,10 @@ class AnthropicClient:
             "messages": [{"role": "user", "content": self._content_blocks(input)}],
             "output_config": {"format": {"type": "json_schema", "schema": json_schema}},
         }
-        if accepts_disabled_thinking(self.model):
+        thinking = thinking_parameter(self.model)
+        if thinking is not None:
             # See the module docstring: keeps `max_tokens` a bound on the answer itself.
-            request["thinking"] = {"type": "disabled"}
-        if accepts_sampling_parameters(self.model):
-            # Not a keyword argument: SDK 1.x rejects it client-side (see the module docstring).
-            request["extra_body"] = {"temperature": temperature}
+            request["thinking"] = thinking
 
         try:
             transport = self._transport.with_options(timeout=timeout)

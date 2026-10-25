@@ -128,6 +128,36 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Anthropic requests carry no sampling parameters (2026-10-25)
+
+SDK 2.0 of `anthropic` sends API version 2026-10-21 by default, and on it a Messages request that
+carries `temperature`, `top_p`, or `top_k` returns HTTP 400 on every model. The adapter sent
+`temperature` 0.1 through `extra_body` to the families that still honored it on 2023-06-01, so
+under SDK 2.x every call to them would have failed and collapsed into deterministic fallback, the
+failure mode recorded under *Anthropic request shaping is per model family*. CI could not show it:
+the extra is absent from the development environment, so no test runs the SDK itself.
+
+The value is no longer sent on any SDK release. Sending it only through releases before 2.0 would
+make the same call sample differently depending on which SDK is installed, and pinning
+`anthropic-version: 2023-06-01` on those calls would keep a second request shape alive for the
+oldest models only, on a version the SDK no longer sends. Those families, Claude 4.6 and earlier,
+now sample at their default temperature, 1.0, instead of 0.1. Their output is still
+schema-constrained and checked against the evidence, and the default model, `claude-opus-5`, never
+received the value.
+
+Two newer families were shaped wrongly for thinking, with the same silent fallback. Claude Opus 5.5
+rejects `{"type": "disabled"}` at every effort level, so it is sent no `thinking` parameter, like
+Fable and Mythos. Claude Sonnet 5.5 rejects it too and is sent `{"type": "between_tools"}`, which
+turns its thinking off and which no other family accepts. Claude Haiku 5.5 rejected only the 0.1
+temperature.
+
+The extra's floor rises from 0.40 to 0.77, the first release whose `messages.create` accepts
+`output_config`; below it, every call raised `TypeError` before it was sent. All of this was
+checked offline against a local stub server with releases 0.76.0, 0.77.0, 1.17.0, and 2.3.0,
+recording the version header and request body each one sends. The deterministic analysis never
+reaches the adapter, so no golden output, schema, taxonomy value, error code, or evidence ID
+changes.
+
 ## Output-affecting corrections (2026-10-19, modules that are only a docstring)
 
 An added module was a `symbol_added` finding whenever its diff had a hunk, even with nothing but a
@@ -1246,6 +1276,10 @@ the generic "One structured LLM batch failed" warning, and the analysis then col
 deterministic fallback — a supported, non-erroring mode. Nothing in the output says the request
 shape was at fault. A model override (`--model`, `SEMANTIC_DIFF_WEAVER_MODEL`) therefore has to be
 shaped as deliberately as the default, `claude-opus-5`.
+
+The sampling half of this record was superseded on 2026-10-25: no family is sent sampling
+parameters any more, and Claude Opus 5.5 and Claude Sonnet 5.5 are shaped for thinking of their
+own. See *Anthropic requests carry no sampling parameters*.
 
 ## Coverage-artifact grounding (2026-07-25)
 

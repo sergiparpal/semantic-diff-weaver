@@ -13,6 +13,28 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Fix:** the Anthropic adapter works with SDK 1.x and 2.x, and no longer sends `temperature`.
+  The extra allowed only 0.x releases, and the adapter passed `temperature` 0.1 to the models
+  that still honor it, such as `claude-sonnet-4-6`, as a keyword argument that SDK 1.0 removed.
+  Routing it through `extra_body` instead would not survive SDK 2.0, which sends API version
+  2026-10-21, on which `temperature`, `top_p`, and `top_k` return HTTP 400 on every model. Both
+  failures send every call to deterministic mode without an error. The value is now never sent:
+  those models sample at their default temperature instead of 0.1, the default model,
+  `claude-opus-5`, never received it, and `claude-haiku-5-5`, which rejects anything but the
+  default, now works. See `docs/decisions.md`.
+
+- **Fix:** the `anthropic` extra no longer admits releases before 0.77. Every request carries
+  `output_config`, which `messages.create` accepts only from 0.77, so on 0.40 through 0.76, which
+  the extra allowed, each call raised `TypeError` before it was sent and fell back to
+  deterministic mode. The extra is now `anthropic>=0.77,<3`.
+
+- **Fix:** `claude-opus-5-5` and `claude-sonnet-5-5` no longer fall back to deterministic mode on
+  every call. The adapter turns thinking off so the interpreter's small `max_tokens` bounds the
+  JSON, and sent both `{"type": "disabled"}`, which each rejects with HTTP 400. Claude Opus 5.5's
+  thinking is always on, so it is now sent no `thinking` parameter, as the Fable and Mythos
+  families are; Claude Sonnet 5.5 is sent `{"type": "between_tools"}`, its way of turning
+  thinking off.
+
 - **Fix:** an added module that is only a docstring is no longer a finding. Each package of
   `adaptive-policy-compilation` opens with an `__init__.py` that only describes it, and each was
   reported as new behavior beside the package's functions, while an empty `__init__.py`, whose
@@ -417,12 +439,6 @@
   reported; entry points were matched as substrings, so a line under the wrong group or a
   near-miss target such as `cli:main_legacy` passed; and the install phase never ran the
   installed `semantic-diff-weaver-mcp`, which it now asks for its tool list.
-
-- **Fix:** send `temperature` to the Anthropic SDK through `extra_body` instead of as a keyword
-  argument. SDK 1.0 removed the keyword from `messages.create`, so with `anthropic>=1` every
-  call on a model that still honors sampling (for example `claude-sonnet-4-6`) raised
-  `TypeError`, surfaced as `ProviderUnavailable`, and fell back to deterministic mode without an
-  error. The default model was unaffected. Behavior on 0.x SDKs is unchanged.
 
 ## 0.3.0 - 2026-07-30
 

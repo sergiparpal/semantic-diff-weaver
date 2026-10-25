@@ -17,7 +17,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-anthropic = ["anthropic>=0.40,<2"]
+# 0.77 is the first release whose `messages.create` accepts `output_config`, which every request
+# the adapter sends carries; on an older one each call raises `TypeError` before it is sent.
+anthropic = ["anthropic>=0.77,<3"]
 
 [project.scripts]
 semantic-diff-weaver = "semantic_diff_weaver.cli:main"

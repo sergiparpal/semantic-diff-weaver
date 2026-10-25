@@ -10,11 +10,14 @@ from __future__ import annotations
 import builtins
 import json
 import sys
+import tomllib
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
+from packaging.requirements import Requirement
 
 from semantic_diff_weaver.llm_client import LlmClient
 from semantic_diff_weaver.providers.anthropic_client import (
@@ -23,11 +26,12 @@ from semantic_diff_weaver.providers.anthropic_client import (
     MODEL_ENV,
     AnthropicClient,
     ProviderUnavailable,
-    accepts_disabled_thinking,
-    accepts_sampling_parameters,
     resolve_model,
+    thinking_parameter,
 )
 from semantic_diff_weaver.schemas import LLM_RESPONSE_SCHEMA, LLM_SCHEMA_NAME
+
+PYPROJECT = Path(__file__).resolve().parents[2] / "pyproject.toml"
 
 VALID_PAYLOAD: dict[str, Any] = {"behavior_changes": [], "notes": []}
 
@@ -153,22 +157,22 @@ def test_thinking_is_disabled_so_max_tokens_bounds_the_answer() -> None:
     assert transport.messages.requests[0]["thinking"] == {"type": "disabled"}
 
 
-def test_temperature_is_omitted_on_models_that_reject_it() -> None:
-    """Current models return HTTP 400 for `temperature`; forwarding it would fail every call."""
-    client, transport = _client(_json_response())
+@pytest.mark.parametrize(
+    "model", [DEFAULT_MODEL, "claude-sonnet-4-6", "claude-haiku-4-5", "claude-haiku-5-5"]
+)
+def test_sampling_parameters_are_never_sent(model: str) -> None:
+    """API version 2026-10-21, the default from SDK 2.0, rejects them with HTTP 400 on every model.
+
+    `temperature` reached the models that still honored it through `extra_body`, which every SDK
+    release merges into the request JSON, so on SDK 2.0 each of those calls would fail and
+    silently become deterministic mode. `claude-haiku-5-5` rejects a non-default value on every
+    API version.
+    """
+    client, transport = _client(_json_response(), model=model)
     _call(client)
     request = transport.messages.requests[0]
-    assert "temperature" not in request
-    assert "top_p" not in request
-    assert "extra_body" not in request
-
-
-def test_temperature_is_honored_on_models_that_still_accept_it() -> None:
-    client, transport = _client(_json_response(), model="claude-haiku-4-5")
-    _call(client)
-    request = transport.messages.requests[0]
-    assert request["extra_body"] == {"temperature": 0.1}
-    assert "temperature" not in request
+    for name in ("temperature", "top_p", "top_k", "extra_body"):
+        assert name not in request
 
 
 def test_temperature_never_reaches_the_sdk_as_a_keyword_argument() -> None:
@@ -178,19 +182,21 @@ def test_temperature_never_reaches_the_sdk_as_a_keyword_argument() -> None:
     assert result.parsed == VALID_PAYLOAD
 
 
-@pytest.mark.parametrize(
-    ("model", "accepted"),
-    [
-        ("claude-opus-5", False),
-        ("claude-sonnet-5", False),
-        ("claude-opus-4-8", False),
-        ("claude-fable-5", False),
-        ("claude-haiku-4-5", True),
-        ("claude-sonnet-4-6", True),
-    ],
-)
-def test_sampling_support_is_decided_per_model(model: str, accepted: bool) -> None:
-    assert accepts_sampling_parameters(model) is accepted
+def test_the_extra_admits_no_sdk_without_output_config() -> None:
+    """Every request carries `output_config`, which `messages.create` only accepts from 0.77.
+
+    The floor was 0.40: on any release below 0.77 each call raised `TypeError` client-side,
+    surfaced as `ProviderUnavailable`, and the analysis fell back to deterministic mode.
+    """
+    pyproject = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+    [requirement] = [
+        Requirement(text) for text in pyproject["project"]["optional-dependencies"]["anthropic"]
+    ]
+    assert requirement.name == "anthropic"
+    assert not requirement.specifier.contains("0.76.0")
+    assert requirement.specifier.contains("0.77.0")
+    # SDK 2.0 sends API version 2026-10-21, which this request shape is built for.
+    assert requirement.specifier.contains("2.3.0")
 
 
 def test_malformed_json_is_a_schema_failure() -> None:
@@ -335,20 +341,42 @@ def test_a_present_key_builds_a_client(monkeypatch: MonkeyPatch) -> None:
     assert client.model == "claude-sonnet-5"
 
 
-def test_thinking_is_omitted_on_models_that_reject_disabling_it() -> None:
+@pytest.mark.parametrize("model", ["claude-fable-5", "claude-mythos-5", "claude-opus-5-5"])
+def test_thinking_is_omitted_on_models_that_reject_turning_it_off(model: str) -> None:
     """Always-on-thinking families return HTTP 400 for an explicit `disabled`.
 
     Sending it unconditionally failed every call on those models, and the interpreter mapped
     that to `ProviderUnavailable` — so the analysis silently ran in deterministic mode with no
     indication the model had been rejecting the request shape outright.
     """
-    client, transport = _client(_json_response(), model="claude-fable-5")
+    client, transport = _client(_json_response(), model=model)
     _call(client)
     assert "thinking" not in transport.messages.requests[0]
 
 
-def test_disabled_thinking_is_decided_by_model_family() -> None:
-    assert accepts_disabled_thinking("claude-opus-5") is True
-    assert accepts_disabled_thinking("claude-haiku-4-5") is True
-    assert accepts_disabled_thinking("claude-fable-5") is False
-    assert accepts_disabled_thinking("claude-mythos-5") is False
+def test_sonnet_5_5_turns_thinking_off_between_tools() -> None:
+    """It returns HTTP 400 for `disabled`, the value the other families that allow it take."""
+    client, transport = _client(_json_response(), model="claude-sonnet-5-5")
+    _call(client)
+    assert transport.messages.requests[0]["thinking"] == {"type": "between_tools"}
+
+
+@pytest.mark.parametrize(
+    ("model", "expected"),
+    [
+        ("claude-opus-5", {"type": "disabled"}),
+        ("claude-opus-4-8", {"type": "disabled"}),
+        ("claude-sonnet-5", {"type": "disabled"}),
+        ("claude-haiku-5-5", {"type": "disabled"}),
+        ("claude-haiku-4-5", {"type": "disabled"}),
+        ("claude-sonnet-5-5", {"type": "between_tools"}),
+        ("claude-opus-5-5", None),
+        ("claude-fable-5-1", None),
+        ("claude-mythos-5", None),
+    ],
+)
+def test_the_thinking_parameter_is_decided_by_model_family(
+    model: str, expected: dict[str, str] | None
+) -> None:
+    """Prefix matching keeps `claude-opus-5` and `claude-sonnet-5` apart from their 5.5 successors."""
+    assert thinking_parameter(model) == expected
