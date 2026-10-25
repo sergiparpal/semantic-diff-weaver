@@ -32,11 +32,13 @@ Use four-space indentation, explicit UTF-8 encodings, type annotations, and a 10
 
 Pytest files and functions use `test_*.py` and `test_*`. Add unit tests for algorithms, contract tests for interfaces, and integration tests for end-to-end behavior. Security-sensitive changes require adversarial regressions. Maintain at least 85% overall coverage and 90% branch coverage for every critical module named in `scripts/check_coverage.py` — the boundary and transport modules plus the `ast_diff/` and `git_diff/` packages. Tests must be offline and deterministic; use fake Hermes LLM responses.
 
-## Commit & Merge Guidelines
+## Commit & Pull Request Guidelines
 
-History uses Conventional Commit subjects, for example `feat: implement semantic diff weaver MVP`. Continue with `feat:`, `fix:`, `test:`, or `docs:`. A commit message body should explain behavior and contract impact and call out security, schema, evaluation, or documentation changes.
+History uses Conventional Commit subjects, for example `feat: implement semantic diff weaver MVP`. Continue with `feat:`, `fix:`, `test:`, or `docs:`. Commit message bodies and pull requests should explain behavior and contract impact and call out security, schema, evaluation, or documentation changes; a pull request also links issues and lists the commands run. Include screenshots only when rendered Markdown changes materially.
 
-This is a **local-only repository**: there is no remote, no pull request, and no hosted CI. Work on a branch, then merge into `main` once the local gate passes. The gate is what the `ci` workflow under `.github/workflows/` would have run, and it is the bar for every merge:
+`main` is protected by a branch ruleset: **direct pushes are rejected**, and merging requires the `ci-complete` status check to pass. Nobody can bypass it, the repository owner included. So the loop is branch, push, open a PR, let CI go green, merge. Review approvals are **not** required (the count is 0) — a solo change stays a one-person operation, gated by CI rather than by a second pair of eyes.
+
+Before pushing, run the local gate, which is what the `test` and `action-pins` jobs run:
 
 ```bash
 python -m pytest --cov=semantic_diff_weaver --cov-branch --cov-report=json:coverage.json
@@ -47,9 +49,11 @@ python scripts/check_action_pins.py
 python -m build && python scripts/verify_wheel.py dist
 ```
 
-The workflows are kept so the repository can be published again without rebuilding its CI. While it stays local they run nowhere and Dependabot does not update them, so nothing else checks the matrix of Python versions and operating systems or the `hermes-compatibility` job; run `python scripts/verify_hermes.py` against an installed wheel when a change touches Hermes registration. If the repository is published again, restore the `main` ruleset requiring the aggregating `ci-complete` check, and add any new job to its `needs:` list.
+CI also covers what the local gate cannot: the matrix of Python versions and operating systems, and the `hermes-compatibility` job. When a change touches Hermes registration, `python scripts/verify_hermes.py` against an installed wheel reproduces that job locally.
 
-GitHub Actions in those workflows stay pinned to **full commit SHAs** with a trailing `# vX.Y.Z` comment, never to tags. `scripts/check_action_pins.py` enforces this offline and also compares the workflows against the YAML quoted in `README.md` and `docs/`, so update the docs alongside any pin change or the check fails.
+`ci-complete` is a single aggregating job that fails unless `test`, `action-pins`, and `hermes-compatibility` all succeeded. **Any new job must be added to its `needs:` list**, or it silently stops gating anything. The ruleset requires that one stable name rather than the individual matrix legs on purpose: a dropped Python version would otherwise become a required check that never reports again and would block every merge permanently. The `pr-review` workflow is deliberately outside the gate — it is dogfooding, not a check.
+
+GitHub Actions are pinned to **full commit SHAs** with a trailing `# vX.Y.Z` comment, never to tags. Here that is not just convention but an enforced policy: `scripts/check_action_pins.py` runs offline in `ci` on every PR (so a Dependabot bump fails immediately rather than a week later) and again in the weekly `action-pins` cron with `--verify-remote --check-latest`. It also compares the workflows against the YAML quoted in `README.md` and `docs/`, which Dependabot never rewrites — so update the docs alongside any pin change or the check fails.
 
 ## Security & Configuration Tips
 
