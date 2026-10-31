@@ -27,7 +27,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0        # required — see below
-      - uses: sergiparpal/semantic-diff-weaver@v0.4.1
+      - uses: sergiparpal/semantic-diff-weaver@v0.5.0
         with:
           include: |
             src/**/*.py
@@ -46,7 +46,7 @@ SHAs deliberately.
 
 That reasoning does not stop applying because the action is this one, so **no moving major tag is
 published**. There is no `@v0` to float on: the examples name the immutable release tag
-`@v0.4.1`, and a full commit SHA is equally accepted if you want exactly the guarantee you are
+`@v0.5.0`, and a full commit SHA is equally accepted if you want exactly the guarantee you are
 asking of `actions/checkout`. Upgrades are a deliberate edit, and `CHANGELOG.md` says what each
 one changes.
 
@@ -88,8 +88,8 @@ as given.
 | `comment` | `true` | post or update the pull-request comment |
 | `python-version` | `3.12` | interpreter used to run the analyzer |
 
-Outputs: `analysis` (path to the JSON envelope under `RUNNER_TEMP`), `overall-risk`, and, added
-after 0.4.1, `verdict`: `pass`, `warn`, or `review_required`, as `docs/configuration.md` describes.
+Outputs: `analysis` (path to the JSON envelope under `RUNNER_TEMP`), `overall-risk`, and, from
+0.5.0, `verdict`: `pass`, `warn`, or `review_required`, as `docs/configuration.md` describes.
 
 Set `base-ref` explicitly on any event that is not `pull_request` — there is no pull request to
 branch off, and the action fails with a message saying so rather than guessing a range.
@@ -122,7 +122,7 @@ jobs:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: coverage
-      - uses: sergiparpal/semantic-diff-weaver@v0.4.1
+      - uses: sergiparpal/semantic-diff-weaver@v0.5.0
         with:
           coverage-report: coverage.json
 ```

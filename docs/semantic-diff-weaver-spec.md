@@ -883,10 +883,10 @@ The MVP is complete when all of the following are true:
 
 ## 24. Roadmap
 
-Status on 2026-10-31, at release 0.4.1. The phase labels are this plan's, not package versions:
-the package reached 0.4.1 with v0.1 done, parts of v0.2 and half of v0.4 shipped, and v0.3 not
-started. It also ships what the plan did not foresee, a standalone CLI and a Claude Code plugin
-over MCP, beside the Hermes plugin.
+Status on 2026-10-31, at release 0.5.0. The phase labels are this plan's, not package versions:
+the package reached 0.5.0 with v0.1 and v0.4 done, parts of v0.2 shipped, and v0.3 not started.
+It also ships what the plan did not foresee, a standalone CLI and a Claude Code plugin over MCP,
+beside the Hermes plugin.
 
 ### v0.1 — Advisory semantic test plan (done)
 
@@ -916,7 +916,7 @@ over MCP, beside the Hermes plugin.
 - Human approval required before writing files.
 - Patch output only; no direct commit.
 
-### v0.4 — CI and pull-request integration (partly done)
+### v0.4 — CI and pull-request integration (done)
 
 - GitHub Action wrapper. *Done:* `action.yml`, `docs/github-action.md`.
 - PR comment renderer. *Done:* `scripts/pr_comment.py`, one comment updated in place.
