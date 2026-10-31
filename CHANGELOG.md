@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.6.1 - 2026-10-31
+
+A changed call is classified by what it reaches. A call to the module's own code — its functions and
+classes, its classes' methods, and builtins that compute in-process — is an unknown change, not a
+dependency interaction with obligations about a dependency's failures; the call rule reads its
+keywords from the calls that changed; and a new warning is a side effect. The schema stays at 1.2
+and no field, taxonomy value, or error code changes, but ranges that change calls are classified
+differently, mostly from a dependency interaction to an unknown change: their findings and
+obligations fall, and a range's highest risk falls in 31 pairs and rises in 2. The correction is
+measured in `docs/decisions.md`.
 
 - **Fix:** a changed call to the module's own code is no longer a dependency interaction.
   `SDW-RULE-DEPENDENCY` made every changed call that no keyword explained a

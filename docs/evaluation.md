@@ -34,12 +34,14 @@ critical-prioritization cases) produced 100.00% material precision (16 of 16 pre
 obligation-concept match (16 of 16), and zero fabricated evidence references. Every high/critical
 finding had a linked obligation, and every candidate test remained explicitly unverified. The corpus
 now emits no prediction outside its reviewed expected labels. The 2026-10-31 re-measurements for
-0.4.0, 0.4.1, 0.5.0, and 0.6.0 found the same figures. Of 0.4.1's corrections only the
+0.4.0, 0.4.1, 0.5.0, 0.6.0, and 0.6.1 found the same figures. Of 0.4.1's corrections only the
 output-contract one reaches the corpus: the `return annotation signature` case is now worded as a
 change to typing alone, at 0.80 confidence instead of 0.879, and keeps its category, risk, and
 obligations. 0.5.0 gives every case a verdict, 3 `pass`, 12 `warn`, and 3 `review_required`, and a
 `null` baseline, without changing a finding, risk, confidence, or obligation. 0.6.0 changes no
-golden: its baseline lives in the GitHub Action's comment.
+golden: its baseline lives in the GitHub Action's comment. Nor does 0.6.1: the corpus's one
+dependency case changes a call on a client passed in as a parameter, which stays a dependency
+interaction.
 
 The previous measurement on this same corpus was 88.24% precision (15 of 17). The two surplus
 predictions were both `ordering_change` findings produced by comparing `statement_order` tuples for
@@ -53,17 +55,18 @@ went into the analyzer, consistent with the 2026-07-17 fixture-label review. See
 `docs/decisions.md`, "Output-affecting corrections (2026-07-25, statement ordering)".
 
 The deterministic performance suite covers a 100-symbol AST fixture, a 500-symbol mass-rename
-matching fixture, a warmed full-service fixture with 40 files, 3,000 changed lines, and 100
-symbols, and a chain of calls on instances across a call graph at its module limit, with five-,
-two-, five-, and five-second ceilings respectively. They completed in approximately 0.02, 0.45,
-0.42, and 0.89 seconds in the 0.6.0 timing run, the same across three steady runs; one run before
-them, under load, took 1.30 seconds for the last. The code these fixtures run is unchanged since
-0.5.0, which timed 0.02, 0.42, 0.38, and 0.79 seconds on the same machine, so the difference is
-the machine's. The 0.4.0 run, earlier on 2026-10-31, measured 0.04, 1.52, 0.37, and 1.84
-seconds, and `v0.3.0` the same 1.5 seconds for the mass-rename fixture then: the machine was slower
-at that hour, not the code, and that fixture is back at a fifth of its ceiling, as on 2026-07-26.
+matching fixture, a warmed full-service fixture with 40 files, 3,000 changed lines, and 100 symbols,
+and a chain of calls on instances across a call graph at its module limit, with five-, two-, five-,
+and five-second ceilings respectively. They completed in approximately 0.02, 0.44, 0.40, and 0.88
+seconds in the 0.6.1 timing run, across three runs in which the last took 0.86 to 0.92. 0.6.0 timed
+0.02, 0.45, 0.42, and 0.89 seconds on the same machine, so telling a call to the module's own code
+from a dependency costs nothing measurable; one 0.6.0 run under load took 1.30 seconds for the last,
+and 0.5.0 timed 0.02, 0.42, 0.38, and 0.79 on code 0.6.0 left unchanged. The 0.4.0 run, earlier on
+2026-10-31, measured 0.04, 1.52, 0.37, and 1.84 seconds, and `v0.3.0` the same 1.5 seconds for the
+mass-rename fixture then: the machine was slower at that hour, not the code, and that fixture is
+back at a fifth of its ceiling, as on 2026-07-26.
 
-The complete automated suite reports 97.03% overall branch-aware coverage across 1,020 passing tests
+The complete automated suite reports 97.04% overall branch-aware coverage across 1,046 passing tests
 and one skip, the real-Hermes discovery test, with at least 90% branch coverage in every critical
 module — the lowest is `git_diff/` at 91.84%, followed by `path_policy.py` at 92.42%,
 `semantic_interpreter.py` at 92.62%, and `config.py` at 94.29%. `cli.py`, `coverage_map.py`, and
