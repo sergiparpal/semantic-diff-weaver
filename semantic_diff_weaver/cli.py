@@ -72,6 +72,14 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--baseline",
+        metavar="PATH",
+        help=(
+            "an earlier analysis of this repository, as --format json or both wrote it, to mark "
+            "findings new, updated, unchanged, or resolved; read as untrusted data"
+        ),
+    )
+    parser.add_argument(
         "--format",
         default="markdown",
         choices=("json", "markdown", "both"),
@@ -180,6 +188,8 @@ def _request(namespace: argparse.Namespace) -> dict[str, Any]:
         request["risk_profile"] = namespace.risk_profile
     if namespace.coverage is not None:
         request["coverage_report"] = namespace.coverage
+    if namespace.baseline is not None:
+        request["baseline_report"] = namespace.baseline
     return request
 
 

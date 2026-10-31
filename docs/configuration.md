@@ -162,3 +162,23 @@ mixed or unknown range keeps the existing `candidate_exists_unverified` / `no_ca
 semantics. `CandidateTest.verified` stays `false` in every case: coverage says a *line* was
 executed by the suite, not that a specific candidate test asserts the changed behavior.
 
+
+## Baseline comparison
+
+An analysis can be compared with an earlier one of the same repository, as a pull request moves
+on: `--baseline PATH` on the command line or `baseline_report` in the tool arguments names the
+JSON an earlier run wrote with `--format json` or `--format both`. Like a coverage report, the
+file is untrusted input data: bounded by `rules.max_baseline_bytes` (20 MB by default, clamped to
+`[1024, 200000000]`), read as strict UTF-8, authorized like `risk_profile`, and read only for the
+fields the comparison needs. Any 1.x schema is accepted.
+
+Each finding is matched by its category, path, and symbol, the key findings are grouped by within
+one analysis, and `baseline` in the result lists this analysis's finding IDs as `new`, `updated`
+when the finding's evidence changed since, or `unchanged`, besides the baseline's findings no
+longer reported, as `resolved`. Line numbers are left out of the comparison, so an unrelated edit
+above a symbol does not make its finding updated. The brief says how many fall in each group,
+marks new and updated findings beside their IDs, and names each resolved finding by its category,
+path, symbol, and risk — never by the baseline's prose, which could otherwise write into the brief.
+
+An unreadable, malformed, oversized, or non-1.x baseline, or a `--format markdown` brief, is a
+`baseline_unreadable` error rather than an analysis that silently compared nothing.

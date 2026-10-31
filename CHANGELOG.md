@@ -3,8 +3,17 @@
 ## Unreleased
 
 - **Breaking (schema):** `SCHEMA_VERSION` is now `"1.2"`. `summary` gains a required `verdict`,
-  `pass`, `warn`, or `review_required`. Every existing field and value is unchanged, but a
-  consumer that validates the summary strictly sees a new field and needs a version signal.
+  `pass`, `warn`, or `review_required`, and the analysis an optional `baseline` object, `null`
+  without a baseline. Every existing field and value is unchanged, but a consumer that validates
+  the result strictly sees new fields and needs a version signal. `baseline_unreadable` is a new,
+  additive error code.
+- **Feature:** compare with an earlier analysis. `--baseline PATH`, or `baseline_report` in the
+  tool arguments, names the JSON an earlier run wrote; each finding is then `new`, `updated`, or
+  `unchanged`, matched by category, path, and symbol and compared without line numbers, and the
+  earlier findings no longer reported are `resolved`. The brief counts each group and marks new
+  and updated findings beside their IDs. The baseline is untrusted input: bounded by the new
+  `rules.max_baseline_bytes`, validated field by field, and never rendered by its own prose, so a
+  crafted file cannot write into the brief. An unusable one is a `baseline_unreadable` error.
 - **Feature:** an advisory verdict. The summary says `pass`, `warn`, or `review_required`, read
   from the overall risk under the new `verdict` configuration section — `warn` from `warn_at`,
   `medium` by default, and `review_required` from `review_required_at`, `high` by default, either

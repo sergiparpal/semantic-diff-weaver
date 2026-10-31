@@ -140,6 +140,43 @@ def _fenced_summary(label: str, text: str) -> list[str]:
     return [f"    {label}: {line}" for line in safe.splitlines() or [""]]
 
 
+def _baseline_lines(result: AnalysisResult) -> list[str]:
+    """How the findings stand against an earlier analysis, and nothing at all without one.
+
+    A resolved finding is shown by its category, path, symbol, and risk only: the baseline is an
+    untrusted file, and those are the fields of it that were validated. Its IDs are the earlier
+    analysis's own and are not quoted, since IDs number positions within one result.
+    """
+    baseline = result.baseline
+    if baseline is None:
+        return []
+    lines = [
+        (
+            f"**Since the baseline** (`{baseline.analysis_id}` at `{baseline.head_commit[:12]}`): "
+            f"{len(baseline.new)} new, {len(baseline.updated)} updated, "
+            f"{len(baseline.unchanged)} unchanged, {len(baseline.resolved)} resolved."
+        )
+    ]
+    if baseline.resolved:
+        resolved = "; ".join(
+            f"{item.category.value} in `{_escape(item.path)}::{_escape(item.symbol)}` "
+            f"({item.risk.value} risk)"
+            for item in baseline.resolved
+        )
+        lines.append(f"**Resolved since the baseline:** {resolved}.")
+    return lines
+
+
+def _baseline_marks(result: AnalysisResult) -> dict[str, str]:
+    """The mark each finding new or updated since the baseline carries next to its ID."""
+    if result.baseline is None:
+        return {}
+    return {
+        **{item: " · new" for item in result.baseline.new},
+        **{item: " · updated" for item in result.baseline.updated},
+    }
+
+
 def _coverage_lines(result: AnalysisResult) -> list[str]:
     """One line describing an ingested coverage report, and nothing at all without one.
 
@@ -191,6 +228,7 @@ def render_markdown(result: AnalysisResult, *, excerpt_chars: int | None = None)
         ),
         *_scope_reason_lines(result),
         *_coverage_lines(result),
+        *_baseline_lines(result),
         *_excerpt_lines(excerpt_chars),
         "",
         "### Inferred behavior changes",
@@ -200,6 +238,7 @@ def render_markdown(result: AnalysisResult, *, excerpt_chars: int | None = None)
         lines.append(
             "No reportable Python behavior change was inferred from the bounded static evidence."
         )
+    marks = _baseline_marks(result)
     for behavior in result.behavior_changes:
         prefix = (
             "Review question"
@@ -208,7 +247,8 @@ def render_markdown(result: AnalysisResult, *, excerpt_chars: int | None = None)
         )
         lines.extend(
             [
-                f"- **{prefix} `{behavior.id}` · {_escape(behavior.category.value)} · "
+                f"- **{prefix} `{behavior.id}`{marks.get(behavior.id, '')} · "
+                f"{_escape(behavior.category.value)} · "
                 f"{behavior.risk.value} risk · {behavior.confidence:.0%} confidence:** "
                 f"{_escape(behavior.summary)}",
                 f"  - Observable impact: {_escape(behavior.observable_impact)}",

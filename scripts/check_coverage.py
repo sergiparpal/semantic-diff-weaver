@@ -15,6 +15,8 @@ CRITICAL_MODULES = (
     # suppression cascade, and the immutable safety budgets — so it is held to the branch bar
     # rather than only to the overall statement floor.
     "ast_diff/",
+    # Parses an untrusted earlier analysis, whose validated fields reach the brief.
+    "baseline.py",
     # The command line parses untrusted argument input and decides authorization roots,
     # which is the same boundary rationale that puts path_policy and plugin on this list.
     "cli.py",

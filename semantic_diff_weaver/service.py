@@ -12,6 +12,7 @@ from uuid import uuid4
 from pydantic import ValidationError
 
 from .ast_diff import AstAnalysis, StructuralDelta, analyze_ast
+from .baseline import BaselineAnalysis, compare_with_baseline, load_baseline
 from .call_graph import build_call_graph
 from .config import load_config
 from .coverage_map import CoverageMap, load_coverage, summarize
@@ -348,6 +349,20 @@ def _load_coverage(config: WeaverConfig, state: _PipelineState) -> CoverageMap |
     return load_coverage(ensure_authorized_path(Path(report_path)), config)
 
 
+def _load_baseline(request: AnalyzeRequest, config: WeaverConfig) -> BaselineAnalysis | None:
+    """Read the earlier analysis to compare with, if the request names one.
+
+    Like a coverage report, an unreadable baseline is a hard `BASELINE_UNREADABLE` error: a
+    reviewer who asked what changed since should not be handed an analysis that compared
+    nothing and looks the same as one that did.
+    """
+    if not request.baseline_report:
+        return None
+    return load_baseline(
+        ensure_authorized_path(Path(request.baseline_report)), config.rules.max_baseline_bytes
+    )
+
+
 def _changed_head_lines(collection: DiffCollection) -> dict[str, frozenset[int]]:
     """Per path, the head-side lines the diff added or replaced.
 
@@ -607,6 +622,7 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
             "predates it, such as the branch it will merge into."
         )
     coverage = _load_coverage(config, state)
+    baseline = _load_baseline(request, config)
     collection = collect_diff(repo, base_commit, head_commit, config)
     _set_aside_test_modules(collection, config)
     state.warnings.extend(collection.warnings)
@@ -748,6 +764,7 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
         warnings=sorted(set(state.warnings)),
         limitations=limitations,
         coverage=coverage_summary,
+        baseline=compare_with_baseline(baseline, behaviors) if baseline is not None else None,
         llm=interpreted.status if deterministic else LlmStatus(),
         deterministic_mode=fallback_mode or partial_fallback,
     )

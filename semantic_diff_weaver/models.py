@@ -120,6 +120,7 @@ class AnalyzeRequest(StrictModel):
     head_ref: str = Field(default="HEAD", min_length=1, max_length=MAX_REF_CHARS)
     risk_profile: str | None = Field(default=None, max_length=MAX_PATH_CHARS)
     coverage_report: str | None = Field(default=None, max_length=MAX_PATH_CHARS)
+    baseline_report: str | None = Field(default=None, max_length=MAX_PATH_CHARS)
     include: Annotated[list[RelativePattern], Field(max_length=MAX_PATH_PATTERNS)] | None = None
     exclude: Annotated[list[RelativePattern], Field(max_length=MAX_PATH_PATTERNS)] | None = None
     output_format: OutputFormat = OutputFormat.BOTH
@@ -161,6 +162,7 @@ class RulesConfig(StrictModel):
     max_model_input_chars_per_call: int = Field(default=48000, ge=1024, le=1_000_000)
     max_llm_calls: int = Field(default=8, ge=0, le=8)
     max_coverage_bytes: int = Field(default=20_000_000, ge=1024, le=200_000_000)
+    max_baseline_bytes: int = Field(default=20_000_000, ge=1024, le=200_000_000)
     max_obligations_per_behavior: int = Field(default=6, ge=1, le=50)
     max_test_obligations: int = Field(default=100, ge=1, le=1000)
     max_candidate_tests_per_obligation: int = Field(default=5, ge=0, le=25)
@@ -362,6 +364,35 @@ class Summary(StrictModel):
     verdict: Verdict
 
 
+class BaselineFinding(StrictModel):
+    """A finding the baseline reported that this analysis no longer does."""
+
+    category: BehaviorCategory
+    path: str = Field(min_length=1)
+    symbol: str = Field(min_length=1, max_length=MAX_PATH_CHARS)
+    risk: RiskLabel
+
+    @field_validator("path")
+    @classmethod
+    def relative_path(cls, value: str) -> str:
+        return _repository_relative_posix_path(value)
+
+
+class BaselineComparison(StrictModel):
+    """How this analysis's findings stand against those of an earlier analysis.
+
+    A finding is the same one when its category, path, and symbol are: `updated` when its
+    evidence changed since, `unchanged` when it did not. IDs are this analysis's own.
+    """
+
+    analysis_id: str = Field(pattern=r"^sdw_[A-Za-z0-9_-]+$")
+    head_commit: str = Field(pattern=r"^[0-9a-f]{40,64}$")
+    new: list[str] = Field(default_factory=list)
+    updated: list[str] = Field(default_factory=list)
+    unchanged: list[str] = Field(default_factory=list)
+    resolved: list[BaselineFinding] = Field(default_factory=list)
+
+
 class LlmUsage(StrictModel):
     input_tokens: int | None = Field(default=None, ge=0)
     output_tokens: int | None = Field(default=None, ge=0)
@@ -390,6 +421,7 @@ class AnalysisResult(StrictModel):
     llm: LlmStatus
     deterministic_mode: bool
     coverage: CoverageSummary | None = None
+    baseline: BaselineComparison | None = None
 
     @model_validator(mode="after")
     def references_resolve(self) -> AnalysisResult:
@@ -426,6 +458,10 @@ class AnalysisResult(StrictModel):
         behavior_ids = {item.id for item in self.behavior_changes}
         if len(behavior_ids) != len(self.behavior_changes):
             raise ValueError("behavior change IDs must be unique")
+        if self.baseline is not None:
+            compared = [*self.baseline.new, *self.baseline.updated, *self.baseline.unchanged]
+            if len(compared) != len(set(compared)) or set(compared) != behavior_ids:
+                raise ValueError("a baseline comparison must place every behavior change once")
         obligation_ids = {item.id for item in self.test_obligations}
         if len(obligation_ids) != len(self.test_obligations):
             raise ValueError("test obligation IDs must be unique")

@@ -111,6 +111,8 @@ The canonical schema version is `1.2`. Markdown is derived entirely from the can
 Risk estimates impact and test gap; confidence estimates support strength. They are intentionally
 independent. The summary's advisory verdict reads the overall risk against the `verdict`
 thresholds, and an analysis that left scope unread or compared a commit with itself never passes.
+`baseline.py` compares the findings with those of an earlier analysis, read as untrusted JSON, by
+category, path, and symbol, and reports each as new, updated, unchanged, or resolved.
 
 Semantic candidates are immutable and carry their own `(path, symbol)` identity. The three stages that
 merge them — rule grouping, model reconciliation, and service deduplication — each return new values,
