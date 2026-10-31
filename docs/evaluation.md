@@ -25,15 +25,16 @@ fabricated evidence references, an obligation for every high/critical behavior, 
 described as verified coverage. The corpus is intentionally small and synthetic; it does not validate
 dynamic behavior or external business contracts.
 
-## Local result (corpus 2026-10-19, suite re-measured 2026-07-26)
+## Local result (corpus 2026-10-19, re-measured with the suite 2026-10-31)
 
 On CPython 3.12.3 / Linux with Git 2.43.0, the 18-case corpus (eleven material signature/taxonomy
 patterns plus refactor, ambiguity, module-constant, cross-file move, no-Python, mixed-parse, and
 critical-prioritization cases) produced 100.00% material precision (16 of 16 predicted categories),
-100% supported-pattern recall (16 of 16), 100% evidence-anchor correctness, 100% required
-obligation-concept match, and zero fabricated evidence references. Every high/critical finding had a
-linked obligation, and every candidate test remained explicitly unverified. The corpus now emits no
-prediction outside its reviewed expected labels.
+100% supported-pattern recall (16 of 16), 100% evidence-anchor correctness (16 of 16), 100% required
+obligation-concept match (16 of 16), and zero fabricated evidence references. Every high/critical
+finding had a linked obligation, and every candidate test remained explicitly unverified. The corpus
+now emits no prediction outside its reviewed expected labels. The 2026-10-31 re-measurement for
+0.4.0 found the same figures.
 
 The previous measurement on this same corpus was 88.24% precision (15 of 17). The two surplus
 predictions were both `ordering_change` findings produced by comparing `statement_order` tuples for
@@ -47,15 +48,21 @@ went into the analyzer, consistent with the 2026-07-17 fixture-label review. See
 `docs/decisions.md`, "Output-affecting corrections (2026-07-25, statement ordering)".
 
 The deterministic performance suite covers a 100-symbol AST fixture, a 500-symbol mass-rename
-matching fixture, and a warmed full-service fixture with 40 files, 3,000 changed lines, and 100
-symbols, with five-, two-, and five-second ceilings respectively. They completed in approximately
-0.01, 0.41, and 0.29 seconds in the 2026-07-26 timing run. The complete automated suite reports
-95.62% overall branch-aware coverage across 516 passing tests and one skip, with at least 90% branch
-coverage in every critical module — the lowest is `obligations.py` at 90.48%, followed by
-`renderer.py` at 90.91%, `git_diff/` at 91.75%, and the `ast_diff/` package at 91.86%. `cli.py` and
-`coverage_map.py`, added to the critical set on 2026-07-25, are both at 100%. The suite ran with no
-`ANTHROPIC_API_KEY` in the environment: no live LLM call or credential was used, and none is
-required.
+matching fixture, a warmed full-service fixture with 40 files, 3,000 changed lines, and 100
+symbols, and a chain of calls on instances across a call graph at its module limit, with five-,
+two-, five-, and five-second ceilings respectively. They completed in approximately 0.04, 1.52,
+0.37, and 1.84 seconds in the 2026-10-31 timing run, the same across three runs. The mass-rename
+fixture took 0.41 seconds in the 2026-07-26 run; `v0.3.0` measures the same 1.5 seconds as the
+current code on the 2026-10-31 machine, so the difference is the machine rather than the code, but
+it leaves that fixture at three quarters of its ceiling.
+
+The complete automated suite reports 96.92% overall branch-aware coverage across 907 passing tests
+and one skip, the real-Hermes discovery test, with at least 90% branch coverage in every critical
+module — the lowest is `git_diff/` at 91.84%, followed by `path_policy.py` at 92.42%,
+`semantic_interpreter.py` at 92.62%, and `renderer.py` at 92.86%. `cli.py` and `coverage_map.py`
+are at 100%, and `mcp_server.py`, added to the critical set on 2026-10-05, at 98.15%. The suite ran
+with no `ANTHROPIC_API_KEY` in the environment: no live LLM call or credential was used, and none
+is required.
 
 The 17-case figures, dated 2026-07-25, held after the 2026-07-26 review fixes:
 `tests/fixtures/golden/canonical_outputs.json` was byte-identical across them, and precision,

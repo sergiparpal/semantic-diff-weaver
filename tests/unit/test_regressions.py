@@ -258,12 +258,16 @@ def test_type_comments_are_still_read_when_the_source_allows_them() -> None:
 
 def test_the_declared_version_matches_the_packaging_metadata() -> None:
     """`__version__` drifted from pyproject.toml and plugin.yaml and reported a stale release."""
+    import json
     import tomllib
 
     from semantic_diff_weaver import __version__
 
     pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
     plugin = Path("plugin.yaml").read_text(encoding="utf-8")
+    # The Claude Code manifest names the same release, and nothing else ties it to the package.
+    claude_plugin = json.loads(Path(".claude-plugin/plugin.json").read_text(encoding="utf-8"))
 
     assert __version__ == pyproject["project"]["version"]
     assert f"version: {__version__}" in plugin or f'version: "{__version__}"' in plugin
+    assert claude_plugin["version"] == __version__
