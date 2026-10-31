@@ -10,7 +10,6 @@ from ..models import LineRange
 from ..path_policy import redact_text
 from ..source import SourceHunk
 from .limits import (
-    CHANGED_VALUE_FEATURES,
     FEATURE_DELTA_KINDS,
     MAX_DELTA_TEXT_CHARS,
     MAX_PROBE_CHARS_PER_SIDE,
@@ -112,26 +111,20 @@ def join_probes(old: SymbolSnapshot, new: SymbolSnapshot, feature: str) -> Categ
     probes — or a snapshot built by hand — has always been classified by. Each side's words are
     bounded on their own, so a long old side can never crowd out the new one.
 
-    Whether the delta compares a boundary is read from the values it changed: an unchanged
-    `len(items) > 3` made every condition changed beside it, a `parent is None` among them, a
-    boundary. So are the words of a comparison, condition, loop, or call
-    (`CHANGED_VALUE_FEATURES`); those of an assignment are still the words of every value shown.
+    Both the words and whether the delta compares a boundary are read from the values it
+    changed, never from every value it shows: an unchanged `len(items) > 3` made every condition
+    changed beside it, a `parent is None` among them, a boundary, and an unchanged
+    `order.status = ...` made a changed `count = ...` a state transition.
     """
     if feature not in old.probes or feature not in new.probes:
         return None
     old_shown, new_shown = (_values_in_display_window(snapshot, feature) for snapshot in (old, new))
-    old_changed = _changed_probes(old_shown, new, feature)
-    new_changed = _changed_probes(new_shown, old, feature)
-    sides = (
-        (old_changed, new_changed)
-        if feature in CHANGED_VALUE_FEATURES
-        else ([probe for _, probe in old_shown], [probe for _, probe in new_shown])
-    )
+    sides = (_changed_probes(old_shown, new, feature), _changed_probes(new_shown, old, feature))
     return CategoryProbe(
         words=" ".join(
             " ".join(probe.words for probe in side)[:MAX_PROBE_CHARS_PER_SIDE] for side in sides
         ),
-        compares=any(probe.compares for probe in (*old_changed, *new_changed)),
+        compares=any(probe.compares for side in sides for probe in side),
     )
 
 

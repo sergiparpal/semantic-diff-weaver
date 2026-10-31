@@ -41,8 +41,10 @@ names, and string literals without whitespace (keys, headers, permission names),
 containing whitespace, whose words are prose about the code. An assignment's probe holds its
 targets only, so a changed assignment is a state transition when what it writes to, or its
 symbol, is named for state; any other is an unknown change for review. A probe covers exactly the
-values the delta's bounded display text shows; for comparisons, conditions, loops, and calls, only
-those of them the delta changed, while assignments read every value shown. A changed loop is
+values the delta's bounded display text shows, and only those of them the delta changed: an
+unchanged `order.status = ...` does not make a changed `count = ...` beside it a state
+transition. Reordered comparisons, assignments, or loops change no value and are read by their
+symbol's name; reordered conditions and calls are ordering changes. A changed loop is
 a retry only when its own words, or its symbol's name, say so — `attempt`, `retry`, `timeout`,
 `sleep`, `backoff`, or `deadline`, but not `limit`, which every loop has — and is otherwise an
 unknown change. A changed call that no keyword explains is a dependency interaction unless every

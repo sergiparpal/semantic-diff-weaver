@@ -223,12 +223,13 @@ def test_a_late_comparison_outside_the_display_text_does_not_count() -> None:
 
 
 def test_a_long_old_side_cannot_crowd_out_the_new_side() -> None:
-    # Assignments read every value shown, so their two sides are joined even when unchanged.
-    snapshot = _calls("def run():\n    total = 1\n")
-    words = {"assignments": (CategoryProbe("word " * 2_000, compares=False),)}
-    old = replace(snapshot, probes=words)
+    old = replace(
+        _calls("def run():\n    total = 1\n"),
+        probes={"assignments": (CategoryProbe("word " * 2_000, compares=False),)},
+    )
     new = replace(
-        snapshot, probes={"assignments": (CategoryProbe("new_side_marker", compares=False),)}
+        _calls("def run():\n    total = 2\n"),
+        probes={"assignments": (CategoryProbe("new_side_marker", compares=False),)},
     )
     probe = join_probes(old, new, "assignments")
     assert probe is not None
@@ -361,6 +362,13 @@ def test_classification_reads_code_not_prose(
             "state_transition_change",
             "unknown_semantic_change",
             id="a-symbol-named-for-state",
+        ),
+        pytest.param(
+            "def close(order):\n    order.status = 'open'\n    count = 1\n    return count\n",
+            "def close(order):\n    order.status = 'open'\n    count = 2\n    return count\n",
+            "unknown_semantic_change",
+            "state_transition_change",
+            id="an-unchanged-state-assignment-beside-the-change",
         ),
     ],
 )
