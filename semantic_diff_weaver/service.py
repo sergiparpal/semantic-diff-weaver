@@ -12,7 +12,7 @@ from uuid import uuid4
 from pydantic import ValidationError
 
 from .ast_diff import AstAnalysis, StructuralDelta, analyze_ast
-from .baseline import BaselineAnalysis, compare_with_baseline, load_baseline
+from .baseline import Baseline, compare_with_baseline, load_baseline
 from .call_graph import build_call_graph
 from .config import load_config
 from .coverage_map import CoverageMap, load_coverage, summarize
@@ -349,7 +349,7 @@ def _load_coverage(config: WeaverConfig, state: _PipelineState) -> CoverageMap |
     return load_coverage(ensure_authorized_path(Path(report_path)), config)
 
 
-def _load_baseline(request: AnalyzeRequest, config: WeaverConfig) -> BaselineAnalysis | None:
+def _load_baseline(request: AnalyzeRequest, config: WeaverConfig) -> Baseline | None:
     """Read the earlier analysis to compare with, if the request names one.
 
     Like a coverage report, an unreadable baseline is a hard `BASELINE_UNREADABLE` error: a

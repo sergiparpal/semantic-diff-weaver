@@ -118,9 +118,13 @@ heading to pin that. The server runs the deterministic analysis only and never r
 
 ## The GitHub Action's boundary
 
-The action wraps the CLI and adds one outward call: `scripts/pr_comment.py` posting the brief
-through `gh`. That call is argument-list-only with `shell=False`, the untrusted comment body goes
-through a file rather than the command line, and the repository and pull-request number are
-constrained to their documented shapes before they are interpolated into a `gh api` resource path,
-so neither can retarget the request at another endpoint. The analyzer itself still makes no network
-request and reads no pull-request API. See [github-action.md](github-action.md).
+The action wraps the CLI and adds two calls through `gh`: `scripts/pr_comment.py` reading its
+previous comment's baseline digest, and posting the brief. Both match only the comment the
+action's own identity wrote, so another participant's comment carrying the marker is neither
+edited nor read; the digest is inflated within a fixed bound and validated by the analyzer like
+any baseline, so it cannot change what the brief claims. Each call is argument-list-only with
+`shell=False`, the untrusted comment body goes through a file rather than the command line, and
+the repository and pull-request number are constrained to their documented shapes before they
+are interpolated into a `gh api` resource path, so neither can retarget the request at another
+endpoint. The analyzer itself still makes no network request and reads no pull-request API. See
+[github-action.md](github-action.md).

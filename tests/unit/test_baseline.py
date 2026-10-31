@@ -96,7 +96,7 @@ def test_both_json_outputs_are_read(tmp_path: Path, wrapped: bool) -> None:
     analysis = _baseline(_behavior("allowed", "x <= 5"))
     document = {"success": True, "analysis": analysis, "markdown": "brief"} if wrapped else analysis
     loaded = load_baseline(_write(tmp_path, document), LIMIT)
-    assert (loaded.analysis_id, len(loaded.behavior_changes)) == ("sdw_earlier", 1)
+    assert (loaded.analysis_id, len(loaded.findings)) == ("sdw_earlier", 1)
 
 
 @pytest.mark.parametrize(
@@ -218,3 +218,60 @@ def test_a_baseline_that_grows_past_the_limit_during_the_read_is_refused(
     with pytest.raises(WeaverError, match="while being read") as caught:
         load_baseline(path, 1024)
     assert caught.value.code is ErrorCode.BASELINE_UNREADABLE
+
+
+def test_a_digest_compares_as_the_analysis_it_was_made_from(tmp_path: Path) -> None:
+    """The Action keeps a digest between pushes; it must say what the full analysis would."""
+    from semantic_diff_weaver.baseline import digest_of
+
+    analysis = _baseline(
+        _behavior("kept", "x <= 5"), _behavior("edited", "x <= 5"), _behavior("gone", "x <= 5")
+    )
+    current = [_current(1, "kept", "x <= 5"), _current(2, "edited", "x <= 6")]
+    full = compare_with_baseline(load_baseline(_write(tmp_path, analysis), LIMIT), current)
+    digest_path = tmp_path / "digest.json"
+    digest_path.write_text(json.dumps(digest_of(analysis)), encoding="utf-8")
+    digested = compare_with_baseline(load_baseline(digest_path, LIMIT), current)
+    assert digested == full
+    assert "x <= 5" not in digest_path.read_text(encoding="utf-8")
+
+
+def test_the_digest_key_is_the_alias_it_is_read_by() -> None:
+    from semantic_diff_weaver.baseline import DIGEST_KEY, _Digest
+
+    assert _Digest.model_fields["version"].alias == DIGEST_KEY
+
+
+@pytest.mark.parametrize(
+    "finding",
+    [
+        pytest.param({"fingerprint": "not-hex"}, id="fingerprint"),
+        pytest.param({"path": "/etc/passwd"}, id="absolute-path"),
+        pytest.param({"category": "invented"}, id="category"),
+    ],
+)
+def test_a_malformed_digest_is_a_baseline_error(tmp_path: Path, finding: dict) -> None:
+    document = {
+        "semantic_diff_weaver_baseline": 1,
+        "analysis_id": "sdw_earlier",
+        "head_commit": "a" * 40,
+        "findings": [
+            {
+                "category": "boundary_change",
+                "path": "src/app.py",
+                "symbol": "allowed",
+                "risk": "medium",
+                "fingerprint": "0" * 32,
+                **finding,
+            }
+        ],
+    }
+    with pytest.raises(WeaverError, match="digest") as caught:
+        load_baseline(_write(tmp_path, document), LIMIT)
+    assert caught.value.code is ErrorCode.BASELINE_UNREADABLE
+
+
+def test_a_digest_of_another_version_is_refused(tmp_path: Path) -> None:
+    document = {"semantic_diff_weaver_baseline": 2, "analysis_id": "sdw_x", "findings": []}
+    with pytest.raises(WeaverError, match="digest"):
+        load_baseline(_write(tmp_path, document), LIMIT)
