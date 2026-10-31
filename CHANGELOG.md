@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.6.0 - 2026-10-31
+
+The GitHub Action compares each push with the previous one. Its pull-request comment keeps a
+hidden digest of its analysis, and the next run reads it back and passes it to `--baseline`, so
+the brief says which findings are new, updated, unchanged, or resolved since; the new `baseline`
+input defaults to `previous`. The action now edits, and reads its baseline from, only the comment
+its own identity wrote. A minor release for the new input; the analyzer, its schema 1.2, its CLI,
+and every output are unchanged. The decision is recorded in `docs/decisions.md`.
 
 - **Feature:** the GitHub Action compares each push with the previous one. Its comment now ends
   with a hidden digest of its analysis — each finding's category, path, symbol, risk, and an
