@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 - 2026-10-31
+
+An analysis now says what it advises and how it moved since an earlier one. The summary carries
+an advisory `pass`, `warn`, or `review_required` verdict read from the overall risk under
+configurable thresholds, which an analysis that left scope unread never passes, and `--baseline`
+marks each finding new, updated, unchanged, or resolved against an earlier analysis's JSON. A
+minor release, because the schema moves to 1.2 with the new `verdict` field and the optional
+`baseline` object; every existing field, value, finding, and risk is unchanged, and
+`baseline_unreadable` is a new, additive error code. Each decision is recorded in
+`docs/decisions.md`.
 
 - **Breaking (schema):** `SCHEMA_VERSION` is now `"1.2"`. `summary` gains a required `verdict`,
   `pass`, `warn`, or `review_required`, and the analysis an optional `baseline` object, `null`

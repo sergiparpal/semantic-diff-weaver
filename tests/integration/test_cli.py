@@ -203,6 +203,19 @@ def test_risk_profile_is_applied(repo_factory, capsys, monkeypatch) -> None:
     assert payload["summary"]["overall_risk"] in {"high", "critical"}
 
 
+def test_baseline_compares_with_an_earlier_analysis(repo_factory, capsys, monkeypatch) -> None:
+    repo, base, head = repo_factory(BOUNDARY_OLD, BOUNDARY_NEW)
+    monkeypatch.delenv(ALLOWED_ROOTS_ENV, raising=False)
+    arguments = ["--repo", str(repo), "--base", base, "--head", head, "--format", "json"]
+    assert main(arguments) == EXIT_SUCCESS
+    earlier = Path(repo) / "earlier.json"
+    earlier.write_text(capsys.readouterr().out, encoding="utf-8")
+    code = main([*arguments, "--baseline", str(earlier)])
+    payload = json.loads(capsys.readouterr().out)
+    assert code == EXIT_SUCCESS
+    assert payload["baseline"]["unchanged"] == [item["id"] for item in payload["behavior_changes"]]
+
+
 # The brief is not ASCII: the renderer emits U+00B7, U+2014, and U+2205. A diff that adds a
 # symbol renders "old: ∅", and U+2205 has no mapping in Windows' default cp1252 stdout.
 ADDED_SYMBOL_OLD = {"api.py": "def allowed(x):\n    return x < 5\n"}
