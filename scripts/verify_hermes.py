@@ -35,22 +35,18 @@ def main() -> int:
     import hermes_cli.plugins as plugins
     from agent.plugin_llm import PluginLlm
 
+    from semantic_diff_weaver.llm_client import LlmClient
+
     version = importlib.metadata.version("hermes-agent")
     _require_parameters(
         plugins.PluginContext.register_tool,
         {"name", "toolset", "schema", "handler", "description", "override"},
     )
+    # Exactly what the interpreter passes: tests/contract/test_llm_client_protocol.py pins the
+    # protocol to its single call site, so a list kept by hand here cannot drift from it.
     _require_parameters(
         PluginLlm.complete_structured,
-        {
-            "instructions",
-            "input",
-            "json_schema",
-            "json_mode",
-            "schema_name",
-            "max_tokens",
-            "timeout",
-        },
+        set(inspect.signature(LlmClient.complete_structured).parameters) - {"self"},
     )
 
     entry_points = list(
