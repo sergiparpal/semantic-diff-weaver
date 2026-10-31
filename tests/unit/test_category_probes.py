@@ -83,9 +83,17 @@ def test_a_missing_node_contributes_nothing() -> None:
     [
         pytest.param("attempts < 3", True, id="ordering"),
         pytest.param("total >= limit", True, id="ordering-or-equal"),
-        pytest.param("state == expected", True, id="equality"),
-        pytest.param("token == expected", True, id="equality-redaction-would-erase"),
+        pytest.param("0 <= index < size", True, id="chained-ordering"),
+        pytest.param("count == 0", True, id="equality-with-a-number"),
+        pytest.param("offset != -1", True, id="inequality-with-a-signed-number"),
+        pytest.param("index == len(items)", True, id="equality-with-a-length"),
+        pytest.param("token == 0", True, id="equality-redaction-would-erase"),
+        pytest.param("first == second == 0", True, id="chained-equality-with-a-number"),
         pytest.param("check(size > 3)", True, id="nested-comparison"),
+        pytest.param("state == expected", False, id="equality-between-values"),
+        pytest.param("method == 'GET'", False, id="equality-with-a-string"),
+        pytest.param("kind != token.STAR", False, id="inequality-with-a-constant-name"),
+        pytest.param("flag == True", False, id="equality-with-a-bool"),
         pytest.param("'<' in text", False, id="operator-inside-a-literal"),
         pytest.param("'a != b' in text", False, id="operators-inside-a-literal"),
         pytest.param("mask & (1 << bit)", False, id="shift-is-not-a-comparison"),
@@ -96,6 +104,11 @@ def test_a_missing_node_contributes_nothing() -> None:
 def test_a_probe_reads_comparisons_from_operators_not_characters(
     source: str, compares: bool
 ) -> None:
+    """A boundary has a just-below, an exact, and a just-above case to test.
+
+    An ordering does, and so does an equality with a number or a length. An equality between
+    other values picks one case out of many, as `method == 'GET'` does, and orders nothing.
+    """
     assert _probe(source).compares is compares
 
 
@@ -258,7 +271,8 @@ def _categories(repo_factory, old: str, new: str) -> set[str]:
         pytest.param(
             "def check(kinds):\n    assert 'boundary' in kinds('def run(limit=2): pass')\n",
             "def check(kinds):\n    assert 'boundary' in kinds('def run(limit=3): pass')\n",
-            "boundary_change",
+            # A membership test, which the comparison rule called a boundary until 2026-10-31.
+            "unknown_semantic_change",
             "retry_timeout_change",
             id="code-quoted-in-a-test-string-is-not-code",
         ),
@@ -388,12 +402,148 @@ def test_the_condition_rule_reads_comparisons_from_operators(
 
 
 def test_a_comparison_redaction_erased_from_the_text_still_counts(repo_factory) -> None:
-    """`token == expected` is displayed as `token =[REDACTED] expected`: no `==` left to find."""
-    template = "def check(token, expected):\n    if {}:\n        return 1\n    return 0\n"
+    """`token == 0` is displayed as `token =[REDACTED] 0`: no `==` left to find."""
+    template = "def check(token):\n    if {}:\n        return 1\n    return 0\n"
     category, evidence = _condition_evidence(
-        repo_factory,
-        template.format("token == expected"),
-        template.format("token == expected.strip()"),
+        repo_factory, template.format("token == 0"), template.format("token == 1")
     )
     assert "==" not in evidence["old"]
     assert category == "boundary_change"
+
+
+@pytest.mark.parametrize(
+    ("old_test", "new_test", "expected"),
+    [
+        pytest.param(
+            "token == expected",
+            "token == expected.strip()",
+            "unknown_semantic_change",
+            id="equality-between-values",
+        ),
+        pytest.param(
+            "request.method == 'GET'",
+            "request.method != 'GET'",
+            "unknown_semantic_change",
+            id="equality-with-a-string",
+        ),
+        pytest.param(
+            "user.role == 'admin'",
+            "user.role != 'admin'",
+            "authorization_change",
+            id="an-equality-guard-is-read-for-its-names",
+        ),
+        pytest.param("count == 0", "count == 1", "boundary_change", id="equality-with-a-number"),
+    ],
+)
+def test_an_equality_is_a_boundary_only_against_a_number(
+    repo_factory, old_test: str, new_test: str, expected: str
+) -> None:
+    """Every `==` and `!=` used to be a boundary, whatever it compared.
+
+    `user.role == 'admin'` was a boundary at impact 64, not an authorization guard at 92: the
+    boundary check ran before the rules that read names, and the obligations it produced asked
+    for values just below and just above `'admin'`. The redaction regression above was pinned
+    on `token == expected`, a comparison of two values.
+    """
+    template = (
+        "def check(token, expected, request, user, count):\n"
+        "    if {}:\n        return 1\n    return 0\n"
+    )
+    category, _ = _condition_evidence(
+        repo_factory, template.format(old_test), template.format(new_test)
+    )
+    assert category == expected
+
+
+def _findings(repo_factory, old: str, new: str) -> list[dict]:
+    repo, base, head = repo_factory({"app.py": old}, {"app.py": new})
+    result = analyze(
+        {"repo_path": str(repo), "base_ref": base, "head_ref": head, "output_format": "json"}
+    )
+    return result["behavior_changes"]
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        pytest.param(
+            "def close(parent):\n    if parent is None:\n        return 1\n    return 0\n",
+            "def close(parent):\n    if parent is not None:\n        return 1\n    return 0\n",
+            id="identity",
+        ),
+        pytest.param(
+            "def is_star(ch):\n    return ch.type == STAR or ch.type == DOUBLESTAR\n",
+            "def is_star(ch):\n    return ch.type in STARS\n",
+            id="equality-rewritten-as-membership",
+        ),
+        pytest.param(
+            "def pick(items, parent):\n    if len(items) > 3:\n        return 2\n"
+            "    if parent is None:\n        return 1\n    return 0\n",
+            "def pick(items, parent):\n    if len(items) > 3:\n        return 2\n"
+            "    if parent is not None:\n        return 1\n    return 0\n",
+            id="an-unchanged-boundary-beside-the-change",
+        ),
+        pytest.param(
+            "def ask(row, recorder):\n    if row['valid']:\n        return 2\n"
+            "    if recorder:\n        return 1\n    return 0\n",
+            "def ask(row, recorder):\n    if row['valid']:\n        return 2\n"
+            "    if recorder is not None:\n        return 1\n    return 0\n",
+            id="an-unchanged-guard-word-beside-the-change",
+        ),
+    ],
+)
+def test_conditions_and_comparisons_are_read_from_what_changed(
+    repo_factory, old: str, new: str
+) -> None:
+    """Every changed comparison used to be a boundary, `is None` and `in STARS` included.
+
+    The condition rule had read operators since 2026-10-05; the comparison rule never did, so a
+    changed `if parent is None` was an unknown condition and a boundary comparison at once. Now
+    both are read alike and join one finding. Both also read only the values that changed: an
+    unchanged `len(items) > 3` made the change beside it a boundary, and an unchanged
+    `row['valid']` would make it a validation guard.
+    """
+    findings = _findings(repo_factory, old, new)
+    assert [item["category"] for item in findings] == ["unknown_semantic_change"]
+    kinds = {evidence["kind"] for evidence in findings[0]["evidence"]}
+    assert "comparison_change" in kinds
+
+
+def test_a_changed_ordering_is_still_a_boundary(repo_factory) -> None:
+    findings = _findings(
+        repo_factory,
+        "def pick(size):\n    if size > 3:\n        return 1\n    return 0\n",
+        "def pick(size):\n    if size >= 3:\n        return 1\n    return 0\n",
+    )
+    assert [item["category"] for item in findings] == ["boundary_change"]
+    assert {evidence["kind"] for evidence in findings[0]["evidence"]} == {
+        "comparison_change",
+        "condition_change",
+    }
+
+
+def test_a_delta_compares_a_boundary_only_where_it_changed() -> None:
+    """An unchanged `len(items) > 3` made a changed `parent is None` beside it a boundary.
+
+    The words of a comparison or condition delta are those of the values it changed too; a call
+    delta's are still those of every call it shows, as the display-window test above pins.
+    """
+    before = _calls(
+        "def run(items, parent):\n    if len(items) > 3 or parent is None:\n        pass\n"
+    )
+    unchanged_boundary = _calls(
+        "def run(items, parent):\n    if len(items) > 3:\n        pass\n"
+        "    if parent is None:\n        pass\n"
+    )
+    changed_identity = _calls(
+        "def run(items, parent):\n    if len(items) > 3:\n        pass\n"
+        "    if parent is not None:\n        pass\n"
+    )
+    for feature in ("comparisons", "conditions"):
+        probe = join_probes(unchanged_boundary, changed_identity, feature)
+        assert probe is not None
+        assert probe.compares is False
+        assert probe.words.split() == ["parent", "parent"]
+    rewritten = join_probes(before, unchanged_boundary, "conditions")
+    assert rewritten is not None
+    assert rewritten.compares is True

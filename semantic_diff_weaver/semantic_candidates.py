@@ -171,6 +171,20 @@ def _classify_comparison(
 ) -> Classification | None:
     if delta.kind != "comparison_change":
         return None
+    if not _has_boundary_comparison(delta):
+        # `is None`, `in STARS`, and `method == 'GET'` have no below or above to test. They are
+        # read the way a condition comparing no boundary is, so they share a category with the
+        # condition that holds them, when it changed too, and join its finding.
+        return _classify_guard(combined) or (
+            BehaviorCategory.UNKNOWN,
+            "A membership, identity, or equality test changed without enough local contract "
+            "context.",
+            "Values that pass or fail the changed test may now follow a different path; the "
+            "observable effect needs review.",
+            0.55,
+            ["The surrounding runtime contract is unavailable to static analysis."],
+            "SDW-RULE-UNKNOWN-COMPARISON",
+        )
     if _contains(combined, RETRY_TERMS):
         return (
             BehaviorCategory.RETRY_TIMEOUT,
@@ -286,13 +300,14 @@ def _classify_loop(
 
 
 def _has_boundary_comparison(delta: StructuralDelta) -> bool:
-    """Whether a changed condition contains an ordering or equality comparison.
+    """Whether a value the delta changed compares a boundary: an ordering, or an equality with a
+    number or a length.
 
     Read from the AST-built probe. The display-text fallback, kept for deltas without one,
     scans for operator characters: it also matches operators inside string literals and shift
-    operators, and misses an `==` that redaction consumed. It reads only the changed
-    expressions, never the symbol name, whose synthetic forms (``<module>``, ``<unparsed>``)
-    contain angle brackets.
+    operators, counts every equality, and misses an `==` that redaction consumed. It reads only
+    the changed expressions, never the symbol name, whose synthetic forms (``<module>``,
+    ``<unparsed>``) contain angle brackets.
     """
     if delta.probe is not None:
         return delta.probe.compares
@@ -300,25 +315,8 @@ def _has_boundary_comparison(delta: StructuralDelta) -> bool:
     return any(operator in expressions for operator in COMPARISON_OPERATORS)
 
 
-def _classify_condition(
-    delta: StructuralDelta, rules: RulesConfig, combined: str
-) -> Classification | None:
-    if delta.kind != "condition_change":
-        return None
-    if _has_boundary_comparison(delta):
-        category = (
-            BehaviorCategory.RETRY_TIMEOUT
-            if _contains(combined, RETRY_TERMS)
-            else BehaviorCategory.BOUNDARY
-        )
-        return (
-            category,
-            "A condition boundary appears to have changed.",
-            "Inputs at or adjacent to the changed condition may now follow a different path.",
-            0.88,
-            [],
-            "SDW-RULE-CONDITION-BOUNDARY",
-        )
+def _classify_guard(combined: str) -> Classification | None:
+    """The keyword rules for a changed condition or comparison that compares no boundary."""
     if _contains(combined, AUTH_TERMS):
         return (
             BehaviorCategory.AUTHORIZATION,
@@ -346,7 +344,29 @@ def _classify_condition(
             [],
             "SDW-RULE-RETRY-GUARD",
         )
-    return (
+    return None
+
+
+def _classify_condition(
+    delta: StructuralDelta, rules: RulesConfig, combined: str
+) -> Classification | None:
+    if delta.kind != "condition_change":
+        return None
+    if _has_boundary_comparison(delta):
+        category = (
+            BehaviorCategory.RETRY_TIMEOUT
+            if _contains(combined, RETRY_TERMS)
+            else BehaviorCategory.BOUNDARY
+        )
+        return (
+            category,
+            "A condition boundary appears to have changed.",
+            "Inputs at or adjacent to the changed condition may now follow a different path.",
+            0.88,
+            [],
+            "SDW-RULE-CONDITION-BOUNDARY",
+        )
+    return _classify_guard(combined) or (
         BehaviorCategory.UNKNOWN,
         "A control-flow condition changed without enough local contract context.",
         "Competing input cases may now follow a different branch; the observable effect needs review.",

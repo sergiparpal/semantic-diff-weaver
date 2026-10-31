@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- **Fix:** a changed comparison or condition is a boundary only when what changed orders values.
+  `SDW-RULE-BOUNDARY` made every changed comparison a `boundary_change` without reading its
+  operator, so `is None` and `in STARS` were boundaries, and the condition rule counted every `==`
+  and `!=` in every condition its delta showed, changed or not. A boundary is now an ordering, or
+  an equality with a number or a `len()`, among the values that changed: `method == 'GET'` and
+  `ch.type == token.STAR` order nothing. A comparison that is no boundary is read like such a
+  condition, by its authorization, validation, and retry terms or as an unknown change under the
+  new `SDW-RULE-UNKNOWN-COMPARISON`, and joins the condition's finding; `user.role == 'admin'`
+  becomes an authorization guard. Both rules read their keywords from the changed values too, so
+  an unchanged `row['valid']` no longer makes the change beside it a validation guard. Of 1,594
+  classifications on this repository's history and 3,186 on `adaptive-policy-compilation`, 169
+  and 86 move, nearly all from boundary to unknown, and no range's highest risk rises; on the
+  real pull requests of `docs/real-pr-validation.md` the boundary findings fall from 13 to 2. The
+  evaluation corpus is unchanged.
+
 ## 0.4.0 - 2026-10-31
 
 The tool reaches Claude Code, and its candidate tests follow the code that reaches a change. A

@@ -146,6 +146,60 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-10-31, boundary comparisons)
+
+`SDW-RULE-BOUNDARY` made every changed comparison a `boundary_change` without reading its operator,
+so identity and membership tests counted: of the 13 boundary findings in the merge-base run of
+`docs/real-pr-validation.md`, two were boundaries. The condition rule had read operators from the
+AST since 2026-10-05, but it counted every `==` and `!=`, and it asked whether any value its delta
+showed compared, changed or not, so an unchanged `len(pending) >= STOP_AFTER_FAILURES_IN_A_ROW` made
+a `recorder is not None` added beside it a boundary.
+
+A boundary is what the category's obligations test: a value just below it, at it, and just above
+it. An ordering has those, and so does an equality or inequality with a number written in the code,
+signed or not, or with a `len()`: `count == 0`, `offset != -1`, `index == len(items)`. An equality
+between other values picks one case out of many and orders nothing — `method == 'GET'`,
+`ch.type == token.STAR`, `token == expected` — and identity and membership tests never were
+boundaries. Both rules now read this from the AST operators and operands of the values the delta
+changed. A comparison that is no boundary is classified the way a condition comparing none is: by
+its authorization, validation, and retry terms, or as an `unknown_semantic_change` under the new
+`SDW-RULE-UNKNOWN-COMPARISON`. A changed `if parent is None` is therefore one finding, where it was an
+unknown condition beside a boundary comparison.
+
+Both rules also read their keywords from the changed values and the symbol's name, no longer from
+every value shown. That was harmless while the boundary check ran first and caught most changed
+conditions; without it, an unchanged `row['valid']` made a `recorder is not None` added beside it a
+validation guard, and an unchanged `owner in module.symbols`, where `owner` is the class a method
+belongs to, an authorization one. Calls and assignments still read every value their delta shows,
+the limit the 2026-10-19 entry records.
+
+Two tests pinned the old reading. `test_a_comparison_redaction_erased_from_the_text_still_counts`
+held the 2026-10-05 redaction fix on `token == expected`; it now holds it on `token == 0`, which
+redaction displays as `token =[REDACTED] 0`, and `token == expected` is an unknown change. The
+quoted-code case of `test_classification_reads_code_not_prose` expected a boundary from
+`'boundary' in kinds(...)`, a membership test; it is an unknown change, and the case still pins
+what it is for, that the quoted `limit` is no retry. One consequence is deliberate:
+`user.role == 'admin'` was a boundary at impact 64, ahead of the rules that read names, and is an
+authorization guard at 92. A delta built without a probe keeps the text scan, which counts every
+equality.
+
+Measured on every commit against its first parent, with the analyzer of `main` and of this change.
+This repository's 111 pairs, one over the changed-line bound either way, hold 1,594 evidence
+classifications, and 169 move: 152 from `boundary_change` and 9 from `retry_timeout_change` to
+`unknown_semantic_change`; 5 from retry to boundary, where what changed were size limits, a batch
+index, and a materiality threshold while the retry words sat in unchanged checks of a `deadline` or
+of `attempts`; and 3 to `validation_change`, in functions named for validating or accepting.
+`adaptive-policy-compilation`'s 541 pairs hold 3,186, and 86 move: 80 from boundary and 5 from
+retry to unknown, and 1 to validation, again by its function's name. Findings fall from 1,434 to
+1,353 and from 3,112 to 3,056, obligations from 764 to 672 and from 511 to 442, and no range's
+highest risk rises; two fall.
+
+On the 14 merges of `docs/real-pr-validation.md`, 16 of 90 classifications move from boundary to
+unknown. The boundary findings fall from 13 to 2, a version gate and the truncation in
+`_make_default_short_help`, both boundaries, and the findings from 78 to 71. Their unknown share
+rises from 37% to 47%: what was called a boundary is now called what static analysis can tell of
+it. The 18 corpus goldens are unchanged, since every comparison in them is an ordering.
+
 ## Anthropic requests carry no sampling parameters (2026-10-25)
 
 SDK 2.0 of `anthropic` sends API version 2026-10-21 by default, and on it a Messages request that

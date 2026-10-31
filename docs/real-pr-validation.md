@@ -134,7 +134,9 @@ recurring problem is classification and relevance, not invention.
 `comparison_change` a boundary without reading its operator, so identity and membership tests
 count: `is None` in findings 4 and 7, and `in STARS` in finding 9. The condition rule has read
 operators from the AST since 2026-10-05 and leaves `in` and `is` out; the comparison rule does
-not. Of the four boundary findings reviewed, one is a boundary.
+not. Of the four boundary findings reviewed, one is a boundary. Corrected after this run: see
+`docs/decisions.md`, "Output-affecting corrections (2026-10-31, boundary comparisons)", which
+measures the change on these 14 merges.
 
 **Every changed loop is a `retry_timeout_change`.** `SDW-RULE-LOOP` has no other outcome, so the
 word-trimming loop of finding 6 and the `for` loop over a command's parameters in
