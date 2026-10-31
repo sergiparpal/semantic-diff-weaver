@@ -146,6 +146,46 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-11-01, assignments)
+
+Assignments were the last probed feature whose rule read the targets of every assignment its
+delta showed. The 2026-10-19 entry on assignments named for state recorded the limit: an unchanged
+`state = ...` beside a changed `count = ...` made the change a state transition. They now read
+the targets of the assignments that changed, as comparisons, conditions, loops, and calls already
+do. Every probe now reads only what its delta changed, so `CHANGED_VALUE_FEATURES`, which listed
+the features that did, is gone. A write to `state` whose value changed still counts, since its
+target is its probe and the assignment is among those that changed.
+
+Measured on every commit against its first parent, with the analyzer of `main` and of this change:
+
+- This repository: 23 of 389 assignment classifications were state transitions, and 10 become
+  unknown changes. Each changed assignments to targets such as `baseline`, `call_graph`,
+  `YIELDING_RULES`, and `oversized_symbols`, and took its state word from one that did not
+  change: the pipeline's `state` in `service.analyze`, the `STATE_TERMS` constant beside new
+  module constants, the `status` field of `InterpreterResult`, git's `_parse_name_status`, and a
+  `coverage_status`. Findings fall from 1,444 to 1,439, obligations from 638 to 611, and the
+  highest risk falls in 5 pairs.
+- `adaptive-policy-compilation`: 3 of 201 were state transitions, and 1 becomes an unknown change,
+  a new `baseline` beside an unchanged `state` in `authorship/score.py`'s `main`. Findings stay at
+  3,002, obligations fall from 381 to 378, and the highest risk falls in 1 pair.
+
+No range's highest risk rises and no verdict moves. No classification moves on the 20 pull
+requests of `docs/real-pr-validation.md` or on the 14 of the earlier sample, and the 18 corpus
+goldens are unchanged.
+
+One of the 10 changed no value. In `f963e63`'s `_collect_scope`, `changed_symbols = ...` moved
+below two writes to `state` that kept their text. Reordered comparisons, assignments, and loops
+change no value, so their words are their symbol's name alone; reordered conditions and calls are
+ordering changes. Comparisons and loops have read that way since they read changed values, and
+pure reorderings are rare: of the comparison, assignment, and loop changes in the 662 ranges,
+three assignment changes and two comparison changes are one, and all five are unknown changes
+now. A swapped pair of writes to `state` would read as an unknown change too, a limit kept rather
+than a rule added for it.
+
+The probe test that a long old side cannot crowd out the new one used assignments because they
+read every value shown; it now changes the assignment it probes. A new case pins that an
+unchanged `order.status = 'open'` beside a changed `count` is an unknown change.
+
 ## Output-affecting corrections (2026-11-01, printed lines)
 
 The calls entry below left a changed `print` a dependency call, whose obligations ask how the code

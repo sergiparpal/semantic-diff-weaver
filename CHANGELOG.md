@@ -10,6 +10,14 @@
   no verdict changes; on `adaptive-policy-compilation` 28 of 179 move, and one range's verdict
   moves from `warn` to `review_required`, a rename of the identifiers its scripts print. The real
   pull requests of `docs/real-pr-validation.md` and the evaluation corpus are unchanged.
+- **Fix:** a changed assignment reads only the assignments that changed. It read the targets of
+  every assignment its delta showed, so an unchanged `state = ...` beside a changed `count = ...`
+  made the change a state transition; every probed feature now reads only what changed, as
+  comparisons, conditions, loops, and calls already did. On this repository's history 10 of 23
+  state transitions among 389 assignment classifications become unknown changes, and on
+  `adaptive-policy-compilation` 1 of 3 among 201; no range's highest risk rises and no verdict
+  moves. The real pull requests of `docs/real-pr-validation.md` and the evaluation corpus are
+  unchanged.
 
 ## 0.6.1 - 2026-10-31
 
