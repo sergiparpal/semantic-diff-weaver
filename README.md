@@ -52,7 +52,10 @@ python -m pip install . && semantic-diff-weaver --repo . --base main --head HEAD
 | `--fail-on {none,low,medium,high,critical}` | defaults to `none` |
 
 `markdown` prints the PR-ready brief, `json` prints the canonical schema-versioned analysis, and
-`both` prints the envelope carrying the analysis and the brief together. Exit codes are:
+`both` prints the envelope carrying the analysis and the brief together. Both the brief and the
+analysis open with an advisory verdict, `pass`, `warn`, or `review_required`, read from the
+overall risk under [configurable thresholds](docs/configuration.md); an analysis that left part of
+its scope unread is never `pass`. Exit codes are:
 
 | Code | Meaning |
 | --- | --- |

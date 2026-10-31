@@ -60,6 +60,9 @@ outputs:
   overall-risk:
     description: Overall risk label for the analyzed diff.
     value: ${{ steps.analyze.outputs.overall-risk }}
+  verdict:
+    description: Advisory verdict for the analyzed diff (pass, warn, or review_required).
+    value: ${{ steps.analyze.outputs.verdict }}
 
 runs:
   using: composite
@@ -148,6 +151,8 @@ runs:
         echo "analysis=${envelope}" >> "${GITHUB_OUTPUT}"
         risk="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["analysis"]["summary"]["overall_risk"])' "${envelope}" 2>/dev/null || echo unknown)"
         echo "overall-risk=${risk}" >> "${GITHUB_OUTPUT}"
+        verdict="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["analysis"]["summary"]["verdict"])' "${envelope}" 2>/dev/null || echo unknown)"
+        echo "verdict=${verdict}" >> "${GITHUB_OUTPUT}"
         echo "SDW_EXIT=${status}" >> "${GITHUB_ENV}"
 
     - name: Upsert the pull-request comment

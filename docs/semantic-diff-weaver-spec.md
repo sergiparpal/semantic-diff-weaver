@@ -397,7 +397,7 @@ The future tools are explicitly outside the MVP.
 
 ```json
 {
-  "schema_version": "1.0",
+  "schema_version": "1.2",
   "analysis_id": "sdw_01J...",
   "repository": {
     "path": ".",
@@ -412,7 +412,8 @@ The future tools are explicitly outside the MVP.
     "behavior_changes": 2,
     "test_obligations": 6,
     "overall_risk": "high",
-    "overall_confidence": 0.86
+    "overall_confidence": 0.86,
+    "verdict": "review_required"
   },
   "behavior_changes": [
     {
@@ -920,8 +921,8 @@ over MCP, beside the Hermes plugin.
 - GitHub Action wrapper. *Done:* `action.yml`, `docs/github-action.md`.
 - PR comment renderer. *Done:* `scripts/pr_comment.py`, one comment updated in place.
 - Baseline comparison between analysis revisions. *Open.*
-- Policy thresholds for advisory `pass`, `warn`, or `review_required`. *Open:* `--fail-on` and the
-  Action's `fail-on` fail a run at an overall risk level.
+- Policy thresholds for advisory `pass`, `warn`, or `review_required`. *Done:* `summary.verdict`
+  under the `verdict` thresholds, the Action's `verdict` output, and the brief's first line.
 
 ### v1.0 — Multi-language semantic test intelligence (open)
 

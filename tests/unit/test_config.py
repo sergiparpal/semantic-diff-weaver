@@ -38,6 +38,8 @@ def test_repository_precedence_and_request_override(tmp_path: Path) -> None:
         "version: 2\n",
         "version: 1\nunknown: true\n",
         "version: 1\nrules:\n  max_diff_lines: -1\n",
+        "version: 1\nverdict:\n  warn_at: severe\n",
+        "version: 1\nverdict:\n  warn_at: high\n  review_required_at: medium\n",
         "version: 1\nmapping:\n  - source: src/**\n    tests: [tests/**]\n  - source: src/**\n    tests: [tests/unit/**]\n",
     ],
 )
@@ -191,3 +193,13 @@ def test_this_repository_analyzes_only_its_production_code(path: str, analyzed: 
     assert warnings == []
     assert is_included(path, config.paths.include, config.paths.exclude) is analyzed
     assert config.paths.test_roots == ["tests"]
+
+
+def test_a_verdict_level_can_be_turned_off(tmp_path: Path) -> None:
+    """`none` disables a level, so either threshold may be `none` whatever the other is."""
+    profile = tmp_path / "profile.yaml"
+    profile.write_text(
+        "version: 1\nverdict:\n  warn_at: none\n  review_required_at: medium\n", encoding="utf-8"
+    )
+    config, _ = load_config(tmp_path, request(tmp_path, risk_profile=str(profile)))
+    assert (config.verdict.warn_at, config.verdict.review_required_at) == ("none", "medium")

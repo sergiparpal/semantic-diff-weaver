@@ -27,7 +27,7 @@ def test_all_output_modes(repo_factory, output_format: str) -> None:
         }
     )
     assert result["success"] is True
-    assert result["schema_version"] == "1.1"
+    assert result["schema_version"] == "1.2"
     if output_format == "json":
         assert "behavior_changes" in result
     elif output_format == "markdown":
@@ -375,3 +375,33 @@ def test_a_new_package_reports_its_code_and_not_its_documented_init(repo_factory
     ] == [("pkg/core.py", "run")]
     assert result["scope"]["changed_symbols"] == 1
     assert "pkg/__init__.py" in result["scope"]["analyzed_files"]
+
+
+@pytest.mark.parametrize(
+    ("config", "files", "verdict"),
+    [
+        pytest.param(None, {}, "warn", id="a-medium-finding-warns-by-default"),
+        pytest.param("verdict:\n  warn_at: high\n", {}, "pass", id="thresholds-are-configurable"),
+        pytest.param(
+            "verdict:\n  warn_at: none\n  review_required_at: none\n",
+            {"broken.py": "def broken(:\n"},
+            "warn",
+            id="an-unparsed-file-is-never-a-pass",
+        ),
+    ],
+)
+def test_the_summary_carries_an_advisory_verdict(
+    repo_factory, config: str | None, files: dict[str, str], verdict: str
+) -> None:
+    old = {"api.py": "def allowed(x):\n    return x < 5\n"}
+    new = {"api.py": "def allowed(x):\n    return x <= 5\n", **files}
+    if config is not None:
+        old[".semantic-diff-weaver.yaml"] = new[".semantic-diff-weaver.yaml"] = (
+            f"version: 1\n{config}"
+        )
+    repo, base, head = repo_factory(old, new)
+    result = analyze(
+        {"repo_path": str(repo), "base_ref": base, "head_ref": head, "output_format": "both"}
+    )
+    assert result["analysis"]["summary"]["verdict"] == verdict
+    assert f"**Verdict:** {verdict} ·" in result["markdown"]

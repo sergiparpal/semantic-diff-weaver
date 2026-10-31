@@ -41,7 +41,18 @@ mapping: []
 privacy:
   redact_patterns: true
   allow_network: false
+verdict:
+  warn_at: medium
+  review_required_at: high
 ```
+
+`summary.verdict` is an advisory `pass`, `warn`, or `review_required`, read from the overall risk:
+`warn` from `verdict.warn_at` and `review_required` from `verdict.review_required_at`, each a risk
+label or `none` to turn that level off, with `warn_at` no higher than `review_required_at`. An
+analysis that left scope unread — `scope.truncated`, after a limit, a parse failure, or an omitted
+model batch — or that compared a commit with itself is at least `warn` whatever the thresholds say,
+since an unread file is not a file without findings. Nothing blocks on the verdict: `--fail-on`
+still decides the CLI's exit code, and a workflow can act on the Action's `verdict` output.
 
 Critical paths use `{pattern, weight}` entries. A path matched by no pattern contributes a
 default weight of 10 to the risk score, so an explicit `weight: 0` entry ranks a path *below* one

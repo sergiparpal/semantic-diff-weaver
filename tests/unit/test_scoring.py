@@ -5,8 +5,16 @@ from dataclasses import replace
 import pytest
 
 from semantic_diff_weaver.ast_diff import StructuralDelta
-from semantic_diff_weaver.models import CandidateTest, LineRange, RiskLabel, WeaverConfig
+from semantic_diff_weaver.models import (
+    CandidateTest,
+    LineRange,
+    RiskLabel,
+    Verdict,
+    VerdictConfig,
+    WeaverConfig,
+)
 from semantic_diff_weaver.scoring import (
+    advisory_verdict,
     confidence_score,
     obligation_priority,
     risk_label,
@@ -126,3 +134,37 @@ def test_every_risk_score_is_the_stated_combination_of_its_axes(repo_factory) ->
         )
         assert behavior["risk_score"] == stated
         assert behavior["risk"] == scoring.risk_label(stated).value
+
+
+@pytest.mark.parametrize(
+    ("risk", "policy", "incomplete", "verdict"),
+    [
+        pytest.param(RiskLabel.LOW, {}, False, Verdict.PASS, id="low-passes"),
+        pytest.param(RiskLabel.MEDIUM, {}, False, Verdict.WARN, id="medium-warns"),
+        pytest.param(RiskLabel.HIGH, {}, False, Verdict.REVIEW_REQUIRED, id="high-holds"),
+        pytest.param(RiskLabel.CRITICAL, {}, False, Verdict.REVIEW_REQUIRED, id="critical-holds"),
+        pytest.param(RiskLabel.LOW, {}, True, Verdict.WARN, id="unread-scope-never-passes"),
+        pytest.param(
+            RiskLabel.LOW,
+            {"warn_at": "none", "review_required_at": "none"},
+            True,
+            Verdict.WARN,
+            id="not-even-with-every-level-off",
+        ),
+        pytest.param(
+            RiskLabel.HIGH, {"review_required_at": "none"}, False, Verdict.WARN, id="no-hold"
+        ),
+        pytest.param(
+            RiskLabel.MEDIUM,
+            {"warn_at": "high", "review_required_at": "critical"},
+            False,
+            Verdict.PASS,
+            id="raised-thresholds",
+        ),
+        pytest.param(RiskLabel.LOW, {"warn_at": "low"}, False, Verdict.WARN, id="warn-on-anything"),
+    ],
+)
+def test_the_verdict_follows_the_thresholds_and_never_passes_unread_scope(
+    risk: RiskLabel, policy: dict, incomplete: bool, verdict: Verdict
+) -> None:
+    assert advisory_verdict(risk, VerdictConfig(**policy), incomplete=incomplete) is verdict

@@ -64,7 +64,7 @@ def test_candidate_tests_are_explicitly_unverified() -> None:
 
 
 def test_transport_schemas_are_versioned() -> None:
-    assert AnalysisResult.model_json_schema()["properties"]["schema_version"]["const"] == "1.1"
+    assert AnalysisResult.model_json_schema()["properties"]["schema_version"]["const"] == "1.2"
     assert ErrorResponse(success=False, error="invalid_ref", message="bad", remediation="fix")
 
 
@@ -104,6 +104,7 @@ def test_analysis_summary_and_scope_invariants_are_enforced() -> None:
                 "high": 0,
                 "critical": 0,
             },
+            "verdict": "pass",
         },
         "scope": {
             "changed_files_total": 1,
@@ -122,3 +123,59 @@ def test_analysis_summary_and_scope_invariants_are_enforced() -> None:
     payload["summary"]["changed_files"] = 2
     with pytest.raises(ValidationError, match="changed-file counts"):
         AnalysisResult.model_validate(payload)
+
+
+@pytest.mark.parametrize(
+    ("change", "verdict", "valid"),
+    [
+        pytest.param({}, "pass", True, id="complete-and-passing"),
+        pytest.param({"scope": {"truncated": True}}, "pass", False, id="unread-scope-cannot-pass"),
+        pytest.param({"scope": {"truncated": True}}, "warn", True, id="unread-scope-can-warn"),
+        pytest.param(
+            {"repository": {"head_commit": "a" * 40}}, "pass", False, id="nothing-compared"
+        ),
+    ],
+)
+def test_an_analysis_that_left_scope_unread_never_passes(
+    change: dict, verdict: str, valid: bool
+) -> None:
+    """A truncated scope, or a commit compared with itself, is not a review that found nothing."""
+    payload = {
+        "analysis_id": "sdw_test",
+        "repository": {
+            "base_ref": "base",
+            "head_ref": "head",
+            "base_commit": "a" * 40,
+            "head_commit": "b" * 40,
+            **change.get("repository", {}),
+        },
+        "summary": {
+            "changed_files": 1,
+            "changed_symbols": 0,
+            "behavior_changes": 0,
+            "test_obligations": 0,
+            "overall_risk": "low",
+            "risk_score": 0,
+            "overall_confidence": 1,
+            "risk_counts": {"low": 0, "medium": 0, "high": 0, "critical": 0},
+            "verdict": verdict,
+        },
+        "scope": {
+            "changed_files_total": 1,
+            "analyzed_files": ["src/a.py"],
+            "changed_lines": 1,
+            "changed_symbols": 0,
+            **change.get("scope", {}),
+        },
+        "behavior_changes": [],
+        "test_obligations": [],
+        "warnings": [],
+        "limitations": [],
+        "llm": {},
+        "deterministic_mode": True,
+    }
+    if valid:
+        assert AnalysisResult.model_validate(payload)
+    else:
+        with pytest.raises(ValidationError, match="cannot pass"):
+            AnalysisResult.model_validate(payload)

@@ -176,6 +176,7 @@ def render_markdown(result: AnalysisResult, *, excerpt_chars: int | None = None)
         "## Semantic Diff Test Brief",
         "",
         (
+            f"**Verdict:** {result.summary.verdict.value} · "
             f"**Overall risk:** {result.summary.overall_risk.value} "
             f"({result.summary.risk_score}/100) · **Confidence:** "
             f"{result.summary.overall_confidence:.0%}"
