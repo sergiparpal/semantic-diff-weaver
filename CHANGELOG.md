@@ -1,6 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 - 2026-10-31
+
+The tool reaches Claude Code, and its candidate tests follow the code that reaches a change. A
+Claude Code plugin serves the same tool over MCP; candidate mapping follows calls through
+instances, packages, `importlib`, and module variables; changed tests are no longer analyzed as
+product code; the GitHub Action reviews a pull request from where it branched off; and the
+Anthropic adapter works with SDK 1.x and 2.x and the 5.5 models. The schema stays at 1.1 and no
+error code changes, but findings, obligations, and candidate tests change on most ranges: each
+output-affecting correction is recorded in `docs/decisions.md`.
 
 - **Feature:** a Claude Code plugin. `/plugin marketplace add <path-to-checkout>` then
   `/plugin install semantic-diff-weaver@semantic-diff-weaver` adds an MCP server exposing the
