@@ -88,7 +88,8 @@ as given.
 | `comment` | `true` | post or update the pull-request comment |
 | `python-version` | `3.12` | interpreter used to run the analyzer |
 
-Outputs: `analysis` (path to the JSON envelope under `RUNNER_TEMP`) and `overall-risk`.
+Outputs: `analysis` (path to the JSON envelope under `RUNNER_TEMP`), `overall-risk`, and, added
+after 0.4.1, `verdict`: `pass`, `warn`, or `review_required`, as `docs/configuration.md` describes.
 
 Set `base-ref` explicitly on any event that is not `pull_request` — there is no pull request to
 branch off, and the action fails with a message saying so rather than guessing a range.

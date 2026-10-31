@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- **Breaking (schema):** `SCHEMA_VERSION` is now `"1.2"`. `summary` gains a required `verdict`,
+  `pass`, `warn`, or `review_required`. Every existing field and value is unchanged, but a
+  consumer that validates the summary strictly sees a new field and needs a version signal.
+- **Feature:** an advisory verdict. The summary says `pass`, `warn`, or `review_required`, read
+  from the overall risk under the new `verdict` configuration section — `warn` from `warn_at`,
+  `medium` by default, and `review_required` from `review_required_at`, `high` by default, either
+  of them `none` to turn it off. An analysis that left scope unread or compared a commit with
+  itself is never `pass`, whatever the thresholds say. The brief, and so the pull-request comment,
+  opens with the verdict, and the GitHub Action exposes it as the `verdict` output. Nothing blocks
+  on it: `--fail-on` still decides the exit code. On the evaluation corpus it is 3 `pass`, 12
+  `warn`, and 3 `review_required`.
+
 ## 0.4.1 - 2026-10-31
 
 Findings are classified by what changed. A comparison or condition is a boundary only when what

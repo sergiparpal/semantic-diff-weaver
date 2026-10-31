@@ -46,7 +46,7 @@ from .path_policy import (
     redact_text,
 )
 from .renderer import render_transport
-from .scoring import confidence_score, score_risk
+from .scoring import advisory_verdict, confidence_score, score_risk
 from .semantic_candidates import SemanticCandidate, build_candidates
 from .semantic_interpreter import InterpreterResult, interpret_candidates
 from .test_mapper import TestIndex, build_test_index, defines_tests, map_candidate_tests
@@ -728,6 +728,11 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
             risk_score=overall_score,
             overall_confidence=overall_confidence,
             risk_counts=risk_counts,
+            verdict=advisory_verdict(
+                overall_risk,
+                config.verdict,
+                incomplete=state.scope_truncated or base_commit == head_commit,
+            ),
         ),
         scope=ScopeMetadata(
             changed_files_total=collection.changed_files_total,

@@ -65,7 +65,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.1",
+    "schema_version": "1.2",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -91,7 +91,8 @@
         "medium": 1
       },
       "risk_score": 49,
-      "test_obligations": 1
+      "test_obligations": 1,
+      "verdict": "warn"
     },
     "test_obligations": [
       {
@@ -179,7 +180,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.1",
+    "schema_version": "1.2",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -205,7 +206,8 @@
         "medium": 0
       },
       "risk_score": 62,
-      "test_obligations": 2
+      "test_obligations": 2,
+      "verdict": "review_required"
     },
     "test_obligations": [
       {
@@ -307,7 +309,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.1",
+    "schema_version": "1.2",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -333,7 +335,8 @@
         "medium": 1
       },
       "risk_score": 50,
-      "test_obligations": 2
+      "test_obligations": 2,
+      "verdict": "warn"
     },
     "test_obligations": [
       {
@@ -435,7 +438,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.1",
+    "schema_version": "1.2",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -461,7 +464,8 @@
         "medium": 1
       },
       "risk_score": 53,
-      "test_obligations": 3
+      "test_obligations": 3,
+      "verdict": "warn"
     },
     "test_obligations": [
       {
@@ -581,7 +585,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.1",
+    "schema_version": "1.2",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -607,7 +611,8 @@
         "medium": 1
       },
       "risk_score": 54,
-      "test_obligations": 3
+      "test_obligations": 3,
+      "verdict": "warn"
     },
     "test_obligations": [
       {
@@ -725,7 +730,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.1",
+    "schema_version": "1.2",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -751,7 +756,8 @@
         "medium": 1
       },
       "risk_score": 55,
-      "test_obligations": 2
+      "test_obligations": 2,
+      "verdict": "warn"
     },
     "test_obligations": [
       {
@@ -853,7 +859,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.1",
+    "schema_version": "1.2",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -879,7 +885,8 @@
         "medium": 1
       },
       "risk_score": 52,
-      "test_obligations": 3
+      "test_obligations": 3,
+      "verdict": "warn"
     },
     "test_obligations": [
       {
@@ -1038,7 +1045,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.1",
+    "schema_version": "1.2",
     "scope": {
       "analyzed_files": [
         "src/bad.py",
@@ -1070,7 +1077,8 @@
         "medium": 2
       },
       "risk_score": 52,
-      "test_obligations": 4
+      "test_obligations": 4,
+      "verdict": "warn"
     },
     "test_obligations": [
       {
@@ -1208,7 +1216,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.1",
+    "schema_version": "1.2",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -1234,7 +1242,8 @@
         "medium": 1
       },
       "risk_score": 49,
-      "test_obligations": 1
+      "test_obligations": 1,
+      "verdict": "warn"
     },
     "test_obligations": [
       {
@@ -1281,7 +1290,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.1",
+    "schema_version": "1.2",
     "scope": {
       "analyzed_files": [
         "src/new.py",
@@ -1313,7 +1322,8 @@
         "medium": 0
       },
       "risk_score": 0,
-      "test_obligations": 0
+      "test_obligations": 0,
+      "verdict": "pass"
     },
     "test_obligations": [],
     "warnings": []
@@ -1343,7 +1353,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.1",
+    "schema_version": "1.2",
     "scope": {
       "analyzed_files": [],
       "changed_files_total": 1,
@@ -1369,7 +1379,8 @@
         "medium": 0
       },
       "risk_score": 0,
-      "test_obligations": 0
+      "test_obligations": 0,
+      "verdict": "pass"
     },
     "test_obligations": [],
     "warnings": []
@@ -1438,7 +1449,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.1",
+    "schema_version": "1.2",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -1464,7 +1475,8 @@
         "medium": 1
       },
       "risk_score": 54,
-      "test_obligations": 2
+      "test_obligations": 2,
+      "verdict": "warn"
     },
     "test_obligations": [
       {
@@ -1567,7 +1579,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.1",
+    "schema_version": "1.2",
     "scope": {
       "analyzed_files": [
         "critical.py"
@@ -1598,7 +1610,8 @@
         "medium": 0
       },
       "risk_score": 74,
-      "test_obligations": 3
+      "test_obligations": 3,
+      "verdict": "review_required"
     },
     "test_obligations": [
       {
@@ -1754,7 +1767,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.1",
+    "schema_version": "1.2",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -1780,7 +1793,8 @@
         "medium": 1
       },
       "risk_score": 56,
-      "test_obligations": 3
+      "test_obligations": 3,
+      "verdict": "warn"
     },
     "test_obligations": [
       {
@@ -1900,7 +1914,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.1",
+    "schema_version": "1.2",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -1926,7 +1940,8 @@
         "medium": 1
       },
       "risk_score": 57,
-      "test_obligations": 2
+      "test_obligations": 2,
+      "verdict": "warn"
     },
     "test_obligations": [
       {
@@ -2030,7 +2045,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.1",
+    "schema_version": "1.2",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -2056,7 +2071,8 @@
         "medium": 0
       },
       "risk_score": 62,
-      "test_obligations": 3
+      "test_obligations": 3,
+      "verdict": "review_required"
     },
     "test_obligations": [
       {
@@ -2135,7 +2151,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.1",
+    "schema_version": "1.2",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -2166,7 +2182,8 @@
         "medium": 0
       },
       "risk_score": 0,
-      "test_obligations": 0
+      "test_obligations": 0,
+      "verdict": "pass"
     },
     "test_obligations": [],
     "warnings": []
@@ -2235,7 +2252,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.1",
+    "schema_version": "1.2",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -2261,7 +2278,8 @@
         "medium": 1
       },
       "risk_score": 57,
-      "test_obligations": 3
+      "test_obligations": 3,
+      "verdict": "warn"
     },
     "test_obligations": [
       {

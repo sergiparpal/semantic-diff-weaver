@@ -146,6 +146,38 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Advisory verdict (2026-10-31)
+
+The specification's roadmap promised "policy thresholds for advisory `pass`, `warn`, or
+`review_required`". Until now the one policy was `--fail-on`, which fails a run at an overall risk
+level and tells a reader of the report nothing. `summary.verdict` now carries one of the three,
+read from the overall risk: `warn` from `verdict.warn_at`, `medium` by default, and
+`review_required` from `verdict.review_required_at`, `high` by default. On the evaluation corpus
+that is 3 `pass`, 12 `warn`, and 3 `review_required`: the three cases without a finding pass, and
+the authorization guard, the side effect, and the critical-path case hold for review.
+
+An analysis that left scope unread, or compared a commit with itself, is at least `warn`, and the
+model rejects one that says `pass`. That is not configurable. A file left unread for a limit, a
+parse failure, or an omitted model batch is not a file without findings, and a range with nothing
+in it is most often a change that was never committed, the case the warning about equal refs
+already names. `none` turns a risk level off, so with both thresholds at `none` the verdict is that
+rule alone.
+
+The verdict is advisory. `--fail-on` still decides the CLI's exit code and nothing blocks on the
+verdict; the GitHub Action exposes it as a `verdict` output for a workflow to act on, and the
+Markdown brief, and so the pull-request comment and the Claude Code brief, opens with it.
+
+### Schema version bumped to 1.2
+
+`Summary` gains the required `verdict` field and its three `Verdict` values. As with 1.1, a
+consumer that validates the summary strictly now sees a field it has never seen, so
+`SCHEMA_VERSION` is `"1.2"`, the `Literal` annotations on `AnalysisResult`, `MarkdownEnvelope`, and
+`BothEnvelope` moved with it, and the contract tests and canonical goldens were updated
+intentionally. The golden diff is 18 `schema_version` lines and 18 additive `verdict` lines, plus
+the comma each `test_obligations` line gains before it; no finding, risk, confidence, or
+obligation changed. The configuration gains the optional `verdict` section, and no error code
+changes.
+
 ## Output-affecting corrections (2026-10-31, output contracts)
 
 Two corrections to `output_contract_change`, both from the hand review in

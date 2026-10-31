@@ -5,11 +5,15 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from .models import (
+    RISK_ORDER,
     BehaviorCategory,
     CandidateTest,
     Origin,
     RiskLabel,
     ScoreExplanation,
+    Verdict,
+    VerdictConfig,
+    VerdictThreshold,
 )
 from .path_policy import WeightedPattern, critical_weight
 from .semantic_candidates import SemanticCandidate
@@ -35,6 +39,25 @@ def risk_label(score: int | float) -> RiskLabel:
     if score >= MEDIUM_FROM:
         return RiskLabel.MEDIUM
     return RiskLabel.LOW
+
+
+def _reaches(risk: RiskLabel, threshold: VerdictThreshold) -> bool:
+    return threshold != "none" and RISK_ORDER.index(risk) >= RISK_ORDER.index(RiskLabel(threshold))
+
+
+def advisory_verdict(
+    overall_risk: RiskLabel, policy: VerdictConfig, *, incomplete: bool
+) -> Verdict:
+    """The verdict for an analysis's overall risk under the configured thresholds.
+
+    `incomplete` is an analysis that left scope unread or compared a commit with itself: it is at
+    least `warn`, so no unread file and no uncommitted change can read as a passed review.
+    """
+    if _reaches(overall_risk, policy.review_required_at):
+        return Verdict.REVIEW_REQUIRED
+    if incomplete or _reaches(overall_risk, policy.warn_at):
+        return Verdict.WARN
+    return Verdict.PASS
 
 
 def confidence_score(candidate: SemanticCandidate, *, truncated: bool = False) -> float:

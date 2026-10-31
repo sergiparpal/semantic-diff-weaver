@@ -170,3 +170,49 @@ def test_a_revision_missing_from_the_checkout_names_fetch_depth(
     )
     assert status == 1
     assert "fetch-depth: 0" in stderr
+
+
+def test_the_outputs_carry_the_overall_risk_and_the_verdict(tmp_path: Path) -> None:
+    """The analyze step reads both from the envelope's summary into the step's outputs."""
+    action = yaml.safe_load((REPOSITORY_ROOT / "action.yml").read_text(encoding="utf-8"))
+    (step,) = [item for item in action["runs"]["steps"] if item.get("id") == "analyze"]
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "python").symlink_to(sys.executable)
+    envelope = tmp_path / "canned.json"
+    envelope.write_text(
+        '{"success": true, "analysis": {"summary": '
+        '{"overall_risk": "high", "verdict": "review_required"}}, "markdown": "brief"}',
+        encoding="utf-8",
+    )
+    stub = bin_dir / "semantic-diff-weaver"
+    stub.write_text(f"#!/usr/bin/env bash\ncat '{envelope}'\n", encoding="utf-8")
+    stub.chmod(0o755)
+    script = tmp_path / "analyze.sh"
+    script.write_text(str(step["run"]), encoding="utf-8")
+    output = tmp_path / "github_output"
+    variables = {
+        "BASE_REF": "base",
+        "HEAD_REF": "",
+        "INCLUDE_GLOBS": "",
+        "EXCLUDE_GLOBS": "",
+        "COVERAGE_REPORT": "",
+        "RISK_PROFILE": "",
+        "FAIL_ON": "none",
+        "RUNNER_TEMP": str(tmp_path),
+        "GITHUB_OUTPUT": str(output),
+        "GITHUB_ENV": str(tmp_path / "github_env"),
+        "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+    }
+    completed = subprocess.run(
+        [str(shutil.which("bash")), str(script)],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+        env={**os.environ, **variables},
+    )
+    assert completed.returncode == 0, completed.stderr
+    outputs = dict(line.split("=", 1) for line in output.read_text(encoding="utf-8").splitlines())
+    assert outputs["overall-risk"] == "high"
+    assert outputs["verdict"] == "review_required"

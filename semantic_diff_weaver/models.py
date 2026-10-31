@@ -1,4 +1,4 @@
-"""Validated domain and transport models for schema version 1.0."""
+"""Validated domain and transport models for schema version 1.2."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from .errors import ErrorCode
 
-SCHEMA_VERSION: Literal["1.1"] = "1.1"
+SCHEMA_VERSION: Literal["1.2"] = "1.2"
 MAX_PATH_CHARS = 4096
 MAX_REF_CHARS = 1024
 MAX_PATTERN_CHARS = 512
@@ -46,6 +46,23 @@ class RiskLabel(StrEnum):
     MEDIUM = "medium"
     HIGH = "high"
     CRITICAL = "critical"
+
+
+class Verdict(StrEnum):
+    """What the analysis advises: nothing to review, findings worth a look, or a review to hold.
+
+    Advisory only. Nothing blocks on it unless a workflow chooses to.
+    """
+
+    # A verdict, not a credential: S105 reads any name containing `pass` as a password.
+    PASS = "pass"  # noqa: S105
+    WARN = "warn"
+    REVIEW_REQUIRED = "review_required"
+
+
+# A verdict threshold is a risk label, or `none` for a level that never applies.
+VerdictThreshold = Literal["low", "medium", "high", "critical", "none"]
+RISK_ORDER: tuple[RiskLabel, ...] = tuple(RiskLabel)
 
 
 class BehaviorCategory(StrEnum):
@@ -157,6 +174,25 @@ class RulesConfig(StrictModel):
     deterministic_fallback: bool = True
 
 
+class VerdictConfig(StrictModel):
+    """The overall risk from which the verdict is `warn`, and from which it is `review_required`.
+
+    An analysis that left scope unread, or compared a commit with itself, is never `pass`,
+    whatever these say: an unread file is not a file without findings.
+    """
+
+    warn_at: VerdictThreshold = "medium"
+    review_required_at: VerdictThreshold = "high"
+
+    @model_validator(mode="after")
+    def ordered(self) -> VerdictConfig:
+        if "none" not in (self.warn_at, self.review_required_at) and RISK_ORDER.index(
+            RiskLabel(self.warn_at)
+        ) > RISK_ORDER.index(RiskLabel(self.review_required_at)):
+            raise ValueError("verdict.warn_at must not be above verdict.review_required_at")
+        return self
+
+
 class CoverageConfig(StrictModel):
     """An optional coverage report to ingest. The tool never produces one."""
 
@@ -181,6 +217,7 @@ class WeaverConfig(StrictModel):
     )
     privacy: PrivacyConfig = Field(default_factory=PrivacyConfig)
     coverage: CoverageConfig = Field(default_factory=CoverageConfig)
+    verdict: VerdictConfig = Field(default_factory=VerdictConfig)
 
     @model_validator(mode="after")
     def unique_mappings(self) -> WeaverConfig:
@@ -322,6 +359,7 @@ class Summary(StrictModel):
     risk_score: int = Field(ge=0, le=100)
     overall_confidence: float = Field(ge=0, le=1)
     risk_counts: dict[RiskLabel, int]
+    verdict: Verdict
 
 
 class LlmUsage(StrictModel):
@@ -340,7 +378,7 @@ class LlmStatus(StrictModel):
 
 class AnalysisResult(StrictModel):
     success: Literal[True] = True
-    schema_version: Literal["1.1"] = SCHEMA_VERSION
+    schema_version: Literal["1.2"] = SCHEMA_VERSION
     analysis_id: str = Field(pattern=r"^sdw_[A-Za-z0-9_-]+$")
     repository: RepositoryIdentity
     summary: Summary
@@ -381,6 +419,10 @@ class AnalysisResult(StrictModel):
                 raise ValueError("summary risk label must come from a highest-scoring behavior")
         elif self.summary.risk_score or self.summary.overall_risk is not RiskLabel.LOW:
             raise ValueError("an empty analysis must have zero low risk")
+        if self.summary.verdict is Verdict.PASS and (
+            self.scope.truncated or self.repository.base_commit == self.repository.head_commit
+        ):
+            raise ValueError("an analysis that left scope unread or compared nothing cannot pass")
         behavior_ids = {item.id for item in self.behavior_changes}
         if len(behavior_ids) != len(self.behavior_changes):
             raise ValueError("behavior change IDs must be unique")
@@ -413,14 +455,14 @@ class AnalysisResult(StrictModel):
 
 class MarkdownEnvelope(StrictModel):
     success: Literal[True] = True
-    schema_version: Literal["1.1"] = SCHEMA_VERSION
+    schema_version: Literal["1.2"] = SCHEMA_VERSION
     analysis_id: str = Field(pattern=r"^sdw_[A-Za-z0-9_-]+$")
     markdown: str
 
 
 class BothEnvelope(StrictModel):
     success: Literal[True] = True
-    schema_version: Literal["1.1"] = SCHEMA_VERSION
+    schema_version: Literal["1.2"] = SCHEMA_VERSION
     analysis: AnalysisResult
     markdown: str
 

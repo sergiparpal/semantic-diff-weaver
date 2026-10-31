@@ -41,12 +41,12 @@ imports, executes, builds, or modifies the repository.
    means `repo_path` is outside the authorized workspace — the project directory, unless the
    operator set `SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS`. Do not retry with another path to get
    around it; tell the user how to authorize the directory instead.
-5. **Report** the overall risk, then the obligations highest risk first. For each one give its
-   ID, the behavior that changed, the file and symbol, and the evidence IDs that support it. Present
-   the listed candidate tests as *unverified* — the tool matches them statically and never
-   runs them. A candidate shown as a whole file stands for tests related to the change only
-   through their file, none of them by name. Say so if the result reports truncation or omitted
-   scope.
+5. **Report** the verdict and overall risk the brief opens with, then the obligations highest
+   risk first. For each one give its ID, the behavior that changed, the file and symbol, and the
+   evidence IDs that support it. Present the listed candidate tests as *unverified* — the tool
+   matches them statically and never runs them. A candidate shown as a whole file stands for
+   tests related to the change only through their file, none of them by name. Say so if the
+   result reports truncation or omitted scope.
 
 **Explaining a risk score.** The brief gives each finding's label; the JSON's
 `score_explanation` gives its four axes, which combine as
