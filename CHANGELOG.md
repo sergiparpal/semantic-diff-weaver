@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **Fix:** an output-contract finding says what changed. A signature change that leaves what a
+  caller passes alone — only its annotations, return annotation, type parameters, or type comments
+  differ — is now worded as typing alone, under the new `SDW-RULE-SIGNATURE-ANNOTATIONS`, with the
+  assumption that annotations matter only where something reads them; it stays an
+  `output_contract_change`, where it used to ask callers to supply different arguments, and gives
+  way to any other change its finding holds. And a
+  changed comparison no longer drops every return change in its symbol, only one whose changed
+  values each show it: click's `Argument.get_help_record` no longer returning `None` was hidden
+  that way. On this repository's history 29 of 89 signature classifications are typing alone and
+  34 return changes are reported again, on `adaptive-policy-compilation` 1 of 54 and 26; no
+  classification moves and no range's highest risk rises. One corpus golden changes its text and
+  confidence, and precision and recall stay at 100%.
+
 - **Fix:** a changed loop is a retry only when its names say so. `SDW-RULE-LOOP` made every
   changed loop a `retry_timeout_change`, so a `for` over a command's parameters and a `while` that
   trimmed words until a help text fit came with obligations to recover before a retry limit and

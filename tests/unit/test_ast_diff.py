@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 import semantic_diff_weaver.ast_diff.limits as ast_limits
 from semantic_diff_weaver.ast_diff import analyze_ast
 from semantic_diff_weaver.source import SourceHunk, SourceRevisionPair
@@ -165,3 +167,77 @@ def test_an_added_module_of_only_a_docstring_is_no_change() -> None:
     assert [(item.symbol, item.kind) for item in analyze_ast([removed]).deltas] == [
         ("<module>", "symbol_removed")
     ]
+
+
+def _signature_metadata(old: str, new: str) -> dict:
+    [delta] = [
+        item for item in analyze_ast([changed(old, new)]).deltas if item.kind == "signature_change"
+    ]
+    return delta.metadata
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "annotations_only"),
+    [
+        pytest.param("def f(x: int) -> int:", "def f(x: str) -> int:", True, id="parameter"),
+        pytest.param("def f(x) -> int:", "def f(x) -> str:", True, id="return"),
+        pytest.param("def f(*args: int):", "def f(*args: str):", True, id="varargs"),
+        pytest.param("def f(*, key: int = 1):", "def f(*, key: str = 1):", True, id="keyword"),
+        pytest.param(
+            "def f(x):\n    # type: (int) -> str",
+            "def f(x):\n    # type: (str) -> str",
+            True,
+            id="comment",
+        ),
+        pytest.param("def f(x):", "def f(x, y):", False, id="added-parameter"),
+        pytest.param("def f(x: int):", "def f(y: int):", False, id="renamed-parameter"),
+        pytest.param("def f(x, /, y):", "def f(x, y):", False, id="parameter-kind"),
+        pytest.param("def f(x=1):", "def f(x=2):", False, id="default"),
+        pytest.param("def f(x: int):", "def f(x: str, y):", False, id="annotation-and-parameter"),
+    ],
+)
+def test_a_signature_change_says_whether_only_its_typing_changed(
+    old: str, new: str, annotations_only: bool
+) -> None:
+    metadata = _signature_metadata(f"{old}\n    return 1\n", f"{new}\n    return 1\n")
+    assert metadata["annotations_only"] is annotations_only
+
+
+def test_a_class_signature_is_never_typing_alone() -> None:
+    """A class's bases are evaluated when the class is defined, generic or not."""
+    metadata = _signature_metadata(
+        "class Path(ParamType[str]):\n    pass\n",
+        "class Path(ParamType[T], t.Generic[T]):\n    pass\n",
+    )
+    assert metadata["annotations_only"] is False
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "return_change"),
+    [
+        pytest.param(
+            "def allowed(x):\n    return x < 5\n",
+            "def allowed(x):\n    return x <= 5\n",
+            False,
+            id="the-return-is-the-comparison",
+        ),
+        pytest.param(
+            "def record(self):\n    if self.help is None:\n        return None\n"
+            "    return (self.name, self.help)\n",
+            "def record(self):\n    return (self.name, self.help or '')\n",
+            True,
+            id="the-return-changed-besides",
+        ),
+    ],
+)
+def test_a_changed_comparison_drops_only_the_return_change_it_explains(
+    old: str, new: str, return_change: bool
+) -> None:
+    """Any changed comparison used to drop its symbol's return change.
+
+    Click's `Argument.get_help_record` lost an `if self.help is None` and the `return None`
+    under it, and the change its callers see — a help row for every argument — went unreported.
+    """
+    found = kinds(old, new)
+    assert "comparison_change" in found
+    assert ("return_change" in found) is return_change

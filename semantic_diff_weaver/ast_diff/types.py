@@ -66,6 +66,9 @@ class SymbolSnapshot:
     # What an added or removed symbol's evidence shows. The signature alone said `bases()` for a
     # dataclass and `module` for a whole `__main__.py`; empty means "show the signature".
     display: str = ""
+    # A callable's signature without its typing: what a caller passes. None for a class, a module,
+    # or a snapshot built without it, whose signature changes are never read as typing alone.
+    parameters: str | None = None
 
     @property
     def signature_shape(self) -> str:

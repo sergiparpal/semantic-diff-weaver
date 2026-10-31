@@ -184,15 +184,40 @@ def suppress_redundant_deltas(deltas: list[StructuralDelta]) -> list[StructuralD
     """Drop overlapping feature deltas that are explained by a more specific kind.
 
     Raise changes already imply the underlying call site moved. Pure call-shaped returns
-    are also redundant once a call_change is present.
+    are also redundant once a call_change is present, and returns of a changed comparison once
+    the comparison_change is (see `_maybe_drop_return_when_comparison_explained`).
     """
     result = list(deltas)
     result_kinds = {item.kind for item in result}
     if "raise_change" in result_kinds and "call_change" in result_kinds:
         result = [item for item in result if item.kind != "call_change"]
-        result_kinds.discard("call_change")
-    if "return_change" in result_kinds and "comparison_change" in result_kinds:
-        result = [item for item in result if item.kind != "return_change"]
+    return result
+
+
+def _changed_values(old: SymbolSnapshot, new: SymbolSnapshot, feature: str) -> list[str]:
+    """The values of `feature` that one side holds more times than the other, from both sides."""
+    old_side, new_side = (Counter(feature_texts(snapshot, feature)) for snapshot in (old, new))
+    return list(((old_side - new_side) + (new_side - old_side)).elements())
+
+
+def _maybe_drop_return_when_comparison_explained(
+    result: list[StructuralDelta], old: SymbolSnapshot, new: SymbolSnapshot
+) -> list[StructuralDelta]:
+    """Drop a return change whose changed values each show a changed comparison.
+
+    `return x < 5` to `return x <= 5` changes a comparison and a return value, and the comparison
+    says what changed. Any changed comparison used to drop its symbol's return change, so when
+    `Argument.get_help_record` lost both an `if self.help is None` and the `return None` under
+    it, the one change a caller sees went unreported.
+    """
+    result_kinds = {item.kind for item in result}
+    if "return_change" not in result_kinds or "comparison_change" not in result_kinds:
+        return result
+    # A comparison's value is its expression followed by its operators, `x < 5 [Lt]`.
+    comparisons = [text.rsplit(" [", 1)[0] for text in _changed_values(old, new, "comparisons")]
+    returns = _changed_values(old, new, "returns")
+    if returns and all(any(item in value for item in comparisons) for value in returns):
+        return [item for item in result if item.kind != "return_change"]
     return result
 
 
@@ -365,6 +390,9 @@ def compare_symbol(
                 default_changed=old.default_map != new.default_map,
                 old_defaults=old.default_map,
                 new_defaults=new.default_map,
+                # Only annotations, the return annotation, or type parameters differ: callers
+                # pass what they passed before.
+                annotations_only=old.parameters is not None and old.parameters == new.parameters,
             )
         )
     if old.decorators != new.decorators:
@@ -382,6 +410,7 @@ def compare_symbol(
     _append_feature_deltas(result, path, old, new, hunk_id)
     _append_call_delta(result, path, old, new, hunk_id)
     result = suppress_redundant_deltas(result)
+    result = _maybe_drop_return_when_comparison_explained(result, old, new)
     result = _maybe_drop_return_when_call_explained(result, old, new)
     if is_reordering(old.statement_order, new.statement_order) and not any(
         item.kind in ORDER_SENSITIVE_KINDS for item in result

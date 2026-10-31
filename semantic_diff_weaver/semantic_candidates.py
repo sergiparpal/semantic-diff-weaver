@@ -221,6 +221,21 @@ def _classify_signature(
             [],
             "SDW-RULE-DEFAULT",
         )
+    if delta.metadata.get("annotations_only"):
+        # The declared contract changed, so it stays an output contract change, but nothing a
+        # caller passes did: the text used to ask callers to supply different arguments.
+        return (
+            BehaviorCategory.OUTPUT_CONTRACT,
+            "Only the type annotations of a callable signature appear to have changed.",
+            "Callers pass the same arguments; type checkers, and code that reads annotations at "
+            "runtime, may see a different declared contract.",
+            0.88,
+            [
+                "Annotations change behavior only where something reads them at runtime, such as "
+                "a framework the callable is registered with."
+            ],
+            "SDW-RULE-SIGNATURE-ANNOTATIONS",
+        )
     return (
         BehaviorCategory.OUTPUT_CONTRACT,
         "A callable signature appears to have changed.",
@@ -514,6 +529,11 @@ CLASSIFIERS: tuple[Classifier, ...] = (
     _classify_decorator,
 )
 
+# Classifications that give way to any other in the same finding, which is then about the other
+# one: grouped with the return change of a method that had stopped returning `None`, a narrowed
+# return annotation led its finding with "Only the type annotations ... appear to have changed".
+YIELDING_RULES = frozenset({"SDW-RULE-SIGNATURE-ANNOTATIONS"})
+
 UNKNOWN_FALLBACK: Classification = (
     BehaviorCategory.UNKNOWN,
     "A material structural change cannot be classified reliably from local evidence.",
@@ -558,6 +578,8 @@ class _CandidateAccumulator:
     related_calls: set[str] = field(default_factory=set)
     related_paths: set[str] = field(default_factory=set)
     assigned_names: set[str] = field(default_factory=set)
+    # Whether every classification so far is one of `YIELDING_RULES`.
+    yielding: bool = False
 
     def build(self, path: str, symbol: str, category: BehaviorCategory) -> SemanticCandidate:
         return SemanticCandidate(
@@ -612,11 +634,18 @@ def build_candidates(
         assigned_names = {
             name for name in delta.metadata.get("assigned_names", []) if isinstance(name, str)
         }
+        yields = rule_id in YIELDING_RULES
         if key in grouped:
             current = grouped[key]
+            if current.yielding and not yields:
+                # What the group said so far described its own evidence alone.
+                current.summary, current.observable_impact = summary, impact
+                current.assumptions = set(assumptions)
+                current.yielding = False
+            elif yields == current.yielding:
+                current.assumptions.update(assumptions)
             current.evidence.append(evidence)
             current.confidence_baseline = max(current.confidence_baseline, baseline)
-            current.assumptions.update(assumptions)
             current.rule_ids.append(rule_id)
             current.related_calls.update(related_calls)
             current.related_paths.update(related_paths)
@@ -632,6 +661,7 @@ def build_candidates(
                 related_calls=related_calls,
                 related_paths=related_paths,
                 assigned_names=assigned_names,
+                yielding=yields,
             )
     candidates = [
         accumulator.build(path, symbol, category)

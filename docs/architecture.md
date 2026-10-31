@@ -25,11 +25,13 @@ The `ast_diff/` package parses text with the Python AST without importing target
 the `SourceRevisionPair` contract in `source.py` rather than Git types, so structural analysis does not
 depend on Git and its safety budgets are passed in as an explicit `AstBudget`. It inventories module,
 class, function, async-function, method, and async-method symbols; normalizes complete signatures
-including return annotations and PEP 695 type parameters on both callables and classes; retains only
-decorator names; preserves overload-like duplicate definitions; and correlates conservative moves
-across files that both remain. The `AstBudget` wall-clock deadline is checked between the parse,
-matching, and comparison phases and counts as spent once reached, so a coarse platform clock cannot
-let an exhausted budget read as live.
+including return annotations and PEP 695 type parameters on both callables and classes, and records
+a callable's parameters without their typing, so that a signature change callers pass the same
+arguments across is reported as typing alone; retains only decorator names; preserves overload-like
+duplicate definitions; and correlates conservative moves across files that both remain. The
+`AstBudget` wall-clock deadline is checked between the parse, matching, and comparison phases and
+counts as spent once reached, so a coarse platform clock cannot let an exhausted budget read as
+live.
 
 Deterministic rules create evidence before model use. Their term-based probes read the changed
 expressions together with the symbol name, because names carry authorization, validation, retry, and

@@ -146,6 +146,48 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-10-31, output contracts)
+
+Two corrections to `output_contract_change`, both from the hand review in
+`docs/real-pr-validation.md`.
+
+A signature change whose parameters are the same once annotations, the return annotation, type
+parameters, and type comments are set aside now says so: "Only the type annotations of a callable
+signature appear to have changed", with the impact that callers pass the same arguments while type
+checkers, and code that reads annotations at runtime, may see a different declared contract, and
+the assumption that annotations change behavior only where something reads them, such as a
+framework the callable is registered with. It stays an `output_contract_change`: the corpus's
+reviewed `return annotation signature` case expects one, and a declared return type is a contract
+consumers see. But its text asked callers to supply different arguments, and four of the twelve
+output-contract findings in that run were typing changes to `click.types.Path`. The assumption takes
+its confidence from 0.879 to 0.80; its impact, and so its risk, is unchanged. A class's bases are
+evaluated when the class is defined, so a change to them is never typing alone. On this repository's
+history 29 of 89 signature classifications are typing alone, on `adaptive-policy-compilation` 1 of
+54, and on the 14 real merges 5 of 9, under the new `SDW-RULE-SIGNATURE-ANNOTATIONS`. When its
+finding also holds other evidence, as 4, 1, and 3 of them do, the typing-only classification gives
+way: the finding takes the other one's summary, impact, and assumptions. Otherwise `Argument.get_help_record`, which narrowed
+its return annotation when it stopped returning `None`, read "Only the type annotations ... appear
+to have changed" over the return change below, at the confidence of an assumption about
+annotations.
+
+A changed comparison dropped every return change in its symbol, a rule meant for `return x < 5`
+becoming `return x <= 5`, where the comparison says what changed. It now drops a return change only
+when every changed return value shows a changed comparison. Click's `Argument.get_help_record` lost
+an `if self.help is None` and the `return None` under it, and the change its callers see — a help
+row for every positional argument — had been reported only through the signature's narrowed return
+annotation. On this repository's history 34 return changes were dropped that way and on
+`adaptive-policy-compilation` 26. They are now reported, each joining or forming an
+`output_contract_change`, as return changes are wherever no comparison changed beside them, renames
+such as `return resumen` becoming `return summary` included. No classification moves. Findings rise
+from 1,306 to 1,333 and from 3,014 to 3,033, obligations from 637 to 647 and from 403 to 415, and no
+range's highest risk rises. On the 14 real merges four return changes appear — `get_help_record`'s
+in both pull requests that carry it, the `textwrap.shorten` rewrite of `_make_default_short_help`,
+and `Path.coerce_path_result` — and the findings go from 68 to 69.
+
+The `return annotation signature` golden is regenerated for the new text, assumption, and
+confidence; its category, risk, and obligations are unchanged, the other 17 goldens are unchanged,
+and precision and recall stay at 100%.
+
 ## Output-affecting corrections (2026-10-31, loops)
 
 `SDW-RULE-LOOP` made every changed loop a `retry_timeout_change`. The `for` loop over a command's
