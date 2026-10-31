@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **Tests:** `scripts/validate_real_prs.py` samples squash-merged pull requests and counts each
+  pull request once. It took the two-parent merges reachable from the default branch, so
+  `psf/black` and `encode/httpx`, which squash, contributed merges from 2018 and 2019, and a pull
+  request merged into another branch was reported alone and again inside the merge that brought
+  that branch in. It now reads the default branch's first-parent history and takes each commit
+  whose subject names a pull request, reviewing a squash merge from its parent and a merge commit
+  from where its pull request branched off. `docs/real-pr-validation.md` is regenerated on the
+  five latest pull requests of the same four repositories, with a new hand-reviewed sample: four
+  of ten findings are plausible as presented, against two in the previous one.
+
 - **Fix:** an output-contract finding says what changed. A signature change that leaves what a
   caller passes alone — only its annotations, return annotation, type parameters, or type comments
   differ — is now worded as typing alone, under the new `SDW-RULE-SIGNATURE-ANNOTATIONS`, with the

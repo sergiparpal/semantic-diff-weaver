@@ -1,6 +1,6 @@
 """Run the analyzer over real merged pull requests and report what it says.
 
-A developer tool, not part of the package and never run in CI. The evaluation corpus is 17
+A developer tool, not part of the package and never run in CI. The evaluation corpus is 18
 synthetic cases and `docs/evaluation.md` says outright that it is not a claim about arbitrary
 repositories. Before anyone enables a PR bot, someone should read its output on real diffs —
 findings-per-PR is what predicts whether the bot stays enabled or gets muted.
@@ -8,9 +8,9 @@ findings-per-PR is what predicts whether the bot stays enabled or gets muted.
 **This measures nothing.** Real PRs here are unlabeled, so the output is observations, not
 precision. Do not add these cases to the golden corpus.
 
-Read-only throughout: repositories are shallow-cloned into a scratch directory outside the
-working tree, nothing from them is checked out into this repository, nothing is installed, and
-nothing is executed. Analysis reads Git objects, which is all `git_diff/repository.py` does.
+Read-only throughout: repositories are cloned without a checkout into a scratch directory
+outside the working tree, nothing from them is checked out into this repository, nothing is
+installed, and nothing is executed. Analysis reads Git objects, which is all `git_diff/repository.py` does.
 
     python scripts/validate_real_prs.py --repo psf/requests --repo pallets/click --count 5
     python scripts/validate_real_prs.py --local /path/to/repo --count 5
@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import statistics
 import subprocess
@@ -39,6 +40,11 @@ from semantic_diff_weaver.path_policy import ALLOWED_ROOTS_ENV  # noqa: E402
 
 GIT_TIMEOUT = 600
 DEFAULT_COUNT = 5
+# How a commit names the pull request it merged: GitHub's squash and merge subjects end with
+# `(#123)`, and its default merge commit subject starts `Merge pull request #123 from`.
+PULL_REQUEST_SUBJECT = re.compile(r"\(#(\d+)\)\s*$|^Merge pull request #(\d+) ")
+# How far back the first-parent history is read, per pull request wanted.
+HISTORY_PER_PULL_REQUEST = 50
 
 
 @dataclass
@@ -47,6 +53,7 @@ class PullRequestResult:
 
     repository: str
     identifier: str
+    number: str = ""
     subject: str = ""
     findings: int = 0
     obligations: int = 0
@@ -115,31 +122,47 @@ def clone(slug: str, destination: Path) -> Path | None:
     return target
 
 
-def merge_commits(repo: Path, count: int) -> list[tuple[str, str, str]]:
-    """Return (base, head, subject) for recent two-parent merges — a merged PR's own range.
+def pull_requests(repo: Path, count: int) -> list[tuple[str, str, str, str]]:
+    """Return (base, head, number, subject) for the latest pull requests on the default branch.
 
-    The base is where the pull request branched off, not the merge's first parent. The analyzer
-    compares two trees as they are, so from the first parent every commit the target branch
-    gained after that point reads as reverted by the pull request: the GitHub Action's
-    `base-ref` default had the same flaw until 2026-10-19.
+    Only the default branch's first-parent history is read, so a pull request merged into
+    another branch counts once, inside the merge that brought that branch in, and not also on
+    its own. A commit there is a pull request when its subject names one:
+
+    - A squash merge has one parent, and its range runs from that parent to the commit. Reading
+      merge commits alone left `psf/black` and `encode/httpx`, which squash, with merges from
+      2018 and 2019.
+    - A merge commit has two, and its range starts where the pull request branched off, not at
+      the first parent. The analyzer compares two trees as they are, so from the first parent
+      every commit the target branch gained after that point reads as reverted by the pull
+      request: the GitHub Action's `base-ref` default had the same flaw until 2026-10-19.
+
+    A rebase merge leaves no commit naming its pull request and is not sampled.
     """
     raw = run_git(
         repo,
         "log",
-        "--merges",
-        f"--max-count={count * 4}",
+        "--first-parent",
+        f"--max-count={count * HISTORY_PER_PULL_REQUEST}",
         "--pretty=format:%H%x1f%P%x1f%s",
     )
-    found: list[tuple[str, str, str]] = []
+    found: list[tuple[str, str, str, str]] = []
     for line in raw.splitlines():
         parts = line.split("\x1f")
         if len(parts) != 3:
             continue
-        parents = parts[1].split()
-        if len(parents) != 2:
+        commit, parents, subject = parts[0], parts[1].split(), parts[2]
+        named = PULL_REQUEST_SUBJECT.search(subject)
+        if named is None:
             continue
-        base = run_git(repo, "merge-base", parents[0], parents[1]).strip()
-        found.append((base, parents[1], parts[2]))
+        number = next(group for group in named.groups() if group)
+        if len(parents) == 1:
+            found.append((parents[0], commit, number, subject))
+        elif len(parents) == 2:
+            base = run_git(repo, "merge-base", parents[0], parents[1]).strip()
+            found.append((base, parents[1], number, subject))
+        else:
+            continue
         if len(found) >= count:
             break
     return found
@@ -182,8 +205,12 @@ def analyze(repo: Path, base: str, head: str) -> dict[str, Any] | None:
         return None
 
 
-def measure(repository: str, repo: Path, base: str, head: str, subject: str) -> PullRequestResult:
-    result = PullRequestResult(repository=repository, identifier=head[:12], subject=subject[:120])
+def measure(
+    repository: str, repo: Path, base: str, head: str, number: str, subject: str
+) -> PullRequestResult:
+    result = PullRequestResult(
+        repository=repository, identifier=head[:12], number=number, subject=subject[:120]
+    )
     started = time.perf_counter()
     envelope = analyze(repo, base, head)
     result.seconds = round(time.perf_counter() - started, 3)
@@ -230,15 +257,15 @@ def collect(
     for name, repo in sources:
         print(f"analyzing {name} ...", file=sys.stderr)
         try:
-            merges = merge_commits(repo, count)
+            merged = pull_requests(repo, count)
         except (RuntimeError, subprocess.SubprocessError) as exc:
             unreachable.append(f"{name} ({type(exc).__name__})")
             continue
-        if not merges:
-            unreachable.append(f"{name} (no two-parent merges found)")
+        if not merged:
+            unreachable.append(f"{name} (no merged pull requests found)")
             continue
-        for base, head, subject in merges:
-            results.append(measure(name, repo, base, head, subject))
+        for base, head, number, subject in merged:
+            results.append(measure(name, repo, base, head, number, subject))
     return results, unreachable
 
 
@@ -259,8 +286,9 @@ def render(results: list[PullRequestResult], unreachable: list[str], count: int)
         "# Real pull-request validation",
         "",
         f"Generated {time.strftime('%Y-%m-%d')} by `scripts/validate_real_prs.py`, "
-        f"deterministic mode (`--no-llm`), up to {count} of the most recent two-parent merges per "
-        "repository, each reviewed from where its pull request branched off.",
+        f"deterministic mode (`--no-llm`), the {count} most recent pull requests merged into each "
+        "repository's default branch: a squash merge reviewed from its parent, a merge commit from "
+        "where its pull request branched off.",
         "",
         "**These are observations on unlabeled data, not precision measurements.** No one has",
         "reviewed these diffs to the standard the golden corpus requires, so nothing here is a",
@@ -272,8 +300,8 @@ def render(results: list[PullRequestResult], unreachable: list[str], count: int)
         "| Metric | Value |",
         "| --- | --- |",
         f"| Repositories analyzed | {len({item.repository for item in analyzed})} |",
-        f"| Merges analyzed | {len(analyzed)} |",
-        f"| Merges skipped | {len(results) - len(analyzed)} |",
+        f"| Pull requests analyzed | {len(analyzed)} |",
+        f"| Pull requests skipped | {len(results) - len(analyzed)} |",
         f"| Findings per PR (mean) | {statistics.fmean(findings):.2f} |"
         if findings
         else "| Findings per PR (mean) | n/a |",
@@ -308,19 +336,18 @@ def render(results: list[PullRequestResult], unreachable: list[str], count: int)
 
     lines += [
         "",
-        "## Per-merge detail",
+        "## Per-pull-request detail",
         "",
-        "| Repository | PR head | Files | Findings | Obligations | Overall risk | Seconds |",
-        "| --- | --- | --- | --- | --- | --- | --- |",
+        "| Repository | PR | Head | Files | Findings | Obligations | Overall risk | Seconds |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for item in results:
+        prefix = f"| {item.repository} | `#{item.number}` | `{item.identifier}`"
         if item.skipped:
-            lines.append(
-                f"| {item.repository} | `{item.identifier}` | — | — | — | skipped: {item.skipped} | {item.seconds} |"
-            )
+            lines.append(f"{prefix} | — | — | — | skipped: {item.skipped} | {item.seconds} |")
             continue
         lines.append(
-            f"| {item.repository} | `{item.identifier}` | {item.changed_files} | {item.findings} "
+            f"{prefix} | {item.changed_files} | {item.findings} "
             f"| {item.obligations} | {item.overall_risk} | {item.seconds} |"
         )
 
@@ -354,7 +381,7 @@ def render(results: list[PullRequestResult], unreachable: list[str], count: int)
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="validate_real_prs.py",
-        description="Analyze recent merged pull requests and report findings-per-PR.",
+        description="Analyze recently merged pull requests and report findings-per-PR.",
     )
     parser.add_argument("--repo", action="append", default=[], metavar="OWNER/NAME")
     parser.add_argument("--local", action="append", default=[], metavar="PATH")
@@ -393,7 +420,10 @@ def main(argv: list[str] | None = None) -> int:
 
     report = render(results, unreachable, namespace.count)
     Path(namespace.output).write_text(report, encoding="utf-8")
-    print(f"validate_real_prs: wrote {namespace.output} ({len(results)} merge(s))", file=sys.stderr)
+    print(
+        f"validate_real_prs: wrote {namespace.output} ({len(results)} pull request(s))",
+        file=sys.stderr,
+    )
     return 0
 
 
