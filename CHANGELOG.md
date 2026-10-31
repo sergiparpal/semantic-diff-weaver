@@ -13,6 +13,15 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Tests:** `scripts/validate_real_prs.py` reviews each merge from where its pull request
+  branched off. It compared a merge's two parents as they were, so every commit the target branch
+  gained after the branch point read as reverted by the pull request: on the 14 merges of
+  `docs/real-pr-validation.md`, 150 of the 163 findings today's analyzer reports that way come
+  from such commits, and the 166-finding merge of the July page changed no Python file. The page
+  is regenerated with a correction note and a new hand-reviewed sample. `SDW-RULE-BOUNDARY` still
+  calls any changed comparison a boundary, identity tests included, and `SDW-RULE-LOOP` any changed
+  loop a retry.
+
 - **Tests:** the Hermes compatibility job tests 0.19.0, the current release, in place of 0.18.2,
   and checks the parameters the interpreter really passes. Its list of `complete_structured`
   parameters was kept by hand: it required `json_mode`, which the plugin never passes, and left
