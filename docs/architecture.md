@@ -51,9 +51,10 @@ one of its classes defines, called through `self`, `cls`, or the class, or a bui
 in-process, such as `len` or `isinstance`. Such a change is an unknown change, since the
 dependency category's obligations ask how the code handles a dependency's failures. What an
 attribute holds is not known statically, so `self.client.fetch()` and `self.callback()` stay
-dependency calls, as does a method inherited from another module's class. `warn` is a side-effect
-term, so a changed `warnings.warn()` is a side effect: a warning reaches whoever runs the code, as
-`pytest.warns` observes. The comparison and condition rules' boundary check reads the same probe:
+dependency calls, as does a method inherited from another module's class. `warn` and `print` are
+side-effect terms, so a changed `warnings.warn()` or `print()` is a side effect: a warning or a
+printed line reaches whoever runs the code, as `pytest.warns` and `capsys` observe.
+The comparison and condition rules' boundary check reads the same probe:
 whether a value the delta changed compares a boundary — an ordering (`<`, `<=`, `>`, `>=`), or an
 equality or inequality with a number or a `len()` on one side — taken from its operators and
 operands and never from characters in its text, where a literal's `'<'`, a shift, or a synthetic
