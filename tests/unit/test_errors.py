@@ -27,6 +27,7 @@ def test_every_public_error_code_is_stable() -> None:
         "llm_unavailable",
         "llm_schema_failure",
         "coverage_unreadable",
+        "baseline_unreadable",
         "configuration_error",
         "internal_error",
     }

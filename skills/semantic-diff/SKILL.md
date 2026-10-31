@@ -26,6 +26,8 @@ imports, executes, builds, or modifies the repository.
    finding and obligation with its ID, at about half the size of the JSON. When a large brief
    says its evidence excerpts were shortened, `git diff` shows the code. Pass `coverage_report`
    only when a coverage.py JSON or lcov file already exists; do not run tests to create one.
+   Pass `baseline_report` only to compare with an earlier analysis saved as JSON, when the user
+   asks what changed since it; the brief then marks each finding new or updated.
 3. **Keep a large diff readable.** If the result is saved to a file for being too large, read
    only its first lines for the overall risk and scope, then analyze one area per call with
    `include` (for example `src/**`, then `scripts/**`) instead of reading the whole file.

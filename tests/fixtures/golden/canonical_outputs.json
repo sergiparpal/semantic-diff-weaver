@@ -1,6 +1,7 @@
 {
   "ambiguous metaprogrammed syntax": {
     "analysis_id": "<analysis-id>",
+    "baseline": null,
     "behavior_changes": [
       {
         "assumptions": [
@@ -116,6 +117,7 @@
   },
   "authorization guard": {
     "analysis_id": "<analysis-id>",
+    "baseline": null,
     "behavior_changes": [
       {
         "assumptions": [
@@ -247,6 +249,7 @@
   },
   "call ordering": {
     "analysis_id": "<analysis-id>",
+    "baseline": null,
     "behavior_changes": [
       {
         "assumptions": [],
@@ -376,6 +379,7 @@
   },
   "default argument": {
     "analysis_id": "<analysis-id>",
+    "baseline": null,
     "behavior_changes": [
       {
         "assumptions": [],
@@ -521,6 +525,7 @@
   },
   "dependency arguments": {
     "analysis_id": "<analysis-id>",
+    "baseline": null,
     "behavior_changes": [
       {
         "assumptions": [
@@ -668,6 +673,7 @@
   },
   "exception type": {
     "analysis_id": "<analysis-id>",
+    "baseline": null,
     "behavior_changes": [
       {
         "assumptions": [],
@@ -797,6 +803,7 @@
   },
   "inclusive boundary": {
     "analysis_id": "<analysis-id>",
+    "baseline": null,
     "behavior_changes": [
       {
         "assumptions": [],
@@ -942,6 +949,7 @@
   },
   "mixed parseable and unparseable Python": {
     "analysis_id": "<analysis-id>",
+    "baseline": null,
     "behavior_changes": [
       {
         "assumptions": [
@@ -1152,6 +1160,7 @@
   },
   "module constant": {
     "analysis_id": "<analysis-id>",
+    "baseline": null,
     "behavior_changes": [
       {
         "assumptions": [
@@ -1267,6 +1276,7 @@
   },
   "moved renamed function": {
     "analysis_id": "<analysis-id>",
+    "baseline": null,
     "behavior_changes": [],
     "coverage": null,
     "deterministic_mode": true,
@@ -1330,6 +1340,7 @@
   },
   "no changed Python source": {
     "analysis_id": "<analysis-id>",
+    "baseline": null,
     "behavior_changes": [],
     "coverage": null,
     "deterministic_mode": true,
@@ -1387,6 +1398,7 @@
   },
   "output field": {
     "analysis_id": "<analysis-id>",
+    "baseline": null,
     "behavior_changes": [
       {
         "assumptions": [],
@@ -1516,6 +1528,7 @@
   },
   "oversized critical path prioritization": {
     "analysis_id": "<analysis-id>",
+    "baseline": null,
     "behavior_changes": [
       {
         "assumptions": [],
@@ -1669,6 +1682,7 @@
   },
   "retry predicate": {
     "analysis_id": "<analysis-id>",
+    "baseline": null,
     "behavior_changes": [
       {
         "assumptions": [],
@@ -1850,6 +1864,7 @@
   },
   "return annotation signature": {
     "analysis_id": "<analysis-id>",
+    "baseline": null,
     "behavior_changes": [
       {
         "assumptions": [
@@ -1981,6 +1996,7 @@
   },
   "side effect": {
     "analysis_id": "<analysis-id>",
+    "baseline": null,
     "behavior_changes": [
       {
         "assumptions": [
@@ -2128,6 +2144,7 @@
   },
   "stable refactor": {
     "analysis_id": "<analysis-id>",
+    "baseline": null,
     "behavior_changes": [],
     "coverage": null,
     "deterministic_mode": true,
@@ -2190,6 +2207,7 @@
   },
   "state assignment": {
     "analysis_id": "<analysis-id>",
+    "baseline": null,
     "behavior_changes": [
       {
         "assumptions": [],

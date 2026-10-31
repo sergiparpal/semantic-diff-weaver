@@ -146,6 +146,37 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Baseline comparison (2026-10-31)
+
+The roadmap's "baseline comparison between analysis revisions" is `--baseline PATH`, or
+`baseline_report` in the tool arguments: the JSON an earlier run wrote, from `--format json` or
+`--format both`, of the same repository. The result's new `baseline` object lists this analysis's
+findings as `new`, `updated`, or `unchanged`, and the baseline's findings no longer reported as
+`resolved`; the brief counts each group, marks new and updated findings beside their IDs, and
+names the resolved ones.
+
+A finding is the same one when its category, path, and symbol are: the key `build_candidates`
+groups findings by, so it names one finding in each analysis. Its evidence decides `updated`
+against `unchanged`, compared by kind, path, symbol, and old and new text, without line numbers,
+which move with any edit above a symbol. A finding whose category changed is a resolved one and a
+new one, which is what a reviewer sees it as. Finding and evidence IDs number positions within one
+result, so they are never matched, and the baseline's are not quoted.
+
+The baseline is untrusted input, read like a coverage report: bounded by the new
+`rules.max_baseline_bytes`, strict UTF-8, authorized like `risk_profile`, and validated for only
+the fields the comparison reads, so any 1.x schema can be compared and nothing else in the file is
+trusted. A resolved finding reaches the result and the brief by its validated category, path,
+symbol, and risk alone, escaped like the candidate tests. Its summary does not: it is free text a
+crafted file could fill with a heading, a footer, or an instruction to the model reading the
+brief, which `tests/security/test_baseline_inputs.py` pins. An unusable baseline is the new
+`baseline_unreadable` error, a hard failure as an unreadable coverage report is, since an analysis
+that silently compared nothing would look like one that found nothing changed.
+
+The `baseline` object is optional and `null` without a baseline, part of schema 1.2, which no
+release has carried yet: the golden diff is 18 additive `"baseline": null` lines. `baseline.py` is
+a critical module, held to the branch-coverage bar like `coverage_map.py`. The GitHub Action does
+not keep an analysis between pushes yet, so it has no `baseline` input.
+
 ## Advisory verdict (2026-10-31)
 
 The specification's roadmap promised "policy thresholds for advisory `pass`, `warn`, or
@@ -176,7 +207,8 @@ consumer that validates the summary strictly now sees a field it has never seen,
 intentionally. The golden diff is 18 `schema_version` lines and 18 additive `verdict` lines, plus
 the comma each `test_obligations` line gains before it; no finding, risk, confidence, or
 obligation changed. The configuration gains the optional `verdict` section, and no error code
-changes.
+changes. The baseline comparison above adds its optional `baseline` object to the same unreleased
+1.2.
 
 ## Output-affecting corrections (2026-10-31, output contracts)
 

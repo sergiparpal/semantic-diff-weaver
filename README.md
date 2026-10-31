@@ -45,6 +45,7 @@ python -m pip install . && semantic-diff-weaver --repo . --base main --head HEAD
 | `--exclude GLOB` | repeatable exclude pattern |
 | `--risk-profile PATH` | additional bounded YAML configuration file |
 | `--coverage PATH` | coverage.py JSON or lcov `.info` report to ground coverage in |
+| `--baseline PATH` | an earlier analysis's JSON, to mark findings new, updated, unchanged, or resolved |
 | `--model ID` | inference model; overrides `SEMANTIC_DIFF_WEAVER_MODEL` |
 | `--no-llm` | skip inference; deterministic structural findings only |
 | `--format {json,markdown,both}` | defaults to `markdown` |
@@ -287,8 +288,10 @@ Hermes registers exactly one tool, `analyze_semantic_diff`:
 
 `repo_path` and `base_ref` are required. `head_ref` defaults to `HEAD`; `output_format` may be
 `json`, `markdown`, or `both`. An optional `risk_profile` may name a bounded YAML file explicitly,
-and an optional `coverage_report` may name a coverage.py JSON or lcov `.info` report to ground
-coverage in. Unknown arguments are rejected.
+an optional `coverage_report` may name a coverage.py JSON or lcov `.info` report to ground
+coverage in, and an optional `baseline_report` may name the JSON of an earlier analysis to compare
+with ([baseline comparison](docs/configuration.md#baseline-comparison)). Unknown arguments are
+rejected.
 
 Caller-selected local paths are authorized independently of repository containment. By default the
 tool may access only paths below the Hermes process working directory. A trusted host operator can
@@ -299,8 +302,8 @@ authorize additional bounded roots with the platform-path-separator-delimited
 SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS=/work/project:/work/shared-profiles
 ```
 
-`repo_path`, an external `risk_profile`, and an external `coverage_report` must all resolve below
-one of these roots. Filesystem roots are never accepted as authorization roots.
+`repo_path`, an external `risk_profile`, an external `coverage_report`, and an external
+`baseline_report` must all resolve below one of these roots. Filesystem roots are never accepted as authorization roots.
 
 The handler always returns a JSON-encoded string. JSON mode returns the canonical schema-versioned
 analysis. Markdown mode returns a JSON envelope containing the PR-ready brief. Both mode returns the

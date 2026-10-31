@@ -920,7 +920,9 @@ over MCP, beside the Hermes plugin.
 
 - GitHub Action wrapper. *Done:* `action.yml`, `docs/github-action.md`.
 - PR comment renderer. *Done:* `scripts/pr_comment.py`, one comment updated in place.
-- Baseline comparison between analysis revisions. *Open.*
+- Baseline comparison between analysis revisions. *Done:* `--baseline` and `baseline_report`
+  mark each finding new, updated, unchanged, or resolved against an earlier analysis's JSON; the
+  Action does not yet keep one between pushes.
 - Policy thresholds for advisory `pass`, `warn`, or `review_required`. *Done:* `summary.verdict`
   under the `verdict` thresholds, the Action's `verdict` output, and the brief's first line.
 

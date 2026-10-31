@@ -48,6 +48,11 @@ import.
   opened, resolved against the filesystem, or executed. Traversal, absolute, drive-relative,
   and UNC prefixes are stripped from keys rather than followed, and a null byte discards the
   entry. XML coverage formats are excluded so no entity-expansion surface exists.
+- A baseline analysis is untrusted input data in the same way: bounded by `max_baseline_bytes`,
+  read as strict UTF-8, parsed with the standard library, authorized like any other
+  caller-selected path, and validated field by field — a path in it must be repository-relative,
+  and a category or risk must be a known value. Only those validated fields reach the result and
+  the brief, escaped; the baseline's summaries and other prose are never rendered.
 - The plugin makes no direct network request and emits no plugin telemetry.
 - Resource prioritization is deterministic and applies only to explicitly configured critical paths;
   it never expands the configured file, line, symbol, evidence, or model-input ceilings.
