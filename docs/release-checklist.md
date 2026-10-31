@@ -19,7 +19,7 @@
       `pull-requests: write`.
 - [x] Run the full suite with no `ANTHROPIC_API_KEY` present; it must pass offline.
 - [x] Record the lowest real Hermes release passing discovery tests (0.14.0).
-- [x] Test the current Hermes release (0.18.2) through pip and directory discovery.
+- [x] Test the current Hermes release (0.19.0) through pip and directory discovery.
 - [x] Update changelog and evaluation measurements if behavior changed.
 - [x] Bump the `uses: sergiparpal/semantic-diff-weaver@vX.Y.Z` examples in `README.md` and
       `docs/github-action.md` to the new tag. No moving major tag is published, so nothing

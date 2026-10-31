@@ -13,6 +13,14 @@
   threshold, because Claude Code moves longer results out of the conversation into a file. See
   `docs/decisions.md` and `docs/security.md`.
 
+- **Tests:** the Hermes compatibility job tests 0.19.0, the current release, in place of 0.18.2,
+  and checks the parameters the interpreter really passes. Its list of `complete_structured`
+  parameters was kept by hand: it required `json_mode`, which the plugin never passes, and left
+  out `temperature` and `purpose`, so a Hermes release that dropped either would have sent every
+  model call to deterministic fallback with CI green. `scripts/verify_hermes.py` and the
+  real-runtime test now require the parameters `LlmClient` declares. 0.14.0, 0.18.2, and 0.19.0
+  all accept them, and nothing the plugin uses changed in 0.19.0. See `docs/decisions.md`.
+
 - **Fix:** the Anthropic adapter works with SDK 1.x and 2.x, and no longer sends `temperature`.
   The extra allowed only 0.x releases, and the adapter passed `temperature` 0.1 to the models
   that still honor it, such as `claude-sonnet-4-6`, as a keyword argument that SDK 1.0 removed.

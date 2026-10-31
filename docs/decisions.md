@@ -39,6 +39,24 @@ The CI compatibility matrix installs Hermes 0.14.0 and 0.18.2 with the built plu
 repeats both real discovery paths for each version. The regular fake-context suite continues to
 validate registration without requiring Hermes or a live model.
 
+## Compatibility snapshot (2026-10-31)
+
+- Hermes Agent 0.19.0, the current release since 2026-07-20, passes the same pip-entry-point and
+  temporary-home directory discovery and registration checks in an isolated environment.
+- Nothing the plugin uses changed from 0.18.2: `agent/plugin_llm.py` is byte-identical,
+  `hermes_cli/plugins.py` differs only in comments on the approval hooks, and
+  `PluginContext.register_tool` and `PluginLlm.complete_structured` have the same signatures in
+  0.14.0, 0.18.2, and 0.19.0.
+- The CI compatibility matrix now installs 0.14.0 and 0.19.0, the lowest verified release and
+  the current one; 0.18.2 leaves it.
+- The check of `complete_structured` used a list kept by hand that required `json_mode`, which
+  the plugin never passes, and left out `temperature` and `purpose`, which every call passes. A
+  Hermes release dropping either would have sent every model call to deterministic fallback
+  behind a generic warning, with CI green. `scripts/verify_hermes.py` and the real-runtime test
+  now require exactly the parameters `LlmClient` declares, which
+  `tests/contract/test_llm_client_protocol.py` pins to the single call site. All three releases
+  accept them.
+
 ## Repository-clone plugin install (2026-07-30)
 
 `hermes plugins install sergiparpal/semantic-diff-weaver --enable` is the documented install path,

@@ -194,17 +194,12 @@ def test_real_hermes_discovery_when_runtime_is_available() -> None:
     from agent.plugin_llm import PluginLlm  # pragma: no cover
     from hermes_cli.plugins import PluginContext  # pragma: no cover
 
+    from semantic_diff_weaver.llm_client import LlmClient
+
     register_parameters = inspect.signature(PluginContext.register_tool).parameters
     llm_parameters = inspect.signature(PluginLlm.complete_structured).parameters
+    protocol_parameters = inspect.signature(LlmClient.complete_structured).parameters
     assert {"name", "toolset", "schema", "handler", "description", "override"} <= set(
         register_parameters
     )
-    assert {
-        "instructions",
-        "input",
-        "json_schema",
-        "json_mode",
-        "schema_name",
-        "max_tokens",
-        "timeout",
-    } <= set(llm_parameters)
+    assert set(protocol_parameters) - {"self"} <= set(llm_parameters)
