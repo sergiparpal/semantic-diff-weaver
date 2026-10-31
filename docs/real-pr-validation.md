@@ -153,7 +153,8 @@ but each tells a reviewer only that something changed.
 findings are typing changes to `click.types.Path` in `bb695aaecdef` — a generic base class, a
 parameter annotation, and two return annotations — which change what a type checker infers, not
 what a call returns. The same change gave `Path.coerce_path_result` a local alias for `self.type`,
-reported besides as a boundary, a dependency, and an unknown change.
+reported besides as a boundary, a dependency, and an unknown change. Corrected after this run: see
+`docs/decisions.md`, "Output-affecting corrections (2026-10-31, output contracts)".
 
 **A merge into another branch is counted twice.** The harness takes every two-parent merge
 reachable from the default branch, so pallets/click#3860, merged into `stable`, is reported alone

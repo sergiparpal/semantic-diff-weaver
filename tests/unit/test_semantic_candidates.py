@@ -193,3 +193,48 @@ def test_name_signals_match_tokens_instead_of_arbitrary_substrings() -> None:
         build_candidates([delta("call_change", None, "dispatcher(value)")])[0].category
         is BehaviorCategory.DEPENDENCY_INTERACTION
     )
+
+
+def test_a_signature_change_of_typing_alone_says_so() -> None:
+    """It asked callers to supply different arguments when only a return annotation changed."""
+    change = StructuralDelta(
+        **{
+            **delta("signature_change", "(value: int) -> int", "(value: int) -> str").__dict__,
+            "metadata": {"default_changed": False, "annotations_only": True},
+        }
+    )
+    [candidate] = build_candidates([change])
+    assert candidate.category is BehaviorCategory.OUTPUT_CONTRACT
+    assert candidate.summary == (
+        "Only the type annotations of a callable signature appear to have changed."
+    )
+    assert candidate.observable_impact.startswith("Callers pass the same arguments")
+    assert candidate.assumptions
+
+
+def _typing_only_signature() -> StructuralDelta:
+    return StructuralDelta(
+        **{
+            **delta("signature_change", "(self) -> tuple | None", "(self) -> tuple").__dict__,
+            "metadata": {"default_changed": False, "annotations_only": True},
+        }
+    )
+
+
+@pytest.mark.parametrize("signature_first", [True, False])
+def test_a_typing_only_signature_gives_way_to_the_change_beside_it(signature_first: bool) -> None:
+    """Click's `Argument.get_help_record` stopped returning `None`, and narrowed its annotation.
+
+    The signature came first, so its finding read "Only the type annotations ... appear to have
+    changed" over the return change that made it, with an assumption about annotations that
+    lowered its confidence.
+    """
+    returned = delta("return_change", "None; (name, help)", "(name, help or '')")
+    changes = [_typing_only_signature(), returned]
+    [candidate] = build_candidates(changes if signature_first else changes[::-1])
+    assert candidate.category is BehaviorCategory.OUTPUT_CONTRACT
+    assert candidate.summary == "A visible return expression or shape appears to have changed."
+    assert candidate.assumptions == ()
+    assert [item.kind for item in candidate.evidence] == [
+        item.kind for item in (changes if signature_first else changes[::-1])
+    ]

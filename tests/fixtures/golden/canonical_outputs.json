@@ -1838,9 +1838,11 @@
     "analysis_id": "<analysis-id>",
     "behavior_changes": [
       {
-        "assumptions": [],
+        "assumptions": [
+          "Annotations change behavior only where something reads them at runtime, such as a framework the callable is registered with."
+        ],
         "category": "output_contract_change",
-        "confidence": 0.879,
+        "confidence": 0.8,
         "evidence": [
           {
             "hunk_id": "src/case.py#hunk-001",
@@ -1862,7 +1864,7 @@
           }
         ],
         "id": "bc-001",
-        "observable_impact": "Existing callers may need to supply different arguments or handle a changed callable contract.",
+        "observable_impact": "Callers pass the same arguments; type checkers, and code that reads annotations at runtime, may see a different declared contract.",
         "origin": "deterministic_fallback",
         "presentation": "finding",
         "risk": "medium",
@@ -1873,7 +1875,7 @@
           "critical_path_weight": 10.0,
           "test_gap_weight": 90.0
         },
-        "summary": "A callable signature appears to have changed."
+        "summary": "Only the type annotations of a callable signature appear to have changed."
       }
     ],
     "coverage": null,
@@ -1915,7 +1917,7 @@
       "behavior_changes": 1,
       "changed_files": 1,
       "changed_symbols": 1,
-      "overall_confidence": 0.879,
+      "overall_confidence": 0.8,
       "overall_risk": "medium",
       "risk_counts": {
         "critical": 0,
@@ -1932,7 +1934,7 @@
           "bc-001"
         ],
         "candidate_existing_tests": [],
-        "confidence": 0.879,
+        "confidence": 0.8,
         "coverage_status": "no_candidate_found",
         "given": "A representative successful input",
         "id": "to-001",
@@ -1948,7 +1950,7 @@
           "bc-001"
         ],
         "candidate_existing_tests": [],
-        "confidence": 0.879,
+        "confidence": 0.8,
         "coverage_status": "no_candidate_found",
         "given": "A consumer expects the former signature or output",
         "id": "to-002",

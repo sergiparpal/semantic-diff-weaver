@@ -185,6 +185,29 @@ def function_signature(node: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
     return signature
 
 
+def _bare(argument: ast.arg) -> ast.arg:
+    return ast.arg(arg=argument.arg)
+
+
+def function_parameters(node: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
+    """The parameters as a caller passes them: names, kinds, order, and defaults.
+
+    Annotations, the return annotation, type parameters, and type comments are left out, so two
+    signatures that differ only in their typing have the same parameters.
+    """
+    arguments = node.args
+    bare = ast.arguments(
+        posonlyargs=[_bare(item) for item in arguments.posonlyargs],
+        args=[_bare(item) for item in arguments.args],
+        vararg=_bare(arguments.vararg) if arguments.vararg else None,
+        kwonlyargs=[_bare(item) for item in arguments.kwonlyargs],
+        kw_defaults=arguments.kw_defaults,
+        kwarg=_bare(arguments.kwarg) if arguments.kwarg else None,
+        defaults=arguments.defaults,
+    )
+    return f"({unparse_redacted(bare, 900)})"
+
+
 def body_without_docstring(body: list[ast.stmt]) -> list[ast.stmt]:
     if (
         body
@@ -413,8 +436,10 @@ def snapshot_symbol(node: ast.AST, qualified_name: str, kind: str) -> SymbolSnap
     body = list(getattr(node, "body", []))
     visitor = FeatureVisitor(node)
     visitor.visit(node)
+    parameters: str | None = None
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
         signature = function_signature(node)
+        parameters = function_parameters(node)
         defaults = default_map(node)
         decorators = tuple(decorator_name(item) for item in node.decorator_list)
         display = signature
@@ -445,6 +470,7 @@ def snapshot_symbol(node: ast.AST, qualified_name: str, kind: str) -> SymbolSnap
         assigned=tuple(visitor.assigned),
         docstring_only=not body_without_docstring(body),
         display=display,
+        parameters=parameters,
     )
 
 
