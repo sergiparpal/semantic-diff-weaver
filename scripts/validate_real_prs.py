@@ -116,7 +116,13 @@ def clone(slug: str, destination: Path) -> Path | None:
 
 
 def merge_commits(repo: Path, count: int) -> list[tuple[str, str, str]]:
-    """Return (base, head, subject) for recent two-parent merges — a merged PR's own range."""
+    """Return (base, head, subject) for recent two-parent merges — a merged PR's own range.
+
+    The base is where the pull request branched off, not the merge's first parent. The analyzer
+    compares two trees as they are, so from the first parent every commit the target branch
+    gained after that point reads as reverted by the pull request: the GitHub Action's
+    `base-ref` default had the same flaw until 2026-10-19.
+    """
     raw = run_git(
         repo,
         "log",
@@ -132,7 +138,8 @@ def merge_commits(repo: Path, count: int) -> list[tuple[str, str, str]]:
         parents = parts[1].split()
         if len(parents) != 2:
             continue
-        found.append((parents[0], parents[1], parts[2]))
+        base = run_git(repo, "merge-base", parents[0], parents[1]).strip()
+        found.append((base, parents[1], parts[2]))
         if len(found) >= count:
             break
     return found
@@ -252,7 +259,8 @@ def render(results: list[PullRequestResult], unreachable: list[str], count: int)
         "# Real pull-request validation",
         "",
         f"Generated {time.strftime('%Y-%m-%d')} by `scripts/validate_real_prs.py`, "
-        f"deterministic mode (`--no-llm`), up to {count} recent merges per repository.",
+        f"deterministic mode (`--no-llm`), up to {count} of the most recent two-parent merges per "
+        "repository, each reviewed from where its pull request branched off.",
         "",
         "**These are observations on unlabeled data, not precision measurements.** No one has",
         "reviewed these diffs to the standard the golden corpus requires, so nothing here is a",
@@ -302,7 +310,7 @@ def render(results: list[PullRequestResult], unreachable: list[str], count: int)
         "",
         "## Per-merge detail",
         "",
-        "| Repository | Merge | Files | Findings | Obligations | Overall risk | Seconds |",
+        "| Repository | PR head | Files | Findings | Obligations | Overall risk | Seconds |",
         "| --- | --- | --- | --- | --- | --- | --- |",
     ]
     for item in results:
