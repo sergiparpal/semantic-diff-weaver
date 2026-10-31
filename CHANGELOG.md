@@ -1,6 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.4.1 - 2026-10-31
+
+Findings are classified by what changed. A comparison or condition is a boundary only when what
+changed orders values, a loop is a retry only when it names one, a signature change that only
+touches typing says so, and a return change is no longer hidden by an unrelated comparison;
+the real pull-request validation now samples squash-merged pull requests. The schema stays at
+1.1 and no taxonomy value or error code changes, but ranges that change comparisons, conditions,
+or loops are classified differently, nearly always from a boundary or a retry to an unknown
+change, and no range's highest risk rises. Each correction is measured in `docs/decisions.md`.
 
 - **Tests:** `scripts/validate_real_prs.py` samples squash-merged pull requests and counts each
   pull request once. It took the two-parent merges reachable from the default branch, so
@@ -17,13 +25,13 @@
   differ — is now worded as typing alone, under the new `SDW-RULE-SIGNATURE-ANNOTATIONS`, with the
   assumption that annotations matter only where something reads them; it stays an
   `output_contract_change`, where it used to ask callers to supply different arguments, and gives
-  way to any other change its finding holds. And a
-  changed comparison no longer drops every return change in its symbol, only one whose changed
-  values each show it: click's `Argument.get_help_record` no longer returning `None` was hidden
-  that way. On this repository's history 29 of 89 signature classifications are typing alone and
-  34 return changes are reported again, on `adaptive-policy-compilation` 1 of 54 and 26; no
-  classification moves and no range's highest risk rises. One corpus golden changes its text and
-  confidence, and precision and recall stay at 100%.
+  way to any other change its finding holds. And a changed comparison no longer drops every return
+  change in its symbol, only one whose changed values each show it: click's
+  `Argument.get_help_record` no longer returning `None` was hidden that way. On this repository's
+  history 29 of 89 signature classifications are typing alone and 34 return changes are reported
+  again, on `adaptive-policy-compilation` 1 of 54 and 26; no classification moves and no range's
+  highest risk rises. One corpus golden changes its text and confidence, and precision and recall
+  stay at 100%.
 
 - **Fix:** a changed loop is a retry only when its names say so. `SDW-RULE-LOOP` made every
   changed loop a `retry_timeout_change`, so a `for` over a command's parameters and a `while` that
