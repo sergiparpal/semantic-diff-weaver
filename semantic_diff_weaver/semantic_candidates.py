@@ -46,6 +46,8 @@ RETRY_TERMS = (
 # shrinks a payload until it fits.
 LOOP_RETRY_TERMS = tuple(term for term in RETRY_TERMS if term != "limit")
 SIDE_EFFECT_TERMS = (
+    # A warning reaches whoever runs the code, as `pytest.warns` observes; it depends on nothing.
+    "warn",
     "save",
     "write",
     "delete",
@@ -447,6 +449,23 @@ def _classify_call(
             0.70,
             ["Side-effect meaning is inferred from conservative call-name signals."],
             "SDW-RULE-SIDE-EFFECT",
+        )
+    if delta.metadata.get("internal_calls"):
+        # A call to its own method, its module's own function, or a pure builtin has no failure or
+        # unexpected response of a dependency to test for: 8 of the 15 dependency findings on the
+        # real pull requests of 2026-10-31 changed such calls.
+        return (
+            BehaviorCategory.UNKNOWN,
+            "A call to the module's own code changed without enough local contract context.",
+            "The symbol now relies on different logic of its own module; the observable effect "
+            "needs review.",
+            0.55,
+            # The unknown condition's own assumption: a finding is penalized for each distinct
+            # one, and this call usually joins its symbol's unknown condition or comparison.
+            # A third assumption took six findings of a truncated range below the reporting
+            # confidence on adaptive-policy-compilation.
+            ["The surrounding runtime contract is unavailable to static analysis."],
+            "SDW-RULE-UNKNOWN-INTERNAL-CALL",
         )
     return (
         BehaviorCategory.DEPENDENCY_INTERACTION,

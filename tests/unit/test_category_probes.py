@@ -9,12 +9,13 @@ Probes are computed from the AST instead, where a literal is still distinguishab
 from __future__ import annotations
 
 import ast
+import textwrap
 from dataclasses import replace
 
 import pytest
 
 from semantic_diff_weaver.ast_diff import StructuralDelta, extract_symbols, limits
-from semantic_diff_weaver.ast_diff.compare import join_probes
+from semantic_diff_weaver.ast_diff.compare import is_internal_call, join_probes, own_call_names
 from semantic_diff_weaver.ast_diff.extract import category_probe
 from semantic_diff_weaver.ast_diff.types import CategoryProbe, SymbolSnapshot
 from semantic_diff_weaver.models import BehaviorCategory, LineRange, RulesConfig
@@ -187,11 +188,20 @@ def test_a_probe_covers_only_the_values_the_display_text_shows() -> None:
     long before its `RepositoryIdentity(...)` call, into an authorization change.
     """
     steps = "\n".join(f"    step_{index:02d}(argument_value_{index:02d})" for index in range(60))
-    snapshot = _calls(f"def run():\n{steps}\n    authorize_user()\n")
-    probe = join_probes(snapshot, snapshot, "calls")
-    assert probe is not None
-    assert "step_00" in probe.words
-    assert "authorize_user" not in probe.words
+    late = join_probes(
+        _calls(f"def run():\n{steps}\n    authorize_user()\n"),
+        _calls(f"def run():\n{steps}\n    authorize_admin()\n"),
+        "calls",
+    )
+    assert late is not None
+    assert "authorize" not in late.words
+    early = join_probes(
+        _calls(f"def run():\n    authorize_user()\n{steps}\n"),
+        _calls(f"def run():\n    authorize_admin()\n{steps}\n"),
+        "calls",
+    )
+    assert early is not None
+    assert early.words.split() == ["authorize_user", "authorize_admin"]
 
 
 def test_a_late_comparison_outside_the_display_text_does_not_count() -> None:
@@ -213,10 +223,14 @@ def test_a_late_comparison_outside_the_display_text_does_not_count() -> None:
 
 
 def test_a_long_old_side_cannot_crowd_out_the_new_side() -> None:
-    snapshot = _calls("def run():\n    step()\n")
-    old = replace(snapshot, probes={"calls": (CategoryProbe("word " * 2_000, compares=False),)})
-    new = replace(snapshot, probes={"calls": (CategoryProbe("new_side_marker", compares=False),)})
-    probe = join_probes(old, new, "calls")
+    # Assignments read every value shown, so their two sides are joined even when unchanged.
+    snapshot = _calls("def run():\n    total = 1\n")
+    words = {"assignments": (CategoryProbe("word " * 2_000, compares=False),)}
+    old = replace(snapshot, probes=words)
+    new = replace(
+        snapshot, probes={"assignments": (CategoryProbe("new_side_marker", compares=False),)}
+    )
+    probe = join_probes(old, new, "assignments")
     assert probe is not None
     assert probe.words.endswith("new_side_marker")
     assert len(probe.words) <= limits.MAX_PROBE_CHARS_PER_SIDE + len(" new_side_marker")
@@ -635,3 +649,192 @@ def test_a_changed_loop_is_a_retry_only_when_its_names_say_so(
         if evidence["kind"] == "loop_change"
     ]
     assert loops == [expected]
+
+
+OWN_CODE = """\
+import requests
+from .events import notify
+
+
+def _starts_statement(leaf):
+    def _first(node):
+        return node
+
+    return _first(leaf)
+
+
+class Helper:
+    def get_help_spec(self):
+        return self.callback()
+
+    @classmethod
+    def build(cls):
+        return cls()
+"""
+
+
+@pytest.mark.parametrize(
+    ("name", "internal"),
+    [
+        pytest.param("self.get_help_spec", True, id="own-method"),
+        pytest.param("cls.build", True, id="own-classmethod"),
+        pytest.param("Helper.build", True, id="method-through-its-class"),
+        pytest.param("_starts_statement", True, id="module-function"),
+        pytest.param("_first", True, id="nested-function"),
+        pytest.param("Helper", True, id="module-class"),
+        pytest.param("len", True, id="pure-builtin"),
+        pytest.param("open", False, id="builtin-that-reaches-out"),
+        pytest.param("self.callback", False, id="attribute-holding-a-callable"),
+        pytest.param("self.client.fetch", False, id="what-self-holds"),
+        pytest.param("requests.get", False, id="imported-module"),
+        pytest.param("notify", False, id="imported-name"),
+        pytest.param("<dynamic>.fetch", False, id="dynamic-receiver"),
+    ],
+)
+def test_a_call_is_internal_only_when_it_reaches_its_own_module(name: str, internal: bool) -> None:
+    assert is_internal_call(name, own_call_names(extract_symbols(OWN_CODE))) is internal
+
+
+def test_a_call_reaches_its_own_module_by_a_name_either_revision_defines() -> None:
+    """A call to a helper the change adds, or to one it removes, is still the module's own."""
+    old = extract_symbols("def _old():\n    return 1\n")
+    new = extract_symbols("class Worker:\n    def _new(self):\n        return 2\n")
+    assert own_call_names(old, new) == {"_old", "Worker", "Worker._new", "self._new", "cls._new"}
+
+
+MODULE = "import requests\nimport warnings\n\n\ndef _clean(text):\n    return text.strip()\n\n\n"
+# The methods the cases call: a call reaches its own module only through what one of its classes
+# defines.
+WORKER = (
+    "class Worker:\n"
+    "    def _old(self, x):\n        return x\n\n"
+    "    def _new(self, x):\n        return x\n\n"
+    "    def run(self, x):\n"
+)
+
+
+@pytest.mark.parametrize(
+    ("old_body", "new_body", "expected"),
+    [
+        pytest.param(
+            "    return self._old(x)\n",
+            "    return self._new(x)\n",
+            "unknown_semantic_change",
+            id="own-method",
+        ),
+        pytest.param(
+            "    return x.strip()\n",
+            "    return _clean(x)\n",
+            "dependency_interaction_change",
+            id="a-string-method-is-still-a-call-on-an-object",
+        ),
+        pytest.param(
+            "    return _clean(x)\n",
+            "    return _clean(x, 10)\n",
+            "unknown_semantic_change",
+            id="module-function",
+        ),
+        pytest.param(
+            "    return len(x)\n", "    return sum(x)\n", "unknown_semantic_change", id="builtin"
+        ),
+        pytest.param(
+            "    return self.client.fetch(x)\n",
+            "    return self.client.fetch(x, strict=True)\n",
+            "dependency_interaction_change",
+            id="what-self-holds",
+        ),
+        pytest.param(
+            "    return self.callback(x)\n",
+            "    return self.callback(x, strict=True)\n",
+            "dependency_interaction_change",
+            id="an-attribute-holding-a-callable",
+        ),
+        pytest.param(
+            "    return self._old(x)\n",
+            "    return self._new(requests.get(x))\n",
+            "dependency_interaction_change",
+            id="an-external-call-among-them",
+        ),
+        pytest.param(
+            "    return x\n",
+            "    warnings.warn('deprecated', DeprecationWarning)\n    return x\n",
+            "side_effect_change",
+            id="a-warning",
+        ),
+        pytest.param(
+            "    self.save()\n    return self._old(x)\n",
+            "    self.save()\n    return self._new(x)\n",
+            "unknown_semantic_change",
+            id="an-unchanged-side-effect-beside-the-change",
+        ),
+    ],
+)
+def test_the_call_rule_tells_the_module_s_own_code_from_a_dependency(
+    repo_factory, old_body: str, new_body: str, expected: str
+) -> None:
+    """Every call no keyword explained was a dependency interaction, `self.get_help_spec()` too.
+
+    Its obligations ask how the code handles a dependency's failures and unexpected responses,
+    which a method of its own instance does not have.
+    """
+    old = f"{MODULE}{WORKER}{textwrap.indent(old_body, '    ')}"
+    new = f"{MODULE}{WORKER}{textwrap.indent(new_body, '    ')}"
+    calls = [
+        item["category"]
+        for item in _findings(repo_factory, old, new)
+        for evidence in item["evidence"]
+        if evidence["kind"] == "call_change"
+    ]
+    assert calls == [expected]
+
+
+def test_an_internal_call_joins_an_unknown_condition_without_a_second_assumption(
+    repo_factory,
+) -> None:
+    """Each distinct assumption costs a finding confidence, and a third one took six findings of
+    a truncated range on adaptive-policy-compilation below the reporting threshold."""
+    old = f"{WORKER}        if x is None:\n            return self._old(x)\n"
+    new = f"{WORKER}        if x is not None:\n            return self._new(x)\n"
+    [finding] = [
+        item
+        for item in _findings(repo_factory, old, new)
+        if item["category"] == "unknown_semantic_change"
+    ]
+    assert {"call_change", "condition_change"} <= {item["kind"] for item in finding["evidence"]}
+    assert finding["assumptions"] == [
+        "The surrounding runtime contract is unavailable to static analysis."
+    ]
+
+
+@pytest.mark.parametrize(
+    ("destination", "expected"),
+    [
+        pytest.param(
+            "def _new(x):\n    return x\n", "unknown_semantic_change", id="defined-where-it-moved"
+        ),
+        pytest.param(
+            "from .helpers import _new\n", "dependency_interaction_change", id="imported-there"
+        ),
+    ],
+)
+def test_a_moved_symbol_reaches_what_either_of_its_modules_defines(
+    repo_factory, destination: str, expected: str
+) -> None:
+    """`run` moves from `a.py` to `b.py` and calls `_new` instead of `_old`: `a.py` defines the
+    old callee and `b.py` the new one, so neither module's names alone cover both."""
+    helpers = "def _old(x):\n    return x\n"
+    run = "def run(x):\n    value = x + 1\n    total = value * 2\n    return {}(total)\n"
+    repo, base, head = repo_factory(
+        {"a.py": f"{helpers}\n\n{run.format('_old')}", "b.py": destination},
+        {"a.py": helpers, "b.py": f"{destination}\n\n{run.format('_new')}"},
+    )
+    result = analyze(
+        {"repo_path": str(repo), "base_ref": base, "head_ref": head, "output_format": "json"}
+    )
+    calls = [
+        (item["category"], evidence["path"], evidence["symbol"])
+        for item in result["behavior_changes"]
+        for evidence in item["evidence"]
+        if evidence["kind"] == "call_change"
+    ]
+    assert calls == [(expected, "b.py", "run")]

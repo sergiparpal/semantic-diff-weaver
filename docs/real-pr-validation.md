@@ -135,7 +135,7 @@ read. The harness generates the tables above but never a verdict here.
 | 7 | pallets/click `_outside_click_stacklevel` (`#3877`) | `unknown_semantic_change` (0.68) | **Plausible finding, weak category** | The stack walk now also passes over the modules in the new `skip` parameter. That is a membership test, which this page's previous version reported as a boundary; `skip` is empty by default, so existing callers see no change, and the test to write — a caller passing `abc` — is one the category cannot name. |
 | 8 | pallets/click `Path.__init__` (`#3876`) | `output_contract_change` (0.80) | **Correct but low value** | `path_type: type \| None` became `type[_PathT_co] \| None`: typing alone, and the finding now says so, at a lower confidence. Callers pass what they did; only a type checker sees a difference. |
 | 9 | pallets/click `Argument.get_help_record` (`#3876`) | `output_contract_change` (0.879) | **Plausible** | The method no longer returns `None` for an argument without help, so `Command.format_arguments` lists every argument once one of them has help. The finding holds the return change and the narrowed return annotation and leads with the former; the removed `is None` check is a separate unknown change. |
-| 10 | pallets/click `Option._parse_decls` (`#3866`) | `dependency_interaction_change` (0.714) | **Plausible finding, wrong category** | New calls to the class's own `_check_name_is_usable` and `_check_name_is_normalized` warn about names Click 9.0 will reject or spell differently. That is validation, as this page's previous review said of the same symbol; the call rule calls any changed call that no keyword explains a dependency. |
+| 10 | pallets/click `Option._parse_decls` (`#3866`) | `dependency_interaction_change` (0.714) | **Plausible finding, wrong category** | New calls to the class's own `_check_name_is_usable` and `_check_name_is_normalized` warn about names Click 9.0 will reject or spell differently. That is validation, as this page's previous review said of the same symbol; the call rule calls any changed call that no keyword explains a dependency. Since this run it is an unknown change, as the note below says. |
 
 Four of the ten are plausible as presented, three are real changes under a category a reviewer would
 dispute or that gives no help, two are correct but tell a reviewer little, and one is a rename
@@ -157,8 +157,18 @@ findings, 8 change calls to the symbol's own class or module — `self.get_help_
 `self.make_metavar(ctx)`, a new `self._check_name_is_usable(...)`, a helper such as
 `_starts_statement` — and others add `t.TypeVar` declarations or a `warnings.warn`, or call the
 same object under a new local name. The category's obligations ask how the code handles a
-dependency's failures and unexpected responses, which none of these has. This is the next rule to
-look at.
+dependency's failures and unexpected responses, which none of these has.
+
+*Corrected since this run.* A changed call is now an unknown change when every call that changed
+reaches the symbol's own module: a method one of its classes defines, a function or class the
+module defines, or a builtin that computes in-process, such as `len`. Measured again on these 20
+pull requests, 5 of the 15 become unknown changes, finding 10 among them, which joins its symbol's
+unknown change; `Parameter.human_readable_name`'s new `warnings.warn` becomes a side effect; and
+click's `Option.__init__` moves from validation to dependency, its validation word having come
+from a call that did not change. Each of the 10 dependency findings left changes a call into
+another module, such as `textwrap.shorten` or `t.TypeVar`, or on a value whose type static
+analysis does not know, such as `help.split()`. The tables above are this run's. See
+`docs/decisions.md`, "Output-affecting corrections (2026-10-31, calls)".
 
 **A boundary is an ordering, or an equality with a number or a length.** The three boundary
 findings are a version gate (`sys.version_info >= (3, 13)`), the truncation in
