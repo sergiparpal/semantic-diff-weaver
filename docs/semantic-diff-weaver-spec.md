@@ -882,42 +882,59 @@ The MVP is complete when all of the following are true:
 
 ## 24. Roadmap
 
-### v0.1 — Advisory semantic test plan
+Status on 2026-10-31, at release 0.4.1. The phase labels are this plan's, not package versions:
+the package reached 0.4.1 with v0.1 done, parts of v0.2 and half of v0.4 shipped, and v0.3 not
+started. It also ships what the plan did not foresee, a standalone CLI and a Claude Code plugin
+over MCP, beside the Hermes plugin.
 
-- Python AST adapter.
-- Local Git diff.
-- Behavioral change taxonomy.
-- Test obligations.
-- Candidate test mapping.
-- JSON and Markdown reports.
+### v0.1 — Advisory semantic test plan (done)
 
-### v0.2 — Stronger repository context
+- Python AST adapter. *Done:* `ast_diff/`.
+- Local Git diff. *Done:* `git_diff/`.
+- Behavioral change taxonomy. *Done:* `taxonomy.py`, §7.
+- Test obligations. *Done:* `obligations.py`.
+- Candidate test mapping. *Done:* `test_mapper.py` with `call_graph.py`; every candidate stays
+  unverified.
+- JSON and Markdown reports. *Done:* `renderer.py`.
 
-- Dependency graph.
-- Config and API schema awareness.
-- Optional composition with test history and coverage history.
-- Improved cross-file change grouping.
+### v0.2 — Stronger repository context (partly done)
 
-### v0.3 — Test skeleton generation
+- Dependency graph. *Partly:* `call_graph.py` follows calls through instances, packages,
+  `importlib`, and module variables to find the tests that reach a change; findings are not
+  grouped by it.
+- Config and API schema awareness. *Open:* a changed file that is not Python is excluded as not
+  Python.
+- Optional composition with test history and coverage history. *Partly:* an ingested coverage.py
+  JSON or lcov report grounds candidate coverage; test history is not read.
+- Improved cross-file change grouping. *Partly:* a function moved between two files that both
+  remain is matched as a move; findings are still grouped per symbol.
+
+### v0.3 — Test skeleton generation (open)
 
 - Generate framework-specific test skeletons from approved obligations.
 - Human approval required before writing files.
 - Patch output only; no direct commit.
 
-### v0.4 — CI and pull-request integration
+### v0.4 — CI and pull-request integration (partly done)
 
-- GitHub Action wrapper.
-- PR comment renderer.
-- Baseline comparison between analysis revisions.
-- Policy thresholds for advisory `pass`, `warn`, or `review_required`.
+- GitHub Action wrapper. *Done:* `action.yml`, `docs/github-action.md`.
+- PR comment renderer. *Done:* `scripts/pr_comment.py`, one comment updated in place.
+- Baseline comparison between analysis revisions. *Open.*
+- Policy thresholds for advisory `pass`, `warn`, or `review_required`. *Open:* `--fail-on` and the
+  Action's `fail-on` fail a run at an overall risk level.
 
-### v1.0 — Multi-language semantic test intelligence
+### v1.0 — Multi-language semantic test intelligence (open)
 
-- Adapter API for TypeScript/JavaScript and Java.
-- Dynamic coverage enrichment.
-- Verified source-to-test mapping.
-- Evaluation corpus and public benchmark.
-- Downstream integration with regression selection and autonomous test generation.
+- Adapter API for TypeScript/JavaScript and Java. *Out of scope:* `ast_diff/` is built on Python's
+  own `ast`.
+- Dynamic coverage enrichment. *Partly:* coverage comes from an ingested report; the tool never
+  runs tests.
+- Verified source-to-test mapping. *Open by design:* every candidate test is reported as
+  unverified.
+- Evaluation corpus and public benchmark. *Partly:* the 18-case corpus of `docs/evaluation.md`
+  and the observations on real pull requests in `docs/real-pr-validation.md`; there is no labeled
+  public benchmark.
+- Downstream integration with regression selection and autonomous test generation. *Open.*
 
 ---
 
@@ -955,14 +972,31 @@ structural change
 
 ## 26. Open Design Questions
 
-1. Should the MVP infer repository purpose from README content, or require an explicit project summary?
+Seven of the eight are answered by the shipped design, where shown; the sixth is still open.
+
+1. Should the MVP infer repository purpose from README content, or require an explicit project
+   summary? *Answered:* a bounded, redacted excerpt of the committed README
+   (`rules.max_readme_chars`, 4,000), sent only when a model is in use (`docs/architecture.md`).
 2. Should the plugin issue one LLM call per changed symbol group or one call per file?
-3. What is the minimum useful project-level risk configuration?
-4. Should low-confidence findings appear by default or only with a verbose flag?
-5. How should renamed and moved symbols be matched across revisions?
+   *Answered:* evidence is batched by module and by shared changed dependency calls, within at most
+   eight calls (`rules.max_llm_calls`; `docs/architecture.md`).
+3. What is the minimum useful project-level risk configuration? *Answered:* `critical_paths`
+   weights, with every unlisted path at 10 (`docs/configuration.md`).
+4. Should low-confidence findings appear by default or only with a verbose flag? *Answered:* below
+   `rules.minimum_report_confidence` (0.45) a finding moves into the limitations, with a warning;
+   there is no verbose flag.
+5. How should renamed and moved symbols be matched across revisions? *Answered:* conservative
+   similarity matching that accepts at 0.82 and refuses near-ties within 0.03, moves between two
+   files that both remain included (`ast_diff/match.py`).
 6. Which public repositories can form an evaluation corpus with human-labeled behavioral diffs?
-7. Should deterministic findings be emitted when the LLM is unavailable?
+   *Open:* `docs/real-pr-validation.md` samples four public repositories as unlabeled observations
+   with a small hand review; the labeled corpus stays synthetic.
+7. Should deterministic findings be emitted when the LLM is unavailable? *Answered:* yes, by
+   default: with `rules.deterministic_fallback` on, a run without a model, or whose every model
+   call fails, reports the deterministic findings; turned off, it fails with `llm_unavailable`.
 8. What threshold should distinguish a likely refactor from a material behavior change?
+   *Answered:* `rules.refactor_materiality_threshold` (0.25); a refactor-like change above it is an
+   unknown change, and likely refactors are left out unless `rules.emit_low_risk_refactors` is set.
 
 ---
 

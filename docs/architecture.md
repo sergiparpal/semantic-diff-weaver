@@ -107,7 +107,7 @@ produce bounded unknown findings rather than losing all evidence. Conservative s
 connect renamed or moved functions, including moves between two existing files, but refuses ambiguous
 near-ties and lowers confidence for the unmatched lifecycle findings.
 
-The canonical schema version is `1.0`. Markdown is derived entirely from the canonical analysis.
+The canonical schema version is `1.1`. Markdown is derived entirely from the canonical analysis.
 Risk estimates impact and test gap; confidence estimates support strength. They are intentionally
 independent.
 
