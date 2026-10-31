@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- **Feature:** the GitHub Action compares each push with the previous one. Its comment now ends
+  with a hidden digest of its analysis — each finding's category, path, symbol, risk, and an
+  evidence fingerprint, compressed, with no evidence text — and the next run reads it back and
+  passes it to `--baseline`, so the brief says which findings are new, updated, unchanged, or
+  resolved since. The new `baseline` input defaults to `previous`; `none` turns it off, and a
+  path compares with an earlier analysis's JSON. A digest that cannot be read or compared is
+  reported in the log and left out, never failing the run.
+- **Security:** the action edits, and reads its baseline from, only the comment its own identity
+  wrote. The marker alone matched before, so a comment anyone posted starting with it, ahead of
+  the action's first, was edited in its place, which GitHub refuses, and would have been read as
+  the baseline. `scripts/pr_comment.py` gains `--author`, `github-actions[bot]` by default.
+
 ## 0.5.0 - 2026-10-31
 
 An analysis now says what it advises and how it moved since an earlier one. The summary carries

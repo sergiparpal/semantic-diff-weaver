@@ -84,6 +84,7 @@ as given.
 | `exclude` | *(empty)* | newline-separated exclude globs |
 | `coverage-report` | *(empty)* | coverage.py JSON or lcov `.info` path |
 | `risk-profile` | *(empty)* | additional bounded YAML configuration file |
+| `baseline` | `previous` | compare with `previous`, the analysis this action recorded in its last comment; `none`; or a path in the checkout to an earlier analysis's JSON |
 | `fail-on` | `none` | fail the step at this overall risk level |
 | `comment` | `true` | post or update the pull-request comment |
 | `python-version` | `3.12` | interpreter used to run the analyzer |
@@ -139,10 +140,32 @@ The comment carries a hidden marker as its first line:
 <!-- semantic-diff-weaver:v1 -->
 ```
 
-`scripts/pr_comment.py` lists the pull request's comments, finds the one starting with that
-marker, and `PATCH`es it if present or `POST`s a new one if not. **Re-runs edit; they never
-append.** The marker is the only thing matched on, so the behavior does not depend on the
-comment's author, its position, or state carried between runs.
+`scripts/pr_comment.py` lists the pull request's comments, finds the first one starting with that
+marker written by `github-actions[bot]`, the identity `github.token` comments as, and `PATCH`es
+it if present or `POST`s a new one if not. **Re-runs edit; they never append.** The author is
+matched as well as the marker because anyone can post a comment starting with it: one posted
+before the action's own was edited in its place, which GitHub refuses.
+
+### What changed since the last push
+
+The comment ends with a second hidden line, a digest of its analysis — each finding's category,
+path, symbol, risk, and a fingerprint of its evidence, compressed and base64-encoded:
+
+```text
+<!-- semantic-diff-weaver-baseline:v1 eJy… -->
+```
+
+With the default `baseline: previous`, the next run reads that line back from the action's own
+comment before it analyzes, and the brief then counts the findings that are new, updated,
+unchanged, or resolved since, and marks the new and updated ones. The digest holds no evidence
+text and says no more than the brief beside it. It is read only from the comment the action
+wrote, inflated no further than 2 MB, and validated by the analyzer like any baseline, so a
+crafted comment can neither change what the brief claims nor write into it. A digest that cannot
+be compared — an edited comment, or one from an incompatible release — is reported in the log and
+left out, and the analysis runs as it would on a first push. One whose findings would not fit
+beside the brief, about 20,000 encoded characters, is not recorded. The digest is written to the
+checkout's own `.git` directory, which the analyzer already reads and no later step sees as part
+of the working tree. `baseline: none` turns all of this off.
 
 GitHub caps a comment at 65,536 characters. A longer brief is truncated at a section boundary
 — never mid-sentence — and gains an explicit notice reporting how many lines and findings were

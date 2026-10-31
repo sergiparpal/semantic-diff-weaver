@@ -40,6 +40,13 @@ inputs:
     description: Path to an additional bounded YAML configuration file.
     required: false
     default: ""
+  baseline:
+    description: >-
+      What to compare the analysis with: previous, the analysis this action recorded in its own
+      comment on the pull request, at its last run; none; or the path, inside the checkout, of
+      an earlier analysis's JSON.
+    required: false
+    default: "previous"
   fail-on:
     description: Fail the step when overall risk reaches this level (none, low, medium, high, critical).
     required: false
@@ -115,6 +122,37 @@ runs:
         fi
         echo "base=${base}" >> "${GITHUB_OUTPUT}"
 
+    - name: Read the previous analysis
+      id: baseline
+      if: ${{ inputs.baseline == 'previous' && github.event.pull_request.number }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        ACTION_PATH: ${{ github.action_path }}
+        REPOSITORY: ${{ github.repository }}
+        PULL_REQUEST: ${{ github.event.pull_request.number }}
+      run: |
+        set -uo pipefail
+        # Inside the checkout's own Git directory: already an authorized root for the analyzer,
+        # and never part of the working tree a later step might inspect or upload.
+        git_dir="$(git rev-parse --absolute-git-dir 2>/dev/null || true)"
+        case "${git_dir}" in
+          "${PWD}"/*) ;;
+          *)
+            echo "::notice::The checkout's Git directory is not inside it, so the previous analysis is not compared."
+            exit 0
+            ;;
+        esac
+        recorded="${git_dir}/semantic-diff-weaver-baseline.json"
+        rm -f "${recorded}"
+        python "${ACTION_PATH}/scripts/pr_comment.py" \
+          --read-baseline "${recorded}" \
+          --repository "${REPOSITORY}" \
+          --pull-request "${PULL_REQUEST}"
+        if [ -f "${recorded}" ]; then
+          echo "path=${recorded}" >> "${GITHUB_OUTPUT}"
+        fi
+
     - name: Analyze the diff
       id: analyze
       shell: bash
@@ -125,6 +163,8 @@ runs:
         EXCLUDE_GLOBS: ${{ inputs.exclude }}
         COVERAGE_REPORT: ${{ inputs.coverage-report }}
         RISK_PROFILE: ${{ inputs.risk-profile }}
+        BASELINE: ${{ inputs.baseline }}
+        RECORDED_BASELINE: ${{ steps.baseline.outputs.path }}
         FAIL_ON: ${{ inputs.fail-on }}
       run: |
         set -uo pipefail
@@ -133,6 +173,11 @@ runs:
         [ -n "${HEAD_REF}" ] && args+=(--head "${HEAD_REF}")
         [ -n "${COVERAGE_REPORT}" ] && args+=(--coverage "${COVERAGE_REPORT}")
         [ -n "${RISK_PROFILE}" ] && args+=(--risk-profile "${RISK_PROFILE}")
+        case "${BASELINE}" in
+          previous) [ -n "${RECORDED_BASELINE}" ] && args+=(--baseline "${RECORDED_BASELINE}") ;;
+          none | "") ;;
+          *) args+=(--baseline "${BASELINE}") ;;
+        esac
         while IFS= read -r glob; do
           [ -n "${glob}" ] && args+=(--include "${glob}")
         done <<< "${INCLUDE_GLOBS}"

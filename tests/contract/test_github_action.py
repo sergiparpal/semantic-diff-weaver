@@ -7,6 +7,7 @@ branch gained later read as reverted by the pull request, or as its own once mer
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -172,13 +173,42 @@ def test_a_revision_missing_from_the_checkout_names_fetch_depth(
     assert "fetch-depth: 0" in stderr
 
 
-def test_the_outputs_carry_the_overall_risk_and_the_verdict(tmp_path: Path) -> None:
-    """The analyze step reads both from the envelope's summary into the step's outputs."""
+def _run_step(step_id: str, tmp_path: Path, cwd: Path, **env: str) -> dict[str, str]:
+    """Run one of the action's steps under bash; return its outputs."""
     action = yaml.safe_load((REPOSITORY_ROOT / "action.yml").read_text(encoding="utf-8"))
-    (step,) = [item for item in action["runs"]["steps"] if item.get("id") == "analyze"]
+    (step,) = [item for item in action["runs"]["steps"] if item.get("id") == step_id]
+    script = tmp_path / f"{step_id}.sh"
+    script.write_text(str(step["run"]), encoding="utf-8")
+    output = tmp_path / "github_output"
+    output.write_text("", encoding="utf-8")
+    completed = subprocess.run(
+        [str(shutil.which("bash")), str(script)],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        check=False,
+        env={**os.environ, "GITHUB_OUTPUT": str(output), **env},
+    )
+    assert completed.returncode == 0, completed.stderr
+    return dict(line.split("=", 1) for line in output.read_text(encoding="utf-8").splitlines())
+
+
+def _python_on(bin_dir: Path) -> None:
+    """Put this interpreter on PATH as `python`, by its full path.
+
+    A symlink would not do: an interpreter reached through a link in another directory does
+    not find its virtual environment, so it would not see the packages the steps import.
+    """
+    shim = bin_dir / "python"
+    shim.write_text(f"#!/usr/bin/env bash\nexec '{sys.executable}' \"$@\"\n", encoding="utf-8")
+    shim.chmod(0o755)
+
+
+def _analyzer_stub(tmp_path: Path) -> Path:
+    """A `semantic-diff-weaver` that records its arguments and prints a canned envelope."""
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
-    (bin_dir / "python").symlink_to(sys.executable)
+    _python_on(bin_dir)
     envelope = tmp_path / "canned.json"
     envelope.write_text(
         '{"success": true, "analysis": {"summary": '
@@ -186,11 +216,16 @@ def test_the_outputs_carry_the_overall_risk_and_the_verdict(tmp_path: Path) -> N
         encoding="utf-8",
     )
     stub = bin_dir / "semantic-diff-weaver"
-    stub.write_text(f"#!/usr/bin/env bash\ncat '{envelope}'\n", encoding="utf-8")
+    stub.write_text(
+        f"#!/usr/bin/env bash\nprintf '%s\\n' \"$@\" > '{tmp_path}/arguments'\ncat '{envelope}'\n",
+        encoding="utf-8",
+    )
     stub.chmod(0o755)
-    script = tmp_path / "analyze.sh"
-    script.write_text(str(step["run"]), encoding="utf-8")
-    output = tmp_path / "github_output"
+    return bin_dir
+
+
+def _analyze(tmp_path: Path, **env: str) -> tuple[dict[str, str], list[str]]:
+    bin_dir = _analyzer_stub(tmp_path)
     variables = {
         "BASE_REF": "base",
         "HEAD_REF": "",
@@ -198,21 +233,87 @@ def test_the_outputs_carry_the_overall_risk_and_the_verdict(tmp_path: Path) -> N
         "EXCLUDE_GLOBS": "",
         "COVERAGE_REPORT": "",
         "RISK_PROFILE": "",
+        "BASELINE": "previous",
+        "RECORDED_BASELINE": "",
         "FAIL_ON": "none",
         "RUNNER_TEMP": str(tmp_path),
-        "GITHUB_OUTPUT": str(output),
         "GITHUB_ENV": str(tmp_path / "github_env"),
         "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+        **env,
     }
-    completed = subprocess.run(
-        [str(shutil.which("bash")), str(script)],
-        cwd=tmp_path,
-        capture_output=True,
-        text=True,
-        check=False,
-        env={**os.environ, **variables},
-    )
-    assert completed.returncode == 0, completed.stderr
-    outputs = dict(line.split("=", 1) for line in output.read_text(encoding="utf-8").splitlines())
+    outputs = _run_step("analyze", tmp_path, tmp_path, **variables)
+    arguments = (tmp_path / "arguments").read_text(encoding="utf-8").splitlines()
+    return outputs, arguments
+
+
+def test_the_outputs_carry_the_overall_risk_and_the_verdict(tmp_path: Path) -> None:
+    """The analyze step reads both from the envelope's summary into the step's outputs."""
+    outputs, _ = _analyze(tmp_path)
     assert outputs["overall-risk"] == "high"
     assert outputs["verdict"] == "review_required"
+
+
+@pytest.mark.parametrize(
+    ("baseline", "recorded", "expected"),
+    [
+        pytest.param("previous", "/w/.git/b.json", ["--baseline", "/w/.git/b.json"], id="recorded"),
+        pytest.param("previous", "", [], id="nothing-recorded-yet"),
+        pytest.param("none", "/w/.git/b.json", [], id="turned-off"),
+        pytest.param("earlier.json", "", ["--baseline", "earlier.json"], id="a-path"),
+    ],
+)
+def test_the_analysis_compares_with_the_baseline_it_is_given(
+    tmp_path: Path, baseline: str, recorded: str, expected: list[str]
+) -> None:
+    _, arguments = _analyze(tmp_path, BASELINE=baseline, RECORDED_BASELINE=recorded)
+    given = arguments[arguments.index("--baseline") :][:2] if "--baseline" in arguments else []
+    assert given == expected
+
+
+def test_the_previous_comment_s_digest_is_read_into_the_git_directory(tmp_path: Path) -> None:
+    """The step finds the action's own comment through `gh` and writes its digest."""
+    from scripts import pr_comment
+
+    analysis = {
+        "schema_version": "1.2",
+        "analysis_id": "sdw_earlier",
+        "repository": {"head_commit": "a" * 40},
+        "behavior_changes": [
+            {
+                "category": "boundary_change",
+                "risk": "medium",
+                "evidence": [{"path": "api.py", "symbol": "allowed", "kind": "comparison_change"}],
+            }
+        ],
+    }
+    body = pr_comment.compose("brief", pr_comment.encode_digest({"analysis": analysis}))
+    listing = tmp_path / "listing"
+    listing.write_text(
+        json.dumps({"id": 1, "body": body, "author": pr_comment.DEFAULT_AUTHOR}) + "\n",
+        encoding="utf-8",
+    )
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    gh = bin_dir / "gh"
+    gh.write_text(f"#!/usr/bin/env bash\ncat '{listing}'\n", encoding="utf-8")
+    gh.chmod(0o755)
+    _python_on(bin_dir)
+    repo = tmp_path / "checkout"
+    repo.mkdir()
+    git(repo, "init", "-q")
+
+    outputs = _run_step(
+        "baseline",
+        tmp_path,
+        repo,
+        # A fake token: the stubbed `gh` never sends it anywhere.
+        **{"GH_TOKEN": "unused"},
+        ACTION_PATH=str(REPOSITORY_ROOT),
+        REPOSITORY="owner/repo",
+        PULL_REQUEST="7",
+        PATH=f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+    )
+
+    recorded = Path(outputs["path"])
+    assert recorded == (repo / ".git" / "semantic-diff-weaver-baseline.json").resolve()
+    assert json.loads(recorded.read_text(encoding="utf-8"))["analysis_id"] == "sdw_earlier"

@@ -146,6 +146,39 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## The GitHub Action keeps its baseline in its comment (2026-10-31)
+
+The baseline comparison needs the previous push's analysis, and a workflow keeps nothing between
+runs. An artifact belongs to its run, so the next one would have to find it through the API with
+`actions: read`; a cache key cannot be overwritten, and a fork's pull request writes caches of its
+own. The pull-request comment the action already posts lasts as long as the pull request, is
+replaced on every push, and needs no permission the action lacks, so the baseline lives there.
+
+The comment ends with a hidden digest of its analysis: each finding's category, path, symbol,
+risk, and the first 32 hex digits of a SHA-256 of its evidence, compressed with zlib and
+base64-encoded, with no evidence text. A finding costs about 39 characters, so some 500 fit in
+the 20,000 the digest may take beside the brief; the largest analysis measured on 2026-10-31 had
+34. With the new `baseline` input at its default, `previous`, the next run reads the digest back
+and passes it as `--baseline`. The analyzer's loader takes a digest as it takes a full analysis,
+and both reduce to the same fingerprints, so the comparison is the one an analysis file gets.
+
+The comment is matched by its author as well as its marker. `find_existing` matched the marker
+alone, by design, but anyone can post a comment starting with it: posted before the action's first,
+it was edited in the action's place, which GitHub refuses, and the step failed; read as the
+baseline, a crafted digest could make every new finding read as unchanged. The author is
+`github-actions[bot]`, the identity `github.token` comments as, which the action always uses;
+`pr_comment.py --author` names another for a script run with a different token.
+
+A digest read back is bounded before it is trusted: at most 20,000 encoded characters, inflated no
+further than 2 MB, and loaded by the analyzer, which validates every field. One that fails — an
+edited comment, a digest from an incompatible release — is reported in the log and left out, and
+the analysis runs as on a first push, since comparing with the previous push is a convenience
+rather than a reason to fail a review. The decoded digest is written to the checkout's `.git`
+directory, already an authorized root for the analyzer, so no authorization is widened for it,
+and no later step finds it in the working tree. The analyzer, its schema, and its CLI are
+unchanged; `pr_comment.py` gains `--read-baseline` and `--author`, and the action its `baseline`
+input.
+
 ## Baseline comparison (2026-10-31)
 
 The roadmap's "baseline comparison between analysis revisions" is `--baseline PATH`, or

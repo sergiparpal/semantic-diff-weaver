@@ -1,14 +1,16 @@
 """The pull-request comment upsert, with the `gh` boundary faked.
 
 The behavior that matters is idempotency: a re-run must edit the existing comment rather than
-append a second one, and the match must depend only on the hidden marker. No test here makes a
-network call or invokes the real `gh`.
+append a second one, and the match must depend only on the hidden marker and the author the
+action comments as. No test here makes a network call or invokes the real `gh`.
 """
 
 from __future__ import annotations
 
+import base64
 import json
 import sys
+import zlib
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +20,8 @@ sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
 
 import pr_comment
 from pr_comment import (
+    DEFAULT_AUTHOR,
+    DIGEST_RE,
     EXIT_ARGUMENT_ERROR,
     EXIT_FAILURE,
     EXIT_SUCCESS,
@@ -25,13 +29,18 @@ from pr_comment import (
     MAX_COMMENT_CHARS,
     CommentError,
     compose,
+    decode_digest,
+    encode_digest,
     find_existing,
     main,
+    read_baseline,
     read_markdown,
     truncate,
     upsert,
     validated_target,
 )
+
+from semantic_diff_weaver.baseline import digest_of, load_baseline
 
 BRIEF = "## Semantic Diff Test Brief\n\n**Overall risk:** medium (51/100)\n"
 
@@ -46,7 +55,10 @@ class FakeGh:
     def __call__(self, arguments: list[str], **kwargs: Any) -> str:
         self.calls.append(arguments)
         if "--jq" in arguments:
-            return "\n".join(json.dumps(item) for item in self.comments)
+            # A comment is the action's own unless a test says who else wrote it.
+            return "\n".join(
+                json.dumps({"author": DEFAULT_AUTHOR, **item}) for item in self.comments
+            )
         return "{}"
 
     @property
@@ -171,8 +183,8 @@ def test_malformed_listing_lines_are_skipped() -> None:
             self.calls.append(arguments)
             return (
                 "\n{not json}\n\n"
-                f'{{"id": "not-an-int", "body": "{MARKER}"}}\n'
-                f'{{"id": 8, "body": "{MARKER}\\nok"}}'
+                f'{{"id": "not-an-int", "body": "{MARKER}", "author": "{DEFAULT_AUTHOR}"}}\n'
+                f'{{"id": 8, "body": "{MARKER}\\nok", "author": "{DEFAULT_AUTHOR}"}}'
             )
 
     assert find_existing("owner/repo", "7", runner=Broken()) == 8
@@ -383,3 +395,149 @@ def test_the_api_path_components_are_validated_before_interpolation(
 def test_a_well_formed_target_still_reaches_the_cli() -> None:
     assert validated_target("owner/repo", "7") == ("owner/repo", "7")
     assert validated_target("my-org.x/repo_name", "12345") == ("my-org.x/repo_name", "12345")
+
+
+def test_a_marked_comment_someone_else_wrote_is_never_claimed() -> None:
+    """Anyone can post a comment starting with the marker; one posted before the action's own
+    was edited in its place, which GitHub refuses, and would have been read as its baseline."""
+    runner = RecordingGh(comments=[{"id": 1, "author": "mallory", "body": f"{MARKER}\nforged"}])
+    assert upsert("owner/repo", "7", compose(BRIEF), runner=runner) == "created"
+    assert runner.methods == ["POST"]
+    later = FakeGh(
+        comments=[
+            {"id": 1, "author": "mallory", "body": f"{MARKER}\nforged"},
+            {"id": 2, "body": f"{MARKER}\nours"},
+        ]
+    )
+    assert find_existing("owner/repo", "7", runner=later) == 2
+
+
+ANALYSIS = {
+    "schema_version": "1.2",
+    "analysis_id": "sdw_earlier",
+    "repository": {"head_commit": "a" * 40},
+    "behavior_changes": [
+        {
+            "category": "boundary_change",
+            "risk": "medium",
+            "evidence": [
+                {"path": "api.py", "symbol": "allowed", "kind": "comparison_change", "old": "x < 5"}
+            ],
+        }
+    ],
+}
+
+
+def _recorded(tmp_path: Path) -> str:
+    """The comment this tool posts for `ANALYSIS`."""
+    digest = encode_digest({"success": True, "analysis": ANALYSIS})
+    assert digest is not None
+    return compose(BRIEF, digest)
+
+
+def test_the_comment_ends_with_the_digest_of_its_analysis(tmp_path: Path) -> None:
+    body = _recorded(tmp_path)
+    assert body.startswith(MARKER)
+    assert DIGEST_RE.fullmatch(body.rstrip().splitlines()[-1])
+    assert decode_digest(DIGEST_RE.findall(body)[-1]) == digest_of(ANALYSIS)
+
+
+def test_a_long_brief_is_cut_to_keep_the_digest_whole() -> None:
+    digest = encode_digest({"analysis": ANALYSIS})
+    assert digest is not None
+    body = compose("- **Finding**\n" + "x" * (MAX_COMMENT_CHARS * 2), digest)
+    assert len(body) <= MAX_COMMENT_CHARS
+    assert "Output truncated" in body
+    assert DIGEST_RE.findall(body) == [digest]
+
+
+def test_a_digest_past_its_limit_is_left_out(monkeypatch) -> None:
+    monkeypatch.setattr(pr_comment, "MAX_DIGEST_CHARS", 10)
+    assert encode_digest({"analysis": ANALYSIS}) is None
+    assert encode_digest({"analysis": {"not": "an analysis"}}) is None
+    assert not DIGEST_RE.findall(compose(BRIEF, None))
+
+
+@pytest.mark.parametrize(
+    "encoded",
+    [
+        pytest.param("not base64!", id="not-base64"),
+        pytest.param(base64.b64encode(b"not zlib").decode(), id="not-compressed"),
+        pytest.param(
+            base64.b64encode(zlib.compress(b"not json")).decode(),
+            id="not-json",
+        ),
+        pytest.param(
+            base64.b64encode(zlib.compress(b"0" * 3_000_000)).decode(),
+            id="inflates-past-its-limit",
+        ),
+        pytest.param("A" * 30_000, id="too-long"),
+    ],
+)
+def test_a_digest_that_cannot_be_read_back_is_refused(encoded: str) -> None:
+    with pytest.raises(CommentError):
+        decode_digest(encoded)
+
+
+def test_the_previous_comment_s_digest_is_read_back(tmp_path: Path) -> None:
+    destination = tmp_path / ".git" / "baseline.json"
+    runner = FakeGh(comments=[{"id": 9, "body": _recorded(tmp_path)}])
+    assert read_baseline("owner/repo", "7", destination, runner=runner)
+    loaded = load_baseline(destination, 1_000_000)
+    assert (loaded.analysis_id, len(loaded.findings)) == ("sdw_earlier", 1)
+
+
+@pytest.mark.parametrize(
+    "comments",
+    [
+        pytest.param([], id="no-comment"),
+        pytest.param([{"id": 1, "body": f"{MARKER}\n{BRIEF}"}], id="a-comment-without-a-digest"),
+        pytest.param(
+            [{"id": 1, "author": "mallory", "body": "FORGED"}], id="someone-else-s-digest"
+        ),
+    ],
+)
+def test_without_the_action_s_own_digest_nothing_is_compared(
+    tmp_path: Path, comments: list[dict[str, Any]]
+) -> None:
+    if comments and comments[0]["body"] == "FORGED":
+        comments[0]["body"] = _recorded(tmp_path)
+    destination = tmp_path / "baseline.json"
+    assert not read_baseline("owner/repo", "7", destination, runner=FakeGh(comments=comments))
+    assert not destination.exists()
+
+
+def test_a_recorded_digest_the_analyzer_cannot_compare_is_dropped(tmp_path: Path) -> None:
+    """An edited comment, or one from an incompatible release, must not fail the analysis."""
+    raw = json.dumps({"semantic_diff_weaver_baseline": 99, "findings": []}).encode()
+    encoded = base64.b64encode(zlib.compress(raw)).decode()
+    body = compose(BRIEF, encoded)
+    destination = tmp_path / "baseline.json"
+    with pytest.raises(CommentError, match="cannot be compared"):
+        read_baseline("owner/repo", "7", destination, runner=FakeGh([{"id": 1, "body": body}]))
+    assert not destination.exists()
+
+
+def test_reading_the_baseline_never_fails_the_run(tmp_path: Path, monkeypatch, capsys) -> None:
+    def broken(arguments: list[str], **kwargs: Any) -> str:
+        raise CommentError("the GitHub CLI exited with status 1")
+
+    monkeypatch.setattr(pr_comment, "run_gh", broken)
+    arguments = ["--read-baseline", str(tmp_path / "b.json"), "--repository", "o/r"]
+    assert main([*arguments, "--pull-request", "7"]) == EXIT_SUCCESS
+    assert "no baseline is compared" in capsys.readouterr().err
+    monkeypatch.setattr(pr_comment, "run_gh", FakeGh(comments=[]))
+    assert main([*arguments, "--pull-request", "7"]) == EXIT_SUCCESS
+    assert "no previous analysis was recorded" in capsys.readouterr().out
+    monkeypatch.setattr(pr_comment, "run_gh", FakeGh([{"id": 3, "body": _recorded(tmp_path)}]))
+    assert main([*arguments, "--pull-request", "7"]) == EXIT_SUCCESS
+    assert "the previous analysis is compared" in capsys.readouterr().out
+
+
+def test_posting_the_brief_records_its_digest(tmp_path: Path, monkeypatch) -> None:
+    runner = RecordingGh(comments=[])
+    monkeypatch.setattr(pr_comment, "run_gh", runner)
+    envelope = _envelope(tmp_path, {"success": True, "markdown": BRIEF, "analysis": ANALYSIS})
+    code = main(["--envelope", str(envelope), "--repository", "o/r", "--pull-request", "7"])
+    assert code == EXIT_SUCCESS
+    assert decode_digest(DIGEST_RE.findall(runner.captured)[-1]) == digest_of(ANALYSIS)

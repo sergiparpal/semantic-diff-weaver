@@ -1,8 +1,14 @@
-"""Upsert the review brief as a single pull-request comment.
+"""Upsert the review brief as a single pull-request comment, and keep a baseline in it.
 
 Idempotency is the whole point: a re-run must *edit* the existing comment, never append a
-second one. The comment is identified by a hidden marker on its first line, so the match does
-not depend on the comment's author, its position, or any state carried between runs.
+second one. The comment is identified by a hidden marker on its first line and by its author,
+the identity the action comments as: anyone can post a comment starting with the marker, and
+one posted first would have been edited, and failed, in place of the action's own.
+
+The comment also ends with a hidden digest of its analysis — each finding's category, path,
+symbol, risk, and a fingerprint of its evidence — which `--read-baseline` reads back on the
+next push, so that analysis can say which findings are new since. Only the action's own
+comment is read, and the analyzer validates what it holds like any other baseline.
 
 The `gh` boundary follows the same rule as `git_diff/process.py`: argument lists only,
 `shell=False`, no interpolation of untrusted text into a command string. The brief is passed
@@ -13,6 +19,8 @@ shell via its own content.
 from __future__ import annotations
 
 import argparse
+import base64
+import binascii
 import json
 import os
 import re
@@ -20,10 +28,28 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import zlib
 from pathlib import Path
 from typing import Any
 
+# The action runs this from its own checkout, beside the package it installed from it.
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPOSITORY_ROOT))
+
+from semantic_diff_weaver.baseline import digest_of, load_baseline  # noqa: E402
+from semantic_diff_weaver.errors import WeaverError  # noqa: E402
+
 MARKER = "<!-- semantic-diff-weaver:v1 -->"
+# The login GitHub gives a comment posted with `github.token`, as the action posts its own.
+DEFAULT_AUTHOR = "github-actions[bot]"
+# The digest's own line, last in the comment. Base64 holds no `-` or `>`, so it cannot close
+# the HTML comment early, and the brief never writes a line starting `<!--`.
+DIGEST_RE = re.compile(r"^<!-- semantic-diff-weaver-baseline:v1 ([A-Za-z0-9+/=]+) -->$", re.M)
+# How long the encoded digest may be, so the brief keeps most of the comment; a longer one is
+# left out, and the next push compares with nothing.
+MAX_DIGEST_CHARS = 20_000
+# What a digest read back may inflate to: a crafted comment cannot make it a zip bomb.
+MAX_DIGEST_BYTES = 2_000_000
 
 # `repository` and `pull_request` are interpolated into `gh api` resource paths. The `gh`
 # boundary is argument-list-only, so this is not a shell-injection surface — but an
@@ -45,8 +71,8 @@ class CommentError(Exception):
     """A reportable failure that must not leak a token or a raw provider message."""
 
 
-def read_markdown(path: Path) -> str:
-    """Extract the brief from the CLI's `--format both` envelope."""
+def read_envelope(path: Path) -> dict[str, Any]:
+    """Read the CLI's `--format both` envelope, which carries the brief and the analysis."""
     try:
         payload: Any = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -57,10 +83,40 @@ def read_markdown(path: Path) -> str:
         error = str(payload.get("error", "unknown_error"))
         message = str(payload.get("message", ""))
         raise CommentError(f"the analysis failed: {error}: {message}")
-    markdown = payload.get("markdown")
+    return payload
+
+
+def read_markdown(path: Path) -> str:
+    """Extract the brief from the CLI's `--format both` envelope."""
+    markdown = read_envelope(path).get("markdown")
     if not isinstance(markdown, str) or not markdown.strip():
         raise CommentError("the analysis envelope carried no Markdown brief")
     return markdown
+
+
+def encode_digest(envelope: dict[str, Any]) -> str | None:
+    """The digest of the envelope's analysis, compressed for the comment, or None past its limit."""
+    try:
+        digest = digest_of(envelope.get("analysis"))
+    except WeaverError:
+        return None
+    raw = json.dumps(digest, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    encoded = base64.b64encode(zlib.compress(raw, 9)).decode("ascii")
+    return encoded if len(encoded) <= MAX_DIGEST_CHARS else None
+
+
+def decode_digest(encoded: str) -> Any:
+    """A digest read back from a comment, inflated no further than `MAX_DIGEST_BYTES`."""
+    if len(encoded) > MAX_DIGEST_CHARS:
+        raise CommentError("the recorded baseline is longer than a digest may be")
+    try:
+        inflater = zlib.decompressobj()
+        raw = inflater.decompress(base64.b64decode(encoded, validate=True), MAX_DIGEST_BYTES)
+        if inflater.unconsumed_tail or not inflater.eof:
+            raise CommentError("the recorded baseline inflates past its size limit")
+        return json.loads(raw.decode("utf-8"))
+    except (binascii.Error, zlib.error, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise CommentError("the recorded baseline is not readable") from exc
 
 
 def truncate(body: str, limit: int = MAX_COMMENT_CHARS) -> str:
@@ -99,9 +155,14 @@ def truncate(body: str, limit: int = MAX_COMMENT_CHARS) -> str:
     return "\n".join(kept).rstrip() + "\n" + notice
 
 
-def compose(markdown: str) -> str:
-    """Prefix the marker so a later run can find this comment again."""
-    return truncate(f"{MARKER}\n{markdown.strip()}\n")
+def compose(markdown: str, digest: str | None = None) -> str:
+    """Prefix the marker so a later run can find this comment again, and end with the digest
+    that run compares with. A long brief is cut to keep the digest whole."""
+    if digest is None:
+        return truncate(f"{MARKER}\n{markdown.strip()}\n")
+    line = f"<!-- semantic-diff-weaver-baseline:v1 {digest} -->"
+    body = truncate(f"{MARKER}\n{markdown.strip()}\n", limit=MAX_COMMENT_CHARS - len(line) - 2)
+    return f"{body.rstrip()}\n{line}\n"
 
 
 def validated_target(repository: str, pull_request: str) -> tuple[str, str]:
@@ -140,8 +201,10 @@ def run_gh(arguments: list[str], *, executable: str | None = None) -> str:
     return completed.stdout
 
 
-def find_existing(repository: str, pull_request: str, *, runner: Any = None) -> int | None:
-    """Return the id of this tool's previous comment, matched by the hidden marker.
+def find_comment(
+    repository: str, pull_request: str, *, author: str = DEFAULT_AUTHOR, runner: Any = None
+) -> tuple[int, str] | None:
+    """Return the id and body of this tool's previous comment: the marker's, by `author`.
 
     ``runner`` is resolved at call time rather than bound as a default, so the `gh` boundary
     stays injectable — a default argument would capture the function at import.
@@ -153,7 +216,7 @@ def find_existing(repository: str, pull_request: str, *, runner: Any = None) -> 
             "--paginate",
             f"repos/{repository}/issues/{pull_request}/comments",
             "--jq",
-            ".[] | {id: .id, body: .body}",
+            ".[] | {id: .id, body: .body, author: .user.login}",
         ]
     )
     for line in raw.splitlines():
@@ -166,9 +229,54 @@ def find_existing(repository: str, pull_request: str, *, runner: Any = None) -> 
             continue
         body = comment.get("body")
         identifier = comment.get("id")
-        if isinstance(body, str) and body.startswith(MARKER) and isinstance(identifier, int):
-            return identifier
+        if (
+            isinstance(body, str)
+            and body.startswith(MARKER)
+            and isinstance(identifier, int)
+            and comment.get("author") == author
+        ):
+            return identifier, body
     return None
+
+
+def find_existing(
+    repository: str, pull_request: str, *, author: str = DEFAULT_AUTHOR, runner: Any = None
+) -> int | None:
+    """Return the id of this tool's previous comment, matched by the marker and its author."""
+    found = find_comment(repository, pull_request, author=author, runner=runner)
+    return found[0] if found is not None else None
+
+
+def read_baseline(
+    repository: str,
+    pull_request: str,
+    destination: Path,
+    *,
+    author: str = DEFAULT_AUTHOR,
+    runner: Any = None,
+) -> bool:
+    """Write the digest this tool's previous comment ends with, and say whether there was one.
+
+    It is checked with the analyzer's own loader before it is kept, so a digest that cannot be
+    compared — an edited comment, or one from an incompatible release — is reported and left
+    out rather than failing the analysis that would read it.
+    """
+    repository, pull_request = validated_target(repository, pull_request)
+    found = find_comment(repository, pull_request, author=author, runner=runner)
+    if found is None:
+        return False
+    recorded = DIGEST_RE.findall(found[1])
+    if not recorded:
+        return False
+    digest = decode_digest(recorded[-1])
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(json.dumps(digest), encoding="utf-8")
+    try:
+        load_baseline(destination, MAX_DIGEST_BYTES)
+    except WeaverError as exc:
+        destination.unlink(missing_ok=True)
+        raise CommentError(f"the recorded baseline cannot be compared: {exc.safe_message}") from exc
+    return True
 
 
 def upsert(
@@ -176,12 +284,13 @@ def upsert(
     pull_request: str,
     body: str,
     *,
+    author: str = DEFAULT_AUTHOR,
     runner: Any = None,
 ) -> str:
     """Edit this tool's comment when one exists, otherwise create it. Never append."""
     runner = runner or run_gh
     repository, pull_request = validated_target(repository, pull_request)
-    existing = find_existing(repository, pull_request, runner=runner)
+    existing = find_existing(repository, pull_request, author=author, runner=runner)
     # The body goes through a file: it contains untrusted repository content, and an
     # argument-list value that large is fragile besides.
     handle, name = tempfile.mkstemp(prefix="sdw-comment-", suffix=".md")
@@ -220,17 +329,49 @@ def main(argv: list[str] | None = None) -> int:
         prog="pr_comment.py",
         description="Upsert the semantic diff brief as one pull-request comment.",
     )
-    parser.add_argument("--envelope", required=True, help="path to the CLI's `both` JSON output")
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--envelope", help="path to the CLI's `both` JSON output, to post")
+    mode.add_argument(
+        "--read-baseline",
+        metavar="PATH",
+        help="write the digest the previous comment ends with to PATH, when there is one",
+    )
     parser.add_argument("--repository", required=True, help="owner/repo")
     parser.add_argument("--pull-request", required=True, help="pull request number")
+    parser.add_argument(
+        "--author",
+        default=DEFAULT_AUTHOR,
+        help=f"the login this tool comments as (default: {DEFAULT_AUTHOR})",
+    )
     try:
         namespace = parser.parse_args(argv)
     except SystemExit as exc:
         return EXIT_SUCCESS if exc.code in (0, None) else EXIT_ARGUMENT_ERROR
 
+    if namespace.read_baseline is not None:
+        # Comparing with the previous push is a convenience: without it the analysis is still
+        # whole, so nothing here fails the run.
+        try:
+            recorded = read_baseline(
+                namespace.repository,
+                namespace.pull_request,
+                Path(namespace.read_baseline),
+                author=namespace.author,
+            )
+        except CommentError as exc:
+            print(f"pr_comment: no baseline is compared: {exc}", file=sys.stderr)
+            return EXIT_SUCCESS
+        print(
+            "pr_comment: the previous analysis is compared"
+            if recorded
+            else "pr_comment: no previous analysis was recorded on this pull request"
+        )
+        return EXIT_SUCCESS
+
     try:
-        body = compose(read_markdown(Path(namespace.envelope)))
-        action = upsert(namespace.repository, namespace.pull_request, body)
+        envelope_path = Path(namespace.envelope)
+        body = compose(read_markdown(envelope_path), encode_digest(read_envelope(envelope_path)))
+        action = upsert(namespace.repository, namespace.pull_request, body, author=namespace.author)
     except CommentError as exc:
         print(f"pr_comment: {exc}", file=sys.stderr)
         return EXIT_FAILURE
