@@ -33,9 +33,12 @@ class CategoryProbe:
     An assignment's probe reads its targets only. Internal to classification and never reported.
     """
 
-    # Identifiers, attribute and keyword names, and string literals without whitespace.
+    # Identifiers, attribute and keyword names, and string literals without whitespace. A delta's
+    # probe of comparisons or conditions holds only those of the values the delta changed.
     words: str
-    # Whether the value contains an ordering or equality comparison: <, <=, >, >=, ==, !=.
+    # Whether the value compares a boundary: an ordering (<, <=, >, >=), or an equality or
+    # inequality with a number or a length on one side. A delta's probe says whether a value the
+    # delta changed does, so an unchanged `count > 3` beside a changed `parent is None` does not.
     compares: bool
 
 

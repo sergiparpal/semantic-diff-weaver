@@ -26,9 +26,36 @@ def unparse_redacted(node: ast.AST | None, limit: int = 500) -> str:
         return type(node).__name__
 
 
-# The comparisons the condition rule treats as a boundary. Membership and identity tests (`in`,
-# `is`) never were, and a shift (`<<`, `>>`) is arithmetic that only looked like one in text.
-BOUNDARY_COMPARISONS = (ast.Lt, ast.LtE, ast.Gt, ast.GtE, ast.Eq, ast.NotEq)
+# A boundary is what has a just-below, an exact, and a just-above case to test: an ordering, or an
+# equality with a number or a length, such as `count == 0` or `index == len(items)`. An equality
+# between other values picks a case and orders nothing — `method == 'GET'`, `kind == token.STAR` —
+# and membership and identity tests (`in`, `is`) never were boundaries. A shift (`<<`, `>>`) is
+# arithmetic that only looked like a comparison in text.
+ORDERING_COMPARISONS = (ast.Lt, ast.LtE, ast.Gt, ast.GtE)
+EQUALITY_COMPARISONS = (ast.Eq, ast.NotEq)
+
+
+def _is_number(node: ast.expr) -> bool:
+    """Whether `node` is a number written in the code, signed or not, or a call to `len`."""
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+        node = node.operand
+    if isinstance(node, ast.Constant):
+        # `type`, not `isinstance`: `flag == True` compares a bool, which is an int subclass.
+        return type(node.value) in (int, float, complex)
+    return isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "len"
+
+
+def compares_a_boundary(node: ast.Compare) -> bool:
+    """Whether any operator of a comparison, chained or not, tests a boundary."""
+    operands = (node.left, *node.comparators)
+    for index, operator in enumerate(node.ops):
+        if isinstance(operator, ORDERING_COMPARISONS):
+            return True
+        if isinstance(operator, EQUALITY_COMPARISONS) and (
+            _is_number(operands[index]) or _is_number(operands[index + 1])
+        ):
+            return True
+    return False
 
 
 def _probe_word(node: ast.AST) -> str | None:
@@ -55,7 +82,8 @@ def category_probe(*nodes: ast.AST | None) -> CategoryProbe:
     literals without whitespace — keys, headers, and permission names such as "Authorization"
     or "retry_limit" are real signal — and drop literals that contain whitespace, whose words
     are prose about the code rather than the code. Each f-string part is judged on its own.
-    Whether the value compares is read from its operators, never from characters in its text.
+    Whether the value compares a boundary is read from its operators and their operands, never
+    from characters in its text.
     """
     words: list[str] = []
     compares = False
@@ -63,7 +91,7 @@ def category_probe(*nodes: ast.AST | None) -> CategoryProbe:
         if node is None:
             continue
         for child in ast.walk(node):
-            if isinstance(child, BOUNDARY_COMPARISONS):
+            if isinstance(child, ast.Compare) and compares_a_boundary(child):
                 compares = True
             elif (word := _probe_word(child)) is not None:
                 words.append(word)

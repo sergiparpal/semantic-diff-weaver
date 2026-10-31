@@ -9,7 +9,12 @@ from typing import Any
 from ..models import LineRange
 from ..path_policy import redact_text
 from ..source import SourceHunk
-from .limits import FEATURE_DELTA_KINDS, MAX_DELTA_TEXT_CHARS, MAX_PROBE_CHARS_PER_SIDE
+from .limits import (
+    CHANGED_VALUE_FEATURES,
+    FEATURE_DELTA_KINDS,
+    MAX_DELTA_TEXT_CHARS,
+    MAX_PROBE_CHARS_PER_SIDE,
+)
 from .match import symbol_similarity
 from .types import CategoryProbe, StructuralDelta, SymbolSnapshot
 
@@ -65,23 +70,39 @@ def join_feature_values(values: Iterable[tuple[str, int]]) -> str | None:
     return redact_text("; ".join(material), max_chars=MAX_DELTA_TEXT_CHARS) if material else None
 
 
-def _probes_in_display_window(snapshot: SymbolSnapshot, feature: str) -> list[CategoryProbe]:
-    """The probes of the values a delta's display text shows.
+def _values_in_display_window(
+    snapshot: SymbolSnapshot, feature: str
+) -> list[tuple[str, CategoryProbe]]:
+    """The values a delta's display text shows, each with its probe.
 
     The display text joins every value with "; " and stops at `MAX_DELTA_TEXT_CHARS`, so a long
     symbol shows — and has always been classified by — only its first values. Covering the same
     values keeps what a probe changes about classification to prose literals and nothing else;
     a denser probe that reached further was finding new keywords in calls the text never showed.
     """
-    kept: list[CategoryProbe] = []
+    kept: list[tuple[str, CategoryProbe]] = []
     offset = 0
     pairs = zip(snapshot.features[feature], snapshot.probes[feature], strict=True)
     for (text, _), probe in pairs:
         if offset >= MAX_DELTA_TEXT_CHARS:
             break
-        kept.append(probe)
+        kept.append((text, probe))
         offset += len(text) + len("; ")
     return kept
+
+
+def _changed_probes(
+    shown: list[tuple[str, CategoryProbe]], other: SymbolSnapshot, feature: str
+) -> list[CategoryProbe]:
+    """The probes of the shown values the other side does not hold as many times."""
+    remaining = Counter(feature_texts(other, feature))
+    changed: list[CategoryProbe] = []
+    for text, probe in shown:
+        if remaining[text]:
+            remaining[text] -= 1
+        else:
+            changed.append(probe)
+    return changed
 
 
 def join_probes(old: SymbolSnapshot, new: SymbolSnapshot, feature: str) -> CategoryProbe | None:
@@ -90,15 +111,27 @@ def join_probes(old: SymbolSnapshot, new: SymbolSnapshot, feature: str) -> Categ
     None sends the category rules back to the display text, which is what a feature without
     probes — or a snapshot built by hand — has always been classified by. Each side's words are
     bounded on their own, so a long old side can never crowd out the new one.
+
+    Whether the delta compares a boundary is read from the values it changed: an unchanged
+    `len(items) > 3` made every condition changed beside it, a `parent is None` among them, a
+    boundary. So are the words of a comparison or condition (`CHANGED_VALUE_FEATURES`); those of
+    a call or an assignment are still the words of every value shown.
     """
     if feature not in old.probes or feature not in new.probes:
         return None
-    sides = [_probes_in_display_window(snapshot, feature) for snapshot in (old, new)]
+    old_shown, new_shown = (_values_in_display_window(snapshot, feature) for snapshot in (old, new))
+    old_changed = _changed_probes(old_shown, new, feature)
+    new_changed = _changed_probes(new_shown, old, feature)
+    sides = (
+        (old_changed, new_changed)
+        if feature in CHANGED_VALUE_FEATURES
+        else ([probe for _, probe in old_shown], [probe for _, probe in new_shown])
+    )
     return CategoryProbe(
         words=" ".join(
-            " ".join(item.words for item in side)[:MAX_PROBE_CHARS_PER_SIDE] for side in sides
+            " ".join(probe.words for probe in side)[:MAX_PROBE_CHARS_PER_SIDE] for side in sides
         ),
-        compares=any(item.compares for side in sides for item in side),
+        compares=any(probe.compares for probe in (*old_changed, *new_changed)),
     )
 
 
