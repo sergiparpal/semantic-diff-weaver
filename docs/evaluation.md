@@ -33,8 +33,10 @@ critical-prioritization cases) produced 100.00% material precision (16 of 16 pre
 100% supported-pattern recall (16 of 16), 100% evidence-anchor correctness (16 of 16), 100% required
 obligation-concept match (16 of 16), and zero fabricated evidence references. Every high/critical
 finding had a linked obligation, and every candidate test remained explicitly unverified. The corpus
-now emits no prediction outside its reviewed expected labels. The 2026-10-31 re-measurement for
-0.4.0 found the same figures.
+now emits no prediction outside its reviewed expected labels. The 2026-10-31 re-measurements for
+0.4.0 and 0.4.1 found the same figures. Of 0.4.1's corrections only the output-contract one reaches
+the corpus: the `return annotation signature` case is now worded as a change to typing alone, at
+0.80 confidence instead of 0.879, and keeps its category, risk, and obligations.
 
 The previous measurement on this same corpus was 88.24% precision (15 of 17). The two surplus
 predictions were both `ordering_change` findings produced by comparing `statement_order` tuples for
@@ -50,13 +52,13 @@ went into the analyzer, consistent with the 2026-07-17 fixture-label review. See
 The deterministic performance suite covers a 100-symbol AST fixture, a 500-symbol mass-rename
 matching fixture, a warmed full-service fixture with 40 files, 3,000 changed lines, and 100
 symbols, and a chain of calls on instances across a call graph at its module limit, with five-,
-two-, five-, and five-second ceilings respectively. They completed in approximately 0.04, 1.52,
-0.37, and 1.84 seconds in the 2026-10-31 timing run, the same across three runs. The mass-rename
-fixture took 0.41 seconds in the 2026-07-26 run; `v0.3.0` measures the same 1.5 seconds as the
-current code on the 2026-10-31 machine, so the difference is the machine rather than the code, but
-it leaves that fixture at three quarters of its ceiling.
+two-, five-, and five-second ceilings respectively. They completed in approximately 0.02, 0.41,
+0.37, and 0.82 seconds in the 0.4.1 timing run, the same across three runs, and `v0.4.0` times the
+same on the same machine. The 0.4.0 run, earlier on 2026-10-31, measured 0.04, 1.52, 0.37, and 1.84
+seconds, and `v0.3.0` the same 1.5 seconds for the mass-rename fixture then: the machine was slower
+at that hour, not the code, and that fixture is back at a fifth of its ceiling, as on 2026-07-26.
 
-The complete automated suite reports 96.92% overall branch-aware coverage across 907 passing tests
+The complete automated suite reports 96.93% overall branch-aware coverage across 952 passing tests
 and one skip, the real-Hermes discovery test, with at least 90% branch coverage in every critical
 module — the lowest is `git_diff/` at 91.84%, followed by `path_policy.py` at 92.42%,
 `semantic_interpreter.py` at 92.62%, and `renderer.py` at 92.86%. `cli.py` and `coverage_map.py`

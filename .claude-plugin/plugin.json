@@ -1,6 +1,6 @@
 {
   "name": "semantic-diff-weaver",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Analyze committed Git diffs and produce evidence-backed, risk-ranked test obligations. Read-only.",
   "author": {
     "name": "Semantic Diff Weaver contributors"
