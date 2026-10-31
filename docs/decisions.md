@@ -146,6 +146,37 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-10-31, loops)
+
+`SDW-RULE-LOOP` made every changed loop a `retry_timeout_change`. The `for` loop over a command's
+parameters in click's `Command.format_arguments`, and the `while i > 0` that dropped words until a
+help text fit in `_make_default_short_help`, became retries with obligations to recover before a
+retry limit and to stop on a terminal failure; none of the three loop findings in
+`docs/real-pr-validation.md` involves a retry.
+
+A changed loop is now a retry only when what it iterates over or stops on, or its symbol's name,
+says so: `attempt`, `retry`, `timeout`, `sleep`, `backoff`, or `deadline`. The words come from a
+probe of the loop's target and iterable, or of a `while` loop's test, built from the AST like the
+other probes and read from the loops that changed. `limit`, a retry term in the other rules, does
+not count here: every loop has one, and `while len(payload) > limit` shrinks a payload until it
+fits. Any other changed loop is an `unknown_semantic_change` under the new `SDW-RULE-UNKNOWN-LOOP`,
+with the unknown condition's 0.55 baseline and assumption. A `while` loop's test was already a
+condition too, so its stop condition is still classified as one: a changed `while attempts < 3` is
+a retry boundary either way.
+
+`test_complete_taxonomy_rules` classified `range(2)` to `range(3)` as a retry. It now classifies
+`for attempt in range(2)` as one and `for item in items` to `for item in rows` as an unknown change.
+
+Measured on every commit against its first parent, against the analyzer with the boundary
+correction below. This repository's history holds 54 loop classifications and
+`adaptive-policy-compilation`'s 45. Every one was a retry, none of them is one, and every one is
+now an unknown change; the last to go, on this repository, was the `while len(...) > limit`
+truncation in an old `_evidence_payload`. No other classification moves. Findings fall from 1,353
+to 1,306 and from 3,056 to 3,014, obligations from 672 to 637 and from 442 to 403, and no range's
+highest risk rises; one falls. On the 14 merges of `docs/real-pr-validation.md` the three loop
+findings become unknown changes, and the findings fall from 71 to 68. The corpus's one loop, in
+its `retry predicate` case, reads `attempts` and is still a retry, so the 18 goldens are unchanged.
+
 ## Output-affecting corrections (2026-10-31, boundary comparisons)
 
 `SDW-RULE-BOUNDARY` made every changed comparison a `boundary_change` without reading its operator,
