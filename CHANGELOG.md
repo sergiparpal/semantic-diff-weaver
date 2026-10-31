@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- **Fix:** a changed `print` is a side effect. It was a dependency interaction, with obligations
+  about a dependency's failures and unexpected responses; `print` is now a side-effect term beside
+  `warn`, so a changed line of output gets the side-effect obligations, the write occurring as
+  intended and not otherwise, as a changed `sys.stdout.write()` already did. Each finding that
+  moves gains 8 risk points. On this repository's history 4 of 348 call classifications move and
+  no verdict changes; on `adaptive-policy-compilation` 28 of 179 move, and one range's verdict
+  moves from `warn` to `review_required`, a rename of the identifiers its scripts print. The real
+  pull requests of `docs/real-pr-validation.md` and the evaluation corpus are unchanged.
+
 ## 0.6.1 - 2026-10-31
 
 A changed call is classified by what it reaches. A call to the module's own code — its functions and

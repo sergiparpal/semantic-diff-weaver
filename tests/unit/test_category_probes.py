@@ -702,7 +702,7 @@ def test_a_call_reaches_its_own_module_by_a_name_either_revision_defines() -> No
     assert own_call_names(old, new) == {"_old", "Worker", "Worker._new", "self._new", "cls._new"}
 
 
-MODULE = "import requests\nimport warnings\n\n\ndef _clean(text):\n    return text.strip()\n\n\n"
+MODULE = "import sys\nimport warnings\n\nimport requests\n\n\ndef _clean(text):\n    return text.strip()\n\n\n"
 # The methods the cases call: a call reaches its own module only through what one of its classes
 # defines.
 WORKER = (
@@ -760,6 +760,12 @@ WORKER = (
             "    warnings.warn('deprecated', DeprecationWarning)\n    return x\n",
             "side_effect_change",
             id="a-warning",
+        ),
+        pytest.param(
+            "    return x\n",
+            "    print(x, file=sys.stderr)\n    return x\n",
+            "side_effect_change",
+            id="a-printed-line",
         ),
         pytest.param(
             "    self.save()\n    return self._old(x)\n",

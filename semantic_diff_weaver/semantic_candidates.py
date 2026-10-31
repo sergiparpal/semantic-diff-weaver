@@ -48,6 +48,8 @@ LOOP_RETRY_TERMS = tuple(term for term in RETRY_TERMS if term != "limit")
 SIDE_EFFECT_TERMS = (
     # A warning reaches whoever runs the code, as `pytest.warns` observes; it depends on nothing.
     "warn",
+    # So does a printed line, as `capsys` observes; `sys.stdout.write()` was one already, by `write`.
+    "print",
     "save",
     "write",
     "delete",

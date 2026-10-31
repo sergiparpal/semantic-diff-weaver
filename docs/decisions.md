@@ -146,6 +146,39 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-11-01, printed lines)
+
+The calls entry below left a changed `print` a dependency call, whose obligations ask how the code
+handles a dependency's success, failure, and unexpected response, and left open whether it is a
+side effect. It is one: `print` is now a side-effect term beside `warn`. A printed line reaches
+whoever runs the code, as `capsys` observes, and a changed `sys.stdout.write()` was a side effect
+already, by its `write`. The side-effect obligations — the write occurs as intended, and does not
+when its conditions are not met — are the tests a changed line of output needs. The term is read
+like the others, as a word of the calls that changed, so `console.print()` and
+`traceback.print_exc()` count and `fingerprint()` does not.
+
+What the calls entry weighed against it is risk. The side-effect category's impact is 84 and the
+dependency category's 62, so each finding that moves gains 8 points, and a script that no test
+reaches can cross from medium into high. Measured on every commit against its first parent, with
+the analyzer of `main` and of this change:
+
+- This repository: 4 of 348 call classifications move from dependency to side effect, all in
+  scripts that report to whoever runs them — three error messages `scripts/verify_wheel.py` prints
+  to `stderr`, and the baseline status `scripts/pr_comment.py` prints. Findings stay at 1,444,
+  obligations rise from 632 to 638, the highest risk rises in 4 pairs, and no verdict changes.
+- `adaptive-policy-compilation`: 28 of 179 move, each a changed `print()` in a script. Twelve are in
+  `542defd`, which renames Spanish identifiers to English, and five in `fa28d22`, which renames
+  three packages. Findings stay at 3,002, obligations rise from 366 to 381, and the highest risk
+  rises in 12 pairs. Two findings cross into high, both in `542defd`, whose printed values keep
+  their meaning under new names: `contra` became `against`. That range's verdict moves from `warn`
+  to `review_required`, the only verdict to move in the 662 ranges the two histories measure. A
+  rename reads as a change, as `docs/real-pr-validation.md` notes of finding 4's loop variables, and
+  this one was a dependency interaction before.
+
+None of the 20 pull requests of `docs/real-pr-validation.md`, nor of the 14 in the earlier sample,
+changes a `print`, and the 18 corpus goldens are unchanged. A logging call is still a dependency
+call: none of the measured histories changes one, so it is left for when one does.
+
 ## Output-affecting corrections (2026-10-31, calls)
 
 `SDW-RULE-DEPENDENCY` made every changed call that no keyword explained a
