@@ -39,9 +39,10 @@ FEATURE_NAMES: tuple[str, ...] = (
 PROBED_FEATURES: tuple[str, ...] = ("comparisons", "conditions", "calls", "assignments", "loops")
 # The probed features whose rules read the words of the values a delta changed, and not of every
 # value it shows: an unchanged `row['valid']` made a `recorder is not None` added beside it a
-# validation guard, and an unchanged `owner in module.symbols` an authorization one. Calls and
-# assignments still read every value their delta shows.
-CHANGED_VALUE_FEATURES: tuple[str, ...] = ("comparisons", "conditions", "loops")
+# validation guard, an unchanged `owner in module.symbols` an authorization one, and an unchanged
+# `write_text()` a side effect of whatever call changed beside it. Assignments still read every
+# value their delta shows.
+CHANGED_VALUE_FEATURES: tuple[str, ...] = ("comparisons", "conditions", "loops", "calls")
 MAX_PROBE_CHARS_PER_FEATURE = 500
 # A safety bound only: a side's probe already covers no more values than its display text.
 MAX_PROBE_CHARS_PER_SIDE = 3_000

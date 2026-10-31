@@ -41,18 +41,26 @@ names, and string literals without whitespace (keys, headers, permission names),
 containing whitespace, whose words are prose about the code. An assignment's probe holds its
 targets only, so a changed assignment is a state transition when what it writes to, or its
 symbol, is named for state; any other is an unknown change for review. A probe covers exactly the
-values the delta's bounded display text shows; for comparisons, conditions, and loops, only those
-of them the delta changed, while calls and assignments read every value shown. A changed loop is
+values the delta's bounded display text shows; for comparisons, conditions, loops, and calls, only
+those of them the delta changed, while assignments read every value shown. A changed loop is
 a retry only when its own words, or its symbol's name, say so — `attempt`, `retry`, `timeout`,
 `sleep`, `backoff`, or `deadline`, but not `limit`, which every loop has — and is otherwise an
-unknown change. The comparison and condition rules' boundary check reads the same probe: whether
-a value the delta changed compares a boundary — an ordering (`<`, `<=`, `>`, `>=`), or an equality
-or inequality with a number or a `len()` on one side — taken from its operators and operands and
-never from characters in its text, where a literal's `'<'`, a shift, or a synthetic `<module>`
-name would count and an `==` consumed by redaction would not. An identity, membership, or other
-equality test (`is None`, `in STARS`, `method == 'GET'`) has no below or above to test, so it is
-read as a condition comparing no boundary is: by its authorization, validation, and retry terms,
-or as an unknown change. `semantic_interpreter.py` sends bounded, delimited evidence through
+unknown change. A changed call that no keyword explains is a dependency interaction unless every
+call that changed reaches the module's own code: a function or class the module defines, a method
+one of its classes defines, called through `self`, `cls`, or the class, or a builtin that computes
+in-process, such as `len` or `isinstance`. Such a change is an unknown change, since the
+dependency category's obligations ask how the code handles a dependency's failures. What an
+attribute holds is not known statically, so `self.client.fetch()` and `self.callback()` stay
+dependency calls, as does a method inherited from another module's class. `warn` is a side-effect
+term, so a changed `warnings.warn()` is a side effect: a warning reaches whoever runs the code, as
+`pytest.warns` observes. The comparison and condition rules' boundary check reads the same probe:
+whether a value the delta changed compares a boundary — an ordering (`<`, `<=`, `>`, `>=`), or an
+equality or inequality with a number or a `len()` on one side — taken from its operators and
+operands and never from characters in its text, where a literal's `'<'`, a shift, or a synthetic
+`<module>` name would count and an `==` consumed by redaction would not. An identity, membership,
+or other equality test (`is None`, `in STARS`, `method == 'GET'`) has no below or above to test,
+so it is read as a condition comparing no boundary is: by its authorization, validation, and retry
+terms, or as an unknown change. `semantic_interpreter.py` sends bounded, delimited evidence through
 `ctx.llm.complete_structured`, locally validates output, rejects fabricated evidence IDs, and cannot
 initiate actions. Evidence is batched by module and shared changed dependency calls, prioritized by
 configured critical paths, bounded per symbol and per call, and retried once only for explicitly

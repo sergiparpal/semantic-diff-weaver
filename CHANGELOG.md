@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- **Fix:** a changed call to the module's own code is no longer a dependency interaction.
+  `SDW-RULE-DEPENDENCY` made every changed call that no keyword explained a
+  `dependency_interaction_change`, with obligations about a dependency's failures and unexpected
+  responses, so `self.get_help_spec(ctx)` replacing `self.make_metavar(ctx)` was one. A call
+  change is now an unknown change, under the new `SDW-RULE-UNKNOWN-INTERNAL-CALL`, when every call
+  that changed reaches the module's own code: a function or class it defines, a method one of its
+  classes defines, called through `self`, `cls`, or the class, or a builtin that computes
+  in-process, such as `len`. What an attribute holds is not known, so `self.client.fetch()` stays
+  a dependency call. The call rule also reads its keywords from the calls that changed, so an
+  unchanged `write_text(...)` no longer makes the call changed beside it a side effect, and `warn`
+  is a side-effect term, so an added `warnings.warn` is one. On this repository's history 126 of
+  348 call classifications move, and on `adaptive-policy-compilation` 62 of 179; a range's highest
+  risk falls in 31 pairs and rises in 2. On the real pull requests of `docs/real-pr-validation.md`
+  the dependency findings fall from 15 to 10. The evaluation corpus is unchanged.
+
 ## 0.6.0 - 2026-10-31
 
 The GitHub Action compares each push with the previous one. Its pull-request comment keeps a

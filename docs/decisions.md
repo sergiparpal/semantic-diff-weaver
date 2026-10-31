@@ -146,6 +146,77 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-10-31, calls)
+
+`SDW-RULE-DEPENDENCY` made every changed call that no keyword explained a
+`dependency_interaction_change`, whose obligations ask how the code handles a dependency's
+success, failure, and unexpected response. Of the 15 dependency findings in
+`docs/real-pr-validation.md`, 8 changed calls to the symbol's own class or module —
+`self.get_help_spec(ctx)` for `self.make_metavar(ctx)`, a new `self._check_name_is_usable(...)`, a
+helper such as `_starts_statement` — and the review there found that none of the 15 has a
+dependency's failures to test.
+
+A changed call is now an `unknown_semantic_change`, under the new
+`SDW-RULE-UNKNOWN-INTERNAL-CALL`, when every call that changed reaches the module's own code: a
+function or class the module defines in either revision, called by its name; a method one of its
+classes defines, called through `self`, `cls`, or the class; or a builtin that computes
+in-process, from `len` and `isinstance` to `sorted` and `getattr`. `open`, `print`, `input`,
+`exec`, `eval`, `compile`, `__import__`, and `breakpoint` reach out and are not among them. What
+an attribute holds is not known statically, so `self.client.fetch()` and `self.callback()` stay
+dependency calls. So do a method inherited from another module's class, such as the
+`generic_visit` of `ast.NodeVisitor`, and a method called on a local value, such as
+`help.split()`. A symbol matched across files may call what either of its modules defines. The
+rule takes the unknown condition's 0.55 baseline and its assumption, that the surrounding runtime
+contract is unavailable to static analysis. A finding loses confidence for each distinct
+assumption, and an internal call usually joins its symbol's unknown condition or comparison: with
+an assumption of its own, six findings of a truncated range on `adaptive-policy-compilation` fell
+below the reporting confidence.
+
+The call rule also reads its keywords from the calls that changed and the symbol's name, no longer
+from every call shown, the limit the boundary entry below left in place. An unchanged
+`write_text(...)` made whatever call changed beside it a side effect, 12 times on
+`adaptive-policy-compilation`, and an unchanged `state.record_omitted('llm_batch_limit', ...)` made
+any call change in this repository's `service.analyze` a retry, by its `limit`. Assignments still
+read every value shown. Two probe tests used calls to show what the display window covers and that a
+long old side cannot crowd out the new one; the first now changes a call early in the text and one
+late, and the second uses assignments.
+
+`warn` joins the side-effect terms: a warning reaches whoever runs the code, as `pytest.warns`
+observes, and depends on nothing. Click's `Parameter.human_readable_name`, which gained a
+`warnings.warn`, was a dependency interaction. A changed `print` still is one. Whether it is a
+side effect is a question of its own, since a script's printed lines are its output and the
+side-effect category weighs the most.
+
+Measured on every commit against its first parent, with the analyzer of `main` and of this change.
+This repository's 122 pairs, one over the changed-line bound either way, hold 348 call
+classifications, and 126 move. 85 move to `unknown_semantic_change`, 68 of them from
+`dependency_interaction_change` and 17 from the keyword categories; of those 68, 31 change only
+builtins, 27 only functions and classes of the module, and 10 methods of `self` or a mix. 34 move
+from retry, validation, authorization, and side effect to `dependency_interaction_change`, their
+keywords having sat in calls that did not change, and 7 from one keyword category to another.
+`adaptive-policy-compilation`'s 541 pairs hold 179, and 62 move: 35 to unknown, 31 of them from
+dependency; 24 to dependency, 17 of them side effects through an unchanged call; and 3 from
+validation to retry. Findings fall from 1,502 to 1,444 and from 3,033 to 3,002, obligations from 751
+to 632 and from 415 to 366, and a range's highest risk falls in 18 and 13 pairs. It rises in two
+here, both in `service.analyze`, both retries at 47 by that `limit`. A changed
+`build_call_graph(repo, head_commit, ...)` is a side effect at 56: `commit`, a side-effect term for
+a transaction, names a Git revision in this repository. And an added `state.warnings.append(...)` is
+a dependency call at 48.
+
+On the 20 pull requests of `docs/real-pr-validation.md`, 7 of 18 call classifications move. Five
+dependency findings become unknown changes: click's `Argument.get_error_hint`,
+`Argument.get_help_record`, and both `_parse_decls`, and black's `_continues_fmt_skip_line`.
+`Parameter.human_readable_name` becomes a side effect. Click's `Option.__init__`, a validation
+change through its unchanged `self._validate(...)`, becomes a dependency interaction: it no longer
+calls `inspect.cleandoc` and a module helper, and passes `help` on to `super().__init__()`.
+Dependency findings fall from 15 to 10 and findings from 76 to 75. The 10 left change calls into
+other modules, such as `textwrap.shorten` and `t.TypeVar`, or on values whose type static analysis
+does not know, such as `help.split()` and `info_dict.update()`. On the 14 merges of the earlier
+sample the same click findings move, and httpx's `RedirectMiddleware.build_redirect_request`, which
+passes its own `self.redirect_headers` a new argument, becomes an unknown change; findings fall from
+69 to 67. The 18 corpus goldens are unchanged: the corpus's one dependency case changes a call on a
+client passed in as a parameter.
+
 ## The GitHub Action keeps its baseline in its comment (2026-10-31)
 
 The baseline comparison needs the previous push's analysis, and a workflow keeps nothing between

@@ -114,8 +114,8 @@ def join_probes(old: SymbolSnapshot, new: SymbolSnapshot, feature: str) -> Categ
 
     Whether the delta compares a boundary is read from the values it changed: an unchanged
     `len(items) > 3` made every condition changed beside it, a `parent is None` among them, a
-    boundary. So are the words of a comparison or condition (`CHANGED_VALUE_FEATURES`); those of
-    a call or an assignment are still the words of every value shown.
+    boundary. So are the words of a comparison, condition, loop, or call
+    (`CHANGED_VALUE_FEATURES`); those of an assignment are still the words of every value shown.
     """
     if feature not in old.probes or feature not in new.probes:
         return None
@@ -221,18 +221,63 @@ def _maybe_drop_return_when_comparison_explained(
     return result
 
 
+# Builtins that compute in-process and reach nothing outside it: a changed `len()` or
+# `isinstance()` is the symbol's own logic, not an interaction with a dependency. `open`, `print`,
+# `input`, `exec`, `eval`, `compile`, `__import__`, and `breakpoint` reach out, and are left out.
+PURE_BUILTINS = frozenset(
+    {
+        "abs", "all", "any", "ascii", "bin", "bool", "bytearray", "bytes", "callable", "chr",
+        "complex", "delattr", "dict", "dir", "divmod", "enumerate", "filter", "float", "format",
+        "frozenset", "getattr", "hasattr", "hash", "hex", "id", "int", "isinstance", "issubclass",
+        "iter", "len", "list", "map", "max", "min", "next", "object", "oct", "ord", "pow", "range",
+        "repr", "reversed", "round", "set", "setattr", "slice", "sorted", "str", "sum", "super",
+        "tuple", "type", "vars", "zip",
+    }
+)  # fmt: skip
+
+
+def own_call_names(*revisions: Sequence[SymbolSnapshot]) -> frozenset[str]:
+    """The names a call reaches a module's own code by, in either revision.
+
+    A function or class the module defines is called by its name, and a method one of its classes
+    defines by `self.<method>`, `cls.<method>`, or `<Class>.<method>`. A method inherited from
+    another module's class is not among them, and neither is an attribute that holds a callable:
+    `self.callback()` calls whatever was stored there.
+    """
+    names: set[str] = set()
+    for symbols in revisions:
+        for item in symbols:
+            if item.kind in {"method", "async_method"}:
+                method = item.qualified_name.rsplit(".", 1)[1]
+                names.update((item.qualified_name, f"self.{method}", f"cls.{method}"))
+            elif item.kind != "module":
+                names.add(item.qualified_name.rsplit(".", 1)[-1])
+    return frozenset(names)
+
+
+def is_internal_call(name: str, own_calls: frozenset[str]) -> bool:
+    """Whether a call reaches only the caller's own module: its own code, or a pure builtin.
+
+    `self.client.fetch` calls whatever `self` holds, which may be anything, and a name the module
+    imports is another module's code.
+    """
+    return name in own_calls or name in PURE_BUILTINS
+
+
 def _append_call_delta(
     result: list[StructuralDelta],
     path: str,
     old: SymbolSnapshot,
     new: SymbolSnapshot,
     hunk_id: str | None,
+    own_calls: frozenset[str],
 ) -> None:
     old_names = feature_texts(old, "calls")
     new_names = feature_texts(new, "calls")
     if old_names == new_names:
         return
     kind = "call_order_change" if sorted(old_names) == sorted(new_names) else "call_change"
+    changed = sorted({item.split("(", 1)[0] for item in _changed_values(old, new, "calls")})
     result.append(
         make_structural_delta(
             path,
@@ -245,6 +290,10 @@ def _append_call_delta(
             probe=join_probes(old, new, "calls"),
             old_calls=[item.split("(", 1)[0] for item in old_names],
             new_calls=[item.split("(", 1)[0] for item in new_names],
+            # Every call that changed reaches only this module: the call rule tells it from a
+            # dependency by this alone.
+            internal_calls=bool(changed)
+            and all(is_internal_call(name, own_calls) for name in changed),
         )
     )
 
@@ -330,6 +379,7 @@ def compare_symbol(
     new_path: str | None = None,
     old_hunks: Sequence[SourceHunk] | None = None,
     new_hunks: Sequence[SourceHunk] | None = None,
+    own_calls: frozenset[str] = frozenset(),
 ) -> list[StructuralDelta]:
     effective_old_path = old_path or path
     effective_new_path = new_path or path
@@ -408,7 +458,7 @@ def compare_symbol(
             )
         )
     _append_feature_deltas(result, path, old, new, hunk_id)
-    _append_call_delta(result, path, old, new, hunk_id)
+    _append_call_delta(result, path, old, new, hunk_id, own_calls)
     result = suppress_redundant_deltas(result)
     result = _maybe_drop_return_when_comparison_explained(result, old, new)
     result = _maybe_drop_return_when_call_explained(result, old, new)
