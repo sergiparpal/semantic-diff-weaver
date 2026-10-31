@@ -323,13 +323,18 @@ class FeatureVisitor(ast.NodeVisitor):
         self.statement_order.append(f"assign:{unparse_redacted(node.target, 100)}")
         self.generic_visit(node)
 
-    def _record_loop(self, label: str, lineno: int) -> None:
+    def _record_loop(self, label: str, lineno: int, *nodes: ast.expr) -> None:
+        # The probe reads what the loop iterates over or stops on, which names a retry when the
+        # loop is one: `for attempt in range(retries)`, `while time.monotonic() < deadline`.
         self.loops.append((label, lineno))
+        self.probes["loops"].append(category_probe(*nodes))
 
     def visit_For(self, node: ast.For) -> None:
         self._record_loop(
             f"for {unparse_redacted(node.target, 100)} in {unparse_redacted(node.iter, 250)}",
             node.lineno,
+            node.target,
+            node.iter,
         )
         self.generic_visit(node)
 
@@ -337,11 +342,13 @@ class FeatureVisitor(ast.NodeVisitor):
         self._record_loop(
             f"async for {unparse_redacted(node.target, 100)} in {unparse_redacted(node.iter, 250)}",
             node.lineno,
+            node.target,
+            node.iter,
         )
         self.generic_visit(node)
 
     def visit_While(self, node: ast.While) -> None:
-        self._record_loop(f"while {unparse_redacted(node.test, 250)}", node.lineno)
+        self._record_loop(f"while {unparse_redacted(node.test, 250)}", node.lineno, node.test)
         self._record_condition(node.test, node.lineno)
         self.generic_visit(node)
 

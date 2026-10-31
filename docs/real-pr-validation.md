@@ -141,7 +141,8 @@ measures the change on these 14 merges.
 **Every changed loop is a `retry_timeout_change`.** `SDW-RULE-LOOP` has no other outcome, so the
 word-trimming loop of finding 6 and the `for` loop over a command's parameters in
 `Command.format_arguments` are reported as retry or timeout changes. None of the three loop
-findings in this run involves a retry.
+findings in this run involves a retry. Corrected after this run: see `docs/decisions.md`,
+"Output-affecting corrections (2026-10-31, loops)".
 
 **`unknown_semantic_change` is still the largest category: 29 of 78 findings (37%).** Fifteen are
 changed assignments, which `SDW-RULE-UNKNOWN-ASSIGNMENT` has sent here since 2026-10-19 unless

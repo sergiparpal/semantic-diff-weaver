@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **Fix:** a changed loop is a retry only when its names say so. `SDW-RULE-LOOP` made every
+  changed loop a `retry_timeout_change`, so a `for` over a command's parameters and a `while` that
+  trimmed words until a help text fit came with obligations to recover before a retry limit and
+  to stop on a terminal failure. A loop is now a retry when what it iterates over or stops on, or
+  its symbol's name, says `attempt`, `retry`, `timeout`, `sleep`, `backoff`, or `deadline` — not
+  `limit`, which every loop has — read from a new AST probe of the loops that changed; any other
+  is an unknown change under the new `SDW-RULE-UNKNOWN-LOOP`. All 54 loop classifications on this
+  repository's history and all 45 on `adaptive-policy-compilation` move to unknown, none of them
+  a retry, and no range's highest risk rises. The evaluation corpus is unchanged.
+
 - **Fix:** a changed comparison or condition is a boundary only when what changed orders values.
   `SDW-RULE-BOUNDARY` made every changed comparison a `boundary_change` without reading its
   operator, so `is None` and `in STARS` were boundaries, and the condition rule counted every `==`

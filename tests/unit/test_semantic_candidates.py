@@ -43,7 +43,11 @@ def delta(kind: str, old: str | None, new: str | None) -> StructuralDelta:
             delta("condition_change", "user.is_owner", "user.is_admin"),
             BehaviorCategory.AUTHORIZATION,
         ),
-        (delta("loop_change", "range(2)", "range(3)"), BehaviorCategory.RETRY_TIMEOUT),
+        (
+            delta("loop_change", "for attempt in range(2)", "for attempt in range(3)"),
+            BehaviorCategory.RETRY_TIMEOUT,
+        ),
+        (delta("loop_change", "for item in items", "for item in rows"), BehaviorCategory.UNKNOWN),
         (delta("return_change", "{'old': 1}", "{'new': 1}"), BehaviorCategory.OUTPUT_CONTRACT),
         (
             delta("assignment_change", "state = old", "state = new"),

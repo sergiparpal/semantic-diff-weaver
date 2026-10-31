@@ -42,6 +42,9 @@ RETRY_TERMS = (
     "deadline",
     "limit",
 )
+# Every loop has a limit, so the word alone makes none a retry: `while len(payload) > limit`
+# shrinks a payload until it fits.
+LOOP_RETRY_TERMS = tuple(term for term in RETRY_TERMS if term != "limit")
 SIDE_EFFECT_TERMS = (
     "save",
     "write",
@@ -289,13 +292,26 @@ def _classify_loop(
 ) -> Classification | None:
     if delta.kind != "loop_change":
         return None
+    if _contains(combined, LOOP_RETRY_TERMS):
+        return (
+            BehaviorCategory.RETRY_TIMEOUT,
+            "A loop, retry, or stop condition appears to have changed.",
+            "The operation may perform a different number of attempts or terminate under different conditions.",
+            0.84,
+            [],
+            "SDW-RULE-LOOP",
+        )
+    # Most loops walk a collection or trim a value, and every changed loop used to be a retry: a
+    # `for` over a command's parameters, or a `while i > 0` dropping words until a text fit. A loop
+    # is a retry when its own names or its symbol's say so.
     return (
-        BehaviorCategory.RETRY_TIMEOUT,
-        "A loop, retry, or stop condition appears to have changed.",
-        "The operation may perform a different number of attempts or terminate under different conditions.",
-        0.84,
-        [],
-        "SDW-RULE-LOOP",
+        BehaviorCategory.UNKNOWN,
+        "A loop's iteration or stop condition changed without enough local contract context.",
+        "The operation may now process a different set or number of items; the observable effect "
+        "needs review.",
+        0.55,
+        ["The surrounding runtime contract is unavailable to static analysis."],
+        "SDW-RULE-UNKNOWN-LOOP",
     )
 
 

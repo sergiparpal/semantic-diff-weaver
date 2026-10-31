@@ -34,13 +34,14 @@ FEATURE_NAMES: tuple[str, ...] = (
 
 # The features whose deltas the category rules search for keywords, and so the only ones that
 # record a probe (see `extract.category_probe`). The other kinds are classified by structure alone.
-# An assignment's probe covers its targets only, not the value it assigns.
-PROBED_FEATURES: tuple[str, ...] = ("comparisons", "conditions", "calls", "assignments")
+# An assignment's probe covers its targets only, not the value it assigns, and a loop's what it
+# iterates over or stops on.
+PROBED_FEATURES: tuple[str, ...] = ("comparisons", "conditions", "calls", "assignments", "loops")
 # The probed features whose rules read the words of the values a delta changed, and not of every
 # value it shows: an unchanged `row['valid']` made a `recorder is not None` added beside it a
 # validation guard, and an unchanged `owner in module.symbols` an authorization one. Calls and
 # assignments still read every value their delta shows.
-CHANGED_VALUE_FEATURES: tuple[str, ...] = ("comparisons", "conditions")
+CHANGED_VALUE_FEATURES: tuple[str, ...] = ("comparisons", "conditions", "loops")
 MAX_PROBE_CHARS_PER_FEATURE = 500
 # A safety bound only: a side's probe already covers no more values than its display text.
 MAX_PROBE_CHARS_PER_SIDE = 3_000

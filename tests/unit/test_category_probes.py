@@ -547,3 +547,91 @@ def test_a_delta_compares_a_boundary_only_where_it_changed() -> None:
     rewritten = join_probes(before, unchanged_boundary, "conditions")
     assert rewritten is not None
     assert rewritten.compares is True
+
+
+@pytest.mark.parametrize(
+    ("source", "words"),
+    [
+        pytest.param(
+            "def run(items):\n    for item in items:\n        pass\n", {"item", "items"}, id="for"
+        ),
+        pytest.param(
+            "async def run(items):\n    async for item in items:\n        pass\n",
+            {"item", "items"},
+            id="async-for",
+        ),
+        pytest.param(
+            "def run(value):\n    while value > 0:\n        value -= 1\n", {"value"}, id="while"
+        ),
+    ],
+)
+def test_every_loop_site_records_its_probe(source: str, words: set[str]) -> None:
+    """Loops record a probe now that the loop rule reads retry words, paired by position."""
+    snapshot = _calls(source)
+    assert len(snapshot.probes["loops"]) == len(snapshot.features["loops"]) == 1
+    assert set(snapshot.probes["loops"][0].words.split()) == words
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "expected"),
+    [
+        pytest.param(
+            "def total(order):\n    result = 0\n    for line in order.lines:\n"
+            "        result += line.amount\n    return result\n",
+            "def total(order):\n    result = 0\n    for line in order.paid_lines:\n"
+            "        result += line.amount\n    return result\n",
+            "unknown_semantic_change",
+            id="a-loop-over-a-collection",
+        ),
+        pytest.param(
+            "def read(lines):\n    for line in 'please retry later'.split():\n        pass\n",
+            "def read(lines):\n    for line in 'please try again'.split():\n        pass\n",
+            "unknown_semantic_change",
+            id="prose-in-what-it-iterates",
+        ),
+        pytest.param(
+            "def fit(text, limit):\n    while len(text) > limit:\n        text = text[:-1]\n"
+            "    return text\n",
+            "def fit(text, limit):\n    while len(text) >= limit:\n        text = text[:-1]\n"
+            "    return text\n",
+            "unknown_semantic_change",
+            id="a-loop-bounded-by-a-limit",
+        ),
+        pytest.param(
+            "def wait(client, deadline):\n    while time.monotonic() < deadline:\n"
+            "        client.poll()\n",
+            "def wait(client, deadline):\n    while time.monotonic() <= deadline:\n"
+            "        client.poll()\n",
+            "retry_timeout_change",
+            id="a-loop-until-a-deadline",
+        ),
+        pytest.param(
+            "def fetch(client, retries):\n    for attempt in range(retries):\n"
+            "        client.get(attempt)\n",
+            "def fetch(client, retries):\n    for attempt in range(retries + 1):\n"
+            "        client.get(attempt)\n",
+            "retry_timeout_change",
+            id="a-loop-over-attempts",
+        ),
+    ],
+)
+def test_a_changed_loop_is_a_retry_only_when_its_names_say_so(
+    repo_factory, old: str, new: str, expected: str
+) -> None:
+    """Every changed loop used to be a `retry_timeout_change`.
+
+    That made a `for` over a command's parameters and a `while i > 0` that dropped words until
+    a text fit into retries, with obligations to recover before a retry limit and to stop on a
+    terminal failure.
+    """
+    repo, base, head = repo_factory({"app.py": old}, {"app.py": new})
+    result = analyze(
+        {"repo_path": str(repo), "base_ref": base, "head_ref": head, "output_format": "json"}
+    )
+    loops = [
+        behavior["category"]
+        for behavior in result["behavior_changes"]
+        for evidence in behavior["evidence"]
+        if evidence["kind"] == "loop_change"
+    ]
+    assert loops == [expected]
