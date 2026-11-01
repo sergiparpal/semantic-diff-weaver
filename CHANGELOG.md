@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.9.0 - 2026-11-01
+
+API schemas. A changed OpenAPI 3, Swagger 2, or JSON Schema document, in YAML or JSON, is now
+compared beside the Python change, operation by operation and keyword by keyword, and an
+operation's findings map to the tests that request its route. Whether a file is a schema, its
+content decides, and every other YAML or JSON file is accounted for without costing an analysis
+its `pass`. A minor release for the new input; schema 1.2 and both tools' interfaces are
+unchanged, and the decision is recorded in `docs/decisions.md`.
 
 - **Feature:** API schemas are analyzed beside Python. A changed YAML or JSON file whose root
   says it is an OpenAPI 3, Swagger 2, or JSON Schema document is compared operation by operation
