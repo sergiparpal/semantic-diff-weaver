@@ -50,6 +50,19 @@ import.
   opened, resolved against the filesystem, or executed. Traversal, absolute, drive-relative,
   and UNC prefixes are stripped from keys rather than followed, and a null byte discards the
   entry. XML coverage formats are excluded so no entity-expansion surface exists.
+  Its per-test contexts are lookup keys too: a label of more than 1,000 characters, or with names
+  that are no identifiers, names no test; a label is only matched against the tests the analysis
+  indexed, never written into the brief; and the contexts are bounded at 100,000 tests and 2,000,000
+  pairs of a line and a test.
+- A coverage data file, `.coverage`, is an untrusted SQLite database, read through the standard
+  library's `sqlite3`. Its bytes are read under `max_coverage_data_bytes` and handed to SQLite as an
+  in-memory database, so SQLite opens no path and writes no journal beside it. Before the schema is
+  parsed, the connection takes no attached database, refuses any value over 1 MB, queries read-only,
+  and stops a read that runs past ten seconds; `trusted_schema` is off, so a schema can call no
+  function that is not innocuous, and on Python 3.12 or later SQLite's defensive mode is on and
+  views and triggers are off. Only fixed queries over the tables coverage.py writes are run, and
+  each of those must be an ordinary table, never a view or a virtual table. A file that is no such
+  database is a `coverage_unreadable` error.
 - A baseline analysis is untrusted input data in the same way: bounded by `max_baseline_bytes`,
   read as strict UTF-8, parsed with the standard library, authorized like any other
   caller-selected path, and validated field by field — a path in it must be repository-relative,
@@ -138,7 +151,8 @@ Hermes rule rather than the CLI's: a model supplies `repo_path`, and no tool arg
 widens an authorized root. Each schema's `additionalProperties: false` rejects any attempt to pass
 one, and the skeleton tool's request model forbids extra fields as well. Every path either tool
 takes is authorized alike: `generate_test_skeletons` reads its `analysis_path`, or the
-`risk_profile` and `coverage_report` of an analysis it runs again, only below an authorized root.
+`risk_profile`, `coverage_report`, and `coverage_data` of an analysis it runs again, only below an
+authorized root.
 
 The one value taken from the host is the project directory. Claude Code does not document the working
 directory it starts a plugin server in, but it exports the project root as `CLAUDE_PROJECT_DIR`; the

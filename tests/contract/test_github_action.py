@@ -232,6 +232,7 @@ def _analyze(tmp_path: Path, **env: str) -> tuple[dict[str, str], list[str]]:
         "INCLUDE_GLOBS": "",
         "EXCLUDE_GLOBS": "",
         "COVERAGE_REPORT": "",
+        "COVERAGE_DATA": "",
         "RISK_PROFILE": "",
         "BASELINE": "previous",
         "RECORDED_BASELINE": "",
@@ -251,6 +252,30 @@ def test_the_outputs_carry_the_overall_risk_and_the_verdict(tmp_path: Path) -> N
     outputs, _ = _analyze(tmp_path)
     assert outputs["overall-risk"] == "high"
     assert outputs["verdict"] == "review_required"
+
+
+@pytest.mark.parametrize(
+    ("report", "data", "expected"),
+    [
+        pytest.param("", "", [], id="none"),
+        pytest.param("coverage.json", "", ["--coverage", "coverage.json"], id="report"),
+        pytest.param(
+            "coverage.json",
+            ".coverage",
+            ["--coverage", "coverage.json", "--coverage-data", ".coverage"],
+            id="report-and-data",
+        ),
+    ],
+)
+def test_the_analysis_is_handed_the_coverage_files_it_is_given(
+    tmp_path: Path, report: str, data: str, expected: list[str]
+) -> None:
+    _, arguments = _analyze(tmp_path, COVERAGE_REPORT=report, COVERAGE_DATA=data)
+    assert [
+        item
+        for index, item in enumerate(arguments)
+        if item.startswith("--coverage") or arguments[index - 1].startswith("--coverage")
+    ] == expected
 
 
 @pytest.mark.parametrize(

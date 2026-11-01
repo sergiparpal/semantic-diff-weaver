@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- **Feature:** tests that ran a change. A run measured with per-test contexts, as `pytest
+  --cov-context=test` records them, says which test executed each changed line, and each such test
+  is now a candidate test for the finding on its own: at 0.65 when it executed every changed line
+  the report measures and 0.55 when some, added to its other evidence and never verified, with the
+  reason "executed 2 of the 4 changed lines in the coverage report". The contexts come from the
+  run's `.coverage` data file, passed beside the report as the new `coverage_data`,
+  `--coverage-data`, `coverage.data_path`, or the Action's `coverage-data`, or from a small JSON
+  report written with `show_contexts`. The data file is an untrusted SQLite database, read from
+  memory through a hardened `sqlite3` connection under the new `rules.max_coverage_data_bytes`, 100
+  MB by default. Both tools' input schemas gain `coverage_data`; the analysis's schema is unchanged.
+
 ## 0.13.0 - 2026-11-01
 
 Connected changes through module variables. A changed module-level variable is grouped with the

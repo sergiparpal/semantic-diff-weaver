@@ -902,7 +902,7 @@ Hermes plugin.
   unverified.
 - JSON and Markdown reports. *Done:* `renderer.py`.
 
-### v0.2 — Stronger repository context (partly done)
+### v0.2 — Stronger repository context (done)
 
 - Dependency graph. *Done:* `call_graph.py` follows calls through instances, packages,
   `importlib`, and module variables to find the tests that reach a change, and
@@ -913,9 +913,10 @@ Hermes plugin.
   keyword by keyword, and maps an operation's findings to the tests that request its route; it
   compares the configuration files `paths.config_files` names key by key, and maps a key to the
   tests that use its names.
-- Optional composition with test history and coverage history. *Partly:* an ingested coverage.py
-  JSON or lcov report grounds candidate coverage, and the commits up to the base say which test
-  files kept changing with a module; coverage across runs is not read.
+- Optional composition with test history and coverage history. *Done:* an ingested coverage.py JSON
+  or lcov report grounds candidate coverage, and a run's per-test contexts, from its `.coverage`
+  data file or the report, make each test that ran a changed line a candidate for it; the commits up
+  to the base say which test files kept changing with a module.
 - Improved cross-file change grouping. *Done:* `change_groups` holds the findings of different files
   that calls connect, and a change to a module-level variable with the changed code that reads it,
   in its module or through an import; a function moved between two files that both remain is matched
@@ -944,8 +945,8 @@ Hermes plugin.
 
 - Adapter API for TypeScript/JavaScript and Java. *Out of scope:* `ast_diff/` is built on Python's
   own `ast`.
-- Dynamic coverage enrichment. *Partly:* coverage comes from an ingested report; the tool never
-  runs tests.
+- Dynamic coverage enrichment. *Partly:* coverage, and which test ran each line, come from an
+  ingested report and data file; the tool never runs tests.
 - Verified source-to-test mapping. *Open by design:* every candidate test is reported as
   unverified.
 - Evaluation corpus and public benchmark. *Partly:* the 18-case corpus of `docs/evaluation.md`

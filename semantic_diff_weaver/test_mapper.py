@@ -121,6 +121,25 @@ class TestIndex:
     warnings: list[str]
 
 
+@dataclass(frozen=True)
+class Executed:
+    """The tests a coverage report's contexts say executed a finding's changed lines."""
+
+    # How many of the finding's changed lines the report measures, executed or not.
+    measured: int
+    # Per test, by its position in the index, how many of those lines it executed.
+    tests: Mapping[int, int]
+
+
+def executed_reason(lines: int, measured: int) -> str:
+    """How much of a finding's changed code a test executed, as its match reason says it."""
+    if measured == 1:
+        return "executed the changed line in the coverage report"
+    if lines >= measured:
+        return f"executed all {measured} changed lines in the coverage report"
+    return f"executed {lines} of the {measured} changed lines in the coverage report"
+
+
 def _static_imports(nodes: Iterable[ast.AST]) -> set[str]:
     """What the `import` statements among `nodes` import."""
     imports: set[str] = set()
@@ -913,6 +932,7 @@ def map_candidate_tests(
     config: WeaverConfig,
     graph: CallGraph | None = None,
     history: ChangeHistory | None = None,
+    executed: Mapping[int, Executed] | None = None,
 ) -> dict[int, list[CandidateTest]]:
     """Return capped static candidates; terminology alone can never create a match.
 
@@ -920,7 +940,9 @@ def map_candidate_tests(
     their symbols make, into other modules through their imports, to the changed symbols it
     reaches, which no name or import in the test shows. A test that reaches a class may hold
     one of its instances, and reaches the methods it calls on it by name. With ``history``, a
-    test file that kept changing in the same commits as a module is evidence about it.
+    test file that kept changing in the same commits as a module is evidence about it. With
+    ``executed``, by candidate position, a test a coverage report says ran the candidate's
+    changed lines is a candidate for it, whatever its name, imports, or calls show.
     """
     result: dict[int, list[CandidateTest]] = {}
     tests = index.tests
@@ -1198,6 +1220,8 @@ def map_candidate_tests(
         mirrored = mirrored_for(candidate.path)
         co_changed = co_changed_for(candidate.path)
         co_changing = set(co_changed)
+        ran_changed = executed.get(candidate_index) if executed else None
+        executing = set(ran_changed.tests) if ran_changed else set()
         empty: set[int] = set()
         imported = (
             init_imported_for(candidate.path)
@@ -1316,7 +1340,7 @@ def map_candidate_tests(
         # file, shared by every test in it, so it cannot single out the tests that exercise the
         # changed symbol. Tests matched by it alone stand as their file: one `cli.py` helper got
         # the first five of eight tests in `test_cli.py`, alphabetically, as five candidates.
-        specific = named | bodied | module_named | reached | reached_elsewhere
+        specific = named | bodied | module_named | reached | reached_elsewhere | executing
         by_file: dict[str, list[CandidateTest]] = defaultdict(list)
         # Only a structural hit can produce a candidate, so tests outside this union would
         # score identically to being skipped. Terminology alone never clears the threshold.
@@ -1331,6 +1355,7 @@ def map_candidate_tests(
             | module_named
             | reached_elsewhere
             | co_changing
+            | executing
         )
         if (
             graph is not None
@@ -1349,13 +1374,20 @@ def map_candidate_tests(
         ):
             # A private helper is called only through its own module. When tests load the
             # module and none reaches or names the helper, neither their file nor a test named
-            # after the module is evidence that it is tested; only a configured mapping counts.
-            # A graph cut short by its bounds rules nothing out.
-            structural = mapped
+            # after the module is evidence that it is tested; only a configured mapping counts,
+            # and a run the coverage report saw. A graph cut short by its bounds rules nothing
+            # out.
+            structural = mapped | executing
         for test_position in sorted(structural):
             test = tests[test_position]
             score = 0.0
             reasons: list[str] = []
+            # A candidate on its own, and the strongest evidence of all: the coverage report
+            # saw the test run the changed lines, which no name, import, or call need show.
+            if ran_changed is not None and test_position in executing:
+                lines = ran_changed.tests[test_position]
+                score += 0.65 if lines >= ran_changed.measured else 0.55
+                reasons.append(executed_reason(lines, ran_changed.measured))
             if test_position in mapped:
                 score += 0.30
                 reasons.append("explicit configured mapping")
@@ -1423,20 +1455,30 @@ def map_candidate_tests(
             ranked.append(
                 best if len(items) == 1 else best.model_copy(update={"symbol": WHOLE_TEST_FILE})
             )
-        # Among equal scores, a test whose body names the symbol is about it, while one reaching
-        # it through other calls may be about anything along the way. Among those, one whose
-        # name or file shares more words with what changed — its class, function, or module —
-        # is likelier about it: `test_fridge_unreadable_file_degrades_quietly` for
-        # `JsonFridgeRepository.load_entries`, and `test_add_dish_dict` for `DishRepository`.
-        # Each word weighs by how few symbols beside it name it too, an inverse document
-        # frequency over the modules of its directory: counted alike, `json`, in the name of
-        # every repository, had put a test of atomic JSON writes before `test_add_dish_dict` for
-        # `JsonDishRepository`. Then a test reaching the symbol through calls comes before one
-        # that only loads a module naming it, which may never run it:
-        # `test_every_condition_site_records_its_probe` extracts symbols and loads the module
-        # whose table names `_classify_condition`. Category words only break what is left, as
-        # they describe a test's topic rather than the change's subject: they had ranked a
-        # session test first for `DishRepository`.
+        # Among equal scores, a test that ran more of the change, by the coverage report, comes
+        # first: scores cap at 1.0, and every test that builds a model runs its validator, so a test
+        # that ran one of ten changed lines tied with one that ran them all. Then a test whose body
+        # names the symbol is about it, while one reaching it through other calls may be about
+        # anything along the way. Among those, one whose name or file shares more words with what
+        # changed — its class, function, or module — is likelier about it:
+        # `test_fridge_unreadable_file_degrades_quietly` for `JsonFridgeRepository.load_entries`,
+        # and `test_add_dish_dict` for `DishRepository`. Each word weighs by how few symbols beside
+        # it name it too, an inverse document frequency over the modules of its directory: counted
+        # alike, `json`, in the name of every repository, had put a test of atomic JSON writes
+        # before `test_add_dish_dict` for `JsonDishRepository`. Then a test reaching the symbol
+        # through calls comes before one that only loads a module naming it, which may never run it:
+        # `test_every_condition_site_records_its_probe` extracts symbols and loads the module whose
+        # table names `_classify_condition`. Category words only break what is left, as they
+        # describe a test's topic rather than the change's subject: they had ranked a session test
+        # first for `DishRepository`.
+        shares = (
+            {
+                (tests[position].path, tests[position].symbol): lines / max(ran_changed.measured, 1)
+                for position, lines in ran_changed.tests.items()
+            }
+            if ran_changed is not None
+            else {}
+        )
         naming = {(tests[position].path, tests[position].symbol) for position in bodied}
         calling = {(tests[position].path, tests[position].symbol) for position in called}
         wording = {
@@ -1453,6 +1495,7 @@ def map_candidate_tests(
         ranked.sort(
             key=lambda item: (
                 -item.match_score,
+                -shares.get((item.path, item.symbol), 0.0),
                 (item.path, item.symbol) not in naming,
                 -sum(
                     weights[word]
