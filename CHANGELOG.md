@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.11.1 - 2026-11-01
+
+Code spans without backslashes. A symbol or a path the brief writes in a code span now shows as it
+is: Markdown reads no escape inside a code span, so `parse_amount` had shown as `parse\_amount` in
+every evidence line, candidate test, resolved baseline finding, and connected change. A patch
+release; the analysis, schema 1.3, both tools' interfaces, and every golden are unchanged.
 
 - **Fix:** a symbol or path in a code span of the brief no longer shows backslashes: Markdown reads
   no escape inside a code span, so `parse_amount` showed as `parse\_amount` in every evidence line,

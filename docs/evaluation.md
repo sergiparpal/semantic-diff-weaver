@@ -35,7 +35,7 @@ obligation-concept match (16 of 16), and zero fabricated evidence references. Ev
 finding had a linked obligation, and every candidate test remained explicitly unverified. The corpus
 now emits no prediction outside its reviewed expected labels. The 2026-10-31 re-measurements for
 0.4.0, 0.4.1, 0.5.0, 0.6.0, and 0.6.1, and the 2026-11-01 ones for 0.6.2, 0.7.0, 0.8.0, 0.8.1,
-0.8.2, 0.9.0, 0.10.0, and 0.11.0, found the same figures. Of 0.4.1's corrections only the
+0.8.2, 0.9.0, 0.10.0, 0.11.0, and 0.11.1, found the same figures. Of 0.4.1's corrections only the
 output-contract one reaches the corpus: the `return annotation signature` case is now worded as a
 change to typing alone, at 0.80 confidence instead of 0.879, and keeps its category, risk, and
 obligations. 0.5.0 gives every case a verdict, 3 `pass`, 12 `warn`, and 3 `review_required`, and a
@@ -50,7 +50,8 @@ compares API schemas, which no case contains, and changes one golden line: the `
 source` case's limitation now says the diff held no included changed Python source or API schema.
 0.10.0 compares the configuration files a repository names, which no case does, and changes none.
 0.11.0 groups the findings calls connect, and calls connect the findings of no case: every golden
-changes in its `schema_version`, now 1.3, and an empty `change_groups` alone.
+changes in its `schema_version`, now 1.3, and an empty `change_groups` alone. 0.11.1 changes only
+how the brief writes a code span, and no golden.
 
 The previous measurement on this same corpus was 88.24% precision (15 of 17). The two surplus
 predictions were both `ordering_change` findings produced by comparing `statement_order` tuples for
@@ -66,30 +67,32 @@ went into the analyzer, consistent with the 2026-07-17 fixture-label review. See
 The deterministic performance suite covers a 100-symbol AST fixture, a 500-symbol mass-rename
 matching fixture, a warmed full-service fixture with 40 files, 3,000 changed lines, and 100 symbols,
 and a chain of calls on instances across a call graph at its module limit, with five-, two-, five-,
-and five-second ceilings respectively. They completed in approximately 0.02, 0.42, 0.47, and 0.81
-seconds in the 0.11.0 timing run, across six runs in which the last took 0.77 to 0.85. 0.10.0's
-code, timed beside it, took 0.02, 0.45, 0.39, and 0.82, the last 0.80 to 0.85: the full-service
-fixture, which has no tests, now builds the call graph to group its findings, at 0.08 seconds of its
-five-second ceiling. 0.10.0's own run, an hour earlier, timed 0.02, 0.42, 0.39, and 0.81, as 0.9.0's
-code did beside it, since 0.10.0 reads only the configuration files a repository names and the
-fixtures name none. 0.9.0's own run, half an hour before that, timed 0.02, 0.41, 0.38, and 0.80
-beside 0.8.2's code at 0.02, 0.41, 0.38, and 0.79, so reading changed YAML and JSON apart from the
-Python files left the fixtures' cost as it was. 0.8.2's own run, an hour before that on a busier
-machine, timed 0.02, 0.50, 0.45, and 0.93 beside 0.8.1's code at 0.02, 0.49, 0.44, and 0.95, and
-0.8.1's own, earlier that afternoon, 0.02, 0.43, 0.40, and 0.82 beside 0.8.0's code at 0.02, 0.43,
-0.39, and 0.81. 0.8.0's own run, earlier that afternoon on a busier machine, timed 0.02, 0.44, 0.40,
-and 0.86 beside 0.7.0's code at 0.02, 0.47, 0.41, and 0.88, so its new tool left the analysis's cost
-as it was; at noon 0.7.0's own run timed 0.02, 0.42, 0.39, and 0.82 beside 0.6.2's code at 0.02,
-0.43, 0.38, and 0.82. 0.6.2's own run, that morning, timed 0.02, 0.42, 0.38, and 0.83 seconds beside
-0.6.1's code at 0.02, 0.42, 0.39, and 0.80, so its two corrections cost no more than the runs vary.
-0.6.1's own run, the evening before, timed 0.02, 0.44, 0.40, and 0.88 seconds, and 0.6.0's 0.02,
-0.45, 0.42, and 0.89; one 0.6.0 run under load took 1.30 seconds for the last, and 0.5.0 timed 0.02,
-0.42, 0.38, and 0.79 on code 0.6.0 left unchanged. The 0.4.0 run, earlier on 2026-10-31, measured
-0.04, 1.52, 0.37, and 1.84 seconds, and `v0.3.0` the same 1.5 seconds for the mass-rename fixture
-then: the machine was slower at that hour, not the code, and that fixture is back at a fifth of its
-ceiling, as on 2026-07-26.
+and five-second ceilings respectively. They completed in approximately 0.02, 0.41, 0.48, and 0.81
+seconds in the 0.11.1 timing run, across six runs in which the last took 0.77 to 0.86. 0.11.0's
+code, timed beside it, took 0.02, 0.41, 0.47, and 0.80, the last 0.79 to 0.81: 0.11.1 changes only
+how the brief writes a code span. 0.11.0's own run, half an hour earlier, timed 0.02, 0.42, 0.47,
+and 0.81 beside 0.10.0's code at 0.02, 0.45, 0.39, and 0.82: the full-service fixture, which has no
+tests, now builds the call graph to group its findings, at 0.08 seconds of its five-second ceiling.
+0.10.0's own run, an hour before that, timed 0.02, 0.42, 0.39, and 0.81, as 0.9.0's code did beside
+it, since 0.10.0 reads only the configuration files a repository names and the fixtures name none.
+0.9.0's own run, half an hour before that, timed 0.02, 0.41, 0.38, and 0.80 beside 0.8.2's code at
+0.02, 0.41, 0.38, and 0.79, so reading changed YAML and JSON apart from the Python files left the
+fixtures' cost as it was. 0.8.2's own run, an hour before that on a busier machine, timed 0.02,
+0.50, 0.45, and 0.93 beside 0.8.1's code at 0.02, 0.49, 0.44, and 0.95, and 0.8.1's own, earlier
+that afternoon, 0.02, 0.43, 0.40, and 0.82 beside 0.8.0's code at 0.02, 0.43, 0.39, and 0.81.
+0.8.0's own run, earlier that afternoon on a busier machine, timed 0.02, 0.44, 0.40, and 0.86 beside
+0.7.0's code at 0.02, 0.47, 0.41, and 0.88, so its new tool left the analysis's cost as it was; at
+noon 0.7.0's own run timed 0.02, 0.42, 0.39, and 0.82 beside 0.6.2's code at 0.02, 0.43, 0.38, and
+0.82. 0.6.2's own run, that morning, timed 0.02, 0.42, 0.38, and 0.83 seconds beside 0.6.1's code at
+0.02, 0.42, 0.39, and 0.80, so its two corrections cost no more than the runs vary. 0.6.1's own run,
+the evening before, timed 0.02, 0.44, 0.40, and 0.88 seconds, and 0.6.0's 0.02, 0.45, 0.42, and
+0.89; one 0.6.0 run under load took 1.30 seconds for the last, and 0.5.0 timed 0.02, 0.42, 0.38, and
+0.79 on code 0.6.0 left unchanged. The 0.4.0 run, earlier on 2026-10-31, measured 0.04, 1.52, 0.37,
+and 1.84 seconds, and `v0.3.0` the same 1.5 seconds for the mass-rename fixture then: the machine
+was slower at that hour, not the code, and that fixture is back at a fifth of its ceiling, as on
+2026-07-26.
 
-The complete automated suite reports 97.67% overall branch-aware coverage across 1,351 passing tests
+The complete automated suite reports 97.67% overall branch-aware coverage across 1,361 passing tests
 and one skip, the real-Hermes discovery test, with at least 90% branch coverage in every critical
 module — the lowest is `path_policy.py` at 92.42%, followed by `semantic_interpreter.py` at 92.62%,
 `git_diff/` at 92.66%, and `config.py` at 94.44%. `cli.py`, `coverage_map.py`, and `baseline.py`,
