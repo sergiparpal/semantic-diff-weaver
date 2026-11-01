@@ -15,13 +15,11 @@ there, so the classification reads it.
 
 from __future__ import annotations
 
-import json
 import re
-from dataclasses import dataclass, field
 from typing import Any
 
 from ..ast_diff import StructuralDelta
-from ..path_policy import redact_text
+from .deltas import ABSENT, Deltas
 from .load import JsonValue
 
 HTTP_METHODS = ("get", "put", "post", "delete", "options", "head", "patch", "trace")
@@ -90,19 +88,7 @@ SERVER_FIELDS = ("servers", "host", "basePath", "schemes")
 META_SCHEMA_RE = re.compile(
     r"https?://(?:json-schema\.org/|spec\.openapis\.org/oas/3\.\d+/dialect/)"
 )
-MAX_DOCUMENT_DELTAS = 500
 MAX_SCHEMA_DEPTH = 32
-MAX_SHOWN_CHARS = 300
-# A symbol is one of the document's own keys, `GET /orders/{id}` or `Order`, and every delta of
-# it repeats it in the output, so a long one is cut.
-MAX_SYMBOL_CHARS = 200
-
-
-class _Absent:
-    """A key a mapping does not have, which is not the same as one holding `null`."""
-
-
-ABSENT: Any = _Absent()
 
 
 def document_kind(root: JsonValue) -> str | None:
@@ -135,17 +121,6 @@ def _names(value: Any) -> frozenset[str]:
     )
 
 
-def _shown(location: str, value: Any) -> str | None:
-    """The value as evidence text: where it is, then its JSON, bounded and redacted."""
-    if value is ABSENT:
-        return None
-    text = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(", ", ": "))
-    # Cut well past what is shown before redacting: a large subtree then costs no more to redact
-    # than a small one, and a credential that starts within what is shown stays whole enough for
-    # its pattern to match.
-    return redact_text(f"{location}: {text}"[: MAX_SHOWN_CHARS * 4], max_chars=MAX_SHOWN_CHARS)
-
-
 def _location(prefix: str, pointer: str, keyword: str = "") -> str:
     place = f"{prefix}: {pointer}" if prefix and pointer else prefix or pointer
     return f"{place} {keyword}".strip() if keyword else place or "schema"
@@ -153,43 +128,6 @@ def _location(prefix: str, pointer: str, keyword: str = "") -> str:
 
 def _child(pointer: str, name: str) -> str:
     return f"{pointer}.{name}" if pointer else name
-
-
-@dataclass
-class _Deltas:
-    path: str
-    items: list[StructuralDelta] = field(default_factory=list)
-    truncated: bool = False
-
-    def add(
-        self,
-        symbol: str,
-        kind: str,
-        old: Any,
-        new: Any,
-        *,
-        location: str,
-        context: str,
-        **metadata: Any,
-    ) -> None:
-        if len(self.items) >= MAX_DOCUMENT_DELTAS:
-            self.truncated = True
-            return
-        if len(symbol) > MAX_SYMBOL_CHARS:
-            symbol = symbol[: MAX_SYMBOL_CHARS - 3] + "..."
-        self.items.append(
-            StructuralDelta(
-                path=self.path,
-                symbol=symbol,
-                kind=kind,
-                old=_shown(location, old),
-                new=_shown(location, new),
-                old_lines=None,
-                new_lines=None,
-                hunk_id=None,
-                metadata={"location": location, "context": context, **metadata},
-            )
-        )
 
 
 def _compare_schema(
@@ -200,7 +138,7 @@ def _compare_schema(
     prefix: str,
     pointer: str,
     context: str,
-    deltas: _Deltas,
+    deltas: Deltas,
     depth: int = 0,
 ) -> None:
     if old == new:
@@ -320,7 +258,7 @@ def _compare_schema(
 
 
 def _compare_named(
-    old: dict[str, Any], new: dict[str, Any], *, context: str, deltas: _Deltas
+    old: dict[str, Any], new: dict[str, Any], *, context: str, deltas: Deltas
 ) -> None:
     """Schemas a document names, compared by name: each name is the symbol of its deltas."""
     for name in sorted(old.keys() | new.keys()):
@@ -342,7 +280,7 @@ def _compare_ref(
     *,
     location: str,
     context: str,
-    deltas: _Deltas,
+    deltas: Deltas,
 ) -> None:
     before, after = old.get("$ref", ABSENT), new.get("$ref", ABSENT)
     if before != after:
@@ -358,7 +296,7 @@ def _compare_ref(
 
 
 def _compare_content(
-    symbol: str, old: Any, new: Any, *, prefix: str, context: str, deltas: _Deltas
+    symbol: str, old: Any, new: Any, *, prefix: str, context: str, deltas: Deltas
 ) -> None:
     """An OpenAPI 3 `content` map: media types added or removed, and each one's schema."""
     old_media, new_media = _mapping(old), _mapping(new)
@@ -435,7 +373,7 @@ def _operations(root: Any) -> dict[str, dict[str, Any]]:
 
 
 def _compare_parameters(
-    symbol: str, old: dict[str, dict[str, Any]], new: dict[str, dict[str, Any]], deltas: _Deltas
+    symbol: str, old: dict[str, dict[str, Any]], new: dict[str, dict[str, Any]], deltas: Deltas
 ) -> None:
     for key in sorted(old.keys() - new.keys()):
         deltas.add(
@@ -488,7 +426,7 @@ def _compare_parameters(
         )
 
 
-def _compare_request_body(symbol: str, old: Any, new: Any, deltas: _Deltas) -> None:
+def _compare_request_body(symbol: str, old: Any, new: Any, deltas: Deltas) -> None:
     if old == new:
         return
     if not isinstance(old, dict) or not isinstance(new, dict):
@@ -516,7 +454,7 @@ def _compare_request_body(symbol: str, old: Any, new: Any, deltas: _Deltas) -> N
     )
 
 
-def _compare_responses(symbol: str, old: Any, new: Any, deltas: _Deltas) -> None:
+def _compare_responses(symbol: str, old: Any, new: Any, deltas: Deltas) -> None:
     old_responses, new_responses = _mapping(old), _mapping(new)
     for status in sorted(old_responses.keys() - new_responses.keys()):
         deltas.add(
@@ -584,7 +522,7 @@ def _compare_responses(symbol: str, old: Any, new: Any, deltas: _Deltas) -> None
 
 
 def _compare_operation(
-    symbol: str, old: dict[str, Any], new: dict[str, Any], deltas: _Deltas
+    symbol: str, old: dict[str, Any], new: dict[str, Any], deltas: Deltas
 ) -> None:
     _compare_parameters(symbol, old["parameters"], new["parameters"], deltas)
     _compare_request_body(
@@ -604,7 +542,7 @@ def _security_schemes(root: Any, kind: str) -> dict[str, Any]:
     return _mapping(_mapping(root).get("securityDefinitions"))
 
 
-def _compare_document_level(old: Any, new: Any, kind: str, deltas: _Deltas) -> None:
+def _compare_document_level(old: Any, new: Any, kind: str, deltas: Deltas) -> None:
     """What applies to every operation: the security required by default, the schemes it names,
     and where the API is served from."""
     before, after = _mapping(old).get("security", ABSENT), _mapping(new).get("security", ABSENT)
@@ -664,7 +602,7 @@ def compare_documents(
     A side that is None — absent, or not a document of this kind — is compared as empty, so
     everything on the other side is added or removed.
     """
-    deltas = _Deltas(path)
+    deltas = Deltas(path)
     if kind == "json_schema":
         _compare_named(_json_schemas(old), _json_schemas(new), context="schema", deltas=deltas)
         return deltas.items, deltas.truncated

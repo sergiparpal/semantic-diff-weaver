@@ -61,6 +61,9 @@ class DiffCollection:
     # Changed YAML and JSON files read whole, both sides, for `schema_diff` to tell whether
     # each is an API schema; `files` holds the Python ones.
     documents: list[ChangedFile] = field(default_factory=list)
+    # Changed files `paths.config_files` names, read whole for `schema_diff` to compare as
+    # configuration.
+    config_files: list[ChangedFile] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

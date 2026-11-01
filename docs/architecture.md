@@ -48,7 +48,12 @@ and the security each requires — then global security, servers, and reusable s
 a schema the keywords that decide what is accepted or returned. Each delta records whether its
 place is part of a request, a response, a reusable component, or a standalone JSON Schema, and
 `semantic_candidates.py` classifies it by that: a narrowed `enum` validates a request but changes
-what a response returns. `$ref` is compared as text and never resolved.
+what a response returns. `$ref` is compared as text and never resolved. `settings.py` compares
+the configuration files `paths.config_files` names, read with the documents and ahead of them, in
+YAML, JSON, or TOML: each value by its dotted key path, a list as one value, and the delta
+classified by the words of its key and whether its value is a number or a boolean. Both modules
+make their deltas through `deltas.py`, which bounds how many one document makes, cuts each symbol,
+and redacts what each shows. A configuration key reaches the tests whose body uses its names.
 
 Deterministic rules create evidence before model use. Their term-based probes read the changed
 expressions together with the symbol name, because names carry authorization, validation, retry, and

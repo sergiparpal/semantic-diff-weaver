@@ -866,6 +866,44 @@ def _route_candidates(
     return found[:limit]
 
 
+def _config_candidates(
+    candidate: SemanticCandidate, tests: list[IndexedTest], limit: int
+) -> list[CandidateTest]:
+    """The tests that name a changed configuration key: its last name when that is several
+    words, `max_retries` or `maxRetries`, which tests about something else rarely use, and more
+    strongly with every other name of its path, `database.pool`; or, for a last name of one
+    word, every name of a path of several, `database` and `timeout`.
+
+    A key of one word alone, `timeout`, names no test: the word turns up in tests of anything.
+    """
+    parts = candidate.symbol.split(".")
+    names = {bare_name(part) for part in parts if TOKEN_RE.fullmatch(part)}
+    leaf = parts[-1]
+    distinctive = TOKEN_RE.fullmatch(leaf) is not None and "_" in (_name_words(leaf) or "")
+    whole_path = len(parts) > 1 and all(TOKEN_RE.fullmatch(part) for part in parts)
+    found: list[CandidateTest] = []
+    for test in tests:
+        uses_path = whole_path and names <= test.body_identifiers
+        if distinctive and bare_name(leaf) in test.body_identifiers:
+            reasons = ["uses the changed key's name"]
+            score = 0.55
+            if uses_path:
+                reasons.append("and every name of its path")
+                score += 0.2
+        elif uses_path:
+            reasons = ["uses every name of the changed key's path"]
+            score = 0.45
+        else:
+            continue
+        found.append(
+            CandidateTest(
+                path=test.path, symbol=test.symbol, match_score=score, match_reasons=reasons
+            )
+        )
+    found.sort(key=lambda item: (-item.match_score, item.path, item.symbol))
+    return found[:limit]
+
+
 def map_candidate_tests(
     candidates: list[SemanticCandidate],
     index: TestIndex,
@@ -1114,10 +1152,16 @@ def map_candidate_tests(
         )
 
     for candidate_index, candidate in enumerate(candidates):
-        # A change to an API schema reaches tests through the routes they request, not through
-        # Python imports or calls.
+        # A change to an API schema reaches tests through the routes they request, and one to a
+        # configuration file through the names of the key they use, not through Python imports
+        # or calls.
         if not candidate.path.endswith(".py"):
-            result[candidate_index] = _route_candidates(
+            documented = (
+                _config_candidates
+                if candidate.evidence[0].kind.startswith("config_")
+                else _route_candidates
+            )
+            result[candidate_index] = documented(
                 candidate, tests, config.rules.max_candidate_tests_per_obligation
             )
             continue

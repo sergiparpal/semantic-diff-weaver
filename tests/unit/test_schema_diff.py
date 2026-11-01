@@ -10,12 +10,14 @@ import pytest
 from semantic_diff_weaver.models import BehaviorCategory, RulesConfig
 from semantic_diff_weaver.schema_diff import analyze_schemas
 from semantic_diff_weaver.schema_diff.compare import (
-    MAX_DOCUMENT_DELTAS,
     MAX_SCHEMA_DEPTH,
-    MAX_SHOWN_CHARS,
-    MAX_SYMBOL_CHARS,
     compare_documents,
     document_kind,
+)
+from semantic_diff_weaver.schema_diff.deltas import (
+    MAX_DOCUMENT_DELTAS,
+    MAX_SHOWN_CHARS,
+    MAX_SYMBOL_CHARS,
 )
 from semantic_diff_weaver.schema_diff.load import DocumentError, load_document
 from semantic_diff_weaver.semantic_candidates import classify_delta

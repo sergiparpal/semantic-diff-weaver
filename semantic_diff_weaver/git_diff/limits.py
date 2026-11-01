@@ -15,6 +15,9 @@ MAX_TREE_PATHS_PER_COMMAND = 256
 # The YAML and JSON a changed API schema can be written in. Such files are read whole, under
 # budgets of their own, so a large lockfile cannot spend the line budget Python files share.
 DOCUMENT_SUFFIXES = (".yaml", ".yml", ".json")
+# The formats a configuration file the repository names is compared in. Such files share the
+# documents' budgets, ahead of them.
+CONFIG_SUFFIXES = (*DOCUMENT_SUFFIXES, ".toml")
 MAX_DOCUMENTS = 200
 MAX_DOCUMENT_BLOB_BYTES = 64 * 1024 * 1024
 # Git's 50% default misses small CRLF renames; AST matching still rejects ambiguous symbols.
