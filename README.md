@@ -432,9 +432,9 @@ Hermes home and do not require a paid or live LLM.
 - Python source, OpenAPI 3, Swagger 2, and JSON Schema documents, the YAML, JSON, and TOML
   configuration files a repository names, and common pytest/unittest layouts only.
 - Committed base/head content only; staged and working-tree changes are outside the MVP.
-- Static candidate tests are not verified coverage: they are name and import matches, never a
-  claim that a test asserts the changed behavior. This holds even with a coverage report
-  supplied — an ingested report says a changed *line* was executed by the suite, which is a
+- Static candidate tests are not verified coverage: they are name, import, call, and history
+  matches, never a claim that a test asserts the changed behavior. This holds even with a coverage
+  report supplied — an ingested report says a changed *line* was executed by the suite, which is a
   different and weaker claim.
 - The tool consumes a coverage report and never produces one; a changed file absent from the
   report is reported as unknown, never as uncovered.

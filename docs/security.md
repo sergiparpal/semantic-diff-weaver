@@ -89,6 +89,15 @@ import.
   the diff, never a path outside the repository, and a named symbolic link is not read but counted
   as `unreadable_config_file`, which leaves the analysis incomplete.
   `tests/security/test_config_inputs.py` holds the adversarial regressions.
+- The commits up to the base are untrusted Git metadata, read for the test files that changed with
+  the code: through the same Git boundary, with `git log --no-merges --no-renames --no-ext-diff
+  --no-textconv`, up to the base commit only, bounded in commits (`rules.max_history_commits`) and
+  in output (4 MiB). Paths are NUL-separated and each commit opens with two NULs, so no path,
+  however named — a line break in it, or forty hex digits — can pose as a commit, and a path that
+  is not UTF-8 or that normalization refuses is skipped. Only a path of the candidate-test index can
+  become a candidate, and a log that cannot be read whole costs the mapping its history, with a
+  warning, never the analysis. `tests/security/test_history_inputs.py` holds the adversarial
+  regressions.
 - The plugin makes no direct network request and emits no plugin telemetry.
 - Resource prioritization is deterministic and applies only to explicitly configured critical paths;
   it never expands the configured file, line, symbol, evidence, or model-input ceilings.

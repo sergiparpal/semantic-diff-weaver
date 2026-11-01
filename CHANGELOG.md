@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- **Feature:** test history. The commits up to the base are read for the files each one changed,
+  and a test file that changed with a changed Python module in two or more of them is a candidate
+  for its findings, as a whole file, whatever its name or imports say; for a test other evidence
+  already ties to the module, it adds to its score. Its reason says how many: "changed with
+  src/shop/money.py in 4 of its last 20 commits". Merges and commits of more than 30 files are left
+  out. The new `rules.max_history_commits` sets how many commits are read, 200 by default and `0` to
+  read none. The analysis's schema is unchanged.
+
 ## 0.11.1 - 2026-11-01
 
 Code spans without backslashes. A symbol or a path the brief writes in a code span now shows as it

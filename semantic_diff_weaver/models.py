@@ -173,6 +173,9 @@ class RulesConfig(StrictModel):
     max_obligations_per_behavior: int = Field(default=6, ge=1, le=50)
     max_test_obligations: int = Field(default=100, ge=1, le=1000)
     max_candidate_tests_per_obligation: int = Field(default=5, ge=0, le=25)
+    # How many commits up to the base are read for the test files that changed with the code;
+    # 0 reads none. See `git_diff.history`.
+    max_history_commits: int = Field(default=200, ge=0, le=5000)
     minimum_report_confidence: float = Field(default=0.45, ge=0, le=1)
     review_question_confidence: float = Field(default=0.60, ge=0, le=1)
     refactor_materiality_threshold: float = Field(default=0.25, ge=0, le=1)

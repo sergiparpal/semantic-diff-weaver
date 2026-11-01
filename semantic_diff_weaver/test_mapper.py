@@ -5,7 +5,7 @@ from __future__ import annotations
 import ast
 import math
 import re
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass, replace
 from functools import cache, lru_cache
@@ -16,7 +16,7 @@ from urllib.parse import urlsplit
 
 from .call_graph import CallGraph, Node, bare_name, package_of
 from .errors import WeaverError
-from .git_diff import GitRepository
+from .git_diff import ChangeHistory, GitRepository
 from .models import WHOLE_TEST_FILE, BehaviorCategory, CandidateTest, WeaverConfig
 from .path_policy import (
     exclusion_reason,
@@ -77,6 +77,9 @@ MAX_ROUTE_CHARS = 200
 OPERATION_SYMBOL_RE = re.compile(r"(GET|PUT|POST|DELETE|OPTIONS|HEAD|PATCH|TRACE) (/\S*)")
 HTTP_METHOD_NAMES = frozenset({"get", "put", "post", "delete", "options", "head", "patch", "trace"})
 MAX_TEST_INDEX_BYTES = 8 * 1024 * 1024
+# A test file that changed with a module in this many of the commits up to the base is about
+# it; one commit they share is a coincidence.
+MIN_CO_CHANGES = 2
 
 
 @dataclass(frozen=True)
@@ -909,13 +912,15 @@ def map_candidate_tests(
     index: TestIndex,
     config: WeaverConfig,
     graph: CallGraph | None = None,
+    history: ChangeHistory | None = None,
 ) -> dict[int, list[CandidateTest]]:
     """Return capped static candidates; terminology alone can never create a match.
 
     With ``graph``, a test is followed from the modules it imports or runs through every call
     their symbols make, into other modules through their imports, to the changed symbols it
     reaches, which no name or import in the test shows. A test that reaches a class may hold
-    one of its instances, and reaches the methods it calls on it by name.
+    one of its instances, and reaches the methods it calls on it by name. With ``history``, a
+    test file that kept changing in the same commits as a module is evidence about it.
     """
     result: dict[int, list[CandidateTest]] = {}
     tests = index.tests
@@ -963,6 +968,27 @@ def map_candidate_tests(
             if glob_matches(source_path, mapping.source):
                 matched |= tests_by_mapping[mapping_index]
         return frozenset(matched)
+
+    positions_by_path: dict[str, list[int]] = defaultdict(list)
+    for position, test in enumerate(tests):
+        positions_by_path[test.path].append(position)
+
+    @cache
+    def co_changed_for(source_path: str) -> Mapping[int, tuple[int, int]]:
+        """The tests whose file changed with a module in the commits up to the base, each with
+        how many of them changed both, and how many changed the module."""
+        if history is None:
+            return {}
+        touching = [files for files in history.commits if source_path in files]
+        together = Counter(
+            path for files in touching for path in files if path in positions_by_path
+        )
+        return {
+            position: (count, len(touching))
+            for path, count in together.items()
+            if count >= MIN_CO_CHANGES
+            for position in positions_by_path[path]
+        }
 
     @cache
     def mirrored_for(source_path: str) -> frozenset[int]:
@@ -1170,6 +1196,8 @@ def map_candidate_tests(
         module = _module_name(candidate.path).casefold()
         mapped = mapped_for(candidate.path)
         mirrored = mirrored_for(candidate.path)
+        co_changed = co_changed_for(candidate.path)
+        co_changing = set(co_changed)
         empty: set[int] = set()
         imported = (
             init_imported_for(candidate.path)
@@ -1259,7 +1287,7 @@ def map_candidate_tests(
                     holding = callers & class_reachers(receiver)
                     reaching |= holding
                     called |= holding
-        related = mapped | mirrored | imported | ran
+        related = mapped | mirrored | imported | ran | co_changing
         if candidate.symbol == "<module>":
             # Loading a module runs its top-level code, which the import or run already counted,
             # and loading it through other modules is true of nearly every test.
@@ -1302,6 +1330,7 @@ def map_candidate_tests(
             | bodied
             | module_named
             | reached_elsewhere
+            | co_changing
         )
         if (
             graph is not None
@@ -1333,6 +1362,14 @@ def map_candidate_tests(
             if test_position in mirrored:
                 score += 0.25
                 reasons.append("mirrored source/test path")
+            # A candidate on its own: the test's file kept changing with the module, whatever its
+            # name or imports say, and more often counts for more.
+            if test_position in co_changed:
+                together, touching = co_changed[test_position]
+                score += 0.35 + 0.05 * min(together - MIN_CO_CHANGES, 2)
+                reasons.append(
+                    f"changed with {candidate.path} in {together} of its last {touching} commits"
+                )
             if test_position in imported:
                 score += 0.25
                 reasons.append("direct module or symbol import")

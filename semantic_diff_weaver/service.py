@@ -18,7 +18,7 @@ from .change_groups import group_changes
 from .config import load_config
 from .coverage_map import CoverageMap, load_coverage, summarize
 from .errors import ErrorCode, WeaverError
-from .git_diff import ChangedFile, DiffCollection, GitRepository, collect_diff
+from .git_diff import ChangedFile, DiffCollection, GitRepository, collect_diff, read_history
 from .llm_client import LlmClient
 from .models import (
     AnalysisResult,
@@ -760,8 +760,22 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
     )
     if call_graph is not None:
         state.warnings.extend(call_graph.warnings)
+    # The commits up to the base say which test files changed with which modules; only a
+    # Python finding is mapped to tests through them.
+    history = (
+        read_history(repo, base_commit, config.rules.max_history_commits)
+        if test_index.tests
+        and config.rules.max_history_commits
+        and any(item.candidate.path.endswith(".py") for item in reportable)
+        else None
+    )
+    if history is not None and history.incomplete:
+        state.warnings.append(
+            "The commits up to the base could not be read whole; tests that changed with the "
+            "code there may be missing."
+        )
     mapped_by_index = map_candidate_tests(
-        [item.candidate for item in reportable], test_index, config, call_graph
+        [item.candidate for item in reportable], test_index, config, call_graph, history
     )
     reportable = [
         replace(item, tests=mapped_by_index.get(index, [])) for index, item in enumerate(reportable)
