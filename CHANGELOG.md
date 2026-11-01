@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.13.0 - 2026-11-01
+
+Connected changes through module variables. A changed module-level variable is grouped with the
+changed code that reads it, in its own module or through an import, and with whatever reaches that
+code through calls: a changed `TIMEOUT_SECONDS = 60` in `limits.py` and the changed `fetch` that
+reads it in `client.py` are one change to test through `fetch`, and the brief names the variable.
+With it, the roadmap's cross-file change grouping is done. A minor release for schema 1.4, whose
+only addition is each change group's `variables`; no finding, score, verdict, or obligation changes,
+the 18 goldens change in `schema_version` alone, and the decision is recorded in
+`docs/decisions.md`.
 
 - **Feature:** connected changes through module variables. A finding in a module's top-level code
   that changed a variable's assignment now joins the group of each changed symbol that reads the
