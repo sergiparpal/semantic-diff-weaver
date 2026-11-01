@@ -17,6 +17,8 @@ CRITICAL_MODULES = (
     "ast_diff/",
     # Parses an untrusted earlier analysis, whose validated fields reach the brief.
     "baseline.py",
+    # Decides which findings an analysis says are connected, and through which entry points.
+    "change_groups.py",
     # The command line parses untrusted argument input and decides authorization roots,
     # which is the same boundary rationale that puts path_policy and plugin on this list.
     "cli.py",

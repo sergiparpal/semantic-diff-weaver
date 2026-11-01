@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from .errors import ErrorCode
 
-SCHEMA_VERSION: Literal["1.2"] = "1.2"
+SCHEMA_VERSION: Literal["1.3"] = "1.3"
 MAX_PATH_CHARS = 4096
 MAX_REF_CHARS = 1024
 MAX_PATTERN_CHARS = 512
@@ -417,9 +417,21 @@ class LlmStatus(StrictModel):
     usage: LlmUsage | None = None
 
 
+class ChangeGroup(StrictModel):
+    """Findings in Python code that calls connect, and those through which a test reaches the rest.
+
+    An entry point is a finding whose code no other finding of the group reaches, unless it reaches
+    that one too: a test through it can exercise every finding of the group.
+    """
+
+    id: str = Field(pattern=r"^cg-\d{3,}$")
+    behavior_change_ids: list[str] = Field(min_length=2)
+    entry_points: list[str] = Field(min_length=1)
+
+
 class AnalysisResult(StrictModel):
     success: Literal[True] = True
-    schema_version: Literal["1.2"] = SCHEMA_VERSION
+    schema_version: Literal["1.3"] = SCHEMA_VERSION
     analysis_id: str = Field(pattern=r"^sdw_[A-Za-z0-9_-]+$")
     repository: RepositoryIdentity
     summary: Summary
@@ -432,6 +444,7 @@ class AnalysisResult(StrictModel):
     deterministic_mode: bool
     coverage: CoverageSummary | None = None
     baseline: BaselineComparison | None = None
+    change_groups: list[ChangeGroup] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def references_resolve(self) -> AnalysisResult:
@@ -472,6 +485,18 @@ class AnalysisResult(StrictModel):
             compared = [*self.baseline.new, *self.baseline.updated, *self.baseline.unchanged]
             if len(compared) != len(set(compared)) or set(compared) != behavior_ids:
                 raise ValueError("a baseline comparison must place every behavior change once")
+        if len({item.id for item in self.change_groups}) != len(self.change_groups):
+            raise ValueError("change group IDs must be unique")
+        for group in self.change_groups:
+            members = set(group.behavior_change_ids)
+            if len(members) != len(group.behavior_change_ids) or not members <= behavior_ids:
+                raise ValueError(
+                    "a change group must name distinct behavior changes of this result"
+                )
+            if len(set(group.entry_points)) != len(group.entry_points) or not (
+                set(group.entry_points) <= members
+            ):
+                raise ValueError("a change group's entry points must be distinct members of it")
         obligation_ids = {item.id for item in self.test_obligations}
         if len(obligation_ids) != len(self.test_obligations):
             raise ValueError("test obligation IDs must be unique")
@@ -501,14 +526,14 @@ class AnalysisResult(StrictModel):
 
 class MarkdownEnvelope(StrictModel):
     success: Literal[True] = True
-    schema_version: Literal["1.2"] = SCHEMA_VERSION
+    schema_version: Literal["1.3"] = SCHEMA_VERSION
     analysis_id: str = Field(pattern=r"^sdw_[A-Za-z0-9_-]+$")
     markdown: str
 
 
 class BothEnvelope(StrictModel):
     success: Literal[True] = True
-    schema_version: Literal["1.2"] = SCHEMA_VERSION
+    schema_version: Literal["1.3"] = SCHEMA_VERSION
     analysis: AnalysisResult
     markdown: str
 

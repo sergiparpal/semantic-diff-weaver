@@ -27,7 +27,7 @@ def test_all_output_modes(repo_factory, output_format: str) -> None:
         }
     )
     assert result["success"] is True
-    assert result["schema_version"] == "1.2"
+    assert result["schema_version"] == "1.3"
     if output_format == "json":
         assert "behavior_changes" in result
     elif output_format == "markdown":

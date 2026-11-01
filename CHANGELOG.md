@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- **Feature:** the findings in Python code that calls connect are grouped. A finding reaches
+  another when its symbol's code calls the other's, directly or through unchanged code, and each
+  group is led by an entry point, a finding no other of the group reaches, with every finding it
+  reaches: a test through it can exercise them all. The analysis lists the groups in the new
+  `change_groups`, and the brief says them under "Connected changes". Two findings that only share
+  a caller are not connected, and grouping changes no finding, score, or obligation.
+- **Schema:** 1.3, for the additive `change_groups`, an empty list when no call connects two
+  findings. The 18 canonical goldens change in `schema_version` and that empty list alone.
+
 ## 0.10.0 - 2026-11-01
 
 Configuration files. The configuration files a repository names in the new `paths.config_files`

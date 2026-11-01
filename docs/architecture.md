@@ -6,7 +6,7 @@ The plugin follows a typed, bounded pipeline:
 request/config -> repository + resolved refs -> changed committed blobs
 -> AST deltas and API schema deltas -> deterministic evidence/candidates
 -> static candidate-test index -> optional structured LLM -> reconciliation
--> optional ingested coverage report -> risk/confidence -> obligations
+-> optional ingested coverage report -> risk/confidence -> obligations and change groups
 -> canonical JSON -> optional Markdown
 ```
 
@@ -146,9 +146,16 @@ produce bounded unknown findings rather than losing all evidence. Conservative s
 connect renamed or moved functions, including moves between two existing files, but refuses ambiguous
 near-ties and lowers confidence for the unmatched lifecycle findings.
 
-The canonical schema version is `1.2`. Markdown is derived entirely from the canonical analysis.
+The canonical schema version is `1.3`. Markdown is derived entirely from the canonical analysis.
 Risk estimates impact and test gap; confidence estimates support strength. They are intentionally
-independent. The summary's advisory verdict reads the overall risk against the `verdict`
+independent. `change_groups.py` groups the findings in Python code that calls connect, through
+`call_graph.py`: a finding reaches another when its symbol's code calls the other's, directly or
+through any code between them, changed or not. Each group is led by an entry point, a finding no
+other finding of the group reaches unless it reaches that one back, with every finding it reaches;
+entry points that reach each other lead one group together, and a finding two entry points reach
+is in both groups. Two findings that only share a caller are not connected, since every symbol of
+a program shares `main`. The graph is built for this whenever two Python symbols have findings,
+with tests to follow or without. Grouping changes no finding, score, or obligation. The summary's advisory verdict reads the overall risk against the `verdict`
 thresholds, and an analysis that left scope unread or compared a commit with itself never passes.
 `baseline.py` compares the findings with those of an earlier analysis, read as untrusted JSON, by
 category, path, and symbol, and reports each as new, updated, unchanged, or resolved.
