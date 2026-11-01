@@ -51,8 +51,9 @@ imports, executes, builds, or modifies the repository.
    risk first. For each one give its ID, the behavior that changed, the file and symbol, and the
    evidence IDs that support it. Present the listed candidate tests as *unverified* — the tool
    matches them statically and never runs them. A candidate shown as a whole file stands for
-   tests related to the change only through their file, none of them by name. Say so if the
-   result reports truncation or omitted scope.
+   tests related to the change only through their file, none of them by name. When the brief
+   lists connected changes, say which findings a test through each entry point can exercise
+   together. Say so if the result reports truncation or omitted scope.
 6. **Scaffold only what the user approves.** When the user names obligations to test, call
    `generate_test_skeletons` with their IDs and the same `repo_path`, `base_ref`, `head_ref`,
    `include`, `exclude`, `risk_profile`, and `coverage_report` as the analysis whose brief they

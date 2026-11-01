@@ -9,6 +9,7 @@ from typing import Any
 from .models import (
     WHOLE_TEST_FILE,
     AnalysisResult,
+    BehaviorChange,
     BothEnvelope,
     CandidateTest,
     MarkdownEnvelope,
@@ -124,6 +125,58 @@ def _candidate(item: CandidateTest) -> str:
     if item.symbol == WHOLE_TEST_FILE:
         return f"`{_escape(item.path)}` (whole file; {details})"
     return f"`{_escape(item.path)}::{_escape(item.symbol)}` ({details})"
+
+
+_COUNTS = {3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine"}
+
+
+def _listed(items: list[str]) -> str:
+    """`a`, `a and b`, or `a, b, and c`."""
+    if len(items) <= 2:
+        return " and ".join(items)
+    return f"{', '.join(items[:-1])}, and {items[-1]}"
+
+
+def _symbol_mentions(ids: list[str], behaviors: dict[str, BehaviorChange]) -> list[tuple[str, str]]:
+    """Each distinct symbol of the findings `ids`, in their order: its name, and its mention with
+    its path and findings."""
+    found: dict[tuple[str, str], list[str]] = {}
+    for behavior_id in ids:
+        evidence = behaviors[behavior_id].evidence[0]
+        found.setdefault((evidence.path, evidence.symbol or "<module>"), []).append(behavior_id)
+    mentions = []
+    for (path, symbol), items in found.items():
+        name = f"`{_escape(symbol)}`"
+        # No escaping is needed for the IDs: they are pattern-validated and of this result.
+        listed = ", ".join(f"`{item}`" for item in items)
+        mentions.append((name, f"{name} ({_escape(path)}, {listed})"))
+    return mentions
+
+
+def _connected_lines(result: AnalysisResult) -> list[str]:
+    """Each group of findings calls connect, said as its entry points reaching the rest."""
+    if not result.change_groups:
+        return []
+    behaviors = {item.id: item for item in result.behavior_changes}
+    lines = ["", "### Connected changes", ""]
+    for group in result.change_groups:
+        entries = _symbol_mentions(group.entry_points, behaviors)
+        reached = _symbol_mentions(
+            [item for item in group.behavior_change_ids if item not in group.entry_points],
+            behaviors,
+        )
+        count = len(entries) + len(reached)
+        everything = "both" if count == 2 else f"all {_COUNTS.get(count, str(count))}"
+        leading = _listed([mention for _, mention in entries])
+        through = entries[0][0] if len(entries) == 1 else "any of them"
+        if not reached:
+            said = f"{leading} reach each other"
+        elif len(entries) == 1:
+            said = f"{leading} reaches {_listed([mention for _, mention in reached])}"
+        else:
+            said = f"{leading}, which reach each other, reach {_listed([m for _, m in reached])}"
+        lines.append(f"- {said}: a test through {through} can exercise {everything}.")
+    return lines
 
 
 def _excerpt(text: str, limit: int | None) -> str:
@@ -277,6 +330,7 @@ def render_markdown(result: AnalysisResult, *, excerpt_chars: int | None = None)
                 new = _excerpt(evidence.new or "∅", excerpt_chars)
                 lines.extend(["    ````text", *_fenced_summary("old", old)])
                 lines.extend([*_fenced_summary("new", new), "    ````"])
+    lines.extend(_connected_lines(result))
     lines.extend(["", "### Prioritized test obligations", ""])
     if not result.test_obligations:
         lines.append("No test obligations were generated.")

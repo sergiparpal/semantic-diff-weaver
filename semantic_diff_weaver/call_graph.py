@@ -231,6 +231,11 @@ class CallGraph:
         self._callers: dict[Node, frozenset[Node]] = {}
         self._calling: dict[Node, set[Node]] | None = None
 
+    def defines(self, node: Node) -> bool:
+        """Whether a symbol is one of the indexed modules' own."""
+        module = self.modules.get(node[0])
+        return module is not None and node[1] in module.symbols
+
     def locate(self, dotted: str) -> tuple[str, list[str]] | None:
         """The indexed module a dotted name starts with, and the rest of the name."""
         return _locate(self._located, dotted)
@@ -607,7 +612,8 @@ def build_call_graph(
             incomplete = True
             warnings.append(
                 f"Following calls across modules was capped at {MAX_CALL_GRAPH_FILES} modules; "
-                "tests that reach a change through other modules may be missing."
+                "tests and connected changes that reach a change through other modules may be "
+                "missing."
             )
             pending = pending[:room]
         entries = repo.tree_entries(head_commit, pending)
@@ -649,6 +655,6 @@ def build_call_graph(
     if incomplete and not warnings:
         warnings.append(
             "At least one module could not be read within bounds for following calls; tests "
-            "that reach a change through it may be missing."
+            "and connected changes that reach a change through it may be missing."
         )
     return CallGraph(modules, incomplete=incomplete, warnings=warnings, roots=roots)

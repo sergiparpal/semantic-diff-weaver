@@ -14,6 +14,7 @@ from pydantic import ValidationError
 from .ast_diff import AstAnalysis, StructuralDelta, analyze_ast
 from .baseline import Baseline, compare_with_baseline, load_baseline
 from .call_graph import build_call_graph
+from .change_groups import group_changes
 from .config import load_config
 from .coverage_map import CoverageMap, load_coverage, summarize
 from .errors import ErrorCode, WeaverError
@@ -733,6 +734,19 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
         else TestIndex(tests=[], incomplete=False, warnings=[])
     )
     state.warnings.extend(test_index.warnings)
+    # Tests are followed into the code they reach, and the findings of two Python symbols or more
+    # are grouped by which reaches which: either needs the graph. A synthetic symbol, `<module>`
+    # or `<unparsed>`, is no code a call reaches.
+    connectable = (
+        len(
+            {
+                (item.candidate.path, item.candidate.symbol)
+                for item in reportable
+                if item.candidate.path.endswith(".py") and not item.candidate.symbol.startswith("<")
+            }
+        )
+        > 1
+    )
     call_graph = (
         build_call_graph(
             repo,
@@ -741,7 +755,7 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
             imports=(name for test in test_index.tests for name in test.imports),
             changed=(item.path for item in collection.files),
         )
-        if test_index.tests
+        if test_index.tests or connectable
         else None
     )
     if call_graph is not None:
@@ -840,6 +854,7 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
         limitations=limitations,
         coverage=coverage_summary,
         baseline=compare_with_baseline(baseline, behaviors) if baseline is not None else None,
+        change_groups=group_changes(behaviors, call_graph),
         llm=interpreted.status if deterministic else LlmStatus(),
         deterministic_mode=fallback_mode or partial_fallback,
     )

@@ -49,6 +49,7 @@ def test_coverage_policy_aggregates_package_branch_coverage(tmp_path: Path, monk
         "files": {
             "semantic_diff_weaver/ast_diff/match.py": _file_entry(),
             "semantic_diff_weaver/baseline.py": _file_entry(),
+            "semantic_diff_weaver/change_groups.py": _file_entry(),
             "semantic_diff_weaver/cli.py": _file_entry(),
             "semantic_diff_weaver/config.py": _file_entry(),
             "semantic_diff_weaver/coverage_map.py": _file_entry(),

@@ -9,6 +9,7 @@ from semantic_diff_weaver.models import (
     AnalyzeRequest,
     BehaviorCategory,
     CandidateTest,
+    ChangeGroup,
     ErrorResponse,
     Evidence,
     LineRange,
@@ -64,7 +65,7 @@ def test_candidate_tests_are_explicitly_unverified() -> None:
 
 
 def test_transport_schemas_are_versioned() -> None:
-    assert AnalysisResult.model_json_schema()["properties"]["schema_version"]["const"] == "1.2"
+    assert AnalysisResult.model_json_schema()["properties"]["schema_version"]["const"] == "1.3"
     assert ErrorResponse(success=False, error="invalid_ref", message="bad", remediation="fix")
 
 
@@ -179,3 +180,155 @@ def test_an_analysis_that_left_scope_unread_never_passes(
     else:
         with pytest.raises(ValidationError, match="cannot pass"):
             AnalysisResult.model_validate(payload)
+
+
+def _grouped(groups: list[dict]) -> dict:
+    behaviors = [
+        {
+            "id": f"bc-00{index}",
+            "category": "boundary_change",
+            "summary": "Changed behavior.",
+            "observable_impact": "An outcome appears to differ.",
+            "risk": "medium",
+            "risk_score": 50,
+            "confidence": 0.8,
+            "evidence": [
+                {"id": f"ev-00{index}", "path": "src/a.py", "symbol": symbol, "kind": "x"}
+            ],
+            "origin": "deterministic",
+            "score_explanation": {
+                "behavioral_impact": 50,
+                "critical_path_weight": 10,
+                "test_gap_weight": 90,
+                "change_surface_weight": 30,
+            },
+        }
+        for index, symbol in ((1, "checkout"), (2, "parse_amount"))
+    ]
+    return {
+        "analysis_id": "sdw_test",
+        "repository": {
+            "base_ref": "base",
+            "head_ref": "head",
+            "base_commit": "a" * 40,
+            "head_commit": "b" * 40,
+        },
+        "summary": {
+            "changed_files": 1,
+            "changed_symbols": 2,
+            "behavior_changes": 2,
+            "test_obligations": 0,
+            "overall_risk": "medium",
+            "risk_score": 50,
+            "overall_confidence": 0.8,
+            "risk_counts": {"low": 0, "medium": 2, "high": 0, "critical": 0},
+            "verdict": "warn",
+        },
+        "scope": {
+            "changed_files_total": 1,
+            "analyzed_files": ["src/a.py"],
+            "changed_lines": 2,
+            "changed_symbols": 2,
+        },
+        "behavior_changes": behaviors,
+        "test_obligations": [],
+        "warnings": [],
+        "limitations": [],
+        "llm": {},
+        "deterministic_mode": True,
+        "change_groups": groups,
+    }
+
+
+@pytest.mark.parametrize(
+    ("groups", "error"),
+    [
+        pytest.param([], None, id="none"),
+        pytest.param(
+            [
+                {
+                    "id": "cg-001",
+                    "behavior_change_ids": ["bc-001", "bc-002"],
+                    "entry_points": ["bc-001"],
+                }
+            ],
+            None,
+            id="one",
+        ),
+        pytest.param(
+            [
+                {
+                    "id": "cg-001",
+                    "behavior_change_ids": ["bc-001", "bc-009"],
+                    "entry_points": ["bc-001"],
+                }
+            ],
+            "distinct behavior changes of this result",
+            id="unknown-member",
+        ),
+        pytest.param(
+            [
+                {
+                    "id": "cg-001",
+                    "behavior_change_ids": ["bc-001", "bc-001"],
+                    "entry_points": ["bc-001"],
+                }
+            ],
+            "distinct behavior changes of this result",
+            id="repeated-member",
+        ),
+        pytest.param(
+            [
+                {
+                    "id": "cg-001",
+                    "behavior_change_ids": ["bc-001", "bc-002"],
+                    "entry_points": ["bc-003"],
+                }
+            ],
+            "entry points must be distinct members",
+            id="entry-outside",
+        ),
+        pytest.param(
+            [
+                {
+                    "id": "cg-001",
+                    "behavior_change_ids": ["bc-001", "bc-002"],
+                    "entry_points": ["bc-001"],
+                },
+                {
+                    "id": "cg-001",
+                    "behavior_change_ids": ["bc-001", "bc-002"],
+                    "entry_points": ["bc-002"],
+                },
+            ],
+            "change group IDs must be unique",
+            id="repeated-id",
+        ),
+        pytest.param(
+            [{"id": "cg-001", "behavior_change_ids": ["bc-001"], "entry_points": ["bc-001"]}],
+            "at least 2 items",
+            id="one-member",
+        ),
+        pytest.param(
+            [
+                {
+                    "id": "group-1",
+                    "behavior_change_ids": ["bc-001", "bc-002"],
+                    "entry_points": ["bc-001"],
+                }
+            ],
+            "pattern",
+            id="malformed-id",
+        ),
+    ],
+)
+def test_a_change_group_names_findings_of_its_own_analysis(
+    groups: list[dict], error: str | None
+) -> None:
+    if error is None:
+        assert AnalysisResult.model_validate(_grouped(groups)).change_groups == [
+            ChangeGroup.model_validate(item) for item in groups
+        ]
+    else:
+        with pytest.raises(ValidationError, match=error):
+            AnalysisResult.model_validate(_grouped(groups))

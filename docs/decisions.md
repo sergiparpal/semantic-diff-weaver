@@ -147,6 +147,48 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Connected changes (2026-11-01)
+
+The roadmap's v0.2 asked for a dependency graph, and `call_graph.py` already followed calls to
+find the tests that reach a change; the findings themselves stood apart. They are now grouped by
+it, at the user's choice, as groups led by entry points rather than as links between findings, and
+without touching risk. A test of `checkout` runs the `parse_amount` it calls, so a change to both
+is one change to test through `checkout`. Five choices are deliberate:
+
+- **Connected means reached through calls.** A finding reaches another when its symbol's code calls
+  the other's, directly or through any code between them, changed or not: `checkout` reaches
+  `parse_amount` through an unchanged `_validate`. Two findings that only share a caller are not
+  connected, since every symbol of a program shares `main`, and grouping by any shared caller
+  would make one group of every change. Calls are followed as for candidate tests, through
+  instances, re-exporting packages, and module variables, but not through loading a module, which
+  hands no one its code; a module's top-level code, a file that did not parse, an API schema, and
+  a configuration key are in no group.
+- **A group is led by its entry points.** An entry point is a finding no other finding of the group
+  reaches, unless it reaches that one back, and its group holds every finding it reaches. Two entry
+  points that reach a shared helper lead two groups, both holding it, since each test through one
+  can exercise it: a partition of the findings would have to say which entry point reaches which,
+  and the brief could no longer say each in a sentence. Entry points that reach each other, as
+  mutually recursive functions do, lead one group together.
+- **The findings of one symbol go together.** A group is about two symbols at least; a symbol with
+  two findings, a boundary and a default, brings both into any group it is in.
+- **Grouping is presentation only.** No finding, score, verdict, or obligation changes: how many
+  callers reach a changed helper would be a measure of its reach, and folding it into risk is a
+  change of its own, left out. The groups carry the findings' IDs, so they name findings of the
+  same analysis only, and a narrowed call groups only what it analyzed.
+- **The graph is built for grouping too.** It was built only when there were tests to follow; it is
+  now built whenever two Python symbols have findings, under the same bounds. On the performance
+  suite's full-service fixture, which has no tests, that costs about 0.08 seconds. When the graph
+  is cut short by its bounds, its warning now says connected changes may be missing as well as
+  tests.
+
+The schema is 1.3: `AnalysisResult` gains `change_groups`, each with an ID `cg-NNN`, its findings in
+the analysis's order, and its entry points, validated to name distinct findings of the analysis
+and entry points among them. It is an empty list when no call connects two findings, as in every
+case of the evaluation corpus: the 18 canonical goldens change in `schema_version` and that empty
+list alone. The brief says each group under "Connected changes", as the entry point reaching the
+rest: "a test through `checkout` can exercise all three" — *can*, since a static reach is no
+runtime path.
+
 ## Configuration files (2026-11-01)
 
 The second half of the roadmap's v0.2 "config and API schema awareness": configuration files,

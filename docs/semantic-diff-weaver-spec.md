@@ -400,7 +400,7 @@ The future tools are explicitly outside the MVP.
 
 ```json
 {
-  "schema_version": "1.2",
+  "schema_version": "1.3",
   "analysis_id": "sdw_01J...",
   "repository": {
     "path": ".",
@@ -461,6 +461,7 @@ The future tools are explicitly outside the MVP.
       "coverage_status": "candidate_exists_unverified"
     }
   ],
+  "change_groups": [],
   "warnings": [],
   "limitations": [
     "Candidate test mapping is static and does not prove runtime coverage."
@@ -903,9 +904,10 @@ Hermes plugin.
 
 ### v0.2 — Stronger repository context (partly done)
 
-- Dependency graph. *Partly:* `call_graph.py` follows calls through instances, packages,
-  `importlib`, and module variables to find the tests that reach a change; findings are not
-  grouped by it.
+- Dependency graph. *Done:* `call_graph.py` follows calls through instances, packages,
+  `importlib`, and module variables to find the tests that reach a change, and
+  `change_groups.py` groups the findings it connects under the entry points a test reaches the
+  rest through, as `change_groups` and the brief's "Connected changes".
 - Config and API schema awareness. *Done:* `schema_diff/` compares a changed OpenAPI 3,
   Swagger 2, or JSON Schema document, told apart by its content, operation by operation and
   keyword by keyword, and maps an operation's findings to the tests that request its route; it
