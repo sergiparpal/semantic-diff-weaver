@@ -130,12 +130,13 @@ category, path, and symbol, and reports each as new, updated, unchanged, or reso
 reads an earlier analysis as untrusted JSON, validated like a baseline, and the test files of its
 head commit through `git_diff/`, and returns a patch adding a failing test for each obligation the
 user approved by ID: at the end of the test file named for the changed module, one of the
-obligation's candidate tests first, or in a new file in the first test root. The analysis's text
-reaches the generated code only as escaped comments, a skeleton never takes a name its file
-already binds, and the module writes nothing; the user reviews the patch and applies it. As the
-`generate_test_skeletons` tool it takes the analysis by its arguments too, from `base_ref` on,
-and has `service.analyze` run it again without inference: a deterministic analysis numbers its
-obligations alike on every run, so the IDs of a brief name the same obligations in it.
+obligation's candidate tests first, or in a new file beside the obligation's first candidate test,
+or in the first test root without one. The analysis's text reaches the generated code only as
+escaped comments, a skeleton never takes a name its file already binds, and the module writes
+nothing; the user reviews the patch and applies it. As the `generate_test_skeletons` tool it takes
+the analysis by its arguments too, from `base_ref` on, and has `service.analyze` run it again
+without inference: a deterministic analysis numbers its obligations alike on every run, so the IDs
+of a brief name the same obligations in it.
 
 Semantic candidates are immutable and carry their own `(path, symbol)` identity. The three stages that
 merge them — rule grouping, model reconciliation, and service deduplication — each return new values,

@@ -123,9 +123,10 @@ def test_the_module_is_named_as_its_test_file_names_it(path: str, stem: str) -> 
     assert _module_stem(path) == stem
 
 
-def test_a_new_test_file_has_a_safe_name_in_the_first_test_root() -> None:
-    assert _new_path(["tests/unit", "tests"], "cart") == "tests/unit/test_cart.py"
-    assert _new_path(["tests"], "my-module") == "tests/test_my_module.py"
+def test_a_new_test_file_has_a_safe_name_in_its_directory() -> None:
+    assert _new_path("tests/unit", "cart") == "tests/unit/test_cart.py"
+    assert _new_path("tests", "my-module") == "tests/test_my_module.py"
+    assert _new_path(".", "cart") == "test_cart.py"
 
 
 def test_a_test_file_is_found_by_any_name_it_could_have() -> None:

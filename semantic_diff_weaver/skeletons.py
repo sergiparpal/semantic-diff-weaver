@@ -4,9 +4,10 @@ The input is the analysis the obligations come from — one saved as `--format j
 `--format both` wrote it, or the deterministic analysis of the same arguments run again — and the
 IDs of the obligations a person approved from it. The output is a unified diff adding one test per
 obligation to the end of the test file named for the changed module — one among the obligation's
-candidate tests first — or creating that file in the first test root. Nothing is written here:
-the patch is what the person reviews before `git apply`. Each test fails until it is written, as
-an IDE's generated test does, so an approved obligation cannot pass unwritten.
+candidate tests first — or creating that file beside the obligation's first candidate test, or in
+the first test root without one. Nothing is written here: the patch is what the person reviews
+before `git apply`. Each test fails until it is written, as an IDE's generated test does, so an
+approved obligation cannot pass unwritten.
 
 A saved analysis is untrusted input data, as a baseline is: bounded, parsed with the standard
 library, and validated field by field, as one run again is too. Its text reaches the generated code
@@ -382,29 +383,64 @@ class _Target:
 
 
 class _Placement:
-    """Where each approved obligation's skeleton goes, read from the head commit in two batches."""
+    """Where each approved obligation's skeleton goes, read from the head commit in few batches."""
 
     def __init__(
         self,
         repo: GitRepository,
         head_commit: str,
         config: WeaverConfig,
-        wanted: dict[str, tuple[str, ...]],
+        placements: list[tuple[_Obligation, str]],
     ) -> None:
+        self._repo = repo
+        self._head_commit = head_commit
         self._config = config
         self._roots = config.paths.test_roots
-        names = {name for item in wanted.values() for name in item}
+        self._names = {
+            _module_stem(source): _test_file_names(_module_stem(source)) for _, source in placements
+        }
+        names = {name for item in self._names.values() for name in item}
         tracked = [
             path for path in repo.list_files(head_commit) if PurePosixPath(path).name in names
         ]
-        entries = repo.tree_entries(
-            head_commit, [*tracked, *(_new_path(self._roots, item) for item in wanted)]
+        # A path the mandatory exclusions refuse, such as one under `.git`, is not even looked up.
+        candidates = {
+            item.path
+            for obligation, _ in placements
+            for item in obligation.candidate_existing_tests
+            if not exclusion_reason(item.path)
+        }
+        self._files = self._read([*tracked, *sorted(candidates)])
+        # One new file per module, where the first of its obligations would put it: two files of
+        # one basename in two directories would make pytest refuse the second outside packages.
+        self._new_paths: dict[str, str] = {}
+        for obligation, source in placements:
+            stem = _module_stem(source)
+            if stem not in self._new_paths:
+                self._new_paths[stem] = _new_path(self._beside(obligation) or self._roots[0], stem)
+        # Listing files names no directory, so one standing where a new file would go is asked for.
+        self._files.update(
+            self._read([path for path in self._new_paths.values() if path not in self._files])
         )
-        texts = repo.read_blob_objects(
+
+    def _read(self, paths: list[str]) -> dict[str, _File]:
+        if not paths:
+            return {}
+        entries = self._repo.tree_entries(self._head_commit, paths)
+        texts = self._repo.read_blob_objects(
             {entry.object_id for entry in entries.values() if entry.mode in REGULAR_FILE_MODES},
-            config.rules.max_file_bytes,
+            self._config.rules.max_file_bytes,
         )
-        self._files = {path: self._file(path, entry, texts) for path, entry in entries.items()}
+        return {path: self._file(path, entry, texts) for path, entry in entries.items()}
+
+    def _beside(self, obligation: _Obligation) -> str | None:
+        """The directory of the obligation's first candidate test that is a test file here: one
+        under a test root or defining a test, readable, and neither excluded nor a link."""
+        for candidate in obligation.candidate_existing_tests:
+            item = self._files.get(candidate.path)
+            if item is not None and item.unusable is None and item.is_test:
+                return PurePosixPath(item.path).parent.as_posix()
+        return None
 
     def _file(self, path: str, entry: GitTreeEntry, texts: dict[str, str | None]) -> _File:
         text = texts.get(entry.object_id) if entry.mode in REGULAR_FILE_MODES else None
@@ -427,10 +463,10 @@ class _Placement:
             unusable = f"{shown} is not UTF-8 text within the file size limit"
         return _File(path, text, is_test, unusable)
 
-    def target(
-        self, source_path: str, names: tuple[str, ...], obligation: _Obligation
-    ) -> tuple[str, str | None] | str:
+    def target(self, source_path: str, obligation: _Obligation) -> tuple[str, str | None] | str:
         """The test file and its head text (`None` for a new one), or why there is none."""
+        stem = _module_stem(source_path)
+        names = self._names[stem]
         existing = [
             item
             for item in self._files.values()
@@ -453,10 +489,12 @@ class _Placement:
             # Another file of the same name beside it would make pytest import two modules of one
             # basename, which it refuses outside packages.
             return f"its test file {existing[0].unusable}"
-        # Whatever the new path holds already is among `existing`: its name is one of `names`.
-        path = _new_path(self._roots, _module_stem(source_path))
+        path = self._new_paths[stem]
         if not SAFE_PATH_RE.fullmatch(path):
             return f"its new test file {_escaped(path)} is not a path a patch names as it is"
+        if path in self._files:
+            # Beside a candidate outside the test roots, a production module can bear the name.
+            return f"{path} exists and is not a test file a skeleton can be added to"
         return path, None
 
 
@@ -464,8 +502,8 @@ def _safe_stem(stem: str) -> str:
     return stem if SAFE_STEM_RE.fullmatch(stem) else "_".join(_words(stem)) or "init"
 
 
-def _new_path(roots: list[str], stem: str) -> str:
-    return (PurePosixPath(roots[0]) / f"test_{_safe_stem(stem)}.py").as_posix()
+def _new_path(directory: str, stem: str) -> str:
+    return (PurePosixPath(directory) / f"test_{_safe_stem(stem)}.py").as_posix()
 
 
 def _test_file_names(stem: str) -> tuple[str, ...]:
@@ -780,15 +818,13 @@ def generate_skeletons(arguments: dict[str, Any]) -> dict[str, Any]:
         for item in obligations
     }
     sources = {item.id: linked[item.id][0].evidence[0].path for item in obligations}
-    wanted = {
-        stem: _test_file_names(stem) for stem in {_module_stem(path) for path in sources.values()}
-    }
-    placement = _Placement(repo, head_commit, config, wanted)
+    placement = _Placement(
+        repo, head_commit, config, [(item, sources[item.id]) for item in obligations]
+    )
     targets: dict[str, _Target] = {}
     skipped: list[SkippedObligation] = []
     for obligation in obligations:
-        source = sources[obligation.id]
-        chosen = placement.target(source, wanted[_module_stem(source)], obligation)
+        chosen = placement.target(sources[obligation.id], obligation)
         if isinstance(chosen, str):
             skipped.append(SkippedObligation(obligation_id=obligation.id, reason=chosen))
             continue

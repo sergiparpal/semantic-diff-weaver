@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **Fix:** a test skeleton for a module without a test file of its name now goes in a new file
+  beside the obligation's first candidate test, rather than in the first test root: where a
+  module's tests live in `tests/unit/`, its new `test_<module>.py` does too. A candidate places it
+  only if it is a test file at the analyzed commit, a module's obligations share one new file
+  whatever their candidates, and none overwrites a module already at that path. Without a
+  candidate, the first test root stands.
+
 ## 0.8.1 - 2026-11-01
 
 A packaging patch. A source distribution built from a working copy no longer carries Claude

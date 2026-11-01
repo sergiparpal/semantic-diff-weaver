@@ -296,3 +296,80 @@ def test_more_obligations_than_any_analysis_reports_are_refused(repo_factory, tm
     with pytest.raises(WeaverError) as caught:
         _generate(repo, _crafted(tmp_path, document))
     assert caught.value.code.value == "analysis_unreadable"
+
+
+def _candidate(path: str) -> dict[str, str]:
+    return {"path": path, "symbol": "<module>"}
+
+
+def test_a_module_gets_one_new_test_file_wherever_its_candidates_are(
+    repo_factory, tmp_path
+) -> None:
+    """Two files of one basename in two directories would make pytest refuse the second."""
+    repo, _, head = repo_factory(
+        {"src/shop/cart.py": CART},
+        {"tests/unit/test_a.py": TEST_CART, "tests/integration/test_b.py": TEST_CART},
+    )
+    document = _document(head, candidate_existing_tests=[_candidate("tests/unit/test_a.py")])
+    second = {
+        **document["test_obligations"][0],
+        "id": "to-002",
+        "candidate_existing_tests": [_candidate("tests/integration/test_b.py")],
+    }
+    document["test_obligations"].append(second)
+    result = generate_skeletons(
+        {
+            "repo_path": str(repo),
+            "analysis_path": str(_crafted(tmp_path, document)),
+            "obligation_ids": ["to-001", "to-002"],
+        }
+    )
+    assert [(item["obligation_id"], item["path"]) for item in result["skeletons"]] == [
+        ("to-001", "tests/unit/test_cart.py"),
+        ("to-002", "tests/unit/test_cart.py"),
+    ]
+
+
+def test_only_a_test_file_outside_the_test_roots_places_a_new_one(repo_factory, tmp_path) -> None:
+    """A colocated test places the new file beside it; a production module named so does not."""
+    colocated = "def test_checkout():\n    assert True\n"
+    helper = "def helper():\n    return 1\n"
+    repo, _, head = repo_factory(
+        {"src/shop/cart.py": CART},
+        {"src/shop/test_checkout.py": colocated, "src/billing/test_invoice.py": helper},
+    )
+    beside = _document(head, candidate_existing_tests=[_candidate("src/shop/test_checkout.py")])
+    result = _generate(repo, _crafted(tmp_path, beside))
+    assert [item["path"] for item in result["skeletons"]] == ["src/shop/test_cart.py"]
+    production = _document(
+        head, candidate_existing_tests=[_candidate("src/billing/test_invoice.py")]
+    )
+    result = _generate(repo, _crafted(tmp_path, production))
+    assert [item["path"] for item in result["skeletons"]] == ["tests/test_cart.py"]
+
+
+def test_a_new_file_beside_a_candidate_never_overwrites_a_module(repo_factory, tmp_path) -> None:
+    colocated = "def test_checkout():\n    assert True\n"
+    helper = "def helper():\n    return 1\n"
+    repo, _, head = repo_factory(
+        {"src/shop/cart.py": CART},
+        {"src/shop/test_checkout.py": colocated, "src/shop/test_cart.py": helper},
+    )
+    document = _document(head, candidate_existing_tests=[_candidate("src/shop/test_checkout.py")])
+    result = _generate(repo, _crafted(tmp_path, document))
+    assert result["skipped"] == [
+        {
+            "obligation_id": "to-001",
+            "reason": "src/shop/test_cart.py exists and is not a test file a skeleton can be "
+            "added to",
+        }
+    ]
+
+
+def test_a_candidate_under_version_control_metadata_is_never_looked_up(
+    repo_factory, tmp_path
+) -> None:
+    repo, _, head = repo_factory({"src/shop/cart.py": CART}, {"README.md": "x\n"})
+    document = _document(head, candidate_existing_tests=[_candidate(".git/test_cart.py")])
+    result = _generate(repo, _crafted(tmp_path, document))
+    assert [item["path"] for item in result["skeletons"]] == ["tests/test_cart.py"]
