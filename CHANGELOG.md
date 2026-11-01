@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.8.1 - 2026-11-01
+
+A packaging patch. A source distribution built from a working copy no longer carries Claude
+Code's per-user `.claude/settings.local.json`, and the artifact check rejects one that does;
+hatchling, the build backend, moves to 1.33.0, which packages the same files. The package, its
+two tools, the CLI, schema 1.2, and every output are unchanged.
 
 - **Fix:** a source distribution built from a working copy no longer carries Claude Code's
   per-user `.claude/settings.local.json`. Hatchling honors the project's `.gitignore` but not a
