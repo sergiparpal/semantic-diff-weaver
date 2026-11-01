@@ -1,6 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.7.0 - 2026-11-01
+
+Test skeletons for approved obligations. The new `skeletons` subcommand reads an analysis saved
+with `--format json` or `both` and prints a patch adding a failing pytest or unittest test for
+each obligation the user names, at the end of the changed module's test file or in that file
+created in the first test root; the user reviews the patch and applies it, and nothing is
+written. A minor release for the new subcommand and the new, additive `analysis_unreadable`
+error code. The analysis command, its schema 1.2, and every output of an analysis are
+unchanged. The decision is recorded in `docs/decisions.md`.
 
 - **Feature:** test skeletons for approved obligations. `semantic-diff-weaver skeletons --analysis
   analysis.json --obligation to-001` reads an analysis saved with `--format json` or `both` and

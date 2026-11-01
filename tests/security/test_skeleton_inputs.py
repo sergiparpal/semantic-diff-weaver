@@ -248,11 +248,17 @@ def test_a_branch_named_like_the_head_commit_does_not_stand_in_for_it(
     repo_factory, tmp_path
 ) -> None:
     repo, base, _ = repo_factory({"src/shop/cart.py": CART}, {"tests/test_cart.py": TEST_CART})
-    named = "c" * 40
+    named = "c" * 64
     git(repo, "branch", named, base)
+    if len(base) == 40:
+        # Sixty-four digits name no object of a SHA-1 repository, so Git resolves the branch, and
+        # only comparing the commit it returns with the one the analysis names refuses it. Forty
+        # would be read as an object ID, and fail to resolve before that comparison.
+        assert git(repo, "rev-parse", "--verify", f"{named}^{{commit}}") == base
     with pytest.raises(WeaverError) as caught:
         _generate(repo, _crafted(tmp_path, _document(named)))
     assert caught.value.code.value == "invalid_ref"
+    assert caught.value.safe_message == "The analysis's head commit is not in this repository."
 
 
 def test_the_analysis_is_bounded_by_the_baseline_limit(repo_factory, tmp_path) -> None:

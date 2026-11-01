@@ -206,6 +206,30 @@ def test_the_cli_prints_the_patch_and_writes_nothing(repo_factory, tmp_path, cap
     _apply(repo, captured.out)
 
 
+def test_the_cli_writes_a_warning_to_stderr_beside_the_patch(
+    repo_factory, tmp_path, capsys
+) -> None:
+    repo, path, analysis = _analyzed(repo_factory, tmp_path, {"tests/test_cart.py": TEST_CART})
+    (repo / "README.md").write_text("later\n", encoding="utf-8")
+    git(repo, "add", "README.md")
+    git(repo, "commit", "-q", "-m", "later")
+    arguments = ["skeletons", "--repo", str(repo), "--analysis", str(path)]
+    code = main([*arguments, "--obligation", _ids(analysis)[0]])
+    captured = capsys.readouterr()
+    assert code == EXIT_SUCCESS
+    assert captured.err.startswith("semantic-diff-weaver: The analysis is of commit ")
+    assert captured.out.startswith("diff --git a/tests/test_cart.py b/tests/test_cart.py\n")
+
+
+def test_the_cli_never_widens_an_operators_roots(repo_factory, tmp_path, capsys) -> None:
+    """The suite's autouse fixture sets the roots, as an operator would."""
+    repo, path, analysis = _analyzed(repo_factory, tmp_path, {"tests/test_cart.py": TEST_CART})
+    arguments = ["skeletons", "--repo", str(repo), "--analysis", str(path)]
+    code = main([*arguments, "--obligation", _ids(analysis)[0], "--allow-root", str(tmp_path)])
+    assert code == EXIT_ARGUMENT_ERROR
+    assert "--allow-root cannot widen" in capsys.readouterr().err
+
+
 def test_the_cli_prints_the_json_result_on_request(repo_factory, tmp_path, capsys) -> None:
     repo, path, analysis = _analyzed(repo_factory, tmp_path, {"tests/test_cart.py": TEST_CART})
     arguments = ["skeletons", "--repo", str(repo), "--analysis", str(path), "--format", "json"]

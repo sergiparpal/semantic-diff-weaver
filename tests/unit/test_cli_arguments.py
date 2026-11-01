@@ -7,6 +7,7 @@ These cover the bounds and defensive arms that an end-to-end run does not reach:
 from __future__ import annotations
 
 import argparse
+import io
 
 import pytest
 
@@ -95,3 +96,10 @@ def test_use_utf8_leaves_a_stream_that_cannot_be_reconfigured_alone() -> None:
             return len(text)
 
     cli.use_utf8(Plain())  # must not raise
+
+
+def test_a_patch_goes_to_a_stream_without_a_byte_buffer_as_text() -> None:
+    """A stream with a buffer gets the patch's bytes; one without, as this, its text."""
+    stream = io.StringIO()
+    cli._write_patch("diff --git a/x.py b/x.py\n", stream)
+    assert stream.getvalue() == "diff --git a/x.py b/x.py\n"
