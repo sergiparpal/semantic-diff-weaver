@@ -1,6 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.8.0 - 2026-11-01
+
+Test skeletons as a tool. `generate_test_skeletons` joins `analyze_semantic_diff` on the Hermes
+plugin and the MCP server: given the IDs of the obligations the user approved, it returns the
+patch of failing tests the `skeletons` subcommand prints, and never applies it. It names the
+analysis by the analysis tool's own arguments, analyzing again without inference so a brief's
+IDs carry over, or by `analysis_path` for a saved one. A minor release for the new tool; the
+analysis tool, its schema 1.2, and every output of an analysis are unchanged. The decision is
+recorded in `docs/decisions.md`.
 
 - **Feature:** the `generate_test_skeletons` tool, served by the Hermes plugin and the MCP server
   beside `analyze_semantic_diff`. It is the `skeletons` subcommand as a tool: given the IDs of the
