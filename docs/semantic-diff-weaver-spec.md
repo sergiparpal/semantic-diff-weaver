@@ -400,7 +400,7 @@ The future tools are explicitly outside the MVP.
 
 ```json
 {
-  "schema_version": "1.3",
+  "schema_version": "1.4",
   "analysis_id": "sdw_01J...",
   "repository": {
     "path": ".",
@@ -916,8 +916,10 @@ Hermes plugin.
 - Optional composition with test history and coverage history. *Partly:* an ingested coverage.py
   JSON or lcov report grounds candidate coverage, and the commits up to the base say which test
   files kept changing with a module; coverage across runs is not read.
-- Improved cross-file change grouping. *Partly:* a function moved between two files that both
-  remain is matched as a move; findings are still grouped per symbol.
+- Improved cross-file change grouping. *Done:* `change_groups` holds the findings of different files
+  that calls connect, and a change to a module-level variable with the changed code that reads it,
+  in its module or through an import; a function moved between two files that both remain is matched
+  as a move. An API schema's operations and configuration keys are in no group.
 
 ### v0.3 — Test skeleton generation (done)
 

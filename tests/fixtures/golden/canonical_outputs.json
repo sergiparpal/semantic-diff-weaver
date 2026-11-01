@@ -67,7 +67,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.3",
+    "schema_version": "1.4",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -184,7 +184,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.3",
+    "schema_version": "1.4",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -315,7 +315,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.3",
+    "schema_version": "1.4",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -446,7 +446,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.3",
+    "schema_version": "1.4",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -595,7 +595,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.3",
+    "schema_version": "1.4",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -742,7 +742,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.3",
+    "schema_version": "1.4",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -873,7 +873,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.3",
+    "schema_version": "1.4",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -1061,7 +1061,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.3",
+    "schema_version": "1.4",
     "scope": {
       "analyzed_files": [
         "src/bad.py",
@@ -1234,7 +1234,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.3",
+    "schema_version": "1.4",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -1310,7 +1310,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.3",
+    "schema_version": "1.4",
     "scope": {
       "analyzed_files": [
         "src/new.py",
@@ -1375,7 +1375,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.3",
+    "schema_version": "1.4",
     "scope": {
       "analyzed_files": [],
       "changed_files_total": 1,
@@ -1473,7 +1473,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.3",
+    "schema_version": "1.4",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -1605,7 +1605,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.3",
+    "schema_version": "1.4",
     "scope": {
       "analyzed_files": [
         "critical.py"
@@ -1795,7 +1795,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.3",
+    "schema_version": "1.4",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -1944,7 +1944,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.3",
+    "schema_version": "1.4",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -2077,7 +2077,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.3",
+    "schema_version": "1.4",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -2185,7 +2185,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.3",
+    "schema_version": "1.4",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -2288,7 +2288,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.3",
+    "schema_version": "1.4",
     "scope": {
       "analyzed_files": [
         "src/case.py"

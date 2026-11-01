@@ -102,8 +102,13 @@ def _locator(paths: Iterable[str], roots: frozenset[str]) -> dict[str, str]:
 
 def _closure(node: Node, edges: Mapping[Node, Iterable[Node]]) -> frozenset[Node]:
     """`node` and everything its edges lead to, transitively."""
-    seen = {node}
-    pending = [node]
+    return _closure_of((node,), edges)
+
+
+def _closure_of(nodes: Iterable[Node], edges: Mapping[Node, Iterable[Node]]) -> frozenset[Node]:
+    """`nodes` and everything their edges lead to, transitively, in one walk."""
+    seen = set(nodes)
+    pending = list(seen)
     while pending:
         for following in edges.get(pending.pop(), ()):
             if following not in seen:
@@ -230,6 +235,8 @@ class CallGraph:
         self._reaching: dict[Node, frozenset[Node]] = {}
         self._callers: dict[Node, frozenset[Node]] = {}
         self._calling: dict[Node, set[Node]] | None = None
+        self._variables: dict[str, tuple[str, str] | None] = {}
+        self._readers: dict[tuple[str, str], set[Node]] | None = None
 
     def defines(self, node: Node) -> bool:
         """Whether a symbol is one of the indexed modules' own."""
@@ -350,6 +357,61 @@ class CallGraph:
         if target is None or hops >= MAX_REEXPORT_HOPS:
             return frozenset()
         return self._find_contents(target, hops + 1)
+
+    def variable(self, dotted: str) -> tuple[str, str] | None:
+        """The module-level variable an absolute dotted name names, or reads an attribute of:
+        `shop.limits.RETRY_CODES.count` reads `RETRY_CODES`. Followed through re-exporting
+        imports like `resolve`; a name a module also defines a symbol by is the symbol's."""
+        if dotted not in self._variables:
+            self._variables[dotted] = self._find_variable(dotted, 0)
+        return self._variables[dotted]
+
+    def _find_variable(self, dotted: str, hops: int) -> tuple[str, str] | None:
+        located = self.locate(dotted)
+        if located is None or not located[1]:
+            return None
+        path, (name, *attributes) = located
+        module = self.modules[path]
+        if name in module.symbols:
+            return None
+        if name in module.variables:
+            return path, name
+        target = module.imports.get(name)
+        if target is None or hops >= MAX_REEXPORT_HOPS:
+            return None
+        return self._find_variable(".".join([target, *attributes]), hops + 1)
+
+    def readers(self, path: str, variable: str) -> frozenset[Node]:
+        """Every symbol whose code reads a module-level variable: by name in its own module, or
+        through an import of the variable or of its module, unless the symbol binds that name
+        itself. A module's top-level code is no reader: loading it hands no one what it reads.
+        """
+        if self._readers is None:
+            self._readers = defaultdict(set)
+            for module_path, module in self.modules.items():
+                for qualified, item in module.symbols.items():
+                    if qualified == "<module>":
+                        continue
+                    for found in self._read(module_path, module, item):
+                        self._readers[found].add((module_path, qualified))
+        return frozenset(self._readers.get((path, variable), ()))
+
+    def _read(
+        self, path: str, module: ModuleReferences, item: SymbolReferences
+    ) -> Iterable[tuple[str, str]]:
+        """The module-level variables a symbol's code reads, wherever they are defined."""
+        for name in item.names - item.bound:
+            if name in module.variables and name not in module.symbols:
+                yield path, name
+            elif (target := module.imports.get(name)) and (found := self.variable(target)):
+                yield found
+        for chain in item.dotted:
+            # `limits.RETRY_CODES`, with `limits` an imported module, or one of its attributes.
+            root, _, rest = chain.partition(".")
+            if root in item.bound or not (target := module.imports.get(root)):
+                continue
+            if found := self.variable(f"{target}.{rest}"):
+                yield found
 
     def _holding(self, path: str, variable: str) -> frozenset[Node]:
         """The classes whose instances a module-level variable holds."""
@@ -555,14 +617,23 @@ class CallGraph:
         Loading `dii/__init__.py` makes its `_store`, which hands no one an instance: code
         holds one only through a call that makes or returns it, or by reading the variable.
         """
+        if node not in self._callers:
+            self._callers[node] = _closure(node, self._calls())
+        return self._callers[node]
+
+    def reading(self, path: str, variable: str) -> frozenset[Node]:
+        """Every symbol from which code reading a module-level variable is reached through calls,
+        that code included, in one walk however many symbols read it."""
+        return _closure_of(self.readers(path, variable), self._calls())
+
+    def _calls(self) -> dict[Node, set[Node]]:
+        """Each symbol, to the symbols whose code calls or names it, top-level code left out."""
         if self._calling is None:
             self._calling = {
                 target: {user for user in found if user[1] != "<module>"}
                 for target, found in self._users.items()
             }
-        if node not in self._callers:
-            self._callers[node] = _closure(node, self._calling)
-        return self._callers[node]
+        return self._calling
 
 
 def build_call_graph(

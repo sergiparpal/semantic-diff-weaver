@@ -178,6 +178,44 @@ def test_a_method_records_apart_what_it_reads_on_its_own_instance() -> None:
     assert symbols["free"].attributes == {"loose"}
 
 
+def test_a_symbol_records_the_names_it_binds_itself_unless_declared_global() -> None:
+    """A local `config` is no module's `config`; one written under `global` is the module's."""
+    source = (
+        "def build(order, *extra, limit=LIMIT, **options):\n"
+        "    global COUNTER\n"
+        "    COUNTER += 1\n"
+        "    config = load(order)\n"
+        "    for item in ITEMS:\n"
+        "        pass\n"
+        "    with open(PATH) as handle:\n"
+        "        pass\n"
+        "    try:\n"
+        "        pass\n"
+        "    except Error as failure:\n"
+        "        pass\n"
+        "    names = [name for name in NAMES]\n"
+        "    return (size := len(config)), TIMEOUT\n"
+        "class Box:\n"
+        "    width = WIDTH\n"
+    )
+    symbols = module_references(source, package="pkg").symbols
+    assert symbols["build"].bound == {
+        "order",
+        "extra",
+        "limit",
+        "options",
+        "config",
+        "item",
+        "handle",
+        "failure",
+        "names",
+        "name",
+        "size",
+    }
+    assert {"COUNTER", "LIMIT", "ITEMS", "PATH", "NAMES", "TIMEOUT"} <= symbols["build"].names
+    assert symbols["Box"].bound == {"width"}
+
+
 def test_a_module_records_what_each_of_its_variables_holds() -> None:
     """A variable holds what its value is, not every name in it: `JsonStore(path)` is a store.
 

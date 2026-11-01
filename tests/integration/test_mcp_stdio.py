@@ -143,7 +143,7 @@ def test_the_default_result_is_the_plain_markdown_brief(repo_factory, tmp_path) 
     assert "**Overall risk:**" in text
     # Multi-line, so a host that saves an oversized result to a file can page through it.
     assert text.count("\n") > 5
-    assert re.search(r"<!-- analysis_id=sdw_[A-Za-z0-9_-]+ schema_version=1\.3 -->\n\Z", text)
+    assert re.search(r"<!-- analysis_id=sdw_[A-Za-z0-9_-]+ schema_version=1\.4 -->\n\Z", text)
 
 
 def test_a_session_scaffolds_the_obligations_a_brief_listed(repo_factory, tmp_path) -> None:

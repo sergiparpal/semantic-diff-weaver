@@ -50,7 +50,7 @@ from .path_policy import (
 from .renderer import render_transport
 from .schema_diff import DocumentAnalysis, analyze_schemas, analyze_settings
 from .scoring import advisory_verdict, confidence_score, score_risk
-from .semantic_candidates import SemanticCandidate, build_candidates
+from .semantic_candidates import SemanticCandidate, build_candidates, evidence_identity
 from .semantic_interpreter import InterpreterResult, interpret_candidates
 from .test_mapper import TestIndex, build_test_index, defines_tests, map_candidate_tests
 from .textutil import canonical_phrase
@@ -735,18 +735,13 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
     )
     state.warnings.extend(test_index.warnings)
     # Tests are followed into the code they reach, and the findings of two Python symbols or more
-    # are grouped by which reaches which: either needs the graph. A synthetic symbol, `<module>`
-    # or `<unparsed>`, is no code a call reaches.
-    connectable = (
-        len(
-            {
-                (item.candidate.path, item.candidate.symbol)
-                for item in reportable
-                if item.candidate.path.endswith(".py") and not item.candidate.symbol.startswith("<")
-            }
-        )
-        > 1
-    )
+    # are grouped by which reaches which, as are those of a symbol and of the top-level code
+    # writing a variable it may read: either needs the graph. A synthetic symbol, `<module>` or
+    # `<unparsed>`, is no code a call reaches.
+    python = [item.candidate for item in reportable if item.candidate.path.endswith(".py")]
+    symbols = {(item.path, item.symbol) for item in python if not item.symbol.startswith("<")}
+    writing = {item.path for item in python if item.symbol == "<module>" and item.assigned_names}
+    connectable = bool(symbols) and len(symbols) + len(writing) > 1
     call_graph = (
         build_call_graph(
             repo,
@@ -868,7 +863,16 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
         limitations=limitations,
         coverage=coverage_summary,
         baseline=compare_with_baseline(baseline, behaviors) if baseline is not None else None,
-        change_groups=group_changes(behaviors, call_graph),
+        change_groups=group_changes(
+            behaviors,
+            call_graph,
+            {
+                behavior.id: item.candidate.assigned_names
+                for behavior, item in zip(behaviors, reportable, strict=True)
+                # The names are of the module the finding's first evidence is about.
+                if evidence_identity(behavior.evidence) == (item.candidate.path, "<module>")
+            },
+        ),
         llm=interpreted.status if deterministic else LlmStatus(),
         deterministic_mode=fallback_mode or partial_fallback,
     )

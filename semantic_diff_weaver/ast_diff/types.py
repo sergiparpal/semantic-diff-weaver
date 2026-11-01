@@ -102,6 +102,9 @@ class SymbolReferences:
     # The names and attribute chains in a function's return annotation: whoever calls it
     # holds an instance of the class it returns.
     returns: frozenset[str] = frozenset()
+    # The names its code binds itself — parameters, assignment targets, and caught exceptions —
+    # unless it declares them `global`: a local `config` is no module's `config`.
+    bound: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
