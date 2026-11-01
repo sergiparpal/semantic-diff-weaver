@@ -1,6 +1,6 @@
 ---
 name: semantic-diff
-description: Review the behavioral meaning of a committed Python change and plan regression tests with the read-only analyze_semantic_diff tool, then scaffold failing tests for the obligations the user approves with generate_test_skeletons. Use when the user asks what a diff, branch, or pull request changes in behavior, how risky it is, what to test before merging, or to scaffold those tests.
+description: Review the behavioral meaning of a committed change to Python code or to API schemas (OpenAPI, Swagger, JSON Schema) and plan regression tests with the read-only analyze_semantic_diff tool, then scaffold failing tests for the obligations the user approves with generate_test_skeletons. Use when the user asks what a diff, branch, or pull request changes in behavior, how risky it is, what to test before merging, or to scaffold those tests.
 ---
 
 # Semantic diff review
@@ -21,7 +21,8 @@ imports, executes, builds, or modifies the repository.
    revisions as they stand: the tool diffs the two trees directly, so commits the base gained
    after the work branched off would read as reverted by it. None of this needs a `git fetch`.
    Say which base and merge-base commit you used. Only *committed* changes are analyzed: if
-   `git status` shows uncommitted edits to Python files, say that they are not included.
+   `git status` shows uncommitted edits to Python files or API schemas, say that they are
+   not included.
 2. **Call the tool** with `repo_path` set to the project directory (`.` works), `base_ref`,
    and `head_ref`, and leave `output_format` unset. The default is the Markdown brief: every
    finding and obligation with its ID, at about half the size of the JSON. When a large brief

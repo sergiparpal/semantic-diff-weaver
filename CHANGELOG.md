@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- **Feature:** API schemas are analyzed beside Python. A changed YAML or JSON file whose root
+  says it is an OpenAPI 3, Swagger 2, or JSON Schema document is compared operation by operation
+  and keyword by keyword — operations, parameters, request bodies, responses, media types,
+  security, servers, and the schema keywords that decide what is accepted or returned — and each
+  change is classified by whether it is part of a request, a response, or a reusable schema. An
+  operation's candidate tests are the tests that request its route. Every other YAML or JSON file
+  is counted as `not_api_schema`, and one that cannot be read as `unreadable_document`, neither of
+  which keeps an analysis from passing; a schema that does not parse is a finding, and does. The
+  default `include` gains `**/*.yaml`, `**/*.yml`, and `**/*.json`, and
+  `rules.analyze_api_schemas: false` turns the comparison off. Schema 1.2 is unchanged; the
+  limitation for a diff with nothing to analyze now says "no included changed Python source or API
+  schema", and the brief's line for no finding no longer says Python.
+
 ## 0.8.2 - 2026-11-01
 
 Test skeletons beside their candidates. A module without a test file of its name now gets its

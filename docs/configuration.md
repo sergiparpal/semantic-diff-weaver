@@ -15,7 +15,7 @@ version: 1
 language:
   primary: python
 paths:
-  include: ["**/*.py"]
+  include: ["**/*.py", "**/*.yaml", "**/*.yml", "**/*.json"]
   exclude: ["**/migrations/**", "**/generated/**", "**/vendor/**"]
   test_roots: ["tests"]
 critical_paths: []
@@ -36,6 +36,7 @@ rules:
   refactor_materiality_threshold: 0.25
   emit_low_risk_refactors: false
   analyze_test_files: false
+  analyze_api_schemas: true
   deterministic_fallback: true
 mapping: []
 privacy:
@@ -112,6 +113,44 @@ either one emits a warning and uses `mapping_incomplete` when no candidate is fo
 Path-pattern strings are limited to 512 characters. Include, exclude, test-root, critical-path, and
 mapping collections have immutable item-count limits so repository configuration cannot create an
 unbounded glob-matching workload.
+
+## API schemas
+
+A changed `.yaml`, `.yml`, or `.json` file is read whole, and compared as an API schema when
+either revision's root says it is one:
+
+| Document | Its root |
+| --- | --- |
+| OpenAPI 3 | `openapi: 3.x`, with `paths`, `components`, or `webhooks` |
+| Swagger 2 | `swagger: "2.0"`, with `paths` or `definitions` |
+| JSON Schema | a `$schema` naming a `json-schema.org` meta-schema or the OpenAPI 3.1 dialect |
+
+The content decides, not the name, and a configuration file that names the schema validating it
+in its `$schema`, as `tsconfig.json` does, is no schema. Every other file is counted as
+`not_api_schema`, and one that cannot be read as bounded text — larger than
+`rules.max_file_bytes`, not UTF-8, or a symbolic link — as `unreadable_document`. Neither marks
+scope truncated: most changed YAML and JSON files are lockfiles, manifests, and data, and whether
+an unread one was a schema cannot be told. A schema that does not parse within its budgets is
+different: when its text opens with a schema's key and version, it is a finding of its own,
+counted as `parse_incomplete_documents`, and the analysis is truncated.
+
+Documents are read apart from Python source, under ceilings of their own that configuration
+cannot raise: at most 200 changed YAML and JSON files, critical paths first, and 64 MiB of base and
+head text in all. Those past either are omitted as `document_limit`, which truncates the analysis.
+Parsing allows a document 200,000 nodes, a depth of 64, and 100 YAML aliases, and the comparison of
+one document stops at 500 changes, as `schema_delta_limit`.
+
+`paths.include` narrows documents as it narrows Python: an include of `src/**/*.py` alone analyzes
+no schema and counts each as `path_filter`, so name the schemas too, as `api/openapi.yaml`. A
+document under a `test_roots` entry is a fixture, left out as `test_file`.
+`rules.analyze_api_schemas: false` turns the comparison off, and YAML and JSON files are then
+`unsupported_extension`, as every file that is not Python was before.
+
+A change to an operation maps to the tests that request its route: a test whose string literals,
+or those of the same-file helpers it calls, write out a path the route template matches after any
+base path, and more strongly one that also calls the operation's method by name, as
+`client.delete(...)`. A change to a reusable schema gets no candidate test, since `$ref` is never
+followed to the operations that use it.
 
 ## Coverage grounding
 

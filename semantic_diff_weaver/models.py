@@ -141,8 +141,10 @@ class LanguageConfig(StrictModel):
 
 
 class PathsConfig(StrictModel):
+    # Python source, and the YAML and JSON an API schema can be written in: whether one is,
+    # its content decides. A narrower include narrows both.
     include: Annotated[list[RelativePattern], Field(min_length=1, max_length=MAX_PATH_PATTERNS)] = (
-        Field(default_factory=lambda: ["**/*.py"])
+        Field(default_factory=lambda: ["**/*.py", "**/*.yaml", "**/*.yml", "**/*.json"])
     )
     exclude: Annotated[list[RelativePattern], Field(max_length=MAX_PATH_PATTERNS)] = Field(
         default_factory=lambda: ["**/migrations/**", "**/generated/**", "**/vendor/**"]
@@ -173,6 +175,9 @@ class RulesConfig(StrictModel):
     # Test code is not the behavior under review: analyzed, every changed test became a
     # finding with an obligation to test it. See `service._set_aside_test_modules`.
     analyze_test_files: bool = False
+    # A changed YAML or JSON file whose root is an OpenAPI or Swagger document or a JSON Schema
+    # is compared by its operations and schemas. See `schema_diff`.
+    analyze_api_schemas: bool = True
     deterministic_fallback: bool = True
 
 

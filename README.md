@@ -1,10 +1,11 @@
 # Semantic Diff Weaver
 
 Semantic Diff Weaver is an advisory, read-only reviewer for a bounded Git diff between two committed
-revisions. It statically extracts Python structural changes, infers evidence-backed behavior changes,
-ranks risk separately from confidence, and produces concrete test obligations plus unverified
-candidate existing tests. Run it from the command line, as a GitHub Action on pull requests, as
-a Hermes Agent plugin, or as a Claude Code plugin.
+revisions. It statically extracts structural changes from Python source and from OpenAPI, Swagger,
+and JSON Schema documents, infers evidence-backed behavior changes, ranks risk separately from
+confidence, and produces concrete test obligations plus unverified candidate existing tests. Run it
+from the command line, as a GitHub Action on pull requests, as a Hermes Agent plugin, or as a Claude
+Code plugin.
 
 It never imports, executes, builds, installs, tests, or modifies the analyzed repository. It does not
 run your tests or measure coverage itself — it can *ingest* a coverage report your own CI already
@@ -397,6 +398,9 @@ rules:
   deterministic_fallback: true
 ```
 
+An `include` names everything that is analyzed, so this one also leaves out the repository's API
+schemas; name them too, as `"api/openapi.yaml"`, to keep them.
+
 Mandatory secret and control-directory exclusions cannot be disabled. Configuration cannot enable
 network access, code execution, or paths outside the repository boundary.
 
@@ -424,7 +428,8 @@ Hermes home and do not require a paid or live LLM.
 
 ## Limitations
 
-- Python source and common pytest/unittest layouts only.
+- Python source, OpenAPI 3, Swagger 2, and JSON Schema documents, and common pytest/unittest
+  layouts only; configuration files are not read for their meaning yet.
 - Committed base/head content only; staged and working-tree changes are outside the MVP.
 - Static candidate tests are not verified coverage: they are name and import matches, never a
   claim that a test asserts the changed behavior. This holds even with a coverage report

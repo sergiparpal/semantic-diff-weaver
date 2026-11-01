@@ -534,7 +534,350 @@ def _classify_decorator(
     )
 
 
+# A changed API schema, by its delta's kind. One change can narrow what a request may send — a
+# validation change — or alter what a response returns — an output contract change — so where
+# in the document it is decides: a parameter, a request body, or a standalone JSON Schema
+# validates input, while a response or a reusable component is what clients read.
+_VALIDATING_CONTEXTS = frozenset({"request", "schema"})
+_API_CLIENTS = "The API's clients are unavailable to static analysis."
+_SCHEMA_REFS = "References between schemas are compared as text and never resolved."
+_API_RULES: dict[str, Classification] = {
+    "document_parse_incomplete": (
+        BehaviorCategory.UNKNOWN,
+        "A changed API schema could not be parsed completely.",
+        "The operations and schemas it defines may have changed and need review.",
+        0.68,
+        ["Only the document's path is available because parsing failed."],
+        "SDW-RULE-SCHEMA-PARSE-INCOMPLETE",
+    ),
+    "api_operation_removed": (
+        BehaviorCategory.OUTPUT_CONTRACT,
+        "An API operation was removed.",
+        "Clients that call it now get an error instead of its response.",
+        0.86,
+        [_API_CLIENTS],
+        "SDW-RULE-API-OPERATION",
+    ),
+    "api_operation_added": (
+        BehaviorCategory.UNKNOWN,
+        "An API operation was added.",
+        "A new operation becomes reachable; its intended contract needs characterizing tests.",
+        0.58,
+        ["The intended contract of a new operation is unavailable to static analysis."],
+        "SDW-RULE-API-OPERATION",
+    ),
+    "api_parameter_removed": (
+        BehaviorCategory.VALIDATION,
+        "An API parameter was removed.",
+        "Requests that still pass it may be rejected or have it ignored.",
+        0.76,
+        [_API_CLIENTS],
+        "SDW-RULE-API-PARAMETER",
+    ),
+    "api_parameter_required_change": (
+        BehaviorCategory.VALIDATION,
+        "Whether an API parameter is required changed.",
+        "Requests that omit it are now rejected, or accepted where they were not.",
+        0.84,
+        [_API_CLIENTS],
+        "SDW-RULE-API-PARAMETER",
+    ),
+    "api_request_body_change": (
+        BehaviorCategory.VALIDATION,
+        "An API request body was added or removed.",
+        "Requests are accepted with a different body than before.",
+        0.78,
+        [_API_CLIENTS],
+        "SDW-RULE-API-REQUEST-BODY",
+    ),
+    "api_request_body_required_change": (
+        BehaviorCategory.VALIDATION,
+        "Whether an API request needs a body changed.",
+        "Requests without one are now rejected, or accepted where they were not.",
+        0.84,
+        [_API_CLIENTS],
+        "SDW-RULE-API-REQUEST-BODY",
+    ),
+    "api_response_added": (
+        BehaviorCategory.OUTPUT_CONTRACT,
+        "An API response was added.",
+        "Clients can now receive a response they do not handle.",
+        0.8,
+        [_API_CLIENTS],
+        "SDW-RULE-API-RESPONSE",
+    ),
+    "api_response_removed": (
+        BehaviorCategory.OUTPUT_CONTRACT,
+        "An API response was removed.",
+        "Clients that handle it no longer receive it, or receive another in its place.",
+        0.82,
+        [_API_CLIENTS],
+        "SDW-RULE-API-RESPONSE",
+    ),
+    "api_security_change": (
+        BehaviorCategory.AUTHORIZATION,
+        "The security an API requires changed.",
+        "Callers with the former credentials may now be denied, or callers without them allowed.",
+        0.86,
+        [_API_CLIENTS],
+        "SDW-RULE-API-SECURITY",
+    ),
+    "api_server_change": (
+        BehaviorCategory.OUTPUT_CONTRACT,
+        "Where the API is served from changed.",
+        "Clients built for the former address may no longer reach its operations.",
+        0.72,
+        [_API_CLIENTS],
+        "SDW-RULE-API-SERVER",
+    ),
+    "schema_required_change": (
+        BehaviorCategory.VALIDATION,
+        "Which schema properties are required changed.",
+        "Input that omits a newly required property is now rejected, or accepted where it was not.",
+        0.84,
+        [_SCHEMA_REFS],
+        "SDW-RULE-SCHEMA-REQUIRED",
+    ),
+    "schema_bound_change": (
+        BehaviorCategory.BOUNDARY,
+        "A schema bound changed.",
+        "Values at or past the bound are accepted or rejected differently.",
+        0.84,
+        [_SCHEMA_REFS],
+        "SDW-RULE-SCHEMA-BOUND",
+    ),
+    "schema_pattern_change": (
+        BehaviorCategory.VALIDATION,
+        "A schema's pattern or format changed.",
+        "Strings the former pattern or format accepted may be rejected, or the reverse.",
+        0.8,
+        [_SCHEMA_REFS],
+        "SDW-RULE-SCHEMA-PATTERN",
+    ),
+    "schema_default_change": (
+        BehaviorCategory.DEFAULT_BEHAVIOR,
+        "A schema default changed.",
+        "Input that omits the value gets the new default.",
+        0.84,
+        [_SCHEMA_REFS],
+        "SDW-RULE-SCHEMA-DEFAULT",
+    ),
+    "schema_keyword_change": (
+        BehaviorCategory.UNKNOWN,
+        "A schema keyword changed.",
+        "What the schema accepts or returns may have changed; the intended contract needs review.",
+        0.55,
+        [_SCHEMA_REFS],
+        "SDW-RULE-SCHEMA-KEYWORD",
+    ),
+}
+# Kinds that mean one thing for input and another for output: (validating, output-facing).
+_API_CONTEXT_RULES: dict[str, tuple[Classification, Classification]] = {
+    "api_media_type_added": (
+        (
+            BehaviorCategory.VALIDATION,
+            "An API request media type was added.",
+            "Requests can now be sent in a form the operation did not accept.",
+            0.74,
+            [_API_CLIENTS],
+            "SDW-RULE-API-MEDIA-TYPE",
+        ),
+        (
+            BehaviorCategory.OUTPUT_CONTRACT,
+            "An API response media type was added.",
+            "Clients can now receive the response in a form they did not.",
+            0.74,
+            [_API_CLIENTS],
+            "SDW-RULE-API-MEDIA-TYPE",
+        ),
+    ),
+    "api_media_type_removed": (
+        (
+            BehaviorCategory.VALIDATION,
+            "An API request media type was removed.",
+            "Requests sent in that form are now rejected.",
+            0.8,
+            [_API_CLIENTS],
+            "SDW-RULE-API-MEDIA-TYPE",
+        ),
+        (
+            BehaviorCategory.OUTPUT_CONTRACT,
+            "An API response media type was removed.",
+            "Clients that ask for that form no longer get it.",
+            0.8,
+            [_API_CLIENTS],
+            "SDW-RULE-API-MEDIA-TYPE",
+        ),
+    ),
+    "schema_property_removed": (
+        (
+            BehaviorCategory.VALIDATION,
+            "A schema property was removed from accepted input.",
+            "Input that still sends it may now be rejected or have it ignored.",
+            0.78,
+            [_SCHEMA_REFS],
+            "SDW-RULE-SCHEMA-PROPERTY",
+        ),
+        (
+            BehaviorCategory.OUTPUT_CONTRACT,
+            "A schema property was removed.",
+            "Consumers that read it no longer get it.",
+            0.84,
+            [_SCHEMA_REFS],
+            "SDW-RULE-SCHEMA-PROPERTY",
+        ),
+    ),
+    "schema_property_added": (
+        (
+            BehaviorCategory.VALIDATION,
+            "A schema property was added to accepted input.",
+            "Input can now carry it, and its value needs validating.",
+            0.62,
+            [_SCHEMA_REFS],
+            "SDW-RULE-SCHEMA-PROPERTY",
+        ),
+        (
+            BehaviorCategory.OUTPUT_CONTRACT,
+            "A schema property was added.",
+            "Output now carries a field consumers may not expect.",
+            0.62,
+            [_SCHEMA_REFS],
+            "SDW-RULE-SCHEMA-PROPERTY",
+        ),
+    ),
+    "schema_enum_change": (
+        (
+            BehaviorCategory.VALIDATION,
+            "The values a schema accepts changed.",
+            "Input with a value the enumeration gained or lost is accepted or rejected "
+            "differently.",
+            0.82,
+            [_SCHEMA_REFS],
+            "SDW-RULE-SCHEMA-ENUM",
+        ),
+        (
+            BehaviorCategory.OUTPUT_CONTRACT,
+            "The values a schema can carry changed.",
+            "Consumers can receive a value they do not handle, or stop receiving one they do.",
+            0.8,
+            [_SCHEMA_REFS],
+            "SDW-RULE-SCHEMA-ENUM",
+        ),
+    ),
+    "schema_type_change": (
+        (
+            BehaviorCategory.VALIDATION,
+            "The type a schema accepts changed.",
+            "Input of the former type may be rejected, or input of another type accepted.",
+            0.82,
+            [_SCHEMA_REFS],
+            "SDW-RULE-SCHEMA-TYPE",
+        ),
+        (
+            BehaviorCategory.OUTPUT_CONTRACT,
+            "A schema's type changed.",
+            "Consumers receive a value of another type than they parse.",
+            0.84,
+            [_SCHEMA_REFS],
+            "SDW-RULE-SCHEMA-TYPE",
+        ),
+    ),
+    "schema_ref_change": (
+        (
+            BehaviorCategory.VALIDATION,
+            "Input is now validated against another schema.",
+            "Input the former schema accepted may be rejected, or the reverse.",
+            0.72,
+            [_SCHEMA_REFS],
+            "SDW-RULE-SCHEMA-REF",
+        ),
+        (
+            BehaviorCategory.OUTPUT_CONTRACT,
+            "Output now follows another schema.",
+            "Consumers receive a value shaped by a schema they did not parse before.",
+            0.74,
+            [_SCHEMA_REFS],
+            "SDW-RULE-SCHEMA-REF",
+        ),
+    ),
+    "schema_removed": (
+        (
+            BehaviorCategory.VALIDATION,
+            "A schema that validated input was removed.",
+            "Input it constrained is checked differently, or not at all.",
+            0.76,
+            [_SCHEMA_REFS],
+            "SDW-RULE-SCHEMA-LIFECYCLE",
+        ),
+        (
+            BehaviorCategory.OUTPUT_CONTRACT,
+            "A schema was removed.",
+            "Output or references that used it no longer have its shape to rely on.",
+            0.8,
+            [_SCHEMA_REFS],
+            "SDW-RULE-SCHEMA-LIFECYCLE",
+        ),
+    ),
+}
+
+
+def _classify_api_schema(
+    delta: StructuralDelta, rules: RulesConfig, combined: str
+) -> Classification | None:
+    validating = delta.metadata.get("context") in _VALIDATING_CONTEXTS
+    if delta.kind in _API_CONTEXT_RULES:
+        for_input, for_output = _API_CONTEXT_RULES[delta.kind]
+        return for_input if validating else for_output
+    if delta.kind == "api_parameter_added":
+        if delta.metadata.get("required") is True:
+            return (
+                BehaviorCategory.VALIDATION,
+                "A required API parameter was added.",
+                "Requests that omit it are now rejected.",
+                0.82,
+                [_API_CLIENTS],
+                "SDW-RULE-API-PARAMETER",
+            )
+        return (
+            BehaviorCategory.DEFAULT_BEHAVIOR,
+            "An optional API parameter was added.",
+            "Requests that omit it should behave as before; those that pass it reach new behavior.",
+            0.62,
+            [_API_CLIENTS],
+            "SDW-RULE-API-PARAMETER",
+        )
+    if delta.kind == "schema_added":
+        if delta.metadata.get("context") == "request":
+            return (
+                BehaviorCategory.VALIDATION,
+                "A schema now validates API input.",
+                "Input it constrains is checked where it was not.",
+                0.74,
+                [_SCHEMA_REFS],
+                "SDW-RULE-SCHEMA-LIFECYCLE",
+            )
+        if delta.metadata.get("context") == "response":
+            return (
+                BehaviorCategory.OUTPUT_CONTRACT,
+                "An API response now has a schema.",
+                "Clients receive a value with a shape the operation did not declare.",
+                0.74,
+                [_SCHEMA_REFS],
+                "SDW-RULE-SCHEMA-LIFECYCLE",
+            )
+        return (
+            BehaviorCategory.UNKNOWN,
+            "A schema was added.",
+            "A new shape becomes available; its intended contract needs characterizing tests.",
+            0.55,
+            [_SCHEMA_REFS],
+            "SDW-RULE-SCHEMA-LIFECYCLE",
+        )
+    return _API_RULES.get(delta.kind)
+
+
 CLASSIFIERS: tuple[Classifier, ...] = (
+    _classify_api_schema,
     _classify_parse_incomplete,
     _classify_symbol_lifecycle,
     _classify_comparison,

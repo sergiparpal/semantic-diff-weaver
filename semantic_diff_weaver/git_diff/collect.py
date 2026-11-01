@@ -3,10 +3,17 @@
 from __future__ import annotations
 
 from collections import Counter
+from dataclasses import dataclass
 
 from ..errors import ErrorCode, WeaverError
 from ..models import WeaverConfig
-from ..path_policy import critical_weight, first_exclusion, is_included, is_test_support_path
+from ..path_policy import (
+    critical_weight,
+    first_exclusion,
+    in_test_root,
+    is_included,
+    is_test_support_path,
+)
 from ..source import SourceHunk
 from . import limits
 from .parse import parse_hunks, parse_hunks_by_path, parse_name_status, parse_numstat
@@ -142,13 +149,147 @@ def _resource_selection(
     return selected, omitted_counts, warnings
 
 
+@dataclass
+class _Reading:
+    """What reading changed blobs leaves to report: exclusions, omissions, and truncation."""
+
+    excluded: Counter[str]
+    omitted_counts: dict[str, int]
+    warnings: list[str]
+    truncated: bool = False
+
+
+def _read_texts(
+    repo: GitRepository,
+    base_commit: str,
+    head_commit: str,
+    changed_files: list[ChangedFile],
+    max_file_bytes: int,
+    max_total_bytes: int,
+    reading: _Reading,
+    *,
+    documents: bool = False,
+) -> list[ChangedFile]:
+    """Attach each file's base and head text, leaving out what cannot be read as bounded text.
+
+    A Python file that cannot be read leaves the analysis incomplete. A YAML or JSON one is
+    only `unreadable_document`: whether it was an API schema cannot be told unread, and most such
+    files are lockfiles and data, which would otherwise keep every analysis touching one from a
+    pass. Past the byte total, both are omitted scope.
+    """
+    base_entries = repo.tree_entries(
+        base_commit,
+        [
+            item.old_path
+            for item in changed_files
+            if item.old_path and not item.status.startswith("C")
+        ],
+    )
+    head_entries = repo.tree_entries(
+        head_commit, [item.new_path for item in changed_files if item.new_path]
+    )
+    object_ids = {
+        entry.object_id
+        for entries in (base_entries, head_entries)
+        for entry in entries.values()
+        if entry.mode not in {"120000", "160000"}
+    }
+    blob_batch = repo.read_blob_batch(object_ids, max_file_bytes, max_total_bytes=max_total_bytes)
+    read: list[ChangedFile] = []
+    for changed in changed_files:
+        is_copy = changed.status.startswith("C")
+        old_entry = base_entries.get(changed.old_path) if changed.old_path and not is_copy else None
+        new_entry = head_entries.get(changed.new_path) if changed.new_path else None
+        modes = {entry.mode for entry in (old_entry, new_entry) if entry is not None}
+        if modes & {"120000", "160000"}:
+            if documents:
+                reading.excluded["unreadable_document"] += 1
+            else:
+                reading.excluded["symlink_or_gitlink"] += 1
+            continue
+        changed.old_text = blob_batch.texts.get(old_entry.object_id) if old_entry else None
+        changed.new_text = blob_batch.texts.get(new_entry.object_id) if new_entry else None
+        if (changed.old_path and not is_copy and changed.old_text is None) or (
+            changed.new_path and changed.new_text is None
+        ):
+            failure_classes = {
+                blob_batch.failures.get(entry.object_id, "missing_or_not_blob")
+                for entry in (old_entry, new_entry)
+                if entry is not None and blob_batch.texts.get(entry.object_id) is None
+            }
+            if documents and "aggregate_source_limit" in failure_classes:
+                reading.omitted_counts["document_limit"] = (
+                    reading.omitted_counts.get("document_limit", 0) + 1
+                )
+                reading.truncated = True
+            elif documents:
+                reading.excluded["unreadable_document"] += 1
+            elif "binary" in failure_classes:
+                reading.excluded["binary"] += 1
+            elif "aggregate_source_limit" in failure_classes:
+                reading.excluded["aggregate_source_limit"] += 1
+                reading.omitted_counts["aggregate_source_limit"] = (
+                    reading.omitted_counts.get("aggregate_source_limit", 0) + 1
+                )
+                reading.truncated = True
+            else:
+                reading.excluded["oversized_or_non_utf8"] += 1
+            reading.warnings.append(f"Skipped bounded source parsing for {changed.path!r}.")
+            continue
+        read.append(changed)
+    return read
+
+
+def _read_documents(
+    repo: GitRepository,
+    base_commit: str,
+    head_commit: str,
+    documents: list[ChangedFile],
+    config: WeaverConfig,
+    reading: _Reading,
+) -> list[ChangedFile]:
+    """Read changed YAML and JSON files whole, critical paths first, under their own budgets.
+
+    Whether each is an API schema is decided by its content, in `schema_diff`, so all of them are
+    read; a file count and a byte total of their own keep a change to many manifests or a large
+    lockfile from crowding out the Python files the line budget is for.
+    """
+    if len(documents) > limits.MAX_DOCUMENTS:
+        documents = sorted(
+            documents,
+            key=lambda item: (
+                -critical_weight(item.path, config.critical_paths, default=0),
+                item.path,
+            ),
+        )
+        reading.omitted_counts["document_limit"] = len(documents) - limits.MAX_DOCUMENTS
+        reading.truncated = True
+        reading.warnings.append(
+            f"Only {limits.MAX_DOCUMENTS} changed YAML and JSON files were read for API schemas."
+        )
+        documents = documents[: limits.MAX_DOCUMENTS]
+    if not documents:
+        return []
+    return _read_texts(
+        repo,
+        base_commit,
+        head_commit,
+        documents,
+        config.rules.max_file_bytes,
+        limits.MAX_DOCUMENT_BLOB_BYTES,
+        reading,
+        documents=True,
+    )
+
+
 def collect_diff(
     repo: GitRepository,
     base_commit: str,
     head_commit: str,
     config: WeaverConfig,
 ) -> DiffCollection:
-    """Collect bounded changed Python blobs without checking out or executing code."""
+    """Collect bounded changed Python blobs, and the YAML and JSON files an API schema can be
+    written in, without checking out or executing code."""
     name_raw = repo.run(
         [
             "diff",
@@ -182,7 +323,7 @@ def collect_diff(
     stats, changed_lines = parse_numstat(numstat_raw)
     excluded: Counter[str] = Counter()
     candidates: list[ChangedFile] = []
-    selected: list[ChangedFile] = []
+    documents: list[ChangedFile] = []
     warnings: list[str] = []
     for changed in files:
         reason = first_exclusion((changed.old_path, changed.new_path))
@@ -190,22 +331,29 @@ def collect_diff(
             excluded[reason] += 1
             continue
         path = changed.path
-        # The extension first: the default include is `**/*.py`, so the path filter would
-        # otherwise claim every non-Python file, even in a repository that configured no paths.
-        if not path.endswith(".py"):
+        is_document = config.rules.analyze_api_schemas and path.endswith(limits.DOCUMENT_SUFFIXES)
+        # The extension first: an include a repository configured for its code would otherwise
+        # claim every file it does not name, and say so as a path filter.
+        if not path.endswith(".py") and not is_document:
             excluded["unsupported_extension"] += 1
             continue
         # Also before the path filter, which the default include would pass: test code is
         # candidate-test material, not behavior under review, and the reason should say so.
         # Only what the path settles is left out here, before the line budget is spent on it;
-        # a file merely named like a test module is settled by its source, in `service`.
-        if not config.rules.analyze_test_files and is_test_support_path(
-            path, config.paths.test_roots
+        # a file merely named like a test module is settled by its source, in `service`. A
+        # document under a test root is a fixture, whatever it holds.
+        if not config.rules.analyze_test_files and (
+            in_test_root(path, config.paths.test_roots)
+            if is_document
+            else is_test_support_path(path, config.paths.test_roots)
         ):
             excluded["test_file"] += 1
             continue
         if not is_included(path, config.paths.include, config.paths.exclude):
             excluded["path_filter"] += 1
+            continue
+        if is_document:
+            documents.append(changed)
             continue
         additions, deletions, binary = stats.get(path, (0, 0, False))
         changed.additions = additions
@@ -221,53 +369,18 @@ def collect_diff(
     if selected_scope is not None:
         candidates = [item for item in candidates if item.path in selected_scope]
 
-    base_entries = repo.tree_entries(
+    reading = _Reading(excluded, omitted_counts, warnings)
+    selected = _read_texts(
+        repo,
         base_commit,
-        [item.old_path for item in candidates if item.old_path and not item.status.startswith("C")],
+        head_commit,
+        candidates,
+        config.rules.max_file_bytes,
+        limits.MAX_SOURCE_BLOB_BYTES,
+        reading,
     )
-    head_entries = repo.tree_entries(
-        head_commit, [item.new_path for item in candidates if item.new_path]
-    )
-    object_ids = {
-        entry.object_id
-        for entries in (base_entries, head_entries)
-        for entry in entries.values()
-        if entry.mode not in {"120000", "160000"}
-    }
-    blob_batch = repo.read_blob_batch(object_ids, config.rules.max_file_bytes)
-    source_truncated = False
-
-    for changed in candidates:
-        is_copy = changed.status.startswith("C")
-        old_entry = base_entries.get(changed.old_path) if changed.old_path and not is_copy else None
-        new_entry = head_entries.get(changed.new_path) if changed.new_path else None
-        modes = {entry.mode for entry in (old_entry, new_entry) if entry is not None}
-        if modes & {"120000", "160000"}:
-            excluded["symlink_or_gitlink"] += 1
-            continue
-        changed.old_text = blob_batch.texts.get(old_entry.object_id) if old_entry else None
-        changed.new_text = blob_batch.texts.get(new_entry.object_id) if new_entry else None
-        if (changed.old_path and not is_copy and changed.old_text is None) or (
-            changed.new_path and changed.new_text is None
-        ):
-            failure_classes = {
-                blob_batch.failures.get(entry.object_id, "missing_or_not_blob")
-                for entry in (old_entry, new_entry)
-                if entry is not None and blob_batch.texts.get(entry.object_id) is None
-            }
-            if "binary" in failure_classes:
-                excluded["binary"] += 1
-            elif "aggregate_source_limit" in failure_classes:
-                excluded["aggregate_source_limit"] += 1
-                omitted_counts["aggregate_source_limit"] = (
-                    omitted_counts.get("aggregate_source_limit", 0) + 1
-                )
-                source_truncated = True
-            else:
-                excluded["oversized_or_non_utf8"] += 1
-            warnings.append(f"Skipped bounded source parsing for {changed.path!r}.")
-            continue
-        if is_copy:
+    for changed in selected:
+        if changed.status.startswith("C"):
             changed.hunks = [
                 SourceHunk(
                     id="hunk-001",
@@ -277,7 +390,6 @@ def collect_diff(
                     new_count=max(1, len((changed.new_text or "").splitlines())),
                 )
             ]
-        selected.append(changed)
 
     pending = [item for item in selected if not item.status.startswith("C")]
     hunks_by_path = _hunks_by_path(repo, base_commit, head_commit, [item.path for item in pending])
@@ -288,6 +400,7 @@ def collect_diff(
             if hunks is not None
             else _file_hunks(repo, base_commit, head_commit, changed.path)
         )
+    read_documents = _read_documents(repo, base_commit, head_commit, documents, config, reading)
     return DiffCollection(
         files=selected,
         changed_files_total=len(files),
@@ -295,5 +408,6 @@ def collect_diff(
         excluded_counts=dict(sorted(excluded.items())),
         warnings=warnings,
         omitted_counts=omitted_counts,
-        truncated=selected_scope is not None or source_truncated,
+        truncated=selected_scope is not None or reading.truncated,
+        documents=read_documents,
     )

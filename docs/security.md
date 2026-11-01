@@ -68,6 +68,17 @@ import.
   under `.git`, is never looked up. Nothing is written: the result is a patch the user reviews and
   applies, and a skipped obligation's reason has its path escaped too.
   `tests/security/test_skeleton_inputs.py` holds the adversarial regressions.
+- A changed YAML or JSON file is untrusted input data, read only to tell whether it is an API
+  schema and to compare it: as strict UTF-8 under `max_file_bytes`, at most 200 files and 64 MiB
+  of base and head text in all, JSON with the standard library and YAML with a budgeted
+  `SafeLoader` subclass that constructs nothing but plain data, so a `!!python` tag is a parse
+  failure. The result is copied under a budget of 200,000 nodes, a depth of 64, and 100 aliases,
+  so an alias bomb or deep nesting is a schema left unread, never a hang. A symbolic link is never
+  read. Nothing a document names is followed: `$ref` is compared as text, and no URL, file, or
+  server in it is fetched or opened. What a delta shows is redacted and cut to 300 characters, and
+  its symbol, a key of the document, to 200; the brief escapes both. Telling a schema that does
+  not parse from a file of no interest searches its text in time linear in its length.
+  `tests/security/test_schema_inputs.py` holds the adversarial regressions.
 - The plugin makes no direct network request and emits no plugin telemetry.
 - Resource prioritization is deterministic and applies only to explicitly configured critical paths;
   it never expands the configured file, line, symbol, evidence, or model-input ceilings.

@@ -147,6 +147,67 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## API schemas (2026-11-01)
+
+The roadmap's v0.2 asks for config and API schema awareness, and API schemas come first, at the
+user's choice: a changed OpenAPI 3, Swagger 2, or JSON Schema document, in YAML or JSON, is now
+compared beside the Python change. Configuration files are left for later, and will be read only
+where a repository's configuration names them. Six choices are deliberate:
+
+- **Content decides what a schema is.** Every changed `.yaml`, `.yml`, and `.json` file is read,
+  and compared only if a revision's root says it is a schema: `openapi: 3.x` with `paths`,
+  `components`, or `webhooks`; `swagger: "2.0"` with `paths` or `definitions`; or a `$schema`
+  naming a `json-schema.org` meta-schema or the OpenAPI 3.1 dialect. A name does not settle it —
+  an OpenAPI document is named after its service as often as `openapi.yaml` — and a configuration
+  file that names the schema it is validated by, as `tsconfig.json` and `renovate.json` do in
+  their `$schema`, is no schema. Every other file is counted as `not_api_schema`. The default
+  `include` gains `**/*.yaml`, `**/*.yml`, and `**/*.json`, so an `include` a repository wrote for
+  its Python narrows its schemas too, and `rules.analyze_api_schemas: false` turns the comparison
+  off, leaving YAML and JSON `unsupported_extension` as before.
+- **A file that cannot be read costs no completeness; a schema that does not parse does.** Most
+  changed YAML and JSON files are lockfiles, manifests, and data. One too large to read, not UTF-8,
+  or a link is counted as `unreadable_document`, and the analysis can still pass, since whether it
+  was a schema cannot be told unread; a Python file that cannot be read still truncates. A document
+  that does not parse within its budgets is a schema left unread when its text opens with a
+  schema's key and version or meta-schema. It is then a finding of its own,
+  `document_parse_incomplete`, and the analysis is truncated; otherwise it is `not_api_schema`.
+- **Documents have budgets of their own.** At most 200 changed YAML and JSON files are read,
+  critical paths first, with 64 MiB of base and head text in all, apart from the 64 MiB of Python
+  source, so a change to many manifests or one large lockfile cannot crowd out the Python files the
+  line budget is for. A file past either is `document_limit` omitted scope, which truncates. One
+  document's comparison stops at 500 changes, as `schema_delta_limit`.
+- **What is compared is what a client or a server can observe.** Operations by method and route,
+  their parameters by where and what they are, request bodies, responses by status, media types,
+  and the security they require; then global security and security schemes, servers, and reusable
+  schemas; and within a schema its properties, `required`, `enum`, `type`, the numeric and length
+  bounds, `pattern`, `format`, `default`, `items`, `additionalProperties`, and `$ref`. Descriptions,
+  titles, summaries, examples, operation IDs, tags, and `x-` extensions are words for people and
+  change no behavior, so nothing reads them; another keyword is a `schema_keyword_change` for
+  review. `$ref` is compared as text and never resolved, so a change to a reusable schema is
+  reported once, at the schema, not at every operation using it.
+- **Where a change is decides what it means.** Each change records whether its place is part of a
+  request, a response, a reusable component, or a standalone JSON Schema. A narrowed `enum` or a new
+  property in a request, or in a JSON Schema, which validates what it is given, is a validation
+  change; in a response it changes the output contract. A component serves requests and responses
+  alike and is read as a response, the side a client depends on. A change to `required`, a
+  pattern, or a bound means the same anywhere. A removed operation is an output-contract change, a
+  new required parameter a validation change, a security change an authorization change, and a new
+  operation an unknown change, whose intended contract static analysis cannot know.
+- **An operation's tests request its route.** A change to an API schema has no Python symbol to
+  import or call, so its candidate tests are those that write out its route: a string literal in a
+  test, or in a same-file helper it calls, that is a path or a URL's path, an f-string's
+  placeholders standing for one segment each, matched against the route template after any base
+  path the API is served under. A test that also calls the operation's method by name,
+  `client.delete(...)`, ranks higher, and one calling only other methods is about another
+  operation of the route. A change to a reusable schema names no route and gets no candidate,
+  since which operations use it is not followed through `$ref`.
+
+The schema of the result is unchanged. Two outputs read differently: the limitation for a diff
+with nothing to analyze now says "no included changed Python source or API schema", one golden
+line, and the brief's line for an analysis with no finding no longer says Python. The analysis
+tool's description, the MCP server's instructions, and the skill name API schemas. `schema_diff/`
+is a critical module, held to the branch-coverage bar like `ast_diff/`.
+
 ## Test skeletons beside their candidates (2026-11-01)
 
 A module without a test file of its name now gets one beside the obligation's first candidate
