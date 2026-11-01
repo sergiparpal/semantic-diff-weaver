@@ -139,7 +139,7 @@ def test_manifest_and_entry_point_agree() -> None:
         assert len(matches) == 1
         module = matches[0].load()
         assert callable(module.register)
-    assert manifest["provides_tools"] == ["analyze_semantic_diff"]
+    assert manifest["provides_tools"] == ["analyze_semantic_diff", "generate_test_skeletons"]
 
 
 def test_manifest_declares_the_installer_contract() -> None:
@@ -162,7 +162,7 @@ def test_documented_install_command_names_this_plugin() -> None:
     assert f"hermes plugins enable {manifest['name']}" in after_install
 
 
-def test_a_repository_clone_registers_the_tool_without_being_installed(tmp_path: Path) -> None:
+def test_a_repository_clone_registers_the_tools_without_being_installed(tmp_path: Path) -> None:
     """The install path clones and never builds, so the checkout has to load on its own."""
     directory = _installed_clone(tmp_path)
 
@@ -170,7 +170,7 @@ def test_a_repository_clone_registers_the_tool_without_being_installed(tmp_path:
 
     assert completed.returncode == 0, completed.stderr
     report = json.loads(completed.stdout)
-    assert report["tools"] == ["analyze_semantic_diff"]
+    assert report["tools"] == ["analyze_semantic_diff", "generate_test_skeletons"]
     assert report["bootstrapped"] is True
     assert report["clone_is_importable"] is True
     # Appended, not inserted: an installed copy stays authoritative when both are present.

@@ -3,8 +3,15 @@ from __future__ import annotations
 from semantic_diff_weaver.models import BehaviorCategory
 from semantic_diff_weaver.schemas import (
     ANALYZE_SEMANTIC_DIFF_SCHEMA,
+    GENERATE_TEST_SKELETONS_SCHEMA,
     LLM_RESPONSE_SCHEMA,
     LLM_SCHEMA_NAME,
+)
+from semantic_diff_weaver.skeletons import (
+    ANALYSIS_ARGUMENTS,
+    MAX_SKELETONS,
+    Framework,
+    SkeletonRequest,
 )
 from semantic_diff_weaver.taxonomy import CATEGORY_PROFILES
 
@@ -20,6 +27,26 @@ def test_tool_schema_is_precise_and_closed() -> None:
         "both",
     }
     assert "does not execute" in ANALYZE_SEMANTIC_DIFF_SCHEMA["description"]
+
+
+def test_the_skeleton_schema_is_closed_and_is_the_request_model() -> None:
+    """The schema a host sees and the model a call is validated by name the same fields."""
+    assert GENERATE_TEST_SKELETONS_SCHEMA["name"] == "generate_test_skeletons"
+    parameters = GENERATE_TEST_SKELETONS_SCHEMA["parameters"]
+    assert parameters["additionalProperties"] is False
+    assert parameters["required"] == ["repo_path", "obligation_ids"]
+    assert set(parameters["properties"]) == set(SkeletonRequest.model_fields)
+    assert {
+        name for name, field in SkeletonRequest.model_fields.items() if field.is_required()
+    } == set(parameters["required"])
+    ids = parameters["properties"]["obligation_ids"]
+    assert (ids["minItems"], ids["maxItems"]) == (1, MAX_SKELETONS)
+    assert set(parameters["properties"]["framework"]["enum"]) == {item.value for item in Framework}
+    # Every analysis argument the tool takes is one the analysis tool takes too.
+    analyze = ANALYZE_SEMANTIC_DIFF_SCHEMA["parameters"]["properties"]
+    for name in ANALYSIS_ARGUMENTS:
+        assert parameters["properties"][name]["type"] == analyze[name]["type"]
+    assert "read-only" in GENERATE_TEST_SKELETONS_SCHEMA["description"]
 
 
 def test_llm_schema_is_generated_from_bounded_model() -> None:

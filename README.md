@@ -260,16 +260,21 @@ The package exposes the entry point and the repository root contains `plugin.yam
 The repository is its own single-plugin marketplace, added here from a local checkout; a hosted
 copy is added the same way by `owner/repo` or Git URL. The plugin contributes two things:
 
-- an MCP server, `semantic-diff-weaver`, exposing the same single `analyze_semantic_diff` tool and
-  input schema as the Hermes plugin, annotated read-only, except that `output_format` defaults to
-  the Markdown brief. Claude Code names it
-  `mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__analyze_semantic_diff`, which is the
-  name to use in permission rules;
-- a `semantic-diff` skill telling Claude when to call the tool, how to pick the refs, and how to
-  report obligations without overstating the unverified candidate tests.
+- an MCP server, `semantic-diff-weaver`, exposing the same two tools and input schemas as the
+  Hermes plugin, `analyze_semantic_diff` and `generate_test_skeletons`, annotated read-only,
+  except that `output_format` defaults to the Markdown brief. Claude Code names them
+  `mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__analyze_semantic_diff` and
+  `mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__generate_test_skeletons`, the names
+  to use in permission rules;
+- a `semantic-diff` skill telling Claude when to call the tools, how to pick the refs, how to
+  report obligations without overstating the unverified candidate tests, and to scaffold only
+  the obligations you approve.
 
 Then ask for it in a session — *"what does this branch change in behavior compared with `main`,
-and what should I test?"* — or invoke `/semantic-diff` directly.
+and what should I test?"* — or invoke `/semantic-diff` directly. Approve the obligations you want
+tested — *"scaffold to-001 and to-004"* — and Claude passes the same arguments to
+`generate_test_skeletons`: the server's analysis is always deterministic, so the brief's IDs name
+the same obligations there. It shows you the patch, which it applies only if you ask.
 
 The server is started with `uvx --from ${CLAUDE_PLUGIN_ROOT} semantic-diff-weaver-mcp`, so `uv`
 must be on `PATH`; the first start builds the package and fetches Pydantic and PyYAML, later starts
@@ -309,7 +314,7 @@ installing it.
 
 ## Tool input
 
-Hermes registers exactly one tool, `analyze_semantic_diff`:
+Hermes registers two tools. The first, `analyze_semantic_diff`, analyzes a diff:
 
 ```json
 {
@@ -338,12 +343,37 @@ authorize additional bounded roots with the platform-path-separator-delimited
 SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS=/work/project:/work/shared-profiles
 ```
 
-`repo_path`, an external `risk_profile`, an external `coverage_report`, and an external
-`baseline_report` must all resolve below one of these roots. Filesystem roots are never accepted as authorization roots.
+`repo_path`, an external `risk_profile`, an external `coverage_report`, an external
+`baseline_report`, and a skeleton tool's `analysis_path` must all resolve below one of these
+roots. Filesystem roots are never accepted as authorization roots.
 
 The handler always returns a JSON-encoded string. JSON mode returns the canonical schema-versioned
 analysis. Markdown mode returns a JSON envelope containing the PR-ready brief. Both mode returns the
 canonical analysis and matching Markdown together.
+
+The second, `generate_test_skeletons`, is the [`skeletons`](#test-skeletons) subcommand as a
+tool. Given the IDs of the obligations the user approved, it returns a patch adding a failing
+test for each, and never applies it:
+
+```json
+{
+  "repo_path": "/path/to/local/repository",
+  "base_ref": "main",
+  "head_ref": "HEAD",
+  "include": ["src/**/*.py"],
+  "obligation_ids": ["to-001", "to-004"],
+  "framework": "pytest"
+}
+```
+
+`repo_path` and `obligation_ids` are required, and `framework` is `pytest` or `unittest`. The
+obligations come from exactly one analysis: either the one `base_ref` with the analysis tool's
+`head_ref`, `include`, `exclude`, `risk_profile`, and `coverage_report` describes, analyzed again
+without inference, or an `analysis_path` the JSON of a saved analysis is at. A deterministic
+analysis numbers its obligations alike on every run, so the same arguments name the same
+obligations; one made with inference can number them otherwise, which is what `analysis_path`
+is for. The result is the JSON of `skeletons --format json`: the patch, where each test went,
+and why any obligation got none.
 
 ## Configuration
 

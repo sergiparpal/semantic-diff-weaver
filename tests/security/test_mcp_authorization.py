@@ -1,7 +1,8 @@
 """Adversarial regressions for the MCP transport's authorization rule.
 
-Under MCP a model chooses `repo_path`, so the server takes its bound from the host — the
-project directory Claude Code exports — and never from a tool argument. Every test here pins
+Under MCP a model chooses `repo_path` and every other path either tool takes, so the server
+takes its bound from the host — the project directory Claude Code exports — and never from a
+tool argument. Every test here pins
 that: a path outside the project is refused, an operator's narrower bound is never widened
 by the project directory, and refusal arrives as a tool error the model cannot argue past.
 """
@@ -14,7 +15,13 @@ from typing import Any
 
 import pytest
 
-from semantic_diff_weaver.mcp_server import PROJECT_DIR_ENV, TOOL_NAME, McpServer, _enter_project
+from semantic_diff_weaver.mcp_server import (
+    PROJECT_DIR_ENV,
+    SKELETONS_TOOL_NAME,
+    TOOL_NAME,
+    McpServer,
+    _enter_project,
+)
 from semantic_diff_weaver.path_policy import ALLOWED_ROOTS_ENV
 
 BOUNDARY_OLD = {"api.py": "def allowed(x):\n    return x < 5\n"}
@@ -105,3 +112,49 @@ def test_tool_arguments_cannot_name_authorization_roots(two_repositories, monkey
         }
     )
     assert result["isError"] is True
+
+
+def _scaffold(arguments: dict[str, Any]) -> dict[str, Any]:
+    response = McpServer().handle(
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": SKELETONS_TOOL_NAME, "arguments": arguments},
+        }
+    )
+    assert response is not None
+    return response["result"]
+
+
+def _error_code(result: dict[str, Any]) -> str:
+    assert result["isError"] is True
+    return str(json.loads(result["content"][0]["text"])["error"])
+
+
+def test_the_skeleton_tool_keeps_to_the_project_too(
+    two_repositories, monkeypatch, tmp_path
+) -> None:
+    """Each path the skeleton tool takes is authorized as the analysis tool's paths are."""
+    (project, base, head), (other, _, _) = two_repositories
+    saved = tmp_path / "analysis.json"
+    saved.write_text("{}", encoding="utf-8")
+    profile = tmp_path / "outside.yaml"
+    profile.write_text("rules: {}\n", encoding="utf-8")
+    monkeypatch.delenv(ALLOWED_ROOTS_ENV, raising=False)
+    monkeypatch.chdir(Path.cwd())
+    _enter_project({PROJECT_DIR_ENV: str(project)})
+    ids = {"obligation_ids": ["to-001"]}
+
+    inside = _scaffold({"repo_path": ".", "base_ref": base, "head_ref": head, **ids})
+    assert inside["isError"] is False
+
+    for arguments in (
+        {"repo_path": str(other), "base_ref": base, "head_ref": head},
+        {"repo_path": ".", "analysis_path": str(saved)},
+        {"repo_path": ".", "base_ref": base, "head_ref": head, "risk_profile": str(profile)},
+    ):
+        assert _error_code(_scaffold({**arguments, **ids})) == "path_outside_repository"
+    # No argument can name a root for this tool either: the request model forbids extra fields.
+    smuggled = {"repo_path": str(other), "base_ref": base, "allowed_roots": [str(other)], **ids}
+    assert _error_code(_scaffold(smuggled)) == "configuration_error"

@@ -15,6 +15,7 @@ from semantic_diff_weaver.skeletons import (
     MAX_TEST_NAME_CHARS,
     Framework,
     _Analysis,
+    _analysis_arguments,
     _comment,
     _escaped,
     _file_diff,
@@ -23,6 +24,7 @@ from semantic_diff_weaver.skeletons import (
     _module_stem,
     _new_path,
     _render,
+    _request,
     _Target,
     _test_file_names,
     _test_name,
@@ -383,3 +385,51 @@ def test_the_analysis_is_bounded_before_it_is_parsed(tmp_path: Path) -> None:
     assert caught.value.code is ErrorCode.ANALYSIS_UNREADABLE
     with pytest.raises(WeaverError, match="not a regular file"):
         _load_analysis(tmp_path, 1_000_000)
+
+
+@pytest.mark.parametrize(
+    ("source", "message"),
+    [
+        ({}, "No analysis was named: pass analysis_path, or base_ref to analyze again."),
+        ({"head_ref": "HEAD"}, "No analysis was named"),
+        (
+            {"analysis_path": "a.json", "base_ref": "main"},
+            "A saved analysis takes no base_ref: pass analysis_path or the analysis arguments.",
+        ),
+        ({"analysis_path": "a.json", "include": ["src/**"]}, "A saved analysis takes no include"),
+        ({"analysis_path": "a.json", "coverage_report": "c.json"}, "takes no coverage_report"),
+    ],
+)
+def test_exactly_one_analysis_is_named(source: dict[str, Any], message: str) -> None:
+    request = {"repo_path": ".", "obligation_ids": ["to-001"], **source}
+    with pytest.raises(WeaverError, match=message) as caught:
+        _request(request)
+    assert caught.value.code is ErrorCode.CONFIGURATION_ERROR
+    assert "analysis_path" in caught.value.remediation and "base_ref" in caught.value.remediation
+
+
+def test_an_analysis_run_again_is_given_the_analysis_arguments_only() -> None:
+    request = _request(
+        {
+            "repo_path": "repo",
+            "obligation_ids": ["to-001"],
+            "framework": "unittest",
+            "base_ref": "main",
+            "include": ["src/**"],
+            "coverage_report": "coverage.json",
+        }
+    )
+    assert _analysis_arguments(request) == {
+        "repo_path": "repo",
+        "output_format": "json",
+        "base_ref": "main",
+        "include": ["src/**"],
+        "coverage_report": "coverage.json",
+    }
+
+
+def test_a_saved_analysis_and_one_run_again_are_both_requests() -> None:
+    saved = _request({"repo_path": ".", "obligation_ids": ["to-001"], "analysis_path": "a.json"})
+    again = _request({"repo_path": ".", "obligation_ids": ["to-001"], "base_ref": "main"})
+    assert (saved.analysis_path, saved.base_ref) == ("a.json", None)
+    assert (again.analysis_path, again.base_ref, again.head_ref) == (None, "main", None)

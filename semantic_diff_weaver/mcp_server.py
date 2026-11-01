@@ -1,8 +1,8 @@
-"""Model Context Protocol (stdio) transport: the Hermes tool, served to Claude Code.
+"""Model Context Protocol (stdio) transport: the Hermes tools, served to Claude Code.
 
-This is the same single tool `plugin.py` registers with Hermes, spoken over MCP's stdio
+These are the same two tools `plugin.py` registers with Hermes, spoken over MCP's stdio
 transport — newline-delimited JSON-RPC 2.0 on stdin/stdout — so any MCP host, Claude Code
-first among them, can call it. Only the subset a tool-only server needs is implemented:
+first among them, can call them. Only the subset a tool-only server needs is implemented:
 `initialize`, `ping`, `tools/list`, and `tools/call`. Writing that subset by hand keeps the
 base install at two runtime dependencies; the official SDK would add an HTTP stack this
 transport never uses.
@@ -21,8 +21,8 @@ Output is shaped for the host. Claude Code keeps a tool result in the conversati
 a character threshold and saves anything longer to a file, so this transport defaults
 `output_format` to the Markdown brief, returns the brief as plain Markdown, declares a higher
 threshold for its tool, and shortens a brief's evidence excerpts when it would still not fit.
-Everything else — error payloads and explicit `json` or `both` results — is exactly what the
-Hermes handler returns.
+Everything else — error payloads, explicit `json` or `both` results, and the skeleton tool's
+result — is exactly what the Hermes handler returns.
 
 Stdout belongs to the protocol. While serving, `sys.stdout` is pointed at stderr so a stray
 `print` anywhere in the pipeline cannot corrupt the message stream.
@@ -39,13 +39,19 @@ from typing import Any, BinaryIO
 
 from . import __version__
 from .models import AnalysisResult, OutputFormat
-from .plugin import DESCRIPTION, handle_analyze_semantic_diff
+from .plugin import (
+    DESCRIPTION,
+    SKELETONS_DESCRIPTION,
+    handle_analyze_semantic_diff,
+    handle_generate_test_skeletons,
+)
 from .renderer import render_markdown
-from .schemas import ANALYZE_SEMANTIC_DIFF_SCHEMA
+from .schemas import ANALYZE_SEMANTIC_DIFF_SCHEMA, GENERATE_TEST_SKELETONS_SCHEMA
 
 SERVER_NAME = "semantic-diff-weaver"
 PROJECT_DIR_ENV = "CLAUDE_PROJECT_DIR"
 TOOL_NAME = ANALYZE_SEMANTIC_DIFF_SCHEMA["name"]
+SKELETONS_TOOL_NAME = GENERATE_TEST_SKELETONS_SCHEMA["name"]
 
 # Newest first. A client asking for one of these gets it echoed back; any other request is
 # answered with the newest, and the specification leaves the decision to disconnect to the
@@ -86,9 +92,10 @@ INTERNAL_ERROR = -32603
 
 INSTRUCTIONS = (
     "Call analyze_semantic_diff to review a committed Python change between two Git refs and "
-    "plan regression tests. It is read-only and advisory. repo_path must lie inside the "
-    "authorized workspace, which is the host project directory unless the operator "
-    "set SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS."
+    "plan regression tests. It is read-only and advisory. Once the user approves obligations, "
+    "generate_test_skeletons returns a patch of failing tests for them, which it never applies. "
+    "repo_path must lie inside the authorized workspace, which is the host project directory "
+    "unless the operator set SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS."
 )
 
 OUTPUT_GUIDANCE = (
@@ -97,6 +104,13 @@ OUTPUT_GUIDANCE = (
     "canonical JSON is about twice the size, so request json or both only with include narrowed "
     "to a few files. Narrow with include, not exclude: exclude also removes files from "
     "candidate-test discovery."
+)
+
+SKELETONS_GUIDANCE = (
+    "Every analysis this server runs is deterministic, so the arguments an analyze_semantic_diff "
+    "call was given scaffold the obligations its brief lists, under the same IDs. Only scaffold "
+    "obligations the user approved. The result is JSON: the patch, where each test went, and "
+    "why any obligation got none; show the patch, and apply it only if the user asks."
 )
 
 Handler = Callable[[dict[str, Any]], str]
@@ -137,6 +151,29 @@ def tool_definition() -> dict[str, Any]:
     }
 
 
+def skeletons_tool_definition() -> dict[str, Any]:
+    """The MCP form of the Hermes skeleton schema, unchanged but for the guidance it adds."""
+    return {
+        "name": SKELETONS_TOOL_NAME,
+        "title": "Test skeletons",
+        "description": " ".join(
+            (
+                GENERATE_TEST_SKELETONS_SCHEMA["description"],
+                SKELETONS_DESCRIPTION,
+                SKELETONS_GUIDANCE,
+            )
+        ),
+        "inputSchema": copy.deepcopy(GENERATE_TEST_SKELETONS_SCHEMA["parameters"]),
+        "annotations": {
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": False,
+        },
+        "_meta": {RESULT_SIZE_META: MAX_RESULT_CHARS},
+    }
+
+
 def _deterministic_handler(arguments: dict[str, Any]) -> str:
     return handle_analyze_semantic_diff(arguments, llm=None)
 
@@ -144,8 +181,13 @@ def _deterministic_handler(arguments: dict[str, Any]) -> str:
 class McpServer:
     """Dispatches one decoded JSON-RPC message at a time. Holds no per-session state."""
 
-    def __init__(self, handler: Handler = _deterministic_handler) -> None:
+    def __init__(
+        self,
+        handler: Handler = _deterministic_handler,
+        skeletons_handler: Handler = handle_generate_test_skeletons,
+    ) -> None:
         self._handler = handler
+        self._skeletons_handler = skeletons_handler
 
     def handle(self, message: Any) -> dict[str, Any] | None:
         """Return the response object, or None for a notification or a client response."""
@@ -183,17 +225,25 @@ class McpServer:
         if method == "ping":
             return {}
         if method == "tools/list":
-            return {"tools": [tool_definition()]}
+            return {"tools": [tool_definition(), skeletons_tool_definition()]}
         if method == "tools/call":
             return self._call_tool(params)
         raise ProtocolError(METHOD_NOT_FOUND, f"Method not found: {method[:64]}")
 
     def _call_tool(self, params: dict[str, Any]) -> dict[str, Any]:
-        if params.get("name") != TOOL_NAME:
-            raise ProtocolError(INVALID_PARAMS, f"Unknown tool; the only tool is {TOOL_NAME}.")
+        name = params.get("name")
+        if name not in (TOOL_NAME, SKELETONS_TOOL_NAME):
+            raise ProtocolError(
+                INVALID_PARAMS,
+                f"Unknown tool; the tools are {TOOL_NAME} and {SKELETONS_TOOL_NAME}.",
+            )
         arguments = params.get("arguments", {})
         if not isinstance(arguments, dict):
             raise ProtocolError(INVALID_PARAMS, "Tool arguments must be an object.")
+        if name == SKELETONS_TOOL_NAME:
+            text = self._skeletons_handler(arguments)
+            # A failure is a tool result with the stable error payload, as for an analysis.
+            return _text_result(text, is_error=json.loads(text).get("success") is False)
         effective = {"output_format": DEFAULT_OUTPUT_FORMAT, **arguments}
         wants_brief = effective["output_format"] == OutputFormat.MARKDOWN.value
         # A brief is requested together with its analysis, so an oversized one can be rendered

@@ -1,4 +1,4 @@
-"""Hermes tool schema and structured-LLM response schema."""
+"""Hermes tool schemas and structured-LLM response schema."""
 
 from __future__ import annotations
 
@@ -34,6 +34,44 @@ ANALYZE_SEMANTIC_DIFF_SCHEMA: dict[str, Any] = {
                 "enum": ["json", "markdown", "both"],
                 "default": "both",
             },
+        },
+    },
+}
+
+GENERATE_TEST_SKELETONS_SCHEMA: dict[str, Any] = {
+    "name": "generate_test_skeletons",
+    "description": (
+        "Return a patch adding a failing test skeleton, pytest or unittest, for each test "
+        "obligation the user approved by ID: at the end of the changed module's test file, or in "
+        "that file created in the first test root. Name the analysis the IDs come from: pass the "
+        "base_ref, head_ref, include, exclude, risk_profile, and coverage_report "
+        "analyze_semantic_diff was given, to analyze again without inference, or analysis_path "
+        "for an analysis saved as JSON. An analysis made with inference may number its "
+        "obligations otherwise than one without, so pass analysis_path for such an analysis. "
+        "The tool is read-only: it writes no file and runs nothing, and the user reviews and "
+        "applies the patch."
+    ),
+    "parameters": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["repo_path", "obligation_ids"],
+        "properties": {
+            "repo_path": {"type": "string", "minLength": 1},
+            "obligation_ids": {
+                "type": "array",
+                "items": {"type": "string", "pattern": "^to-[0-9]{3,}$"},
+                "minItems": 1,
+                "maxItems": 100,
+            },
+            "framework": {"type": "string", "enum": ["pytest", "unittest"], "default": "pytest"},
+            "analysis_path": {"type": "string", "minLength": 1},
+            "base_ref": {"type": "string", "minLength": 1},
+            # No default: a host that fills defaults in would send it beside an analysis_path.
+            "head_ref": {"type": "string", "minLength": 1},
+            "risk_profile": {"type": "string", "minLength": 1},
+            "coverage_report": {"type": "string", "minLength": 1},
+            "include": {"type": "array", "items": {"type": "string", "minLength": 1}},
+            "exclude": {"type": "array", "items": {"type": "string", "minLength": 1}},
         },
     },
 }

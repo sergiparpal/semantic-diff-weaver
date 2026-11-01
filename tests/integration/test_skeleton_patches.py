@@ -285,3 +285,42 @@ def test_the_subcommand_leaves_the_analysis_command_as_it_was(repo_factory, caps
     assert "## Semantic Diff Test Brief" in capsys.readouterr().out
     assert main(["--help"]) == EXIT_SUCCESS
     assert "skeletons --help" in capsys.readouterr().out
+
+
+def test_an_analysis_run_again_scaffolds_what_the_saved_one_does(repo_factory, tmp_path) -> None:
+    """A deterministic analysis numbers its obligations alike on every run, so the IDs a saved
+    analysis lists name the same obligations in one run again with the same arguments."""
+    repo, path, analysis = _analyzed(repo_factory, tmp_path, {"tests/test_cart.py": TEST_CART})
+    ids = _ids(analysis)
+    saved = _skeletons(repo, path, ids)
+    again = generate_skeletons(
+        {
+            "repo_path": str(repo),
+            "base_ref": analysis["repository"]["base_commit"],
+            "head_ref": analysis["repository"]["head_commit"],
+            "obligation_ids": ids,
+        }
+    )
+    assert again["skeletons"] == saved["skeletons"]
+    assert again["analysis_id"] != saved["analysis_id"]
+    # The patches differ only in the analysis each names as their source.
+    assert again["patch"].replace(again["analysis_id"], "sdw_x") == saved["patch"].replace(
+        saved["analysis_id"], "sdw_x"
+    )
+    _apply(repo, again["patch"])
+
+
+def test_an_analysis_run_again_takes_the_arguments_that_shape_it(repo_factory, tmp_path) -> None:
+    price_old = "def price(amount):\n    return amount if amount < 10 else amount * 0.9\n"
+    price_new = "def price(amount):\n    return amount if amount <= 10 else amount * 0.9\n"
+    repo, base, head = repo_factory(
+        {"src/shop/cart.py": CART_OLD, "src/shop/price.py": price_old},
+        {"src/shop/cart.py": CART_NEW, "src/shop/price.py": price_new},
+    )
+    narrowed = {"repo_path": str(repo), "base_ref": base, "head_ref": head}
+    analysis = analyze({**narrowed, "include": ["src/shop/price.py"], "output_format": "json"})
+    result = generate_skeletons(
+        {**narrowed, "include": ["src/shop/price.py"], "obligation_ids": _ids(analysis)}
+    )
+    assert {item["path"] for item in result["skeletons"]} == {"tests/test_price.py"}
+    assert [item["obligation_id"] for item in result["skeletons"]] == _ids(analysis)
