@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- **Feature:** configuration files are compared where the repository names them, in the new
+  `paths.config_files` globs. Each changed YAML, JSON, or TOML file named there is compared key by
+  key: every value added, removed, or changed is a finding named by its dotted key path, with the
+  old and new value, redacted, as its evidence, and classified by its key's words — access, retry
+  or timeout, a limit on a number, validation, a switch, or a connection — or as a change of default
+  behavior. Its candidate tests are those that use the key's names. Naming a file includes it,
+  whatever `include` says; `exclude` still leaves one out. A named file that cannot be read, or
+  does not parse, leaves the analysis incomplete. Schema 1.2 is unchanged.
+
 ## 0.9.0 - 2026-11-01
 
 API schemas. A changed OpenAPI 3, Swagger 2, or JSON Schema document, in YAML or JSON, is now

@@ -1,15 +1,16 @@
-"""Bounded reading of a YAML or JSON document that may be an API schema.
+"""Bounded reading of a YAML, JSON, or TOML document: an API schema or a configuration file.
 
-The document is untrusted repository content. It is parsed with the standard library's JSON
-decoder or with a budgeted subclass of PyYAML's SafeLoader, which builds nothing but plain data,
-and then copied into plain JSON-shaped values under a node and depth budget of its own: a few YAML
-aliases can make a small file a large tree to walk. Nothing a document names — a `$ref`, a URL, a
-file — is ever followed.
+The document is untrusted repository content. It is parsed with the standard library's JSON or
+TOML decoder, or with a budgeted subclass of PyYAML's SafeLoader, which builds nothing but plain
+data, and then copied into plain JSON-shaped values under a node and depth budget of its own: a
+few YAML aliases can make a small file a large tree to walk. Nothing a document names — a `$ref`,
+a URL, a file — is ever followed.
 """
 
 from __future__ import annotations
 
 import json
+import tomllib
 from typing import Any, ClassVar
 
 import yaml
@@ -52,15 +53,18 @@ def _plain(value: Any, budget: list[int], depth: int) -> JsonValue:
         return [_plain(item, budget, depth + 1) for item in value]
     if value is None or isinstance(value, (bool, int, float, str)):
         return value
-    # A YAML timestamp, binary value, or set is compared by its text.
+    # A YAML or TOML timestamp, a YAML binary value, or a set is compared by its text.
     return str(value)
 
 
 def load_document(path: str, text: str) -> JsonValue:
-    """The document's data: JSON for a `.json` file, safe YAML for any other."""
+    """The document's data: JSON for a `.json` file, TOML for a `.toml` one, safe YAML for any
+    other."""
     try:
         if path.endswith(".json"):
             loaded = json.loads(text)
+        elif path.endswith(".toml"):
+            loaded = tomllib.loads(text)
         else:
             # A bounded subclass of SafeLoader: budgets, and no constructor beyond the safe ones.
             loaded = yaml.load(text, Loader=_DocumentLoader)  # noqa: S506
@@ -69,5 +73,5 @@ def load_document(path: str, text: str) -> JsonValue:
         raise
     except (MemoryError, RecursionError, ValueError, yaml.YAMLError) as exc:
         raise DocumentError(
-            "The document is not JSON or YAML that reads within its budgets."
+            "The document is not JSON, TOML, or YAML that reads within its budgets."
         ) from exc

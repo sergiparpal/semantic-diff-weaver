@@ -10,6 +10,7 @@ from ..models import WeaverConfig
 from ..path_policy import (
     critical_weight,
     first_exclusion,
+    glob_matches,
     in_test_root,
     is_included,
     is_test_support_path,
@@ -169,13 +170,15 @@ def _read_texts(
     reading: _Reading,
     *,
     documents: bool = False,
+    named: frozenset[str] = frozenset(),
 ) -> list[ChangedFile]:
     """Attach each file's base and head text, leaving out what cannot be read as bounded text.
 
-    A Python file that cannot be read leaves the analysis incomplete. A YAML or JSON one is
-    only `unreadable_document`: whether it was an API schema cannot be told unread, and most such
-    files are lockfiles and data, which would otherwise keep every analysis touching one from a
-    pass. Past the byte total, both are omitted scope.
+    A Python file that cannot be read leaves the analysis incomplete, and so does a configuration
+    file the repository `named`, which was asked for: that one is `unreadable_config_file`. Any
+    other YAML or JSON file is only `unreadable_document`: whether it was an API schema cannot be
+    told unread, and most such files are lockfiles and data, which would otherwise keep every
+    analysis touching one from a pass. Past the byte total, all of them are omitted scope.
     """
     base_entries = repo.tree_entries(
         base_commit,
@@ -202,7 +205,9 @@ def _read_texts(
         new_entry = head_entries.get(changed.new_path) if changed.new_path else None
         modes = {entry.mode for entry in (old_entry, new_entry) if entry is not None}
         if modes & {"120000", "160000"}:
-            if documents:
+            if changed.path in named:
+                reading.excluded["unreadable_config_file"] += 1
+            elif documents:
                 reading.excluded["unreadable_document"] += 1
             else:
                 reading.excluded["symlink_or_gitlink"] += 1
@@ -222,6 +227,8 @@ def _read_texts(
                     reading.omitted_counts.get("document_limit", 0) + 1
                 )
                 reading.truncated = True
+            elif changed.path in named:
+                reading.excluded["unreadable_config_file"] += 1
             elif documents:
                 reading.excluded["unreadable_document"] += 1
             elif "binary" in failure_classes:
@@ -245,40 +252,60 @@ def _read_documents(
     base_commit: str,
     head_commit: str,
     documents: list[ChangedFile],
+    config_files: list[ChangedFile],
     config: WeaverConfig,
     reading: _Reading,
-) -> list[ChangedFile]:
-    """Read changed YAML and JSON files whole, critical paths first, under their own budgets.
+) -> tuple[list[ChangedFile], list[ChangedFile]]:
+    """Read changed documents whole under budgets of their own: the YAML and JSON files that may
+    be API schemas, and the configuration files the repository names, which come first.
 
-    Whether each is an API schema is decided by its content, in `schema_diff`, so all of them are
-    read; a file count and a byte total of their own keep a change to many manifests or a large
-    lockfile from crowding out the Python files the line budget is for.
+    Whether a YAML or JSON file is an API schema is decided by its content, in `schema_diff`, so
+    all of them are read; a file count and a byte total of their own keep a change to many
+    manifests or a large lockfile from crowding out the Python files the line budget is for.
+    Past the count, configuration files go first, as they were asked for, then critical paths.
     """
-    if len(documents) > limits.MAX_DOCUMENTS:
-        documents = sorted(
-            documents,
+    named = frozenset(item.path for item in config_files)
+    candidates = [*config_files, *documents]
+    if len(candidates) > limits.MAX_DOCUMENTS:
+        candidates = sorted(
+            candidates,
             key=lambda item: (
+                item.path not in named,
                 -critical_weight(item.path, config.critical_paths, default=0),
                 item.path,
             ),
         )
-        reading.omitted_counts["document_limit"] = len(documents) - limits.MAX_DOCUMENTS
+        reading.omitted_counts["document_limit"] = len(candidates) - limits.MAX_DOCUMENTS
         reading.truncated = True
         reading.warnings.append(
-            f"Only {limits.MAX_DOCUMENTS} changed YAML and JSON files were read for API schemas."
+            f"Only {limits.MAX_DOCUMENTS} changed YAML, JSON, and TOML files were read, those "
+            "named as configuration first."
         )
-        documents = documents[: limits.MAX_DOCUMENTS]
-    if not documents:
-        return []
-    return _read_texts(
+        candidates = candidates[: limits.MAX_DOCUMENTS]
+    if not candidates:
+        return [], []
+    read = _read_texts(
         repo,
         base_commit,
         head_commit,
-        documents,
+        candidates,
         config.rules.max_file_bytes,
         limits.MAX_DOCUMENT_BLOB_BYTES,
         reading,
         documents=True,
+        named=named,
+    )
+    return (
+        [item for item in read if item.path not in named],
+        [item for item in read if item.path in named],
+    )
+
+
+def _named_config(path: str, config: WeaverConfig) -> bool:
+    """Whether `paths.config_files` names a file. Python source stays Python, so `config/**`
+    leaves a Django `config/settings.py` to the AST analysis."""
+    return not path.endswith(".py") and any(
+        glob_matches(path, pattern) for pattern in config.paths.config_files
     )
 
 
@@ -288,8 +315,9 @@ def collect_diff(
     head_commit: str,
     config: WeaverConfig,
 ) -> DiffCollection:
-    """Collect bounded changed Python blobs, and the YAML and JSON files an API schema can be
-    written in, without checking out or executing code."""
+    """Collect bounded changed Python blobs, the YAML and JSON files an API schema can be
+    written in, and the configuration files the repository names, without checking out or
+    executing code."""
     name_raw = repo.run(
         [
             "diff",
@@ -324,6 +352,7 @@ def collect_diff(
     excluded: Counter[str] = Counter()
     candidates: list[ChangedFile] = []
     documents: list[ChangedFile] = []
+    config_files: list[ChangedFile] = []
     warnings: list[str] = []
     for changed in files:
         reason = first_exclusion((changed.old_path, changed.new_path))
@@ -331,7 +360,13 @@ def collect_diff(
             excluded[reason] += 1
             continue
         path = changed.path
-        is_document = config.rules.analyze_api_schemas and path.endswith(limits.DOCUMENT_SUFFIXES)
+        named = _named_config(path, config)
+        if named and not path.endswith(limits.CONFIG_SUFFIXES):
+            excluded["unsupported_config_format"] += 1
+            continue
+        is_document = named or (
+            config.rules.analyze_api_schemas and path.endswith(limits.DOCUMENT_SUFFIXES)
+        )
         # The extension first: an include a repository configured for its code would otherwise
         # claim every file it does not name, and say so as a path filter.
         if not path.endswith(".py") and not is_document:
@@ -349,8 +384,17 @@ def collect_diff(
         ):
             excluded["test_file"] += 1
             continue
-        if not is_included(path, config.paths.include, config.paths.exclude):
+        # A configuration file the repository names is included by being named, whatever
+        # `include` says, and `exclude` still leaves it out.
+        if not (
+            is_included(path, ["**"], config.paths.exclude)
+            if named
+            else is_included(path, config.paths.include, config.paths.exclude)
+        ):
             excluded["path_filter"] += 1
+            continue
+        if named:
+            config_files.append(changed)
             continue
         if is_document:
             documents.append(changed)
@@ -400,7 +444,9 @@ def collect_diff(
             if hunks is not None
             else _file_hunks(repo, base_commit, head_commit, changed.path)
         )
-    read_documents = _read_documents(repo, base_commit, head_commit, documents, config, reading)
+    read_documents, read_config_files = _read_documents(
+        repo, base_commit, head_commit, documents, config_files, config, reading
+    )
     return DiffCollection(
         files=selected,
         changed_files_total=len(files),
@@ -410,4 +456,5 @@ def collect_diff(
         omitted_counts=omitted_counts,
         truncated=selected_scope is not None or reading.truncated,
         documents=read_documents,
+        config_files=read_config_files,
     )

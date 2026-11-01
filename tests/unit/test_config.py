@@ -58,6 +58,26 @@ def test_unsafe_globs_are_rejected(tmp_path: Path, pattern: str) -> None:
     assert caught.value.code is ErrorCode.CONFIGURATION_ERROR
 
 
+@pytest.mark.parametrize("pattern", ["../settings.yaml", "/etc/app/*.yaml", "C:\\app\\*.toml"])
+def test_unsafe_configuration_file_globs_are_rejected(tmp_path: Path, pattern: str) -> None:
+    profile = tmp_path / "profile.yaml"
+    profile.write_text(f"version: 1\npaths:\n  config_files: [{pattern!r}]\n", encoding="utf-8")
+    with pytest.raises(WeaverError) as caught:
+        load_config(tmp_path, request(tmp_path, risk_profile=str(profile)))
+    assert caught.value.code is ErrorCode.CONFIGURATION_ERROR
+
+
+def test_configuration_files_are_named_by_the_repository_and_none_by_default(
+    tmp_path: Path,
+) -> None:
+    assert load_config(tmp_path)[0].paths.config_files == []
+    (tmp_path / ".semantic-diff-weaver.yaml").write_text(
+        "version: 1\npaths:\n  config_files: ['config/**', 'settings.toml']\n",
+        encoding="utf-8",
+    )
+    assert load_config(tmp_path)[0].paths.config_files == ["config/**", "settings.toml"]
+
+
 def test_unsupported_language_has_public_error(tmp_path: Path) -> None:
     profile = tmp_path / "other.yaml"
     profile.write_text("version: 1\nlanguage:\n  primary: javascript\n", encoding="utf-8")

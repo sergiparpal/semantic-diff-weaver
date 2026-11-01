@@ -223,7 +223,10 @@ def test_documents_past_their_count_are_omitted_critical_paths_first(
     assert scope["analyzed_files"] == ["z/openapi.yaml"]
     assert scope["truncated"] is True
     assert {"reason": "document_limit", "count": 1} in scope["omitted"]
-    assert "Only 1 changed YAML and JSON files were read for API schemas." in envelope["warnings"]
+    assert (
+        "Only 1 changed YAML, JSON, and TOML files were read, those named as configuration first."
+        in envelope["warnings"]
+    )
     assert envelope["summary"]["verdict"] != "pass"
 
 

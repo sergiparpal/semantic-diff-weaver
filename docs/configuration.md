@@ -18,6 +18,7 @@ paths:
   include: ["**/*.py", "**/*.yaml", "**/*.yml", "**/*.json"]
   exclude: ["**/migrations/**", "**/generated/**", "**/vendor/**"]
   test_roots: ["tests"]
+  config_files: []
 critical_paths: []
 rules:
   max_changed_files: 40
@@ -151,6 +152,49 @@ or those of the same-file helpers it calls, write out a path the route template 
 base path, and more strongly one that also calls the operation's method by name, as
 `client.delete(...)`. A change to a reusable schema gets no candidate test, since `$ref` is never
 followed to the operations that use it.
+
+## Configuration files
+
+A configuration file is compared only where the repository names it, with globs:
+
+```yaml
+paths:
+  config_files: ["config/**", "settings.toml"]
+```
+
+Each changed YAML, JSON, or TOML file a glob names is compared key by key: its values are
+flattened to dotted key paths, `database.pool.max_size`, and each key added, removed, or set to
+another value is a finding named by its path, with the old and new value as its evidence. A list
+is one value as a whole. Comments and layout change no value. The finding is classified by the
+words of its key, the first that apply:
+
+| Key or value | Category |
+| --- | --- |
+| an access word: `auth`, `permission`, `role`, `admin`, `scope`, `acl` | `authorization_change` |
+| a retry or timeout word: `retry`, `attempts`, `timeout`, `backoff`, `deadline` | `retry_timeout_change` |
+| a limit word, `max`, `min`, `limit`, `threshold`, `size`, `quota`, on a number | `boundary_change` |
+| a validation word: `valid`, `allowed`, `deny`, `pattern`, `required` | `validation_change` |
+| a boolean, or a switch word: `enabled`, `flag`, `feature`, `toggle` | `default_behavior_change` |
+| a connection word: `url`, `host`, `port`, `endpoint`, `dsn`, `database`, `queue` | `dependency_interaction_change` |
+| any other key changed or removed | `default_behavior_change` |
+| any other key added | `unknown_semantic_change` |
+
+Naming a file includes it, whatever `paths.include` says, so an `include` written for the code needs
+no change; `paths.exclude` still leaves a named file out, as `path_filter`, and one under a
+`test_roots` entry is a fixture, `test_file`. A glob names documents only: a Python file it matches,
+as `config/**` matches a `config/settings.py`, is still analyzed as Python. A named file in another
+format is counted as `unsupported_config_format`. A named file that cannot be read as bounded text —
+larger than `rules.max_file_bytes`, not UTF-8, or a symbolic link — is `unreadable_config_file`, and
+one that does not parse within its budgets is a finding of its own, counted as
+`parse_incomplete_config_files`: either marks the analysis truncated, since the repository asked for
+the file. A named file is compared as configuration even when it is also an API schema.
+
+Named files share the documents' ceilings, ahead of the YAML and JSON files read for API schemas:
+200 files and 64 MiB of base and head text in all, and 500 changes compared per file, past which
+one is counted as `config_delta_limit`. A finding's candidate tests are those whose body uses the
+key's last name when that is several words, `max_retries` or `maxRetries`, ranked higher when they
+use every other name of its path too, and otherwise those that use every name of a path of
+several, `database` and `timeout`; a key of one word alone, `timeout`, names no test.
 
 ## Coverage grounding
 

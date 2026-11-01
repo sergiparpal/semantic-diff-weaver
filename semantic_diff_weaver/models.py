@@ -152,6 +152,11 @@ class PathsConfig(StrictModel):
     test_roots: Annotated[
         list[RelativePattern], Field(min_length=1, max_length=MAX_PATH_PATTERNS)
     ] = Field(default_factory=lambda: ["tests"])
+    # Configuration files the repository names, compared key by key: naming one includes it,
+    # whatever `include` says, while `exclude` still leaves it out. See `schema_diff.settings`.
+    config_files: Annotated[list[RelativePattern], Field(max_length=MAX_PATH_PATTERNS)] = Field(
+        default_factory=list
+    )
 
 
 class RulesConfig(StrictModel):

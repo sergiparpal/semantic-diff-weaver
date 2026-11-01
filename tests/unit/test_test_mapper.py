@@ -1559,3 +1559,71 @@ def test_an_operation_maps_to_the_tests_that_request_its_route() -> None:
 def test_a_change_without_a_route_maps_to_no_test() -> None:
     assert route_reasons("Order") == {}
     assert route_reasons("<security>") == {}
+
+
+CONFIG_TESTS = """def _settings():
+    return load("config/app.yaml")
+
+
+def test_retries_are_bounded():
+    assert _settings()["http"]["MAX_RETRIES"] == 5
+
+
+def test_the_client_retries(client):
+    assert client.maxRetries
+
+
+def test_the_database_times_out(config):
+    assert config.database.timeout
+
+
+def test_a_timeout_alone_is_anything():
+    assert timeout
+"""
+
+
+def config_reasons(key: str) -> dict[str, tuple[float, list[str]]]:
+    candidate = build_candidates(
+        [
+            StructuralDelta(
+                path="config/app.yaml",
+                symbol=key,
+                kind="config_value_change",
+                old=f"{key}: 3",
+                new=f"{key}: 5",
+                old_lines=None,
+                new_lines=None,
+                hunk_id=None,
+                metadata={"context": "configuration", "old_type": "number", "new_type": "number"},
+            )
+        ]
+    )[0]
+    index = TestIndex(
+        tests=_index_source("tests/test_settings.py", CONFIG_TESTS), incomplete=False, warnings=[]
+    )
+    mapped = map_candidate_tests([candidate], index, WeaverConfig())[0]
+    return {item.symbol: (item.match_score, item.match_reasons) for item in mapped}
+
+
+def test_a_configuration_key_maps_to_the_tests_that_use_its_names() -> None:
+    assert config_reasons("http.max_retries") == {
+        "test_retries_are_bounded": (
+            0.75,
+            ["uses the changed key's name", "and every name of its path"],
+        ),
+    }
+    # A camelCase name is as distinctive as a snake_case one, and needs no path.
+    assert config_reasons("client.maxRetries") == {
+        "test_the_client_retries": (
+            0.75,
+            ["uses the changed key's name", "and every name of its path"],
+        ),
+    }
+    assert config_reasons("database.timeout") == {
+        "test_the_database_times_out": (0.45, ["uses every name of the changed key's path"]),
+    }
+
+
+def test_a_configuration_key_of_one_word_alone_maps_to_no_test() -> None:
+    assert config_reasons("timeout") == {}
+    assert config_reasons("cache.ttl") == {}

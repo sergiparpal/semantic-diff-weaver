@@ -91,8 +91,9 @@ INVALID_PARAMS = -32602
 INTERNAL_ERROR = -32603
 
 INSTRUCTIONS = (
-    "Call analyze_semantic_diff to review a committed change to Python code or API schemas "
-    "between two Git refs and plan regression tests. It is read-only and advisory. Once the user approves obligations, "
+    "Call analyze_semantic_diff to review a committed change to Python code, API schemas, or "
+    "named configuration files between two Git refs and plan regression tests. It is read-only "
+    "and advisory. Once the user approves obligations, "
     "generate_test_skeletons returns a patch of failing tests for them, which it never applies. "
     "repo_path must lie inside the authorized workspace, which is the host project directory "
     "unless the operator set SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS."

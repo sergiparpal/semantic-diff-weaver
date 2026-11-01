@@ -876,7 +876,195 @@ def _classify_api_schema(
     return _API_RULES.get(delta.kind)
 
 
+# A changed value of a configuration file the repository names, read by the words of its key,
+# `database.pool.max_size`, in this order: what decides access first, a switch before what it
+# switches, and a key no word explains last. A key that was added has no reader yet, maybe.
+_CONFIG_AUTH_TERMS = (
+    *AUTH_TERMS,
+    "admin",
+    "admins",
+    "roles",
+    "permissions",
+    "scope",
+    "scopes",
+    "acl",
+    "acls",
+)
+_CONFIG_VALIDATION_TERMS = (
+    *VALIDATION_TERMS,
+    "allow",
+    "allowlist",
+    "deny",
+    "denylist",
+    "blocklist",
+    "pattern",
+    "regex",
+    "required",
+)
+_CONFIG_BOUNDARY_TERMS = (
+    "max",
+    "min",
+    "maximum",
+    "minimum",
+    "limit",
+    "limits",
+    "threshold",
+    "thresholds",
+    "size",
+    "capacity",
+    "quota",
+    "cap",
+)
+_CONFIG_FLAG_TERMS = (
+    "enable",
+    "enabled",
+    "disable",
+    "disabled",
+    "flag",
+    "flags",
+    "feature",
+    "features",
+    "toggle",
+    "toggles",
+)
+_CONFIG_DEPENDENCY_TERMS = (
+    "url",
+    "urls",
+    "uri",
+    "host",
+    "hosts",
+    "hostname",
+    "port",
+    "endpoint",
+    "endpoints",
+    "dsn",
+    "server",
+    "servers",
+    "address",
+    "region",
+    "bucket",
+    "queue",
+    "topic",
+    "database",
+    "db",
+)
+_CONFIG_READER = "What reads the configuration value is unavailable to static analysis."
+_CONFIG_VERBS = {
+    "config_value_change": "changed",
+    "config_key_added": "was added",
+    "config_key_removed": "was removed",
+}
+
+
+def _classify_config(
+    delta: StructuralDelta, rules: RulesConfig, combined: str
+) -> Classification | None:
+    if delta.kind == "config_parse_incomplete":
+        return (
+            BehaviorCategory.UNKNOWN,
+            "A changed configuration file could not be parsed completely.",
+            "The values it sets may have changed and need review.",
+            0.68,
+            ["Only the file's path is available because parsing failed."],
+            "SDW-RULE-CONFIG-PARSE-INCOMPLETE",
+        )
+    verb = _CONFIG_VERBS.get(delta.kind)
+    if verb is None:
+        return None
+    key = delta.symbol
+    types = {delta.metadata.get("old_type"), delta.metadata.get("new_type")} - {None}
+    # A key that was added may not be read yet, so what its words say is less certain.
+    added = 0.08 if delta.kind == "config_key_added" else 0.0
+    rules_by_words: tuple[tuple[bool, BehaviorCategory, str, str, float, str], ...] = (
+        (
+            _contains(key, _CONFIG_AUTH_TERMS),
+            BehaviorCategory.AUTHORIZATION,
+            "access setting",
+            "Who may do what can differ wherever the program reads it.",
+            0.76,
+            "SDW-RULE-CONFIG-AUTH",
+        ),
+        (
+            _contains(key, LOOP_RETRY_TERMS),
+            BehaviorCategory.RETRY_TIMEOUT,
+            "retry or timeout setting",
+            "How long the program waits, or how often it tries again, changes where it reads it.",
+            0.78,
+            "SDW-RULE-CONFIG-RETRY",
+        ),
+        (
+            types <= {"number"} and _contains(key, _CONFIG_BOUNDARY_TERMS),
+            BehaviorCategory.BOUNDARY,
+            "limit",
+            "Values at or past the limit are handled differently where the program reads it.",
+            0.76,
+            "SDW-RULE-CONFIG-BOUNDARY",
+        ),
+        (
+            _contains(key, _CONFIG_VALIDATION_TERMS),
+            BehaviorCategory.VALIDATION,
+            "validation setting",
+            "Input the program accepted may now be rejected, or input it rejected accepted.",
+            0.72,
+            "SDW-RULE-CONFIG-VALIDATION",
+        ),
+        (
+            "boolean" in types or _contains(key, _CONFIG_FLAG_TERMS),
+            BehaviorCategory.DEFAULT_BEHAVIOR,
+            "switch",
+            "The code the switch guards now runs, or stops running, by default.",
+            0.74,
+            "SDW-RULE-CONFIG-FLAG",
+        ),
+        (
+            _contains(key, _CONFIG_DEPENDENCY_TERMS),
+            BehaviorCategory.DEPENDENCY_INTERACTION,
+            "connection setting",
+            "The program may now reach another service, address, or resource.",
+            0.72,
+            "SDW-RULE-CONFIG-DEPENDENCY",
+        ),
+    )
+    for matched, category, what, impact, confidence, rule_id in rules_by_words:
+        if matched:
+            return (
+                category,
+                f"A configured {what} {verb}.",
+                impact,
+                confidence - added,
+                [_CONFIG_READER],
+                rule_id,
+            )
+    if delta.kind == "config_key_added":
+        return (
+            BehaviorCategory.UNKNOWN,
+            "A configuration key was added.",
+            "A new setting becomes available; what reads it needs characterizing tests.",
+            0.56,
+            [_CONFIG_READER],
+            "SDW-RULE-CONFIG-VALUE",
+        )
+    if delta.kind == "config_key_removed":
+        return (
+            BehaviorCategory.DEFAULT_BEHAVIOR,
+            "A configuration key was removed.",
+            "Code that read it falls back to its own default, or fails without it.",
+            0.64,
+            [_CONFIG_READER],
+            "SDW-RULE-CONFIG-VALUE",
+        )
+    return (
+        BehaviorCategory.DEFAULT_BEHAVIOR,
+        "A configuration value changed.",
+        "Code that reads the value now gets the new one by default.",
+        0.62,
+        [_CONFIG_READER],
+        "SDW-RULE-CONFIG-VALUE",
+    )
+
+
 CLASSIFIERS: tuple[Classifier, ...] = (
+    _classify_config,
     _classify_api_schema,
     _classify_parse_incomplete,
     _classify_symbol_lifecycle,

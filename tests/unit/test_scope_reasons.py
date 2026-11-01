@@ -10,9 +10,11 @@ import inspect
 import re
 from pathlib import Path
 
+import pytest
+
 from semantic_diff_weaver import path_policy
 from semantic_diff_weaver.renderer import EXCLUSION_PHRASES, OMISSION_PHRASES, _reason_items
-from semantic_diff_weaver.service import analyze
+from semantic_diff_weaver.service import _inspected, analyze
 
 PACKAGE = Path(__file__).resolve().parents[2] / "semantic_diff_weaver"
 
@@ -93,3 +95,32 @@ def test_a_brief_with_nothing_left_out_adds_no_reason_lines(repo_factory) -> Non
         {"api.py": "def allowed(x):\n    return x <= 5\n"},
     )
     assert not any(line.startswith(("**Omitted:**", "**Excluded files:**")) for line in lines)
+
+
+@pytest.mark.parametrize(
+    ("schemas", "settings", "limitation"),
+    [
+        (False, False, "Only committed Python source at the resolved refs was inspected."),
+        (
+            True,
+            False,
+            "Only committed Python source and API schemas at the resolved refs were inspected.",
+        ),
+        (
+            False,
+            True,
+            "Only committed Python source and configuration files at the resolved refs were "
+            "inspected.",
+        ),
+        (
+            True,
+            True,
+            "Only committed Python source, API schemas, and configuration files at the resolved "
+            "refs were inspected.",
+        ),
+    ],
+)
+def test_the_limitation_names_what_was_inspected(
+    schemas: bool, settings: bool, limitation: str
+) -> None:
+    assert _inspected(schemas, settings) == limitation

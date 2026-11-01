@@ -46,6 +46,8 @@ OMISSION_PHRASES = {
     "document_limit": "YAML or JSON file(s) past the document budget",
     "parse_incomplete_documents": "API schema(s) that did not parse completely",
     "schema_delta_limit": "API schema(s) with more changes than one is compared for",
+    "parse_incomplete_config_files": "configuration file(s) that did not parse completely",
+    "config_delta_limit": "configuration file(s) with more changes than one is compared for",
     "changed_symbol_limit": "changed symbol(s) past `max_changed_symbols`",
     "minimum_confidence": "finding(s) below `minimum_report_confidence`",
     "low_risk_refactor_policy": "low-risk refactor(s) hidden by `emit_low_risk_refactors: false`",
@@ -67,6 +69,8 @@ EXCLUSION_PHRASES = {
     "oversized_or_non_utf8": "oversized or not UTF-8",
     "not_api_schema": "YAML or JSON that is not an API schema",
     "unreadable_document": "YAML or JSON not readable as bounded text",
+    "unreadable_config_file": "named configuration file(s) not readable as bounded text",
+    "unsupported_config_format": "named configuration file(s) in a format not compared",
 }
 
 

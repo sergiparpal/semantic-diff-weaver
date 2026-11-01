@@ -1,6 +1,6 @@
 ---
 name: semantic-diff
-description: Review the behavioral meaning of a committed change to Python code or to API schemas (OpenAPI, Swagger, JSON Schema) and plan regression tests with the read-only analyze_semantic_diff tool, then scaffold failing tests for the obligations the user approves with generate_test_skeletons. Use when the user asks what a diff, branch, or pull request changes in behavior, how risky it is, what to test before merging, or to scaffold those tests.
+description: Review the behavioral meaning of a committed change to Python code, to API schemas (OpenAPI, Swagger, JSON Schema), or to configuration files the repository names, and plan regression tests with the read-only analyze_semantic_diff tool, then scaffold failing tests for the obligations the user approves with generate_test_skeletons. Use when the user asks what a diff, branch, or pull request changes in behavior, how risky it is, what to test before merging, or to scaffold those tests.
 ---
 
 # Semantic diff review
@@ -21,8 +21,8 @@ imports, executes, builds, or modifies the repository.
    revisions as they stand: the tool diffs the two trees directly, so commits the base gained
    after the work branched off would read as reverted by it. None of this needs a `git fetch`.
    Say which base and merge-base commit you used. Only *committed* changes are analyzed: if
-   `git status` shows uncommitted edits to Python files or API schemas, say that they are
-   not included.
+   `git status` shows uncommitted edits to Python files, API schemas, or configuration files,
+   say that they are not included.
 2. **Call the tool** with `repo_path` set to the project directory (`.` works), `base_ref`,
    and `head_ref`, and leave `output_format` unset. The default is the Markdown brief: every
    finding and obligation with its ID, at about half the size of the JSON. When a large brief
@@ -37,8 +37,10 @@ imports, executes, builds, or modifies the repository.
    analyzed, while `exclude` also hides files from candidate-test discovery, so excluding a
    tests directory silently drops every candidate test. By default, changed tests are candidate
    tests rather than behavior under review: they are set aside before `include` applies, so an
-   `include` that covers only tests analyzes nothing. Ask for `output_format: "json"` only on a
-   narrowed call, when you need fields the brief leaves out, such as score explanations.
+   `include` that covers only tests analyzes nothing. A configuration file the repository names
+   in `paths.config_files` is analyzed in every call, whatever `include` says. Ask for
+   `output_format: "json"` only on a narrowed call, when you need fields the brief leaves out,
+   such as score explanations.
    IDs (`bc-`, `to-`, `ev-`) number positions within one result, and a narrowed call renumbers
    them: quote IDs only from the result you are reporting.
 4. **On an error result**, read its `error` code and `remediation`. `path_outside_repository`

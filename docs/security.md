@@ -79,6 +79,14 @@ import.
   its symbol, a key of the document, to 200; the brief escapes both. Telling a schema that does
   not parse from a file of no interest searches its text in time linear in its length.
   `tests/security/test_schema_inputs.py` holds the adversarial regressions.
+- A configuration file `paths.config_files` names is read the same way, a TOML one with the
+  standard library's `tomllib`, under the same budgets. Such files hold secrets more often than
+  any other, and every value a finding shows passes the same redaction, so a password, a
+  credential-bearing DSN, an `Authorization` value, or a token reaches no evidence, model input, or
+  output. The globs are repository-relative patterns, validated like `include`; they name files of
+  the diff, never a path outside the repository, and a named symbolic link is not read but counted
+  as `unreadable_config_file`, which leaves the analysis incomplete.
+  `tests/security/test_config_inputs.py` holds the adversarial regressions.
 - The plugin makes no direct network request and emits no plugin telemetry.
 - Resource prioritization is deterministic and applies only to explicitly configured critical paths;
   it never expands the configured file, line, symbol, evidence, or model-input ceilings.

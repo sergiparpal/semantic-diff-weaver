@@ -90,7 +90,7 @@ def _validate_relative_pattern(value: str, label: str) -> str:
 def _validate_config_paths(data: dict[str, Any]) -> None:
     paths = data.get("paths", {})
     if isinstance(paths, dict):
-        for field in ("include", "exclude", "test_roots"):
+        for field in ("include", "exclude", "test_roots", "config_files"):
             if field not in paths:
                 continue
             values = paths[field] or []

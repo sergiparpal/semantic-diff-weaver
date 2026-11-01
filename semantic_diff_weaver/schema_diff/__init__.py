@@ -1,4 +1,5 @@
-"""Structural comparison of changed API schemas: OpenAPI and Swagger documents, and JSON Schemas.
+"""Structural comparison of changed documents: API schemas — OpenAPI and Swagger documents, and
+JSON Schemas — and the configuration files a repository names.
 
 Only the pipeline-facing surface is re-exported. The bounded loader, the document model, and the
 comparison rules are internal to this package and are imported from their defining module.
@@ -6,6 +7,6 @@ comparison rules are internal to this package and are imported from their defini
 
 from __future__ import annotations
 
-from .analyze import SchemaAnalysis, analyze_schemas
+from .analyze import DocumentAnalysis, analyze_schemas, analyze_settings
 
-__all__ = ["SchemaAnalysis", "analyze_schemas"]
+__all__ = ["DocumentAnalysis", "analyze_schemas", "analyze_settings"]

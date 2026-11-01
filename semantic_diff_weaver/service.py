@@ -47,7 +47,7 @@ from .path_policy import (
     redact_text,
 )
 from .renderer import render_transport
-from .schema_diff import SchemaAnalysis, analyze_schemas
+from .schema_diff import DocumentAnalysis, analyze_schemas, analyze_settings
 from .scoring import advisory_verdict, confidence_score, score_risk
 from .semantic_candidates import SemanticCandidate, build_candidates
 from .semantic_interpreter import InterpreterResult, interpret_candidates
@@ -274,7 +274,8 @@ def _set_aside_test_modules(collection: DiffCollection, config: WeaverConfig) ->
 def _collect_scope(
     collection: DiffCollection,
     ast_result: AstAnalysis,
-    schema_result: SchemaAnalysis,
+    schema_result: DocumentAnalysis,
+    settings_result: DocumentAnalysis,
     config: WeaverConfig,
     state: _PipelineState,
 ) -> tuple[list[StructuralDelta], int, int]:
@@ -286,7 +287,13 @@ def _collect_scope(
         for reason, count in sorted(collection.omitted_counts.items())
         if count
     )
-    truncated_input = collection.truncated or bool(incomplete_exclusions)
+    # A configuration file the repository names was asked for, so one left unread leaves the
+    # analysis incomplete, as an unreadable Python file does.
+    truncated_input = (
+        collection.truncated
+        or bool(incomplete_exclusions)
+        or bool(collection.excluded_counts.get("unreadable_config_file"))
+    )
     state.scope_truncated |= truncated_input
     state.confidence_truncated |= truncated_input
     state.record_omitted(
@@ -301,8 +308,14 @@ def _collect_scope(
         collection.excluded_counts = dict(sorted(collection.excluded_counts.items()))
     state.record_omitted("parse_incomplete_documents", schema_result.parse_incomplete, scope=True)
     state.record_omitted("schema_delta_limit", schema_result.truncated_documents, scope=True)
-    deltas = [*ast_result.deltas, *schema_result.deltas]
-    changed_symbols = ast_result.changed_symbols + schema_result.changed_symbols
+    state.record_omitted(
+        "parse_incomplete_config_files", settings_result.parse_incomplete, scope=True
+    )
+    state.record_omitted("config_delta_limit", settings_result.truncated_documents, scope=True)
+    deltas = [*ast_result.deltas, *schema_result.deltas, *settings_result.deltas]
+    changed_symbols = (
+        ast_result.changed_symbols + schema_result.changed_symbols + settings_result.changed_symbols
+    )
     if changed_symbols > config.rules.max_changed_symbols:
         deltas, omitted_count = _prioritize_deltas(deltas, config.rules.max_changed_symbols, config)
         # Reaching the cap is itself the truncation, independently of how many symbol groups
@@ -507,11 +520,26 @@ def _summary_metrics(
     return overall_risk, overall_score, overall_confidence, risk_counts
 
 
+def _inspected(schemas: bool, settings: bool) -> str:
+    """The limitation that says what was read: Python source, and the documents that were."""
+    kinds = [
+        "Python source",
+        *(["API schemas"] if schemas else []),
+        *(["configuration files"] if settings else []),
+    ]
+    if len(kinds) == 1:
+        return "Only committed Python source at the resolved refs was inspected."
+    listed = " and ".join(kinds) if len(kinds) == 2 else f"{kinds[0]}, {kinds[1]}, and {kinds[2]}"
+    return f"Only committed {listed} at the resolved refs were inspected."
+
+
 def _build_limitations(
     *,
     collection: DiffCollection,
     ast_result: AstAnalysis,
-    schema_result: SchemaAnalysis,
+    schema_result: DocumentAnalysis,
+    settings_result: DocumentAnalysis,
+    config_files_named: bool,
     incomplete_exclusions: int,
     low_confidence_omitted: int,
     interpreted: InterpreterResult,
@@ -519,17 +547,23 @@ def _build_limitations(
     partial_fallback: bool,
     deterministic: list[SemanticCandidate],
 ) -> list[str]:
+    unread_settings = collection.excluded_counts.get("unreadable_config_file", 0)
     limitations = [
         "Candidate test mapping is static and does not prove runtime coverage.",
-        "Only committed Python source and API schemas at the resolved refs were inspected."
-        if schema_result.analyzed_paths
-        else "Only committed Python source at the resolved refs was inspected.",
+        _inspected(bool(schema_result.analyzed_paths), bool(settings_result.analyzed_paths)),
         "Repository code and tests were not imported, executed, built, installed, or modified.",
     ]
     rules: list[tuple[Callable[[], bool], str]] = [
         (
-            lambda: not collection.files and not schema_result.analyzed_paths,
-            "The bounded diff contained no included changed Python source or API schema.",
+            lambda: (
+                not collection.files
+                and not schema_result.analyzed_paths
+                and not settings_result.analyzed_paths
+            ),
+            "The bounded diff contained no included changed Python source, API schema, or "
+            "configuration file."
+            if config_files_named
+            else "The bounded diff contained no included changed Python source or API schema.",
         ),
         (
             lambda: bool(collection.files) and not ast_result.deltas,
@@ -539,6 +573,15 @@ def _build_limitations(
             lambda: bool(schema_result.analyzed_paths) and not schema_result.deltas,
             "The included API schema change contained no contract change; descriptions, examples, "
             "and `x-` extensions are not compared.",
+        ),
+        (
+            lambda: bool(settings_result.analyzed_paths) and not settings_result.deltas,
+            "The included configuration change set no value differently.",
+        ),
+        (
+            lambda: bool(unread_settings),
+            f"{unread_settings} configuration file(s) named by `paths.config_files` could not be "
+            "read as bounded text.",
         ),
         (
             lambda: bool(low_confidence_omitted),
@@ -626,8 +669,8 @@ def _coverage_summary(
 
 
 def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[str, Any]:
-    """Analyze committed changes to Python source and API schemas, and return the requested
-    transport dictionary."""
+    """Analyze committed changes to Python source, API schemas, and named configuration files,
+    and return the requested transport dictionary."""
     request, repo, base_commit, head_commit, config, config_warnings = _bootstrap(arguments)
     state = _PipelineState(warnings=list(config_warnings))
     if base_commit == head_commit:
@@ -647,8 +690,12 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
     state.warnings.extend(ast_result.warnings)
     schema_result = analyze_schemas([item.as_revision_pair() for item in collection.documents])
     state.warnings.extend(schema_result.warnings)
+    settings_result = analyze_settings(
+        [item.as_revision_pair() for item in collection.config_files]
+    )
+    state.warnings.extend(settings_result.warnings)
     deltas, changed_symbols, incomplete_exclusions = _collect_scope(
-        collection, ast_result, schema_result, config, state
+        collection, ast_result, schema_result, settings_result, config, state
     )
     deterministic = build_candidates(deltas, config)
     readme_excerpt = (
@@ -740,6 +787,8 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
         collection=collection,
         ast_result=ast_result,
         schema_result=schema_result,
+        settings_result=settings_result,
+        config_files_named=bool(config.paths.config_files),
         incomplete_exclusions=incomplete_exclusions,
         low_confidence_omitted=low_confidence_omitted,
         interpreted=interpreted,
@@ -773,7 +822,11 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
         scope=ScopeMetadata(
             changed_files_total=collection.changed_files_total,
             analyzed_files=sorted(
-                [*(item.path for item in collection.files), *schema_result.analyzed_paths]
+                [
+                    *(item.path for item in collection.files),
+                    *schema_result.analyzed_paths,
+                    *settings_result.analyzed_paths,
+                ]
             ),
             excluded_counts=collection.excluded_counts,
             omitted=state.omitted,

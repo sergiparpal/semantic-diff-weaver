@@ -147,6 +147,48 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Configuration files (2026-11-01)
+
+The second half of the roadmap's v0.2 "config and API schema awareness": configuration files,
+compared only where the repository names them with globs, in the new `paths.config_files`, at the
+user's choice. A changed value in a configuration file changes behavior no code shows — a retry
+count, a timeout, a feature switch, a service's address — and nothing tells a configuration file
+from data by its content, so the repository says which files it reads. Five choices are
+deliberate:
+
+- **Naming a file includes it.** A file a glob names is compared whatever `paths.include` says.
+  An `include` written for the code, as `src/**/*.py` is, would otherwise leave out every file
+  just named, and the repository would have to name it twice. `paths.exclude` still leaves a named
+  file out, the mandatory secret exclusions apply before it, and a named file under a test root is
+  a fixture. A call's `include` argument narrows the files it governs, so a named configuration
+  file is analyzed in every narrowed call.
+- **YAML, JSON, and TOML, compared key by key.** Each value is named by its dotted key path,
+  `database.pool.max_size`, and a list is one value as a whole: its items have no names, and an
+  item moved would otherwise read as every item after it changed. A key is a finding of its own,
+  so one changed timeout is one finding, with the old and new value as its evidence. A named file
+  in another format, an `.ini` or a `.properties` file, is counted as `unsupported_config_format`.
+- **A key's words decide what it means.** The first that applies: an access word makes an
+  authorization change, a retry or timeout word a retry change, a limit word on a number a
+  boundary change, a validation word a validation change, a boolean or a switch word a change of
+  default behavior, and a connection word — `url`, `host`, `port`, `dsn`, `database` — a dependency
+  interaction. Any other key changed or removed is a change of default behavior, since code reads
+  the configured value in place of its own default; one added is an unknown change, which no code
+  may read yet, and every added key is classified with less confidence.
+- **A named file left unread leaves the analysis incomplete.** Unlike the YAML and JSON files read
+  to tell whether they are API schemas, most of which are lockfiles and data, a named file was
+  asked for. One that cannot be read is `unreadable_config_file` and one that does not parse is a
+  finding of its own; either truncates the analysis, so it does not pass.
+- **Named files come first within the documents' budgets.** They share the 200-file and 64 MiB
+  ceilings with the YAML and JSON files read for API schemas, ahead of them, and then critical paths
+  first, as before.
+
+The candidate tests of a key are those whose body uses its names: its last name when that is
+several words, `max_retries`, and otherwise every name of a path of several. A key of one word
+alone names none, as a single-word symbol names no test by its name. A named file is compared as
+configuration even when its content is an API schema: the repository said what it is. The schema of
+the result is unchanged; the helpers both comparisons make deltas with moved from `compare.py` to
+`deltas.py`, and `SchemaAnalysis` is now `DocumentAnalysis`.
+
 ## API schemas (2026-11-01)
 
 The roadmap's v0.2 asks for config and API schema awareness, and API schemas come first, at the
