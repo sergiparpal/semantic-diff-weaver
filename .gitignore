@@ -14,6 +14,8 @@ build/
 .kg-reconcile-state.json
 .kg-ground-audit.jsonl*
 .tmp-*
+# Claude Code's per-user settings for this checkout: permission grants, never project config.
+.claude/settings.local.json
 # Empty scaffolding directories some local agent tooling recreates.
 .agents/
 .codex/

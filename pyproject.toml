@@ -33,6 +33,9 @@ packages = ["semantic_diff_weaver"]
 
 [tool.hatch.build.targets.sdist]
 exclude = [
+  # Claude Code's per-user settings. Hatchling honors the project's .gitignore but not a global Git
+  # ignore, which may be the only thing that ignores them in a contributor's checkout.
+  "/.claude",
   "/.coverage",
   "/.pytest_cache",
   "/.pytest_tmp",

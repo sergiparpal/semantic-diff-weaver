@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **Fix:** a source distribution built from a working copy no longer carries Claude Code's
+  per-user `.claude/settings.local.json`. Hatchling honors the project's `.gitignore` but not a
+  global Git ignore, which was all that kept the file out of this checkout's commits, so a local
+  build packed it; CI builds from a clean checkout, and no source distribution was published.
+  The sdist now excludes `/.claude`, `.gitignore` lists the settings file, and
+  `scripts/verify_wheel.py` rejects a distribution with a `.claude` path.
+
 ## 0.8.0 - 2026-11-01
 
 Test skeletons as a tool. `generate_test_skeletons` joins `analyze_semantic_diff` on the Hermes

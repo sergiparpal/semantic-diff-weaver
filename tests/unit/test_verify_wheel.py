@@ -161,6 +161,8 @@ def test_each_wheel_defect_is_rejected_with_its_own_message(
         ".git/config",
         ".venv/pyvenv.cfg",
         ".pytest_cache/README.md",
+        # Claude Code's per-user settings, which a global Git ignore alone kept out of commits.
+        ".claude/settings.local.json",
     ],
 )
 def test_forbidden_paths_are_rejected_in_both_distributions(tmp_path: Path, forbidden: str) -> None:
