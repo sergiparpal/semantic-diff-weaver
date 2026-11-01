@@ -12,6 +12,11 @@ MAX_SOURCE_FILE_BYTES = 8 * 1024 * 1024
 MAX_SOURCE_BLOB_BYTES = 64 * 1024 * 1024
 MAX_ANALYZED_FILES = 1000
 MAX_TREE_PATHS_PER_COMMAND = 256
+# The YAML and JSON a changed API schema can be written in. Such files are read whole, under
+# budgets of their own, so a large lockfile cannot spend the line budget Python files share.
+DOCUMENT_SUFFIXES = (".yaml", ".yml", ".json")
+MAX_DOCUMENTS = 200
+MAX_DOCUMENT_BLOB_BYTES = 64 * 1024 * 1024
 # Git's 50% default misses small CRLF renames; AST matching still rejects ambiguous symbols.
 RENAME_DETECTION_ARGUMENTS = ("-M40%", "-C40%")
 COMMIT_RE = re.compile(r"^[0-9a-f]{40,64}$")

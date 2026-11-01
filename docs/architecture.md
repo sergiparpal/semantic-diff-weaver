@@ -3,9 +3,10 @@
 The plugin follows a typed, bounded pipeline:
 
 ```text
-request/config -> repository + resolved refs -> changed committed blobs -> AST deltas
--> deterministic evidence/candidates -> static candidate-test index -> optional structured LLM
--> reconciliation -> optional ingested coverage report -> risk/confidence -> obligations
+request/config -> repository + resolved refs -> changed committed blobs
+-> AST deltas and API schema deltas -> deterministic evidence/candidates
+-> static candidate-test index -> optional structured LLM -> reconciliation
+-> optional ingested coverage report -> risk/confidence -> obligations
 -> canonical JSON -> optional Markdown
 ```
 
@@ -33,6 +34,21 @@ duplicate definitions; and correlates conservative moves across files that both 
 `AstBudget` wall-clock deadline is checked between the parse, matching, and comparison phases and
 counts as spent once reached, so a coarse platform clock cannot let an exhausted budget read as
 live.
+
+The `schema_diff/` package compares the changed YAML and JSON files that are API schemas, and
+consumes `SourceRevisionPair` too. Collection reads those files apart from Python source, under a
+file count, critical paths first, and a byte total of their own, and with no hunks: a schema's
+evidence is the place in the document a change is, not a line. Whether a file is a schema, its
+content decides: an OpenAPI 3 or Swagger 2 root, or a JSON Schema whose `$schema` names a
+meta-schema. `load.py` parses JSON with the standard library and YAML with a subclass of the
+configuration loader's budgeted `SafeLoader`, then copies the result into plain data under a node
+and depth budget of its own, since aliases can make a small file a large tree. `compare.py`
+compares operations by method and route — parameters, request bodies, responses, media types,
+and the security each requires — then global security, servers, and reusable schemas, and within
+a schema the keywords that decide what is accepted or returned. Each delta records whether its
+place is part of a request, a response, a reusable component, or a standalone JSON Schema, and
+`semantic_candidates.py` classifies it by that: a narrowed `enum` validates a request but changes
+what a response returns. `$ref` is compared as text and never resolved.
 
 Deterministic rules create evidence before model use. Their term-based probes read the changed
 expressions together with the symbol name, because names carry authorization, validation, retry, and
@@ -111,7 +127,13 @@ modules beside it name it too, then one reaching the symbol through calls rather
 loading a module whose top-level code names it. Category terminology adds only to a test named
 after the symbol or its module, one that calls the symbol itself, or one only its file ties to the
 change. A private, undecorated helper that no test reaches or names gets no candidate from a test
-file, since only its module calls it, unless the graph was cut short by its bounds.
+file, since only its module calls it, unless the graph was cut short by its bounds. A change to an
+API operation has no Python symbol to import or call, so it maps to the tests that request its
+route: string literals in a test or its same-file helpers that are a path, or a URL whose path
+is, with an f-string's placeholders standing for one segment each, matched against the route
+template after any base path. One that also calls the operation's method by name ranks higher,
+and one that calls only other methods is about another operation of the route. A change to a
+reusable schema names no route, and has no candidate.
 
 When global file or line limits are exceeded, explicitly configured critical paths are analyzed first
 and every omitted count/reason is carried into canonical scope and Markdown. Parse-incomplete files

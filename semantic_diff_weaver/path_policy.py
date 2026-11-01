@@ -323,17 +323,21 @@ def is_included(path: str, includes: list[str], excludes: list[str]) -> bool:
     )
 
 
+def in_test_root(path: str, roots: Iterable[str]) -> bool:
+    """Whether a path lies under a configured test root, whatever kind of file it is."""
+    pure = PurePosixPath(path)
+    return any(pure == PurePosixPath(root) or PurePosixPath(root) in pure.parents for root in roots)
+
+
 def is_test_support_path(path: str, roots: Iterable[str]) -> bool:
     """Whether a Python file is test code by its path alone, whatever it defines.
 
     Everything under a configured test root — tests, helpers, and fixtures alike — and pytest's
     `conftest.py`, a name that nothing but test code uses.
     """
-    pure = PurePosixPath(path)
-    in_root = any(
-        pure == PurePosixPath(root) or PurePosixPath(root) in pure.parents for root in roots
+    return path.endswith(".py") and (
+        in_test_root(path, roots) or PurePosixPath(path).name == "conftest.py"
     )
-    return path.endswith(".py") and (in_root or pure.name == "conftest.py")
 
 
 def has_test_module_name(path: str) -> bool:

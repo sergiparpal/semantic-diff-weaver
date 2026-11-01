@@ -1425,3 +1425,137 @@ def test_a_test_reaching_a_change_through_calls_ranks_before_one_only_loading_it
         "test_a_text_is_split_into_symbols",
     ]
     assert len({item.match_score for item in mapped}) == 1
+
+
+ROUTE_TESTS = """BASE = "https://shop.example/api"
+
+
+def _delete(client, order):
+    return client.delete(f"/orders/{order.id}")
+
+
+def test_an_order_is_deleted(client, order):
+    assert _delete(client, order).status_code == 204
+
+
+def test_an_order_is_read(client):
+    assert client.get("/orders/7?expand=lines").status_code == 200
+
+
+def test_the_catalog_is_served(session):
+    assert session.request("DELETE", BASE + "/orders/7")
+
+
+def test_the_root_is_up(client):
+    assert client.get(BASE + "/").ok and client.get("https://shop.example/v1/orders/7/")
+
+
+def test_a_note_is_not_a_route():
+    assert "//cdn.example/orders/7" and "orders/7" and "ftp://shop.example/orders/7"
+"""
+
+
+def route_candidate(symbol: str):
+    return build_candidates(
+        [
+            StructuralDelta(
+                path="openapi.yaml",
+                symbol=symbol,
+                kind="api_operation_removed",
+                old="operation: {}",
+                new=None,
+                old_lines=None,
+                new_lines=None,
+                hunk_id=None,
+                metadata={"location": "operation", "context": "response"},
+            )
+        ]
+    )[0]
+
+
+def route_reasons(symbol: str) -> dict[str, tuple[float, list[str]]]:
+    index = TestIndex(
+        tests=_index_source("tests/test_orders.py", ROUTE_TESTS), incomplete=False, warnings=[]
+    )
+    mapped = map_candidate_tests([route_candidate(symbol)], index, WeaverConfig())[0]
+    return {item.symbol: (item.match_score, item.match_reasons) for item in mapped}
+
+
+def test_the_index_reads_the_routes_a_test_and_its_helpers_request() -> None:
+    routes = {item.symbol: item.routes for item in _index_source("tests/t.py", ROUTE_TESTS)}
+    assert routes == {
+        "test_an_order_is_deleted": frozenset({"/orders/x"}),
+        "test_an_order_is_read": frozenset({"/orders/7?expand=lines"}),
+        # A URL's path; a concatenation is not followed, so `BASE + "/orders/7"` is its parts.
+        "test_the_catalog_is_served": frozenset({"/orders/7"}),
+        "test_the_root_is_up": frozenset({"/", "/v1/orders/7/"}),
+        "test_a_note_is_not_a_route": frozenset(),
+    }
+
+
+def test_a_url_that_does_not_parse_requests_no_route_and_keeps_its_test() -> None:
+    source = (
+        "def test_a_bad_host_is_rejected(client):\n"
+        "    assert client.get('http://[shop/orders/7') and client.get('/orders/7')\n"
+    )
+    (indexed,) = _index_source("tests/t.py", source)
+    assert indexed.routes == frozenset({"/orders/7"})
+
+
+def test_the_routes_of_a_test_are_bounded() -> None:
+    source = "def test_many(client):\n" + "".join(
+        f"    client.get('/r{index}')\n" for index in range(test_mapper.MAX_ROUTES_PER_TEST + 5)
+    )
+    (indexed,) = _index_source("tests/t.py", source)
+    assert len(indexed.routes) == test_mapper.MAX_ROUTES_PER_TEST
+    long_route = "/" + "a" * test_mapper.MAX_ROUTE_CHARS
+    (indexed,) = _index_source(
+        "tests/t.py", f"def test_long(client):\n    client.get({long_route!r})\n"
+    )
+    assert indexed.routes == frozenset()
+
+
+@pytest.mark.parametrize(
+    ("route", "path", "matches"),
+    [
+        ("/orders/{id}", "/orders/7", True),
+        ("/orders/{id}", "/orders/x/", True),
+        ("/orders/{id}", "/orders/7?expand=lines", True),
+        ("/orders/{id}", "/api/v1/orders/7", True),
+        ("/orders/{id}", "/orders/7/lines", False),
+        ("/orders/{id}", "/orders/", False),
+        ("/orders/{id}", "/preorders/7", False),
+        ("/orders.json", "/ordersXjson", False),
+        ("/", "/", True),
+        ("/", "/?ready=1", True),
+        ("/", "/orders", False),
+    ],
+)
+def test_a_route_template_matches_the_paths_that_request_it(
+    route: str, path: str, matches: bool
+) -> None:
+    assert (test_mapper._route_pattern(route).fullmatch(path) is not None) is matches
+
+
+def test_an_operation_maps_to_the_tests_that_request_its_route() -> None:
+    assert route_reasons("DELETE /orders/{id}") == {
+        "test_an_order_is_deleted": (
+            0.8,
+            ["requests the changed operation's route", "calls `delete`"],
+        ),
+        # Calls no method by name, so requests the route for any of its operations.
+        "test_the_catalog_is_served": (0.55, ["requests the changed operation's route"]),
+    }
+    # The test that reads the order calls only `get`, so it requests the route for another
+    # operation; a test with the route only under a base path or a trailing slash still does.
+    assert set(route_reasons("GET /orders/{id}")) == {
+        "test_an_order_is_read",
+        "test_the_catalog_is_served",
+        "test_the_root_is_up",
+    }
+    assert set(route_reasons("GET /")) == {"test_the_root_is_up"}
+
+
+def test_a_change_without_a_route_maps_to_no_test() -> None:
+    assert route_reasons("Order") == {}
+    assert route_reasons("<security>") == {}

@@ -33,6 +33,9 @@ CRITICAL_MODULES = (
     "path_policy.py",
     "plugin.py",
     "renderer.py",
+    # Parses untrusted YAML and JSON under budgets of its own, and decides from their content
+    # which of them are API schemas.
+    "schema_diff/",
     "scoring.py",
     "semantic_interpreter.py",
     "service.py",

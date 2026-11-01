@@ -12,6 +12,7 @@ from functools import cache, lru_cache
 from itertools import pairwise
 from pathlib import PurePosixPath
 from typing import ClassVar, TypeGuard
+from urllib.parse import urlsplit
 
 from .call_graph import CallGraph, Node, bare_name, package_of
 from .errors import WeaverError
@@ -70,6 +71,11 @@ RUN_FLAG_RE = re.compile(r"(?<!\S)-m\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)")
 # How deeply a module name built from literals is followed: `"pkg." + name`, an f-string.
 MAX_NAME_EXPRESSION_DEPTH = 16
 MAX_TEST_INDEX_FILES = 500
+# The routes a test requests: string literals that are a path or a URL. Bounded per test.
+MAX_ROUTES_PER_TEST = 20
+MAX_ROUTE_CHARS = 200
+OPERATION_SYMBOL_RE = re.compile(r"(GET|PUT|POST|DELETE|OPTIONS|HEAD|PATCH|TRACE) (/\S*)")
+HTTP_METHOD_NAMES = frozenset({"get", "put", "post", "delete", "options", "head", "patch", "trace"})
 MAX_TEST_INDEX_BYTES = 8 * 1024 * 1024
 
 
@@ -99,6 +105,9 @@ class IndexedTest:
     # Attribute chains rooted at a name, in the test and the same-file helpers it names:
     # `_repos_mod.JsonFridgeRepository` is what the module `_repos_mod` stands for binds.
     reach_chains: frozenset[str] = frozenset()
+    # The URL paths the test and the same-file helpers it names write out, `/orders/1`, for
+    # an API operation's route to be matched against.
+    routes: frozenset[str] = frozenset()
 
 
 @dataclass
@@ -547,6 +556,46 @@ def _test_functions(
                 yield f"{prefix}{node.name}", node
 
 
+def _routes(node: ast.AST) -> frozenset[str]:
+    """The URL paths a node's string literals write out: `/orders/1`, or the path of a URL.
+
+    An f-string's value placeholders stand as one segment each, `f"/orders/{order.id}"` as
+    `/orders/x`, which a route template's parameter matches.
+    """
+    routes: list[str] = []
+    # An f-string's literal parts are read as the f-string, never as strings of their own:
+    # `f"/orders/{order.id}"` requests no `/orders/`. A walk meets a node before its parts.
+    parts: set[int] = set()
+    for item in ast.walk(node):
+        if isinstance(item, ast.JoinedStr):
+            parts.update(id(part) for part in item.values)
+            text = "".join(
+                part.value
+                if isinstance(part, ast.Constant) and isinstance(part.value, str)
+                else "x"
+                for part in item.values
+            )
+        elif isinstance(item, ast.Constant) and isinstance(item.value, str):
+            if id(item) in parts:
+                continue
+            text = item.value
+        else:
+            continue
+        if len(text) > MAX_ROUTE_CHARS:
+            continue
+        if text.startswith(("http://", "https://")):
+            try:
+                text = urlsplit(text).path
+            except ValueError:
+                # `http://[` is no URL `urlsplit` reads, and its test file still indexes.
+                continue
+        if text.startswith("/") and not text.startswith("//"):
+            routes.append(text)
+        if len(routes) >= MAX_ROUTES_PER_TEST:
+            break
+    return frozenset(routes)
+
+
 def _index_source(path: str, source: str) -> list[IndexedTest]:
     # No type comment is read here, and ``type_comments=True`` only narrows the accepted
     # grammar, so requesting them would drop otherwise-indexable test files for a signal
@@ -592,6 +641,9 @@ def _index_source(path: str, source: str) -> list[IndexedTest]:
                 bound=frozenset(bound.items()),
                 reach_chains=_chains(node).union(
                     *(helper_chains[helper] for helper in named_helpers)
+                ),
+                routes=_routes(node).union(
+                    *(_routes(helper_nodes[helper]) for helper in named_helpers)
                 ),
             )
         )
@@ -765,6 +817,53 @@ def _mirrored(source_path: str, test_path: str) -> bool:
 
 def _is_private(name: str) -> bool:
     return name.startswith("_") and not (name.startswith("__") and name.endswith("__"))
+
+
+def _route_pattern(route: str) -> re.Pattern[str]:
+    """A route template as a pattern for the paths a test requests: each `{parameter}` one
+    segment, after any base path the API is served under, and before any query."""
+    if route == "/":
+        return re.compile(r"/(?:[?#].*)?")
+    segments = (
+        r"[^/?#]+" if segment.startswith("{") and segment.endswith("}") else re.escape(segment)
+        for segment in route.split("/")
+    )
+    return re.compile(r"(?:/[^?#]*)?" + "/".join(segments) + r"/?(?:[?#].*)?")
+
+
+def _route_candidates(
+    candidate: SemanticCandidate, tests: list[IndexedTest], limit: int
+) -> list[CandidateTest]:
+    """The tests that request an API operation's route, and more strongly those that also call
+    its HTTP method by name, as `client.get(...)`.
+
+    A change to a reusable schema names no route, and gets no candidate: which operations use
+    it is not followed through `$ref`.
+    """
+    match = OPERATION_SYMBOL_RE.fullmatch(candidate.symbol)
+    if match is None:
+        return []
+    method, pattern = match.group(1).lower(), _route_pattern(match.group(2))
+    found: list[CandidateTest] = []
+    for test in tests:
+        if not any(pattern.fullmatch(route) for route in test.routes):
+            continue
+        called = test.reach_attributes & HTTP_METHOD_NAMES
+        # One that calls only other methods requests the route for another operation.
+        if called and method not in called:
+            continue
+        reasons = ["requests the changed operation's route"]
+        score = 0.55
+        if method in called:
+            score += 0.25
+            reasons.append(f"calls `{method}`")
+        found.append(
+            CandidateTest(
+                path=test.path, symbol=test.symbol, match_score=score, match_reasons=reasons
+            )
+        )
+    found.sort(key=lambda item: (-item.match_score, item.path, item.symbol))
+    return found[:limit]
 
 
 def map_candidate_tests(
@@ -1015,6 +1114,13 @@ def map_candidate_tests(
         )
 
     for candidate_index, candidate in enumerate(candidates):
+        # A change to an API schema reaches tests through the routes they request, not through
+        # Python imports or calls.
+        if not candidate.path.endswith(".py"):
+            result[candidate_index] = _route_candidates(
+                candidate, tests, config.rules.max_candidate_tests_per_obligation
+            )
+            continue
         name = candidate.symbol.rsplit(".", 1)[-1]
         symbol_token = name.casefold()
         module = _module_name(candidate.path).casefold()

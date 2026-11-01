@@ -1348,7 +1348,7 @@
       "Candidate test mapping is static and does not prove runtime coverage.",
       "Only committed Python source at the resolved refs was inspected.",
       "Repository code and tests were not imported, executed, built, installed, or modified.",
-      "The bounded diff contained no included changed Python source."
+      "The bounded diff contained no included changed Python source or API schema."
     ],
     "llm": {
       "attempted": false,

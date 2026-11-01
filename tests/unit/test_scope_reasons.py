@@ -32,10 +32,14 @@ def test_every_omission_reason_the_pipeline_emits_has_a_phrase() -> None:
 
 def test_every_exclusion_reason_the_pipeline_emits_has_a_phrase() -> None:
     emitted = set(re.findall(r'excluded\["([a-z_]+)"\]', _source("git_diff/collect.py")))
+    # A reason only analysis can tell, such as a YAML file that is no API schema, is counted
+    # once the file is read.
+    emitted |= set(re.findall(r'excluded_counts\["([a-z_]+)"\]', _source("service.py")))
     emitted |= set(
         re.findall(r'return "([a-z_]+)"', inspect.getsource(path_policy.exclusion_reason))
     )
-    assert len(emitted) >= 8
+    assert {"not_api_schema", "unreadable_document"} <= emitted
+    assert len(emitted) >= 10
     assert emitted <= EXCLUSION_PHRASES.keys()
 
 

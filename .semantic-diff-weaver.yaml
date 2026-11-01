@@ -1,11 +1,12 @@
 # How Semantic Diff Weaver analyzes this repository — its own code — from any transport.
 #
-# The built-in `include` is every Python file, and until test files were left out by default
-# (`rules.analyze_test_files: false`) the test suite was analyzed as product code: a change that
-# only added a test came back as a medium-risk behavior change with an obligation to "clarify the
-# changed contract". Only production code is analyzed here. Tests still matter: `include` limits
-# which changed files are analyzed, not where candidate tests are found, and the built-in
-# `test_roots` keeps candidate discovery pointed at tests/.
+# The built-in `include` is every Python, YAML, and JSON file, and until test files were left out
+# by default (`rules.analyze_test_files: false`) the test suite was analyzed as product code: a
+# change that only added a test came back as a medium-risk behavior change with an obligation to
+# "clarify the changed contract". Only production code is analyzed here, and this repository has no
+# API schema. Tests still matter: `include` limits which changed files are analyzed, not where
+# candidate tests are found, and the built-in `test_roots` keeps candidate discovery pointed at
+# tests/.
 version: 1
 paths:
   include:

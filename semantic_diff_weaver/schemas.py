@@ -13,8 +13,9 @@ ANALYZE_SEMANTIC_DIFF_SCHEMA: dict[str, Any] = {
     "description": (
         "Analyze the behavioral meaning of a bounded local Git diff and return evidence-backed, "
         "risk-ranked test obligations with unverified candidate existing tests. Call this when "
-        "reviewing a Python code change or planning regression tests. The tool is advisory and "
-        "read-only; it does not execute, import, test, or modify repository code."
+        "reviewing a change to Python code or to an OpenAPI, Swagger, or JSON Schema document, "
+        "or planning regression tests. The tool is advisory and read-only; it does not execute, "
+        "import, test, or modify repository code."
     ),
     "parameters": {
         "type": "object",

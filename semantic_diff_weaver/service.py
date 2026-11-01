@@ -47,6 +47,7 @@ from .path_policy import (
     redact_text,
 )
 from .renderer import render_transport
+from .schema_diff import SchemaAnalysis, analyze_schemas
 from .scoring import advisory_verdict, confidence_score, score_risk
 from .semantic_candidates import SemanticCandidate, build_candidates
 from .semantic_interpreter import InterpreterResult, interpret_candidates
@@ -273,6 +274,7 @@ def _set_aside_test_modules(collection: DiffCollection, config: WeaverConfig) ->
 def _collect_scope(
     collection: DiffCollection,
     ast_result: AstAnalysis,
+    schema_result: SchemaAnalysis,
     config: WeaverConfig,
     state: _PipelineState,
 ) -> tuple[list[StructuralDelta], int, int]:
@@ -293,8 +295,14 @@ def _collect_scope(
         scope=True,
     )
     state.record_omitted("ast_resource_limit", ast_result.resource_limited_files, scope=True)
-    deltas = ast_result.deltas
-    changed_symbols = ast_result.changed_symbols
+    # A YAML or JSON file neither revision of which is an API schema was read only to tell.
+    if schema_result.not_schema:
+        collection.excluded_counts["not_api_schema"] = schema_result.not_schema
+        collection.excluded_counts = dict(sorted(collection.excluded_counts.items()))
+    state.record_omitted("parse_incomplete_documents", schema_result.parse_incomplete, scope=True)
+    state.record_omitted("schema_delta_limit", schema_result.truncated_documents, scope=True)
+    deltas = [*ast_result.deltas, *schema_result.deltas]
+    changed_symbols = ast_result.changed_symbols + schema_result.changed_symbols
     if changed_symbols > config.rules.max_changed_symbols:
         deltas, omitted_count = _prioritize_deltas(deltas, config.rules.max_changed_symbols, config)
         # Reaching the cap is itself the truncation, independently of how many symbol groups
@@ -503,6 +511,7 @@ def _build_limitations(
     *,
     collection: DiffCollection,
     ast_result: AstAnalysis,
+    schema_result: SchemaAnalysis,
     incomplete_exclusions: int,
     low_confidence_omitted: int,
     interpreted: InterpreterResult,
@@ -512,17 +521,24 @@ def _build_limitations(
 ) -> list[str]:
     limitations = [
         "Candidate test mapping is static and does not prove runtime coverage.",
-        "Only committed Python source at the resolved refs was inspected.",
+        "Only committed Python source and API schemas at the resolved refs were inspected."
+        if schema_result.analyzed_paths
+        else "Only committed Python source at the resolved refs was inspected.",
         "Repository code and tests were not imported, executed, built, installed, or modified.",
     ]
     rules: list[tuple[Callable[[], bool], str]] = [
         (
-            lambda: not collection.files,
-            "The bounded diff contained no included changed Python source.",
+            lambda: not collection.files and not schema_result.analyzed_paths,
+            "The bounded diff contained no included changed Python source or API schema.",
         ),
         (
             lambda: bool(collection.files) and not ast_result.deltas,
             "The included Python change contained no reportable behavior-bearing structural delta.",
+        ),
+        (
+            lambda: bool(schema_result.analyzed_paths) and not schema_result.deltas,
+            "The included API schema change contained no contract change; descriptions, examples, "
+            "and `x-` extensions are not compared.",
         ),
         (
             lambda: bool(low_confidence_omitted),
@@ -610,7 +626,8 @@ def _coverage_summary(
 
 
 def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[str, Any]:
-    """Analyze committed Python changes and return the requested transport dictionary."""
+    """Analyze committed changes to Python source and API schemas, and return the requested
+    transport dictionary."""
     request, repo, base_commit, head_commit, config, config_warnings = _bootstrap(arguments)
     state = _PipelineState(warnings=list(config_warnings))
     if base_commit == head_commit:
@@ -628,8 +645,10 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
     state.warnings.extend(collection.warnings)
     ast_result = analyze_ast([item.as_revision_pair() for item in collection.files])
     state.warnings.extend(ast_result.warnings)
+    schema_result = analyze_schemas([item.as_revision_pair() for item in collection.documents])
+    state.warnings.extend(schema_result.warnings)
     deltas, changed_symbols, incomplete_exclusions = _collect_scope(
-        collection, ast_result, config, state
+        collection, ast_result, schema_result, config, state
     )
     deterministic = build_candidates(deltas, config)
     readme_excerpt = (
@@ -720,6 +739,7 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
     limitations = _build_limitations(
         collection=collection,
         ast_result=ast_result,
+        schema_result=schema_result,
         incomplete_exclusions=incomplete_exclusions,
         low_confidence_omitted=low_confidence_omitted,
         interpreted=interpreted,
@@ -752,7 +772,9 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
         ),
         scope=ScopeMetadata(
             changed_files_total=collection.changed_files_total,
-            analyzed_files=sorted(item.path for item in collection.files),
+            analyzed_files=sorted(
+                [*(item.path for item in collection.files), *schema_result.analyzed_paths]
+            ),
             excluded_counts=collection.excluded_counts,
             omitted=state.omitted,
             changed_lines=collection.changed_lines,

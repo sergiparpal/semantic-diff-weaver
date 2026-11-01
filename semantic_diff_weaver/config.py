@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from copy import deepcopy
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import Any
+from typing import Any, ClassVar
 
 import yaml
 from pydantic import ValidationError
@@ -20,13 +20,21 @@ MAX_YAML_DEPTH = 50
 MAX_YAML_ALIASES = 100
 
 
-class _BoundedSafeLoader(yaml.SafeLoader):
+class BoundedSafeLoader(yaml.SafeLoader):
     """A ``SafeLoader`` that enforces the node, depth, and alias budgets while composing.
 
     The budgets used to be measured by a separate ``yaml.parse`` pass before ``safe_load``,
     which parsed every configuration file twice. Composing is the single point every node
     passes through, so counting here bounds the same untrusted input in one pass.
+
+    A subclass reading other untrusted YAML sets its own budgets, the noun its messages name,
+    and the error a spent budget raises; these are the configuration's.
     """
+
+    max_nodes: ClassVar[int] = MAX_YAML_EVENTS
+    max_depth: ClassVar[int] = MAX_YAML_DEPTH
+    max_aliases: ClassVar[int] = MAX_YAML_ALIASES
+    noun: ClassVar[str] = "YAML configuration"
 
     def __init__(self, stream: str) -> None:
         super().__init__(stream)
@@ -34,17 +42,20 @@ class _BoundedSafeLoader(yaml.SafeLoader):
         self._nodes = 0
         self._aliases = 0
 
+    def budget_error(self, message: str) -> Exception:
+        return _configuration_error(message)
+
     def compose_node(self, parent: yaml.nodes.Node | None, index: object) -> yaml.nodes.Node:
         self._nodes += 1
-        if self._nodes > MAX_YAML_EVENTS:
-            raise _configuration_error("The YAML configuration exceeds its event limit.")
+        if self._nodes > self.max_nodes:
+            raise self.budget_error(f"The {self.noun} exceeds its event limit.")
         if self.check_event(yaml.AliasEvent):
             self._aliases += 1
-            if self._aliases > MAX_YAML_ALIASES:
-                raise _configuration_error("The YAML configuration exceeds its alias limit.")
+            if self._aliases > self.max_aliases:
+                raise self.budget_error(f"The {self.noun} exceeds its alias limit.")
         self._depth += 1
-        if self._depth > MAX_YAML_DEPTH:
-            raise _configuration_error("The YAML configuration exceeds its depth limit.")
+        if self._depth > self.max_depth:
+            raise self.budget_error(f"The {self.noun} exceeds its depth limit.")
         try:
             return super().compose_node(parent, index)
         finally:
@@ -117,7 +128,7 @@ def _read_yaml(path: Path, *, containment_root: Path | None = None) -> dict[str,
         content = resolved.read_text(encoding="utf-8")
         # Bounded subclass of SafeLoader: it adds budget enforcement and no constructors,
         # so it cannot instantiate arbitrary objects.
-        loaded = yaml.load(content, Loader=_BoundedSafeLoader)  # noqa: S506
+        loaded = yaml.load(content, Loader=BoundedSafeLoader)  # noqa: S506
     except WeaverError:
         raise
     except (MemoryError, OSError, RecursionError, UnicodeError, yaml.YAMLError) as exc:

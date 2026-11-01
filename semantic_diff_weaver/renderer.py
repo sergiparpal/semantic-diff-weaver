@@ -43,6 +43,9 @@ OMISSION_PHRASES = {
     "aggregate_source_limit": "file(s) past the aggregate source budget",
     "parse_incomplete_files": "file(s) that did not parse completely",
     "ast_resource_limit": "file(s) past the AST safety budget",
+    "document_limit": "YAML or JSON file(s) past the document budget",
+    "parse_incomplete_documents": "API schema(s) that did not parse completely",
+    "schema_delta_limit": "API schema(s) with more changes than one is compared for",
     "changed_symbol_limit": "changed symbol(s) past `max_changed_symbols`",
     "minimum_confidence": "finding(s) below `minimum_report_confidence`",
     "low_risk_refactor_policy": "low-risk refactor(s) hidden by `emit_low_risk_refactors: false`",
@@ -62,6 +65,8 @@ EXCLUSION_PHRASES = {
     "binary": "binary",
     "aggregate_source_limit": "past the aggregate source budget",
     "oversized_or_non_utf8": "oversized or not UTF-8",
+    "not_api_schema": "YAML or JSON that is not an API schema",
+    "unreadable_document": "YAML or JSON not readable as bounded text",
 }
 
 
@@ -235,9 +240,7 @@ def render_markdown(result: AnalysisResult, *, excerpt_chars: int | None = None)
         "",
     ]
     if not result.behavior_changes:
-        lines.append(
-            "No reportable Python behavior change was inferred from the bounded static evidence."
-        )
+        lines.append("No reportable behavior change was inferred from the bounded static evidence.")
     marks = _baseline_marks(result)
     for behavior in result.behavior_changes:
         prefix = (

@@ -58,6 +58,9 @@ class DiffCollection:
     warnings: list[str]
     omitted_counts: dict[str, int] = field(default_factory=dict)
     truncated: bool = False
+    # Changed YAML and JSON files read whole, both sides, for `schema_diff` to tell whether
+    # each is an API schema; `files` holds the Python ones.
+    documents: list[ChangedFile] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

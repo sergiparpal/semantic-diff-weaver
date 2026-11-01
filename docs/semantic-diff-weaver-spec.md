@@ -139,6 +139,7 @@ The MVP shall not:
 - Base and head revision, branch, or commit.
 - Unified diff generated locally.
 - Python source files.
+- OpenAPI 3, Swagger 2, and JSON Schema documents in YAML or JSON — *since the MVP*; see §24.
 - Common Python test conventions:
   - `test_*.py` and `*_test.py`;
   - `tests/` directory;
@@ -904,8 +905,10 @@ Hermes plugin.
 - Dependency graph. *Partly:* `call_graph.py` follows calls through instances, packages,
   `importlib`, and module variables to find the tests that reach a change; findings are not
   grouped by it.
-- Config and API schema awareness. *Open:* a changed file that is not Python is excluded as not
-  Python.
+- Config and API schema awareness. *Partly:* `schema_diff/` compares a changed OpenAPI 3,
+  Swagger 2, or JSON Schema document, told apart by its content, operation by operation and
+  keyword by keyword, and maps an operation's findings to the tests that request its route;
+  configuration files are not read for their meaning yet.
 - Optional composition with test history and coverage history. *Partly:* an ingested coverage.py
   JSON or lcov report grounds candidate coverage; test history is not read.
 - Improved cross-file change grouping. *Partly:* a function moved between two files that both
