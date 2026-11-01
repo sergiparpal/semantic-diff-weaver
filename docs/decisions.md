@@ -147,6 +147,22 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-11-01, code spans)
+
+The brief wrote a symbol or a path in a code span escaped as Markdown text, `parse\_amount`, but
+Markdown reads no escape inside a code span, so every brief showed those backslashes: in each
+evidence line's symbol, each candidate test, each resolved finding of a baseline, and the symbols
+of connected changes. A code span now holds its text as it is, with its control characters made
+visible as before, and opens with one backtick more than the longest run of backticks it holds, so
+none of its own can close it. A text that starts or ends with a backtick, or with a space at both,
+gets a space inside each end, which the span drops. Nothing it holds can leave its line either,
+since a line break is shown as `\n`.
+
+The analysis is unchanged, and so are the goldens, which hold no Markdown. Text outside a code span
+is escaped as before, as the path before an evidence line's symbol is, and the evidence's fenced old
+and new values keep their own fence. The two adversarial tests that pinned the escaped form of a
+route and of a configuration key now pin the span that holds each and the fence below it.
+
 ## Connected changes (2026-11-01)
 
 The roadmap's v0.2 asked for a dependency graph, and `call_graph.py` already followed calls to

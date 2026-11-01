@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **Fix:** a symbol or path in a code span of the brief no longer shows backslashes: Markdown reads
+  no escape inside a code span, so `parse_amount` showed as `parse\_amount` in every evidence line,
+  candidate test, resolved baseline finding, and connected change. A code span now holds its text
+  as it is, control characters still made visible, between one backtick more than the longest run
+  it holds. The analysis and its schema are unchanged.
+
 ## 0.11.0 - 2026-11-01
 
 Connected changes. The findings in Python code that calls connect are grouped under the entry points

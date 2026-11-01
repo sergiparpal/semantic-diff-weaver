@@ -71,10 +71,10 @@ def test_findings_calls_connect_are_grouped_by_their_entry_points(repo_factory) 
     assert len(lines) == 2
     assert lines[0].startswith("- `checkout` (src/shop/cart\\.py, `bc-")
     assert lines[0].endswith(": a test through `checkout` can exercise all three.")
-    assert "reaches `parse\\_amount` (src/shop/money\\.py, `bc-" in lines[0]
+    assert "reaches `parse_amount` (src/shop/money\\.py, `bc-" in lines[0]
     assert lines[1].endswith(": a test through `refund` can exercise both.")
     # Nothing reaches `send_email`, nor does it reach anything that changed.
-    assert "send\\_email" not in section
+    assert "send_email" not in section
 
 
 def test_changes_that_reach_each_other_are_said_to(repo_factory) -> None:

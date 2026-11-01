@@ -200,7 +200,7 @@ def test_a_brief_names_the_test_file_when_none_of_its_tests_names_the_change(
         for test in obligation["candidate_existing_tests"]
     } == {("tests/test_cli.py", "<module>")}
     assert (
-        "Candidate existing tests (unverified): `tests/test\\_cli\\.py` (whole file; 0.50; "
+        "Candidate existing tests (unverified): `tests/test_cli.py` (whole file; 0.50; "
         "mirrored source/test path, direct module or symbol import)"
     ) in envelope["markdown"]
 

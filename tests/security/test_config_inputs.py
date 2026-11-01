@@ -124,6 +124,10 @@ def test_controls_and_markdown_in_a_key_are_shown_escaped(repo_factory) -> None:
     assert behavior["evidence"][0]["symbol"] == key
     markdown = envelope["markdown"]
     assert ESC not in markdown and RLO not in markdown
+    # The key is a code span its own four backticks cannot close, with its controls made
+    # visible, and the evidence's fence below stays whole.
+    shown = key.replace(ESC, r"\u001b").replace(RLO, r"\u202e")
     (line,) = (line for line in markdown.splitlines() if "Evidence `ev-" in line)
-    assert r"\*\*bold\*\*\[link\]\(javascript:alert\)" in line
-    assert markdown.count("````") == 2
+    assert line.endswith(f"— ````` {shown} `````")
+    fences = [item.strip() for item in markdown.splitlines() if item.lstrip().startswith("````")]
+    assert fences == ["````text", "````"]
