@@ -1,18 +1,20 @@
 """Failing test skeletons for approved obligations, as a patch to review and apply.
 
-The input is an earlier analysis, as `--format json` or `--format both` wrote it, and the IDs of
-the obligations a person approved from it. The output is a unified diff adding one test per
+The input is the analysis the obligations come from — one saved as `--format json` or
+`--format both` wrote it, or the deterministic analysis of the same arguments run again — and the
+IDs of the obligations a person approved from it. The output is a unified diff adding one test per
 obligation to the end of the test file named for the changed module — one among the obligation's
 candidate tests first — or creating that file in the first test root. Nothing is written here:
 the patch is what the person reviews before `git apply`. Each test fails until it is written, as
 an IDE's generated test does, so an approved obligation cannot pass unwritten.
 
-The analysis is untrusted input data, as a baseline is: bounded, parsed with the standard library,
-and validated field by field. Its text reaches the generated code only as comments, each on a line
-of its own, with every character that could end the line or reorder it written as its escape. Test
-names are built from ASCII letters, digits, and underscores, and the one string literal names a
-pattern-validated obligation ID. Test files are read from the analysis's head commit through the
-Git boundary, never from the working tree, so the patch applies to that revision.
+A saved analysis is untrusted input data, as a baseline is: bounded, parsed with the standard
+library, and validated field by field, as one run again is too. Its text reaches the generated code
+only as comments, each on a line of its own, with every character that could end the line or
+reorder it written as its escape. Test names are built from ASCII letters, digits, and
+underscores, and the one string literal names a pattern-validated obligation ID. Test files are
+read from the analysis's head commit through the Git boundary, never from the working tree, so the
+patch applies to that revision.
 """
 
 from __future__ import annotations
@@ -36,8 +38,12 @@ from .errors import ErrorCode, WeaverError
 from .git_diff import GitRepository, GitTreeEntry
 from .models import (
     MAX_PATH_CHARS,
+    MAX_PATH_PATTERNS,
+    MAX_REF_CHARS,
+    AnalyzeRequest,
     BehaviorCategory,
     ObligationType,
+    RelativePattern,
     RiskLabel,
     StrictModel,
     WeaverConfig,
@@ -82,10 +88,34 @@ BehaviorId = Annotated[str, Field(pattern=r"^bc-\d{3,}$", max_length=32)]
 
 
 class SkeletonRequest(StrictModel):
+    """Which obligations to scaffold, in which framework, and the analysis that lists them.
+
+    The analysis is either one saved as JSON, `analysis_path`, or the analysis of `base_ref` run
+    again with the other analysis arguments: exactly one of the two.
+    """
+
     repo_path: str = Field(min_length=1, max_length=MAX_PATH_CHARS)
-    analysis_path: str = Field(min_length=1, max_length=MAX_PATH_CHARS)
     obligation_ids: Annotated[list[ObligationId], Field(min_length=1, max_length=MAX_SKELETONS)]
     framework: Framework = Framework.PYTEST
+    analysis_path: str | None = Field(default=None, min_length=1, max_length=MAX_PATH_CHARS)
+    base_ref: str | None = Field(default=None, min_length=1, max_length=MAX_REF_CHARS)
+    head_ref: str | None = Field(default=None, min_length=1, max_length=MAX_REF_CHARS)
+    risk_profile: str | None = Field(default=None, min_length=1, max_length=MAX_PATH_CHARS)
+    coverage_report: str | None = Field(default=None, min_length=1, max_length=MAX_PATH_CHARS)
+    include: Annotated[list[RelativePattern], Field(max_length=MAX_PATH_PATTERNS)] | None = None
+    exclude: Annotated[list[RelativePattern], Field(max_length=MAX_PATH_PATTERNS)] | None = None
+
+
+# The analysis arguments an analysis run again takes: those that decide its obligations and their
+# IDs. A baseline only marks findings new or resolved, and a format only shapes the output.
+ANALYSIS_ARGUMENTS = (
+    "base_ref",
+    "head_ref",
+    "include",
+    "exclude",
+    "risk_profile",
+    "coverage_report",
+)
 
 
 class Skeleton(StrictModel):
@@ -219,17 +249,59 @@ def _load_analysis(path: Path, limit: int) -> _Analysis:
     return analysis
 
 
+SOURCE_REMEDIATION = (
+    "Pass analysis_path for an analysis saved as JSON, or base_ref with the head_ref, include, "
+    "exclude, risk_profile, and coverage_report of the analysis whose obligation IDs you read."
+)
+
+
 def _request(arguments: dict[str, Any]) -> SkeletonRequest:
     try:
-        return SkeletonRequest.model_validate(arguments)
+        request = SkeletonRequest.model_validate(arguments)
     except ValidationError as exc:
         location = ".".join(str(item) for item in exc.errors()[0].get("loc", ())) or "request"
         raise WeaverError(
             ErrorCode.CONFIGURATION_ERROR,
             f"Invalid skeleton argument at {location}.",
-            "Pass repo_path, analysis_path, obligation IDs such as to-001, and a framework of "
-            "pytest or unittest.",
+            "Pass repo_path, obligation IDs such as to-001, a framework of pytest or unittest, "
+            "and the analysis: analysis_path, or base_ref and the other analysis arguments.",
         ) from exc
+    given = [name for name in ANALYSIS_ARGUMENTS if getattr(request, name) is not None]
+    if request.analysis_path is not None and given:
+        raise WeaverError(
+            ErrorCode.CONFIGURATION_ERROR,
+            f"A saved analysis takes no {given[0]}: pass analysis_path or the analysis arguments.",
+            SOURCE_REMEDIATION,
+        )
+    if request.analysis_path is None and request.base_ref is None:
+        raise WeaverError(
+            ErrorCode.CONFIGURATION_ERROR,
+            "No analysis was named: pass analysis_path, or base_ref to analyze again.",
+            SOURCE_REMEDIATION,
+        )
+    return request
+
+
+def _analysis_arguments(request: SkeletonRequest) -> dict[str, Any]:
+    """The arguments of the analysis to run again, as the analysis tool takes them."""
+    arguments: dict[str, Any] = {"repo_path": request.repo_path, "output_format": "json"}
+    for name in ANALYSIS_ARGUMENTS:
+        if (value := getattr(request, name)) is not None:
+            arguments[name] = value
+    return arguments
+
+
+def _analyzed(arguments: dict[str, Any]) -> _Analysis:
+    """The analysis run again without inference, as the MCP server always runs it.
+
+    Its obligations and their IDs are then those of every deterministic analysis of the same
+    arguments, whatever analysis ID each run is given. With inference they could be numbered
+    otherwise from one run to the next, which is why a saved analysis is the other way in.
+    """
+    # Imported here, as the transports import it: the pipeline loads only when it runs.
+    from .service import analyze
+
+    return _Analysis.model_validate(analyze(arguments, llm=None))
 
 
 def _head_commit(repo: GitRepository, analysis: _Analysis) -> str:
@@ -689,10 +761,16 @@ def generate_skeletons(arguments: dict[str, Any]) -> dict[str, Any]:
     request = _request(arguments)
     repo = GitRepository.open(str(ensure_authorized_path(Path(request.repo_path))))
     ensure_authorized_path(repo.root)
-    config, warnings = load_config(repo.root)
-    analysis = _load_analysis(
-        ensure_authorized_path(Path(request.analysis_path)), config.rules.max_baseline_bytes
-    )
+    if request.analysis_path is not None:
+        config, warnings = load_config(repo.root)
+        analysis = _load_analysis(
+            ensure_authorized_path(Path(request.analysis_path)), config.rules.max_baseline_bytes
+        )
+    else:
+        rerun = _analysis_arguments(request)
+        # The configuration the analysis read, so its test roots and exclusions are the same.
+        config, warnings = load_config(repo.root, AnalyzeRequest.model_validate(rerun))
+        analysis = _analyzed(rerun)
     head_commit = _head_commit(repo, analysis)
     warnings.extend(_head_warnings(repo, head_commit))
     obligations = _selected(analysis, request.obligation_ids)

@@ -9,8 +9,9 @@ request/config -> repository + resolved refs -> changed committed blobs -> AST d
 -> canonical JSON -> optional Markdown
 ```
 
-`plugin.py` is the only Hermes adapter. Registration closes over `ctx.llm` but performs no Git or LLM
-work. `mcp_server.py` serves the same tool and handler to Claude Code over MCP stdio, always in
+`plugin.py` is the only Hermes adapter, and registers two tools: `analyze_semantic_diff` and
+`generate_test_skeletons`. Registration closes over `ctx.llm` but performs no Git or LLM
+work. `mcp_server.py` serves the same tools and handlers to Claude Code over MCP stdio, always in
 deterministic mode and with the Markdown brief as its default result, and `cli.py` is the standalone command line; all three share `service.analyze`
 and the public error payload. `service.py` orchestrates modules without importing Hermes internals. The `git_diff/` package is the sole
 subprocess boundary and invokes only Git with argument arrays, resolved commit IDs, timeouts, bounded
@@ -131,7 +132,10 @@ head commit through `git_diff/`, and returns a patch adding a failing test for e
 user approved by ID: at the end of the test file named for the changed module, one of the
 obligation's candidate tests first, or in a new file in the first test root. The analysis's text
 reaches the generated code only as escaped comments, a skeleton never takes a name its file
-already binds, and the module writes nothing; the user reviews the patch and applies it.
+already binds, and the module writes nothing; the user reviews the patch and applies it. As the
+`generate_test_skeletons` tool it takes the analysis by its arguments too, from `base_ref` on,
+and has `service.analyze` run it again without inference: a deterministic analysis numbers its
+obligations alike on every run, so the IDs of a brief name the same obligations in it.
 
 Semantic candidates are immutable and carry their own `(path, symbol)` identity. The three stages that
 merge them — rule grouping, model reconciliation, and service deduplication — each return new values,

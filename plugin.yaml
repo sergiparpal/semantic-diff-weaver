@@ -6,4 +6,5 @@ description: Analyze Git diffs and produce evidence-backed, risk-ranked test obl
 author: Semantic Diff Weaver contributors
 provides_tools:
   - analyze_semantic_diff
+  - generate_test_skeletons
 provides_hooks: []

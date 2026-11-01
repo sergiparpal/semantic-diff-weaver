@@ -1,4 +1,4 @@
-"""The MCP transport serves the Hermes tool contract over JSON-RPC 2.0.
+"""The MCP transport serves the Hermes tool contracts over JSON-RPC 2.0.
 
 The one deliberate difference is output shaping for the host: the brief is the default and is
 returned as plain Markdown. Every other request and result is the Hermes handler's own.
@@ -20,11 +20,16 @@ from semantic_diff_weaver.mcp_server import (
     METHOD_NOT_FOUND,
     PROTOCOL_VERSIONS,
     RESULT_SIZE_META,
+    SKELETONS_TOOL_NAME,
     TOOL_NAME,
     McpServer,
+    skeletons_tool_definition,
     tool_definition,
 )
-from semantic_diff_weaver.schemas import ANALYZE_SEMANTIC_DIFF_SCHEMA
+from semantic_diff_weaver.schemas import (
+    ANALYZE_SEMANTIC_DIFF_SCHEMA,
+    GENERATE_TEST_SKELETONS_SCHEMA,
+)
 
 
 def _request(method: str, params: Any = None, request_id: Any = 1) -> dict[str, Any]:
@@ -77,11 +82,63 @@ def test_the_tool_declares_a_result_threshold_between_the_host_default_and_ceili
     assert 50_000 < MAX_RESULT_CHARS <= 500_000
 
 
-def test_tools_list_returns_exactly_one_tool() -> None:
+def test_tools_list_returns_exactly_the_two_tools() -> None:
     response = McpServer().handle(_request("tools/list", {}))
     assert response is not None
     assert response["id"] == 1
-    assert response["result"]["tools"] == [tool_definition()]
+    assert response["result"]["tools"] == [tool_definition(), skeletons_tool_definition()]
+
+
+def test_the_skeleton_tool_definition_is_the_hermes_schema_unchanged() -> None:
+    tool = skeletons_tool_definition()
+    assert tool["name"] == SKELETONS_TOOL_NAME == "generate_test_skeletons"
+    assert tool["inputSchema"] == GENERATE_TEST_SKELETONS_SCHEMA["parameters"]
+    assert tool["inputSchema"] is not GENERATE_TEST_SKELETONS_SCHEMA["parameters"]
+    assert tool["annotations"]["readOnlyHint"] is True
+    assert tool["annotations"]["destructiveHint"] is False
+    assert tool["_meta"] == {RESULT_SIZE_META: MAX_RESULT_CHARS}
+    # The guidance a model needs to carry a brief's IDs over, and not to scaffold unasked.
+    assert "same IDs" in tool["description"]
+    assert "approved" in tool["description"]
+
+
+def test_a_skeleton_call_is_the_hermes_handler_result_unchanged() -> None:
+    seen: list[dict[str, Any]] = []
+    payload = {"success": True, "patch": "diff --git a/t.py b/t.py\n", "skeletons": []}
+    server = McpServer(skeletons_handler=_recording_handler(seen, payload))
+    arguments = {"repo_path": ".", "base_ref": "main", "obligation_ids": ["to-001"]}
+    response = server.handle(_call(arguments, name=SKELETONS_TOOL_NAME))
+    assert response is not None
+    # No transport default is added: the skeleton tool has no output format.
+    assert seen == [arguments]
+    assert response["result"]["isError"] is False
+    assert json.loads(response["result"]["content"][0]["text"]) == payload
+
+
+def test_a_skeleton_failure_is_an_error_result_with_the_stable_payload() -> None:
+    """The default handler, unfaked: two analyses named at once are refused, not run."""
+    arguments = {
+        "repo_path": ".",
+        "base_ref": "HEAD",
+        "analysis_path": "analysis.json",
+        "obligation_ids": ["to-001"],
+    }
+    response = McpServer().handle(_call(arguments, name=SKELETONS_TOOL_NAME))
+    assert response is not None
+    result = response["result"]
+    assert result["isError"] is True
+    payload = json.loads(result["content"][0]["text"])
+    assert (payload["success"], payload["error"]) == (False, "configuration_error")
+    assert set(payload) == {"success", "error", "message", "remediation"}
+
+
+def test_an_unknown_tool_is_refused_by_naming_the_two() -> None:
+    response = McpServer().handle(_call({}, name="run_shell"))
+    assert response is not None
+    assert response["error"] == {
+        "code": INVALID_PARAMS,
+        "message": "Unknown tool; the tools are analyze_semantic_diff and generate_test_skeletons.",
+    }
 
 
 @pytest.mark.parametrize("version", PROTOCOL_VERSIONS)

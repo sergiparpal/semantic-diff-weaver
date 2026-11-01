@@ -5,6 +5,10 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from semantic_diff_weaver.plugin import register
+from semantic_diff_weaver.schemas import (
+    ANALYZE_SEMANTIC_DIFF_SCHEMA,
+    GENERATE_TEST_SKELETONS_SCHEMA,
+)
 
 
 @dataclass
@@ -25,15 +29,35 @@ class FakeContext:
         self.tools.append(kwargs)
 
 
-def test_registration_is_exactly_one_and_side_effect_free() -> None:
+def test_registration_is_exactly_two_tools_and_side_effect_free() -> None:
     context = FakeContext()
     register(context)
     assert context.llm.calls == 0
-    assert len(context.tools) == 1
-    tool = context.tools[0]
-    assert tool["name"] == "analyze_semantic_diff"
-    assert tool["toolset"] == "semantic_diff_weaver"
-    assert tool["override"] is False
+    assert [tool["name"] for tool in context.tools] == [
+        "analyze_semantic_diff",
+        "generate_test_skeletons",
+    ]
+    assert [tool["schema"] for tool in context.tools] == [
+        ANALYZE_SEMANTIC_DIFF_SCHEMA,
+        GENERATE_TEST_SKELETONS_SCHEMA,
+    ]
+    for tool in context.tools:
+        assert tool["toolset"] == "semantic_diff_weaver"
+        assert tool["override"] is False
+        assert "read-only" in tool["description"]
+
+
+def test_the_skeleton_handler_accepts_extra_keywords_and_returns_json() -> None:
+    context = FakeContext()
+    register(context)
+    result = context.tools[1]["handler"](
+        {"repo_path": "path-that-does-not-exist", "obligation_ids": ["to-001"]}, task_id="task"
+    )
+    payload = json.loads(result)
+    assert payload["success"] is False
+    assert payload["error"] == "configuration_error"
+    # The skeleton tool never asks the host's model for anything.
+    assert context.llm.calls == 0
 
 
 def test_handler_accepts_extra_runtime_keywords_and_returns_json() -> None:

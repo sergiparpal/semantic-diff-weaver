@@ -387,7 +387,8 @@ The JSON result must be versioned with `schema_version` and remain the canonical
 
 - `render_semantic_diff_report(analysis_path, format)`
 - `compare_test_plan_with_changes(previous_analysis, current_analysis)`
-- `generate_test_skeletons(analysis_path, framework)`
+- `generate_test_skeletons(analysis_path, framework)` — *served* as `generate_test_skeletons`,
+  which also takes the analysis by its arguments; see §24.
 
 The future tools are explicitly outside the MVP.
 
@@ -912,9 +913,9 @@ Hermes plugin.
 
 ### v0.3 — Test skeleton generation (done)
 
-- Generate framework-specific test skeletons from approved obligations. *Done on the command
-  line:* `semantic-diff-weaver skeletons` adds a failing pytest or unittest test for each
-  obligation ID; the `generate_test_skeletons` tool of §10 is not served yet.
+- Generate framework-specific test skeletons from approved obligations. *Done:* the
+  `semantic-diff-weaver skeletons` subcommand and the `generate_test_skeletons` tool of §10 add a
+  failing pytest or unittest test for each obligation ID.
 - Human approval required before writing files. *Done:* the user names each obligation and
   applies the patch.
 - Patch output only; no direct commit. *Done:* the subcommand prints a patch and writes nothing.

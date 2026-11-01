@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- **Feature:** the `generate_test_skeletons` tool, served by the Hermes plugin and the MCP server
+  beside `analyze_semantic_diff`. It is the `skeletons` subcommand as a tool: given the IDs of the
+  obligations the user approved, it returns a patch adding a failing test for each, and never
+  applies it. It names the analysis either by the analysis tool's own arguments, which it analyzes
+  again without inference so a brief's IDs name the same obligations, or by `analysis_path`, the
+  JSON of a saved analysis, for one made with inference. The Claude Code skill scaffolds only the
+  obligations the user names. The analysis tool, its schema, and every output of an analysis are
+  unchanged.
+
 ## 0.7.0 - 2026-11-01
 
 Test skeletons for approved obligations. The new `skeletons` subcommand reads an analysis saved

@@ -1,12 +1,13 @@
 ---
 name: semantic-diff
-description: Review the behavioral meaning of a committed Python change and plan regression tests with the read-only analyze_semantic_diff tool. Use when the user asks what a diff, branch, or pull request changes in behavior, how risky it is, or what to test before merging.
+description: Review the behavioral meaning of a committed Python change and plan regression tests with the read-only analyze_semantic_diff tool, then scaffold failing tests for the obligations the user approves with generate_test_skeletons. Use when the user asks what a diff, branch, or pull request changes in behavior, how risky it is, what to test before merging, or to scaffold those tests.
 ---
 
 # Semantic diff review
 
 The `analyze_semantic_diff` tool from the `semantic-diff-weaver` MCP server reads two
-committed Git revisions and returns evidence-backed, risk-ranked test obligations. It never
+committed Git revisions and returns evidence-backed, risk-ranked test obligations, and its
+`generate_test_skeletons` tool scaffolds failing tests for the ones the user approves. Neither
 imports, executes, builds, or modifies the repository.
 
 1. **Pick the refs.** `head_ref` defaults to `HEAD`. The base is what the user named, or else
@@ -49,6 +50,15 @@ imports, executes, builds, or modifies the repository.
    matches them statically and never runs them. A candidate shown as a whole file stands for
    tests related to the change only through their file, none of them by name. Say so if the
    result reports truncation or omitted scope.
+6. **Scaffold only what the user approves.** When the user names obligations to test, call
+   `generate_test_skeletons` with their IDs and the same `repo_path`, `base_ref`, `head_ref`,
+   `include`, `exclude`, `risk_profile`, and `coverage_report` as the analysis whose brief they
+   read: the server analyzes again without inference, so the brief's IDs name the same
+   obligations. Never choose obligations for the user. Pass `framework: "unittest"` when the
+   project's tests are `unittest.TestCase` classes. The result is JSON: show the patch, say
+   where each test went, and give the reason for any obligation that got none. The tool writes
+   nothing; apply the patch with `git apply` only if the user asks. Each skeleton fails until
+   it is written, so offer to write the tests the obligations describe.
 
 **Explaining a risk score.** The brief gives each finding's label; the JSON's
 `score_explanation` gives its four axes, which combine as

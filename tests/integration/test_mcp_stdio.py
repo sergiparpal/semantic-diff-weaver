@@ -16,8 +16,14 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from semantic_diff_weaver.mcp_server import PROJECT_DIR_ENV, PROTOCOL_VERSIONS, TOOL_NAME
+from semantic_diff_weaver.mcp_server import (
+    PROJECT_DIR_ENV,
+    PROTOCOL_VERSIONS,
+    SKELETONS_TOOL_NAME,
+    TOOL_NAME,
+)
 from semantic_diff_weaver.path_policy import ALLOWED_ROOTS_ENV
+from tests.conftest import git
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 BOUNDARY_OLD = {"api.py": "def allowed(x):\n    return x < 5\n"}
@@ -94,7 +100,10 @@ def test_a_full_session_analyzes_the_project_by_relative_path(repo_factory, tmp_
     responses, _ = run_session(messages, cwd=plugin_root, project=repo)
     assert [item["id"] for item in responses] == [0, 1, 2]
     assert responses[0]["result"]["protocolVersion"] == PROTOCOL_VERSIONS[0]
-    assert [tool["name"] for tool in responses[1]["result"]["tools"]] == [TOOL_NAME]
+    assert [tool["name"] for tool in responses[1]["result"]["tools"]] == [
+        TOOL_NAME,
+        SKELETONS_TOOL_NAME,
+    ]
     result = responses[2]["result"]
     assert result["isError"] is False
     payload = tool_payload(responses[2])
@@ -135,3 +144,37 @@ def test_the_default_result_is_the_plain_markdown_brief(repo_factory, tmp_path) 
     # Multi-line, so a host that saves an oversized result to a file can page through it.
     assert text.count("\n") > 5
     assert re.search(r"<!-- analysis_id=sdw_[A-Za-z0-9_-]+ schema_version=1\.2 -->\n\Z", text)
+
+
+def test_a_session_scaffolds_the_obligations_a_brief_listed(repo_factory, tmp_path) -> None:
+    """The brief's IDs carry over to the skeleton tool: every analysis here is deterministic."""
+    tests = {"tests/test_api.py": "def test_allowed():\n    assert True\n"}
+    repo, base, head = repo_factory({**BOUNDARY_OLD, **tests}, BOUNDARY_NEW)
+    arguments = {"repo_path": ".", "base_ref": base, "head_ref": head}
+    first, _ = run_session(
+        [*handshake(), call({**arguments, "output_format": "json"})], cwd=tmp_path, project=repo
+    )
+    approved = tool_payload(first[1])["test_obligations"][0]
+    scaffold = {
+        "jsonrpc": "2.0",
+        "id": 3,
+        "method": "tools/call",
+        "params": {
+            "name": SKELETONS_TOOL_NAME,
+            "arguments": {**arguments, "obligation_ids": [approved["id"]]},
+        },
+    }
+    second, _ = run_session([*handshake(), scaffold], cwd=tmp_path, project=repo)
+    assert second[1]["result"]["isError"] is False
+    result = tool_payload(second[1])
+    assert [(item["obligation_id"], item["path"]) for item in result["skeletons"]] == [
+        (approved["id"], "tests/test_api.py")
+    ]
+    # The same obligation, not merely the same number: its type and priority open its comment.
+    assert (
+        f"# Obligation {approved['id']} ({approved['type']}, priority {approved['priority']}):"
+    ) in result["patch"]
+    patch = tmp_path / "skeletons.patch"
+    patch.write_bytes(result["patch"].encode("utf-8"))
+    git(repo, "apply", "--check", str(patch))
+    assert git(repo, "status", "--porcelain") == ""

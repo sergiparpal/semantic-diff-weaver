@@ -13,7 +13,8 @@
   supported category or `unknown_semantic_change` is used.
 - The handler always returns JSON text, including Markdown-only mode.
 - The user's active Hermes provider/model/profile is used without routing overrides.
-- The plugin registers one standalone tool and no hooks, commands, skills, or overrides.
+- The plugin registers standalone tools — one in the MVP, and `generate_test_skeletons` beside it
+  since 2026-11-01 — and no hooks, commands, skills, or overrides.
 
 ## Compatibility snapshot (2026-07-18)
 
@@ -145,6 +146,36 @@ second server waiting for approval.
 
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
+
+## The `generate_test_skeletons` tool (2026-11-01)
+
+The specification's optional `generate_test_skeletons` tool is served by both transports, the
+Hermes plugin and the MCP server, beside `analyze_semantic_diff`: the MVP's one-tool rule held while
+there was one tool to serve. It is the `skeletons` subcommand behind the tool boundary — the same
+request model, the same patch, and the result `--format json` prints — and is read-only like the
+analysis tool: it returns the patch and never applies it. Three choices are deliberate:
+
+- **The analysis is named either way, exactly one of them.** A model that read a brief has no file
+  to pass, since the analysis it read lives in the conversation. So the tool takes the analysis
+  tool's own arguments, from `base_ref` on, and runs that analysis again without inference. Or it
+  takes `analysis_path`, the JSON of a saved analysis, as the specification's signature and the CLI
+  have it. A deterministic analysis numbers its obligations alike on every run: on this
+  repository's `fed1578..63c8dec`, two runs gave the same six obligations under the same IDs, each
+  run with its own analysis ID. Over MCP every analysis is deterministic, so a brief's IDs name
+  the same obligations in the tool. An analysis made with inference, as under Hermes, can number
+  them otherwise, and `analysis_path` is how to scaffold from one: running it again with inference
+  would not reproduce its numbering either.
+- **Only the arguments that shape obligations are taken.** `include`, `exclude`, `risk_profile`,
+  and `coverage_report` decide which obligations exist and how they are numbered — coverage decides
+  whether two behaviors' obligations merge. `baseline_report` only marks findings new or resolved,
+  and `output_format` only shapes the output, so neither is accepted. `head_ref` has no default in
+  the schema, so a host that fills defaults in cannot send one beside an `analysis_path`.
+- **No inference, and no choosing for the user.** The Hermes handler of this tool does not close
+  over `ctx.llm`, so nothing it runs involves the host's model. The skill tells Claude to scaffold
+  only the obligations the user named, and to apply the patch only when asked.
+
+`scripts/verify_hermes.py` and `scripts/verify_wheel.py` now expect both tools, from a real Hermes
+and from the installed MCP server.
 
 ## Test skeletons (2026-11-01)
 

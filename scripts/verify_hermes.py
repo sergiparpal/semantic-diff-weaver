@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 
 PLUGIN_NAME = "semantic-diff-weaver"
-TOOL_NAME = "analyze_semantic_diff"
+TOOL_NAMES = ("analyze_semantic_diff", "generate_test_skeletons")
 
 
 def _require_parameters(callable_object: object, expected: set[str]) -> None:
@@ -27,8 +27,8 @@ def _assert_loaded(manager: object, source: str) -> None:
     plugin = matches[0]
     if not plugin["enabled"] or plugin["error"] is not None:
         raise AssertionError(f"{source} plugin did not load cleanly: {plugin!r}")
-    if plugin["tools"] != 1:
-        raise AssertionError(f"{source} plugin did not register exactly {TOOL_NAME!r}")
+    if plugin["tools"] != len(TOOL_NAMES):
+        raise AssertionError(f"{source} plugin did not register exactly {list(TOOL_NAMES)!r}")
 
 
 def main() -> int:

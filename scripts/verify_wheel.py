@@ -44,7 +44,7 @@ REQUIRED_ENTRY_POINTS = (
         "the Hermes plugin entry point",
     ),
 )
-MCP_TOOL_NAMES = ["analyze_semantic_diff"]
+MCP_TOOL_NAMES = ["analyze_semantic_diff", "generate_test_skeletons"]
 
 
 class ArtifactError(Exception):

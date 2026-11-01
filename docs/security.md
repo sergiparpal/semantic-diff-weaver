@@ -103,7 +103,10 @@ holds the adversarial regressions for each rule above.
 
 The MCP server in `mcp_server.py` is the Hermes boundary over a different transport, so it keeps the
 Hermes rule rather than the CLI's: a model supplies `repo_path`, and no tool argument ever names or
-widens an authorized root. The schema's `additionalProperties: false` rejects any attempt to pass one.
+widens an authorized root. Each schema's `additionalProperties: false` rejects any attempt to pass
+one, and the skeleton tool's request model forbids extra fields as well. Every path either tool
+takes is authorized alike: `generate_test_skeletons` reads its `analysis_path`, or the
+`risk_profile` and `coverage_report` of an analysis it runs again, only below an authorized root.
 
 The one value taken from the host is the project directory. Claude Code does not document the working
 directory it starts a plugin server in, but it exports the project root as `CLAUDE_PROJECT_DIR`; the
@@ -125,7 +128,9 @@ keeps repository content from posing as the server's own structure: names are es
 evidence stays on prefixed lines inside a fence it cannot close, and the closing comment carries only
 the pattern-validated analysis ID. `tests/security/test_mcp_brief.py` plants a forged footer and
 heading to pin that. The server runs the deterministic analysis only and never reads
-`ANTHROPIC_API_KEY`.
+`ANTHROPIC_API_KEY`. The skeleton tool's result is the JSON its Hermes handler returns: a patch
+the server never applies, whose generated code the analysis's text reaches only as escaped
+comments, as for the CLI.
 
 `tests/security/test_mcp_authorization.py` holds the adversarial regressions for each rule above.
 

@@ -32,8 +32,9 @@
    export SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS=/work/project:/work/shared-profiles
    ```
 
-   `repo_path`, an external `risk_profile`, and an external `coverage_report` must each resolve
-   below one of these roots. A filesystem root is never accepted as an authorization root.
+   `repo_path`, an external `risk_profile`, `coverage_report`, or `baseline_report`, and the
+   skeleton tool's `analysis_path` must each resolve below one of these roots. A filesystem root
+   is never accepted as an authorization root.
 
 4. **Inference needs nothing extra.** The tool uses the provider, model, and profile your Hermes
    session already has, and overrides none of them. Without a usable model the analysis degrades
@@ -44,7 +45,10 @@
 5. **Use it:** ask the agent to review a change — *"analyze the diff between `main` and `HEAD` in
    this repository and tell me what to test"*. It calls `analyze_semantic_diff`, which is advisory
    and read-only: it never imports, executes, builds, installs, tests, or modifies the repository
-   it analyzes.
+   it analyzes. Ask it to scaffold the obligations you approve, and `generate_test_skeletons`
+   returns a patch of failing tests for them, which it never applies. Its IDs are those of the
+   analysis without inference, so for an analysis your session's model took part in, save that
+   analysis's JSON and pass its path as `analysis_path`.
 
 Configuration is optional. `.hermes/semantic-diff-weaver.yaml` or `.semantic-diff-weaver.yaml` in
 the analyzed repository tunes paths, critical-path weights, and reporting thresholds — see
