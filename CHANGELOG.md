@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.6.2 - 2026-11-01
+
+Two classifier corrections. A changed `print` is a side effect rather than a dependency
+interaction, and a changed assignment reads only the assignments that changed: assignments were
+the last probed feature to read every value its delta showed. The schema stays at 1.2 and no
+field, taxonomy value, or error code changes. On this repository's history and
+`adaptive-policy-compilation`'s, 32 call classifications move from a dependency interaction to a
+side effect, which raises their risk, and 11 state transitions become unknown changes, which
+lowers it; one range's verdict moves, from `warn` to `review_required`. Both corrections are
+measured in `docs/decisions.md`.
 
 - **Fix:** a changed `print` is a side effect. It was a dependency interaction, with obligations
   about a dependency's failures and unexpected responses; `print` is now a side-effect term beside
