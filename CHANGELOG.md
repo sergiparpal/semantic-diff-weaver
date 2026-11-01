@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.12.0 - 2026-11-01
+
+Test history. The commits up to the base say which test files kept changing with a module: one that
+changed with a changed Python module in two or more of the last `rules.max_history_commits` is a
+candidate for its findings, as a whole file, whatever its name or imports say, and adds to a
+candidate other evidence found. A minor release for the new evidence and its setting; schema 1.3,
+both tools' interfaces, and every golden are unchanged, and the decision is recorded in
+`docs/decisions.md`.
 
 - **Feature:** test history. The commits up to the base are read for the files each one changed,
   and a test file that changed with a changed Python module in two or more of them is a candidate
