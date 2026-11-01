@@ -1,6 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.10.0 - 2026-11-01
+
+Configuration files. The configuration files a repository names in the new `paths.config_files`
+globs are compared key by key, beside its Python and its API schemas: a changed retry count,
+timeout, limit, switch, or service address is a finding with the old and new value, redacted, as its
+evidence, and its candidate tests are those that use the key's names. With API schemas in 0.9.0,
+this completes the roadmap's config and API schema awareness. A minor release for the new input;
+schema 1.2 and both tools' interfaces are unchanged, and the decision is recorded in
+`docs/decisions.md`.
 
 - **Feature:** configuration files are compared where the repository names them, in the new
   `paths.config_files` globs. Each changed YAML, JSON, or TOML file named there is compared key by
