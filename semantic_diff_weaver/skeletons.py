@@ -103,6 +103,7 @@ class SkeletonRequest(StrictModel):
     head_ref: str | None = Field(default=None, min_length=1, max_length=MAX_REF_CHARS)
     risk_profile: str | None = Field(default=None, min_length=1, max_length=MAX_PATH_CHARS)
     coverage_report: str | None = Field(default=None, min_length=1, max_length=MAX_PATH_CHARS)
+    coverage_data: str | None = Field(default=None, min_length=1, max_length=MAX_PATH_CHARS)
     include: Annotated[list[RelativePattern], Field(max_length=MAX_PATH_PATTERNS)] | None = None
     exclude: Annotated[list[RelativePattern], Field(max_length=MAX_PATH_PATTERNS)] | None = None
 
@@ -116,6 +117,7 @@ ANALYSIS_ARGUMENTS = (
     "exclude",
     "risk_profile",
     "coverage_report",
+    "coverage_data",
 )
 
 
@@ -252,7 +254,8 @@ def _load_analysis(path: Path, limit: int) -> _Analysis:
 
 SOURCE_REMEDIATION = (
     "Pass analysis_path for an analysis saved as JSON, or base_ref with the head_ref, include, "
-    "exclude, risk_profile, and coverage_report of the analysis whose obligation IDs you read."
+    "exclude, risk_profile, coverage_report, and coverage_data of the analysis whose obligation "
+    "IDs you read."
 )
 
 

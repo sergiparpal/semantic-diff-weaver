@@ -152,7 +152,7 @@ def _merge(lower: dict[str, Any], upper: dict[str, Any]) -> dict[str, Any]:
 
 
 def _merge_request(data: dict[str, Any], request: AnalyzeRequest) -> dict[str, Any]:
-    """Lay the request's profile, path overrides, and coverage report over `data`."""
+    """Lay the request's profile, path overrides, and coverage files over `data`."""
     if request.risk_profile:
         data = _merge(data, _read_yaml(ensure_authorized_path(Path(request.risk_profile))))
     request_override: dict[str, Any] = {"paths": {}}
@@ -168,6 +168,8 @@ def _merge_request(data: dict[str, Any], request: AnalyzeRequest) -> dict[str, A
         data = _merge(data, request_override)
     if request.coverage_report:
         data = _merge(data, {"coverage": {"report_path": request.coverage_report}})
+    if request.coverage_data:
+        data = _merge(data, {"coverage": {"data_path": request.coverage_data}})
     return data
 
 

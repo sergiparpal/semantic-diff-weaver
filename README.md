@@ -46,6 +46,7 @@ python -m pip install . && semantic-diff-weaver --repo . --base main --head HEAD
 | `--exclude GLOB` | repeatable exclude pattern |
 | `--risk-profile PATH` | additional bounded YAML configuration file |
 | `--coverage PATH` | coverage.py JSON or lcov `.info` report to ground coverage in |
+| `--coverage-data PATH` | the same run's `.coverage` data file, recorded with per-test contexts, to name the tests that ran each changed line |
 | `--baseline PATH` | an earlier analysis's JSON, to mark findings new, updated, unchanged, or resolved |
 | `--model ID` | inference model; overrides `SEMANTIC_DIFF_WEAVER_MODEL` |
 | `--no-llm` | skip inference; deterministic structural findings only |
@@ -89,6 +90,14 @@ coverage.py JSON and lcov `.info` are both accepted, sniffed by content. A chang
 from the report is reported as **unknown, never uncovered**, so a path-prefix mismatch shows up
 as a warning rather than as a fake coverage gap. See
 [configuration](docs/configuration.md#coverage-grounding).
+
+Record the run with per-test contexts, `pytest --cov --cov-context=test`, and pass the `.coverage`
+data file it leaves beside the report, and each test that ran a changed line is a candidate test for
+the change, whatever its name or imports say:
+
+```bash
+semantic-diff-weaver --repo . --base main --coverage coverage.json --coverage-data .coverage
+```
 
 ### Test skeletons
 
@@ -331,10 +340,11 @@ Hermes registers two tools. The first, `analyze_semantic_diff`, analyzes a diff:
 
 `repo_path` and `base_ref` are required. `head_ref` defaults to `HEAD`; `output_format` may be
 `json`, `markdown`, or `both`. An optional `risk_profile` may name a bounded YAML file explicitly,
-an optional `coverage_report` may name a coverage.py JSON or lcov `.info` report to ground
-coverage in, and an optional `baseline_report` may name the JSON of an earlier analysis to compare
-with ([baseline comparison](docs/configuration.md#baseline-comparison)). Unknown arguments are
-rejected.
+an optional `coverage_report` may name a coverage.py JSON or lcov `.info` report to ground coverage
+in, an optional `coverage_data` may name the same run's `.coverage` data file, recorded with
+per-test contexts, to name the tests that ran each changed line, and an optional `baseline_report`
+may name the JSON of an earlier analysis to compare with ([baseline
+comparison](docs/configuration.md#baseline-comparison)). Unknown arguments are rejected.
 
 Caller-selected local paths are authorized independently of repository containment. By default the
 tool may access only paths below the Hermes process working directory. A trusted host operator can
@@ -345,9 +355,9 @@ authorize additional bounded roots with the platform-path-separator-delimited
 SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS=/work/project:/work/shared-profiles
 ```
 
-`repo_path`, an external `risk_profile`, an external `coverage_report`, an external
-`baseline_report`, and a skeleton tool's `analysis_path` must all resolve below one of these
-roots. Filesystem roots are never accepted as authorization roots.
+`repo_path`, an external `risk_profile`, an external `coverage_report` or `coverage_data`, an
+external `baseline_report`, and a skeleton tool's `analysis_path` must all resolve below one of
+these roots. Filesystem roots are never accepted as authorization roots.
 
 The handler always returns a JSON-encoded string. JSON mode returns the canonical schema-versioned
 analysis. Markdown mode returns a JSON envelope containing the PR-ready brief. Both mode returns the
@@ -370,12 +380,12 @@ test for each, and never applies it:
 
 `repo_path` and `obligation_ids` are required, and `framework` is `pytest` or `unittest`. The
 obligations come from exactly one analysis: either the one `base_ref` with the analysis tool's
-`head_ref`, `include`, `exclude`, `risk_profile`, and `coverage_report` describes, analyzed again
-without inference, or an `analysis_path` the JSON of a saved analysis is at. A deterministic
-analysis numbers its obligations alike on every run, so the same arguments name the same
-obligations; one made with inference can number them otherwise, which is what `analysis_path`
-is for. The result is the JSON of `skeletons --format json`: the patch, where each test went,
-and why any obligation got none.
+`head_ref`, `include`, `exclude`, `risk_profile`, `coverage_report`, and `coverage_data` describes,
+analyzed again without inference, or an `analysis_path` the JSON of a saved analysis is at. A
+deterministic analysis numbers its obligations alike on every run, so the same arguments name the
+same obligations; one made with inference can number them otherwise, which is what `analysis_path`
+is for. The result is the JSON of `skeletons --format json`: the patch, where each test went, and
+why any obligation got none.
 
 ## Configuration
 
@@ -432,10 +442,11 @@ Hermes home and do not require a paid or live LLM.
 - Python source, OpenAPI 3, Swagger 2, and JSON Schema documents, the YAML, JSON, and TOML
   configuration files a repository names, and common pytest/unittest layouts only.
 - Committed base/head content only; staged and working-tree changes are outside the MVP.
-- Static candidate tests are not verified coverage: they are name, import, call, and history
-  matches, never a claim that a test asserts the changed behavior. This holds even with a coverage
-  report supplied — an ingested report says a changed *line* was executed by the suite, which is a
-  different and weaker claim.
+- Candidate tests are not verified coverage: they are name, import, call, and history matches, or,
+  with per-test contexts, the tests a run executed the changed lines in, never a claim that a test
+  asserts the changed behavior. This holds even with a coverage report supplied — an ingested report
+  says a changed *line* was executed by the suite, or by a test, which is a different and weaker
+  claim.
 - The tool consumes a coverage report and never produces one; a changed file absent from the
   report is reported as unknown, never as uncovered.
 - Dynamic metaprogramming and external contracts may produce review questions or unknown semantic

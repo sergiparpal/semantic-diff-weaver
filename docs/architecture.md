@@ -209,7 +209,7 @@ is a whole symbol — for `<module>`, the whole file — so judging it directly 
 unchanged line hide a covered change, and counted lines no diff touched. The summary counts each
 changed line once per file however many findings rest on it.
 
-Two hooks consume it:
+Three hooks consume it:
 
 **Scoring.** `score_risk` takes an optional grounded state and adjusts the existing test-gap
 axis only:
@@ -232,6 +232,22 @@ behaviors while its status and candidate tests hold for each of them. Their cand
 and cut to the per-obligation cap, and among equal scores the test files take turns, so one file's
 tests cannot fill every place. The obligation that groups high-risk overflow past the global cap
 reports its least-tested behavior's status.
+
+**Candidate tests.** A run measured with per-test contexts also says which test executed each line:
+the coverage.py data file, `.coverage`, that `coverage_map.load_coverage_data` reads beside the
+report, or a small report written with its contexts. `service._executed_tests` asks it which context
+labels executed each Python finding's changed lines and the report how many of those lines it
+measures, and `coverage_map.ContextTests` names the indexed tests each label stands for, a pytest
+node ID by its file's longest shared suffix and its names, coverage.py's dotted name by its longest
+dotted suffix, never a tie between files. `map_candidate_tests` makes each such test a candidate for
+the finding, at 0.65 when it executed every changed line the report measures and 0.55 when it
+executed some, added to its other evidence, and among equal scores puts first the test that ran more
+of the change.
+
+The data file is a SQLite database, and untrusted: its bytes are read under their own bound and
+deserialized into an in-memory connection hardened before its schema is parsed, so SQLite opens no
+path, and only the tables coverage.py writes are queried, each an ordinary table. `docs/security.md`
+lists the settings.
 
 `AnalysisResult.coverage` reports what the report actually matched — source format, matched and
 unmatched file counts, and changed/covered/uncovered line counts — so a reader can audit the
