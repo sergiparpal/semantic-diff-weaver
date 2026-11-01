@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.8.2 - 2026-11-01
+
+Test skeletons beside their candidates. A module without a test file of its name now gets its
+new one beside the obligation's first candidate test rather than in the first test root, so a
+layered suite keeps its layout; the first test root stands for an obligation without such a
+candidate. The analysis, both tools' schemas, the CLI, and the patch format are unchanged.
 
 - **Fix:** a test skeleton for a module without a test file of its name now goes in a new file
   beside the obligation's first candidate test, rather than in the first test root: where a
