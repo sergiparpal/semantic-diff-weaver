@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.11.0 - 2026-11-01
+
+Connected changes. The findings in Python code that calls connect are grouped under the entry points
+a test reaches the rest through: a changed `checkout` that calls a changed `parse_amount` is one
+change to test through `checkout`, listed in the new `change_groups` and said in the brief under
+"Connected changes". With it, the roadmap's dependency graph is done. A minor release for schema
+1.3, whose only addition is `change_groups`; no finding, score, verdict, or obligation changes, and
+the decision is recorded in `docs/decisions.md`.
 
 - **Feature:** the findings in Python code that calls connect are grouped. A finding reaches
   another when its symbol's code calls the other's, directly or through unchanged code, and each
