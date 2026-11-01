@@ -25,6 +25,7 @@ from typing import Any, Literal
 
 from .errors import ErrorCode, WeaverError
 from .models import LineRange, WeaverConfig
+from .textutil import read_bounded_text
 
 CoverageState = Literal["covered", "uncovered", "unknown"]
 
@@ -209,27 +210,6 @@ def _suffix_score(candidate: tuple[str, ...], query: tuple[str, ...]) -> int:
     return shared
 
 
-def _read_bounded(path: Path, limit: int) -> str:
-    try:
-        resolved = path.resolve(strict=True)
-        size = resolved.stat().st_size
-    except OSError as exc:
-        raise coverage_error("The coverage report is inaccessible.") from exc
-    if not resolved.is_file():
-        raise coverage_error("The coverage report is not a regular file.")
-    if size > limit:
-        raise coverage_error(f"The coverage report is {size} bytes, above the {limit}-byte limit.")
-    try:
-        # Read one byte past the limit so a file that grows between stat and read is caught.
-        with resolved.open("r", encoding="utf-8", errors="strict") as handle:
-            text = handle.read(limit + 1)
-    except (OSError, UnicodeDecodeError) as exc:
-        raise coverage_error("The coverage report is not readable UTF-8 text.") from exc
-    if len(text.encode("utf-8", errors="ignore")) > limit:
-        raise coverage_error("The coverage report exceeded the size limit while being read.")
-    return text
-
-
 def _parse_coverage_json(text: str) -> dict[str, FileCoverage]:
     try:
         document: Any = json.loads(text)
@@ -325,7 +305,9 @@ def _merge_entry(
 
 def load_coverage(path: Path, config: WeaverConfig) -> CoverageMap:
     """Read and parse a coverage report, sniffing the format by content, not by extension."""
-    text = _read_bounded(path, config.rules.max_coverage_bytes)
+    text = read_bounded_text(
+        path, config.rules.max_coverage_bytes, "coverage report", coverage_error
+    )
     stripped = text.lstrip()
     if stripped.startswith("{"):
         return CoverageMap(source=SOURCE_COVERAGE_JSON, files=_parse_coverage_json(text))

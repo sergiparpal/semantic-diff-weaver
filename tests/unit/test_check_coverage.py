@@ -63,6 +63,7 @@ def test_coverage_policy_aggregates_package_branch_coverage(tmp_path: Path, monk
             "semantic_diff_weaver/scoring.py": _file_entry(),
             "semantic_diff_weaver/semantic_interpreter.py": _file_entry(),
             "semantic_diff_weaver/service.py": _file_entry(),
+            "semantic_diff_weaver/skeletons.py": _file_entry(),
             "semantic_diff_weaver/test_mapper.py": _file_entry(),
         },
     }

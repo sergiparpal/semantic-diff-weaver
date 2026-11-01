@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- **Feature:** test skeletons for approved obligations. `semantic-diff-weaver skeletons --analysis
+  analysis.json --obligation to-001` reads an analysis saved with `--format json` or `both` and
+  prints a patch adding a failing test for each approved obligation: at the end of the test file
+  named for the changed module, one of the obligation's candidate tests first, or in that file
+  created in the first test root. `--framework unittest` writes `unittest.TestCase` methods instead
+  of pytest functions, and `--format json` returns the patch with where each test went and why any
+  obligation got none. The patch is printed for review and `git apply`, never applied, and each
+  test fails until it is written. The analysis is read as untrusted data, and its text reaches the
+  test file only as escaped comments. An unusable analysis is the new, additive
+  `analysis_unreadable` error; the analysis command and its schema are unchanged.
+
 ## 0.6.2 - 2026-11-01
 
 Two classifier corrections. A changed `print` is a side effect rather than a dependency

@@ -912,9 +912,12 @@ beside the Hermes plugin.
 
 ### v0.3 — Test skeleton generation (open)
 
-- Generate framework-specific test skeletons from approved obligations.
-- Human approval required before writing files.
-- Patch output only; no direct commit.
+- Generate framework-specific test skeletons from approved obligations. *Done on the command
+  line:* `semantic-diff-weaver skeletons` adds a failing pytest or unittest test for each
+  obligation ID; the `generate_test_skeletons` tool of §10 is not served yet.
+- Human approval required before writing files. *Done:* the user names each obligation and
+  applies the patch.
+- Patch output only; no direct commit. *Done:* the subcommand prints a patch and writes nothing.
 
 ### v0.4 — CI and pull-request integration (done)
 

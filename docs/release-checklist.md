@@ -6,7 +6,8 @@
 - [x] Inspect artifacts for caches, tests, secrets, local paths, metadata, and license inclusion.
 - [x] Install the wheel in an isolated environment and inspect `hermes_agent.plugins` entry points.
 - [x] Verify the `semantic-diff-weaver` console script is declared, importable, and runs `--help`
-      from the installed environment (`scripts/verify_wheel.py` asserts all three).
+      and `skeletons --help` from the installed environment (`scripts/verify_wheel.py` asserts
+      each).
 - [x] Confirm `pyproject.toml`, `plugin.yaml`, `.claude-plugin/plugin.json`, and
       `semantic_diff_weaver.__version__` carry the same version; they must not drift.
       `tests/unit/test_regressions.py` pins the four together, after `__version__` was found

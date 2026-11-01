@@ -140,20 +140,8 @@ def _merge(lower: dict[str, Any], upper: dict[str, Any]) -> dict[str, Any]:
     return merged
 
 
-def load_config(repo_root: Path, request: AnalyzeRequest) -> tuple[WeaverConfig, list[str]]:
-    """Load built-ins, repository config, explicit profile, and request overrides."""
-    warnings: list[str] = []
-    data = WeaverConfig().model_dump(mode="python")
-    hermes_path = repo_root / ".hermes" / "semantic-diff-weaver.yaml"
-    local_path = repo_root / ".semantic-diff-weaver.yaml"
-    if hermes_path.is_file():
-        data = _merge(data, _read_yaml(hermes_path, containment_root=repo_root))
-        if local_path.is_file():
-            warnings.append(
-                "Ignored .semantic-diff-weaver.yaml because the .hermes configuration has precedence."
-            )
-    elif local_path.is_file():
-        data = _merge(data, _read_yaml(local_path, containment_root=repo_root))
+def _merge_request(data: dict[str, Any], request: AnalyzeRequest) -> dict[str, Any]:
+    """Lay the request's profile, path overrides, and coverage report over `data`."""
     if request.risk_profile:
         data = _merge(data, _read_yaml(ensure_authorized_path(Path(request.risk_profile))))
     request_override: dict[str, Any] = {"paths": {}}
@@ -169,6 +157,31 @@ def load_config(repo_root: Path, request: AnalyzeRequest) -> tuple[WeaverConfig,
         data = _merge(data, request_override)
     if request.coverage_report:
         data = _merge(data, {"coverage": {"report_path": request.coverage_report}})
+    return data
+
+
+def load_config(
+    repo_root: Path, request: AnalyzeRequest | None = None
+) -> tuple[WeaverConfig, list[str]]:
+    """Load built-ins, repository config, explicit profile, and request overrides.
+
+    Without a request — as test skeletons, which analyze nothing, load it — there is no profile
+    and no override: the repository's own configuration over the built-ins.
+    """
+    warnings: list[str] = []
+    data = WeaverConfig().model_dump(mode="python")
+    hermes_path = repo_root / ".hermes" / "semantic-diff-weaver.yaml"
+    local_path = repo_root / ".semantic-diff-weaver.yaml"
+    if hermes_path.is_file():
+        data = _merge(data, _read_yaml(hermes_path, containment_root=repo_root))
+        if local_path.is_file():
+            warnings.append(
+                "Ignored .semantic-diff-weaver.yaml because the .hermes configuration has precedence."
+            )
+    elif local_path.is_file():
+        data = _merge(data, _read_yaml(local_path, containment_root=repo_root))
+    if request is not None:
+        data = _merge_request(data, request)
     language = data.get("language", {})
     if not isinstance(language, dict):
         raise _configuration_error("The language section must be a mapping.")
