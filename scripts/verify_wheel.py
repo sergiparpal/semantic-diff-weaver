@@ -21,7 +21,9 @@ import zipfile
 from collections.abc import Iterable
 from pathlib import Path
 
-FORBIDDEN_PARTS = frozenset({".git", ".pytest_cache", "__pycache__", ".venv", "tests"})
+# `.claude` is Claude Code's per-user settings directory, which the repository never tracks; an
+# sdist built from a working copy once carried its `settings.local.json`.
+FORBIDDEN_PARTS = frozenset({".claude", ".git", ".pytest_cache", "__pycache__", ".venv", "tests"})
 # (group, name, value, what the failure message calls it). Matched per group and by exact
 # value, so a line under the wrong group or a near-miss target does not count as declared.
 REQUIRED_ENTRY_POINTS = (
@@ -86,7 +88,9 @@ def check_wheel(wheel: Path) -> None:
     with zipfile.ZipFile(wheel) as archive:
         names = archive.namelist()
         if _has_forbidden_part(names):
-            raise ArtifactError("wheel contains a forbidden cache, repository, or test path")
+            raise ArtifactError(
+                "wheel contains a forbidden cache, repository, settings, or test path"
+            )
         metadata_name = next((name for name in names if name.endswith(".dist-info/METADATA")), None)
         if metadata_name is None:
             raise ArtifactError("wheel does not contain METADATA")
@@ -116,7 +120,7 @@ def check_sdist(sdist: Path) -> None:
     with tarfile.open(sdist, mode="r:gz") as archive:
         names = archive.getnames()
     if _has_forbidden_part(names):
-        raise ArtifactError("sdist contains a forbidden cache, repository, or test path")
+        raise ArtifactError("sdist contains a forbidden cache, repository, settings, or test path")
     if not any(name.endswith("/LICENSE") for name in names):
         raise ArtifactError("sdist does not contain LICENSE")
 
