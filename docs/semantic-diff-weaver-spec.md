@@ -914,7 +914,8 @@ Hermes plugin.
   compares the configuration files `paths.config_files` names key by key, and maps a key to the
   tests that use its names.
 - Optional composition with test history and coverage history. *Partly:* an ingested coverage.py
-  JSON or lcov report grounds candidate coverage; test history is not read.
+  JSON or lcov report grounds candidate coverage, and the commits up to the base say which test
+  files kept changing with a module; coverage across runs is not read.
 - Improved cross-file change grouping. *Partly:* a function moved between two files that both
   remain is matched as a move; findings are still grouped per symbol.
 

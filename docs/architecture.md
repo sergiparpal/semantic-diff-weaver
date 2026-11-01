@@ -138,7 +138,10 @@ route: string literals in a test or its same-file helpers that are a path, or a 
 is, with an f-string's placeholders standing for one segment each, matched against the route
 template after any base path. One that also calls the operation's method by name ranks higher,
 and one that calls only other methods is about another operation of the route. A change to a
-reusable schema names no route, and has no candidate.
+reusable schema names no route, and has no candidate. `git_diff/history.py` reads the files each
+of the commits up to the base changed, and a test file that changed with a changed module in two
+of them or more is evidence about it as a file, as a mirrored name is: alone, it makes the file a
+candidate.
 
 When global file or line limits are exceeded, explicitly configured critical paths are analyzed first
 and every omitted count/reason is carried into canonical scope and Markdown. Parse-incomplete files

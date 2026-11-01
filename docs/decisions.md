@@ -147,6 +147,42 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Test history (2026-11-01)
+
+The roadmap's v0.2 asked for composition with test history, and test history was not read. It is
+now the repository's own: the commits up to the base say which test files kept changing in the
+same commits as a module, at the user's choice, rather than an ingested report of test results.
+A test file that changed with a module whenever it did is about it, whatever its name or imports
+say, and that is evidence a test named for something else, or loading its subject indirectly, gives
+no other way. Five choices are deliberate:
+
+- **Git, not a test report.** A CI's JUnit XML would say which candidates ran, failed, or flake,
+  but it is untrusted XML, and Cobertura and JaCoCo were left out to keep XML's entity expansion off
+  this tool's surface; the log needs no new format and no new boundary, only `git log` through the
+  bounded runner every other Git read uses.
+- **Up to the base only.** The change under review is no evidence about itself: a pull request
+  that changes a module and its tests together would otherwise count as history. Merges are left
+  out, their files being their parents' changes again, and so is a commit of more than 30 files, a
+  reformat, a rename, or a release, which says nothing about which test goes with which module.
+- **Two commits make a candidate.** One commit two files share is a coincidence — the commit that
+  added them, often. A test file of the index that changed with a changed Python module in two or
+  more commits is a candidate for its findings at 0.35, the candidate threshold, so it makes one on
+  its own, as the user chose; three make 0.40 and four or more 0.45. It is evidence about the file,
+  as a mirrored name is, so the tests it alone ties to the module stand as their file.
+- **It adds to other evidence.** For a test an import or a name already ties to the module, the same
+  weight adds to its score. Its reason says how strong it is, "changed with src/shop/money.py in 4
+  of its last 20 commits": four of the module's twenty commits in the window, not of the
+  repository's.
+- **Bounded, and never fatal.** `rules.max_history_commits` reads 200 commits by default, at most
+  5,000, and none at `0`. The log is bounded at 4 MiB and parsed with two NULs opening each commit,
+  so no path name can pose as one. A log past its bound, cut short, or malformed costs the mapping
+  its history, with a warning, never the analysis, and a shallow clone has only the commits it
+  holds.
+
+The analysis's schema is unchanged and so is every golden: each corpus repository has a single commit
+up to its base, and one shared commit is no candidate. History reaches only the candidate tests of
+a Python finding; an API schema's are its routes', and a configuration key's its names'.
+
 ## Output-affecting corrections (2026-11-01, code spans)
 
 The brief wrote a symbol or a path in a code span escaped as Markdown text, `parse\_amount`, but

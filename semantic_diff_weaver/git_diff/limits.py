@@ -20,6 +20,11 @@ DOCUMENT_SUFFIXES = (".yaml", ".yml", ".json")
 CONFIG_SUFFIXES = (*DOCUMENT_SUFFIXES, ".toml")
 MAX_DOCUMENTS = 200
 MAX_DOCUMENT_BLOB_BYTES = 64 * 1024 * 1024
+# The log of the commits up to the base, read for the tests that changed with the code.
+MAX_HISTORY_BYTES = 4 * 1024 * 1024
+# A commit changing more files than this is a sweep — a reformat, a rename, a release — and
+# says nothing about which test goes with which module.
+MAX_HISTORY_COMMIT_FILES = 30
 # Git's 50% default misses small CRLF renames; AST matching still rejects ambiguous symbols.
 RENAME_DETECTION_ARGUMENTS = ("-M40%", "-C40%")
 COMMIT_RE = re.compile(r"^[0-9a-f]{40,64}$")

@@ -6,7 +6,7 @@ import semantic_diff_weaver.test_mapper as test_mapper
 from semantic_diff_weaver.ast_diff import StructuralDelta, module_references
 from semantic_diff_weaver.call_graph import CallGraph, package_of, source_roots
 from semantic_diff_weaver.errors import ErrorCode, WeaverError
-from semantic_diff_weaver.git_diff import GitTreeEntry
+from semantic_diff_weaver.git_diff import ChangeHistory, GitTreeEntry
 from semantic_diff_weaver.models import LineRange, MappingRule, WeaverConfig
 from semantic_diff_weaver.semantic_candidates import build_candidates
 from semantic_diff_weaver.test_mapper import (
@@ -1627,3 +1627,77 @@ def test_a_configuration_key_maps_to_the_tests_that_use_its_names() -> None:
 def test_a_configuration_key_of_one_word_alone_maps_to_no_test() -> None:
     assert config_reasons("timeout") == {}
     assert config_reasons("cache.ttl") == {}
+
+
+def history_candidates(
+    commits: list[set[str]], tests: list[IndexedTest]
+) -> list[tuple[str, str, float, list[str]]]:
+    mapped = map_candidate_tests(
+        [boundary_candidate()],
+        TestIndex(tests=tests, incomplete=False, warnings=[]),
+        WeaverConfig(),
+        history=ChangeHistory(commits=tuple(frozenset(files) for files in commits)),
+    )[0]
+    return [(item.path, item.symbol, item.match_score, item.match_reasons) for item in mapped]
+
+
+def plain_test(path: str, symbol: str, **fields) -> IndexedTest:
+    return IndexedTest(
+        path=path,
+        symbol=symbol,
+        imports=frozenset(fields.pop("imports", ())),
+        name_tokens=frozenset(symbol.split("_")),
+        body_tokens=frozenset(),
+        **fields,
+    )
+
+
+BILLING = [
+    plain_test("tests/test_billing.py", "test_invoice_total"),
+    plain_test("tests/test_billing.py", "test_refund_total"),
+]
+
+
+def test_a_test_file_that_changed_with_the_module_is_a_candidate_as_a_file() -> None:
+    commits = [{"src/api.py", "tests/test_billing.py"}] * 2 + [{"src/api.py"}]
+    assert history_candidates(commits, BILLING) == [
+        (
+            "tests/test_billing.py",
+            "<module>",
+            0.35,
+            ["changed with src/api.py in 2 of its last 3 commits"],
+        )
+    ]
+
+
+def test_one_shared_commit_is_a_coincidence() -> None:
+    commits = [{"src/api.py", "tests/test_billing.py"}, {"src/api.py"}, {"tests/test_billing.py"}]
+    assert history_candidates(commits, BILLING) == []
+
+
+@pytest.mark.parametrize(("together", "score"), [(2, 0.35), (3, 0.4), (4, 0.45), (9, 0.45)])
+def test_more_changes_together_count_for_more(together: int, score: float) -> None:
+    commits = [{"src/api.py", "tests/test_billing.py"}] * together
+    ((_, _, found, _),) = history_candidates(commits, BILLING)
+    assert found == score
+
+
+def test_changing_together_adds_to_what_else_ties_the_test_to_the_module() -> None:
+    importing = [plain_test("tests/test_limits.py", "test_limits", imports={"src.api"})]
+    commits = [{"src/api.py", "tests/test_limits.py"}] * 2
+    assert history_candidates(commits, importing) == [
+        (
+            "tests/test_limits.py",
+            "test_limits",
+            0.6,
+            [
+                "changed with src/api.py in 2 of its last 2 commits",
+                "direct module or symbol import",
+            ],
+        )
+    ]
+
+
+def test_only_a_test_file_of_the_index_is_a_candidate() -> None:
+    commits = [{"src/api.py", "tests/test_gone.py", "src/other.py"}] * 3
+    assert history_candidates(commits, BILLING) == []

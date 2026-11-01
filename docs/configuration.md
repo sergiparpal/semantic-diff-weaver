@@ -32,6 +32,7 @@ rules:
   max_obligations_per_behavior: 6
   max_test_obligations: 100
   max_candidate_tests_per_obligation: 5
+  max_history_commits: 200
   minimum_report_confidence: 0.45
   review_question_confidence: 0.60
   refactor_materiality_threshold: 0.25
@@ -195,6 +196,24 @@ one is counted as `config_delta_limit`. A finding's candidate tests are those wh
 key's last name when that is several words, `max_retries` or `maxRetries`, ranked higher when they
 use every other name of its path too, and otherwise those that use every name of a path of
 several, `database` and `timeout`; a key of one word alone, `timeout`, names no test.
+
+## Test history
+
+A test file that keeps changing in the same commits as a module is about that module, whatever
+its name or imports say. To find such files, the last `rules.max_history_commits` commits up to
+the base — 200 by default, at most 5,000, and `0` to read none — are read for the files each one
+changed. A test file of the candidate-test index that changed with a changed Python module in two
+or more of them is a candidate for its findings, as a whole file, at 0.35, 0.40 for three such
+commits, and 0.45 for four or more; for a test that other evidence already ties to the module, the
+same weight adds to its score. Its reason says how many: "changed with src/shop/money.py in 4 of its
+last 20 commits".
+
+Only the history up to the base is read, so the change under review is no evidence about itself,
+and merges are left out, since their files are their parents' changes again. A commit that changed
+more than 30 files — a reformat, a rename, a release — says nothing about which test goes with
+which module and is left out too. The log is read through the Git boundary, as everything else is,
+and bounded at 4 MiB; a log past that, cut short, or malformed costs the mapping its history, with
+a warning, never the analysis. A shallow clone has only the commits it holds.
 
 ## Coverage grounding
 
