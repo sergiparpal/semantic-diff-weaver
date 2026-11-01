@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- **Feature:** connected changes through module variables. A finding in a module's top-level code
+  that changed a variable's assignment now joins the group of each changed symbol that reads the
+  variable, in its own module or through an import of it or of its module, or that reaches through
+  calls code that does: a changed `TIMEOUT_SECONDS = 60` in `limits.py` is connected to the changed
+  `fetch` that reads it in `client.py`. A name the code binds itself, such as a parameter, is its
+  own. The brief names each variable: "`fetch` (src/shop/client.py, `bc-003`) reaches
+  `TIMEOUT_SECONDS` (src/shop/limits.py, `bc-004`)". Schema 1.4: each change group gains
+  `variables`, the names a finding in top-level code is reached through.
+
 ## 0.12.0 - 2026-11-01
 
 Test history. The commits up to the base say which test files kept changing with a module: one that

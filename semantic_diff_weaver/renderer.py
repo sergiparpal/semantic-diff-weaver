@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections.abc import Mapping
 from typing import Any
 
 from .models import (
@@ -156,15 +157,22 @@ def _listed(items: list[str]) -> str:
     return f"{', '.join(items[:-1])}, and {items[-1]}"
 
 
-def _symbol_mentions(ids: list[str], behaviors: dict[str, BehaviorChange]) -> list[tuple[str, str]]:
-    """Each distinct symbol of the findings `ids`, in their order: its name, and its mention with
-    its path and findings."""
-    found: dict[tuple[str, str], list[str]] = {}
+def _symbol_mentions(
+    ids: list[str],
+    behaviors: dict[str, BehaviorChange],
+    variables: Mapping[str, list[str]],
+) -> list[tuple[str, str]]:
+    """Each distinct symbol of the findings `ids`, in their order, or for a finding in top-level
+    code each of the `variables` it is reached through: its name, and its mention with its path
+    and findings."""
+    found: dict[tuple[str, str, bool], list[str]] = {}
     for behavior_id in ids:
         evidence = behaviors[behavior_id].evidence[0]
-        found.setdefault((evidence.path, evidence.symbol or "<module>"), []).append(behavior_id)
+        written = variables.get(behavior_id)
+        for name in written or [evidence.symbol or "<module>"]:
+            found.setdefault((evidence.path, name, bool(written)), []).append(behavior_id)
     mentions = []
-    for (path, symbol), items in found.items():
+    for (path, symbol, _), items in found.items():
         name = _code(symbol)
         # No escaping is needed for the IDs: they are pattern-validated and of this result.
         listed = ", ".join(f"`{item}`" for item in items)
@@ -173,16 +181,18 @@ def _symbol_mentions(ids: list[str], behaviors: dict[str, BehaviorChange]) -> li
 
 
 def _connected_lines(result: AnalysisResult) -> list[str]:
-    """Each group of findings calls connect, said as its entry points reaching the rest."""
+    """Each group of connected findings, said as its entry points reaching the rest."""
     if not result.change_groups:
         return []
     behaviors = {item.id: item for item in result.behavior_changes}
     lines = ["", "### Connected changes", ""]
     for group in result.change_groups:
-        entries = _symbol_mentions(group.entry_points, behaviors)
+        variables = {item.behavior_change_id: item.names for item in group.variables}
+        entries = _symbol_mentions(group.entry_points, behaviors, variables)
         reached = _symbol_mentions(
             [item for item in group.behavior_change_ids if item not in group.entry_points],
             behaviors,
+            variables,
         )
         count = len(entries) + len(reached)
         everything = "both" if count == 2 else f"all {_COUNTS.get(count, str(count))}"

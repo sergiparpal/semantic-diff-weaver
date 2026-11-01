@@ -6,7 +6,17 @@ import pytest
 
 from semantic_diff_weaver.ast_diff import StructuralDelta, analyze_ast, module_references
 from semantic_diff_weaver.call_graph import MAX_CALL_GRAPH_FILES, CallGraph, package_of
-from semantic_diff_weaver.models import LineRange, WeaverConfig
+from semantic_diff_weaver.change_groups import group_changes
+from semantic_diff_weaver.models import (
+    BehaviorCategory,
+    BehaviorChange,
+    Evidence,
+    LineRange,
+    Origin,
+    RiskLabel,
+    ScoreExplanation,
+    WeaverConfig,
+)
 from semantic_diff_weaver.semantic_candidates import build_candidates
 from semantic_diff_weaver.service import analyze
 from semantic_diff_weaver.source import SourceHunk, SourceRevisionPair
@@ -162,3 +172,58 @@ def test_calls_on_instances_are_followed_at_the_graph_module_limit() -> None:
     )
     assert len(mapped) == len(candidates)
     assert elapsed < 5.0
+
+
+def _finding(index: int, path: str, symbol: str) -> BehaviorChange:
+    return BehaviorChange(
+        id=f"bc-{index:03d}",
+        category=BehaviorCategory.BOUNDARY,
+        summary="Changed behavior.",
+        observable_impact="An outcome appears to differ.",
+        risk=RiskLabel.MEDIUM,
+        risk_score=50,
+        confidence=0.8,
+        evidence=[Evidence(id=f"ev-{index:03d}", path=path, symbol=symbol, kind="x")],
+        origin=Origin.DETERMINISTIC,
+        score_explanation=ScoreExplanation(
+            behavioral_impact=50,
+            critical_path_weight=10,
+            test_gap_weight=90,
+            change_surface_weight=30,
+        ),
+    )
+
+
+@pytest.mark.performance
+@pytest.mark.no_cover
+def test_a_variable_every_module_reads_is_grouped_in_one_walk() -> None:
+    """Ten functions of each module read `limits.TIMEOUT`, and a chain of ten more calls them and
+    the next module's chain, round the graph's module limit. Walking up from each of the 4,990
+    readers in turn repeated the whole graph once per reader, about five seconds; with one walk
+    from all of them, the whole grouping takes a tenth of one.
+    """
+    count = MAX_CALL_GRAPH_FILES - 1
+    sources = {"src/pkg/limits.py": "TIMEOUT = 30\n"}
+    for index in range(count):
+        reads = "".join(f"def read{n}():\n    return limits.TIMEOUT\n\n\n" for n in range(10))
+        chain = "".join(f"def run{n}():\n    return run{n + 1}()\n\n\n" for n in range(1, 9))
+        calls = " + ".join(f"read{n}()" for n in range(10))
+        following = f"pkg.m{(index + 1) % count}"
+        sources[f"src/pkg/m{index}.py"] = (
+            f"from pkg import limits\nfrom {following} import run0 as following\n\n\n"
+            f"{reads}{chain}def run9():\n    return following()\n\n\n"
+            f"def run0():\n    return run1() + {calls}\n"
+        )
+    modules = {path: module_references(text, package_of(path)) for path, text in sources.items()}
+    graph = CallGraph(modules)
+    behaviors = [
+        _finding(1, "src/pkg/limits.py", "<module>"),
+        *(_finding(index + 2, f"src/pkg/m{index}.py", "run0") for index in range(0, count, 5)),
+    ]
+    started = time.perf_counter()
+    (group,) = group_changes(behaviors, graph, {"bc-001": frozenset({"TIMEOUT"})})
+    elapsed = time.perf_counter() - started
+    assert len(graph.readers("src/pkg/limits.py", "TIMEOUT")) == count * 10
+    assert len(group.behavior_change_ids) == len(behaviors)
+    assert [item.names for item in group.variables] == [["TIMEOUT"]]
+    assert elapsed < 1.0

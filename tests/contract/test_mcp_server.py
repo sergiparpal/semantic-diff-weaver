@@ -45,7 +45,7 @@ def _call(arguments: Any, name: str = TOOL_NAME) -> dict[str, Any]:
 
 BRIEF_ENVELOPE = {
     "success": True,
-    "schema_version": "1.3",
+    "schema_version": "1.4",
     "analysis_id": "sdw_0123abc",
     "markdown": "## Semantic Diff Test Brief\n\n**Overall risk:** medium\n",
 }
@@ -178,7 +178,7 @@ def test_a_call_without_a_format_asks_for_the_brief_and_returns_it_as_markdown()
         {
             "type": "text",
             "text": "## Semantic Diff Test Brief\n\n**Overall risk:** medium\n\n"
-            "<!-- analysis_id=sdw_0123abc schema_version=1.3 -->\n",
+            "<!-- analysis_id=sdw_0123abc schema_version=1.4 -->\n",
         }
     ]
 

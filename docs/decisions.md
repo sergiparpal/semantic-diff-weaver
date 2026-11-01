@@ -147,6 +147,58 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Connected changes through module variables (2026-11-01)
+
+Connected changes grouped the findings calls connect, and a module's top-level code was in no group,
+so a changed `TIMEOUT_SECONDS = 60` in `limits.py` stood apart from the changed `fetch` that reads
+it in `client.py`, although a test of `fetch` runs with the new timeout. A finding in top-level code
+that changed a variable's assignment is now grouped through the code that reads the variable, and
+the brief names the variable, both at the user's choice; an API schema's operations and
+configuration keys, which only a name or a route would tie to code, are still in no group. Five
+choices are deliberate:
+
+- **Reading is found in the source, as calls are.** Code reads a module-level variable when it names
+  it in the variable's own module, imports it with `from limits import TIMEOUT_SECONDS` or through a
+  package that re-exports it, or reads it through its module, `limits.TIMEOUT_SECONDS`, an attribute
+  of it included. Extraction now records the names a symbol binds itself — its parameters,
+  assignment targets, and caught exceptions — unless it declares them `global`, so a parameter named
+  `TIMEOUT_SECONDS` or a local `config` is no module's. A name its module also defines a function or
+  a class by stands for that symbol, which calls already follow.
+- **Top-level code is reached and leads nothing.** A changed symbol reaches a variable when its code
+  reads it, or reaches through calls code that does, changed or not: `checkout` reaches the
+  `TIMEOUT_SECONDS` read by the unchanged `fetch` it calls. Nothing calls top-level code, so its
+  finding joins the groups of the entry points that reach it and leads none, and top-level code
+  reading another module's variable, `DOUBLE = TIMEOUT_SECONDS * 2`, connects nothing: loading a
+  module hands no one what it computed.
+- **Only through the variables read.** `<module>` stands for all of a module's top-level code, so
+  its finding joins a group only through the variables its changed assignments write that the
+  group's code reads, and the group names those: a finding that changed both `TIMEOUT_SECONDS` and
+  `RETRY_CODES` joins the group of a `fetch` reading the first and of a `should_retry` reading the
+  second, each naming its own.
+- **The brief names each variable.** A group says each variable as it says a symbol, one mention
+  with its path and finding: "`fetch` (src/shop/client.py, `bc-003`) reaches `TIMEOUT_SECONDS`
+  (src/shop/limits.py, `bc-004`): a test through `fetch` can exercise both." Named by its file
+  alone, as "the top-level code of src/shop/limits.py", it would have left the reader to open the
+  finding to learn which value the group runs with.
+- **One walk per variable.** The symbols that reach code reading a variable are found in one walk up
+  the calls from all of its readers at once. Walking up from each reader in turn repeated the graph
+  once per reader: about five seconds for a variable 4,990 functions read at the graph's module
+  limit, where one walk leaves the whole grouping at a tenth of a second. The graph is now built
+  whenever one Python symbol has findings and a second symbol, or a module's changed assignments,
+  has some too.
+
+The schema is 1.4: each change group gains `variables`, for each finding in top-level code it holds,
+the names of the variables it is reached through, validated as distinct identifiers of a member that
+is no entry point and whose first evidence is top-level code; it is an empty list for a group calls
+alone connect. No finding, score, verdict, or obligation changes. The 18 canonical goldens change in
+`schema_version` alone, since no case of the corpus has a changed symbol reading a changed variable.
+
+Over the last 40 commits of `distiller` and the last 60 of `adaptive-policy-compilation`, five
+analyses gain a variable in a group. In one, the `RATE_LIMITED` that changed in
+`reasoned_loop/plan.py` joins the groups of the changed `Live.ask`, `smoke_check`, and `calls_of`,
+which reach it from three other files, and the `RATE_LIMIT_WAIT` changed beside it joins the first
+two.
+
 ## Test history (2026-11-01)
 
 The roadmap's v0.2 asked for composition with test history, and test history was not read. It is

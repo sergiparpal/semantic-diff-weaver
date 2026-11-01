@@ -65,7 +65,7 @@ def test_candidate_tests_are_explicitly_unverified() -> None:
 
 
 def test_transport_schemas_are_versioned() -> None:
-    assert AnalysisResult.model_json_schema()["properties"]["schema_version"]["const"] == "1.3"
+    assert AnalysisResult.model_json_schema()["properties"]["schema_version"]["const"] == "1.4"
     assert ErrorResponse(success=False, error="invalid_ref", message="bad", remediation="fix")
 
 
@@ -182,6 +182,16 @@ def test_an_analysis_that_left_scope_unread_never_passes(
             AnalysisResult.model_validate(payload)
 
 
+def _written(members: list[str], *variables: dict) -> dict:
+    """A group led by `checkout`, `bc-001`, reaching `members` and naming `variables`."""
+    return {
+        "id": "cg-001",
+        "behavior_change_ids": members,
+        "entry_points": ["bc-001"],
+        "variables": list(variables),
+    }
+
+
 def _grouped(groups: list[dict]) -> dict:
     behaviors = [
         {
@@ -203,7 +213,7 @@ def _grouped(groups: list[dict]) -> dict:
                 "change_surface_weight": 30,
             },
         }
-        for index, symbol in ((1, "checkout"), (2, "parse_amount"))
+        for index, symbol in ((1, "checkout"), (2, "parse_amount"), (3, "<module>"))
     ]
     return {
         "analysis_id": "sdw_test",
@@ -216,12 +226,12 @@ def _grouped(groups: list[dict]) -> dict:
         "summary": {
             "changed_files": 1,
             "changed_symbols": 2,
-            "behavior_changes": 2,
+            "behavior_changes": 3,
             "test_obligations": 0,
             "overall_risk": "medium",
             "risk_score": 50,
             "overall_confidence": 0.8,
-            "risk_counts": {"low": 0, "medium": 2, "high": 0, "critical": 0},
+            "risk_counts": {"low": 0, "medium": 3, "high": 0, "critical": 0},
             "verdict": "warn",
         },
         "scope": {
@@ -319,6 +329,52 @@ def _grouped(groups: list[dict]) -> dict:
             ],
             "pattern",
             id="malformed-id",
+        ),
+        pytest.param(
+            [_written(["bc-001", "bc-003"], {"behavior_change_id": "bc-003", "names": ["LIMIT"]})],
+            None,
+            id="variables",
+        ),
+        pytest.param(
+            [_written(["bc-001", "bc-003"], {"behavior_change_id": "bc-001", "names": ["LIMIT"]})],
+            "distinct members that are no entry point",
+            id="variables-of-an-entry-point",
+        ),
+        pytest.param(
+            [_written(["bc-001", "bc-002"], {"behavior_change_id": "bc-003", "names": ["LIMIT"]})],
+            "distinct members that are no entry point",
+            id="variables-of-no-member",
+        ),
+        pytest.param(
+            [
+                _written(
+                    ["bc-001", "bc-003"],
+                    {"behavior_change_id": "bc-003", "names": ["LIMIT"]},
+                    {"behavior_change_id": "bc-003", "names": ["RATE"]},
+                )
+            ],
+            "distinct members that are no entry point",
+            id="variables-repeated",
+        ),
+        pytest.param(
+            [_written(["bc-001", "bc-002"], {"behavior_change_id": "bc-002", "names": ["LIMIT"]})],
+            "variables must be of top-level code",
+            id="variables-of-a-symbol",
+        ),
+        pytest.param(
+            [_written(["bc-001", "bc-003"], {"behavior_change_id": "bc-003", "names": ["a b"]})],
+            "distinct identifiers",
+            id="variable-no-identifier",
+        ),
+        pytest.param(
+            [_written(["bc-001", "bc-003"], {"behavior_change_id": "bc-003", "names": ["A", "A"]})],
+            "distinct identifiers",
+            id="variable-repeated",
+        ),
+        pytest.param(
+            [_written(["bc-001", "bc-003"], {"behavior_change_id": "bc-003", "names": []})],
+            "at least 1 item",
+            id="no-variable",
         ),
     ],
 )

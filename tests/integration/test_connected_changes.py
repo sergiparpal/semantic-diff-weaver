@@ -31,10 +31,14 @@ def _changed(text: str) -> str:
     )
 
 
-def _analysis(repo_factory, files: dict[str, str]):
+def _analysis(repo_factory, files: dict[str, str], changed: dict[str, str] | None = None):
     repo, base, head = repo_factory(
         {"src/shop/__init__.py": "", **files},
-        {"src/shop/__init__.py": "", **{path: _changed(text) for path, text in files.items()}},
+        {
+            "src/shop/__init__.py": "",
+            **{path: _changed(text) for path, text in files.items()},
+            **(changed or {}),
+        },
     )
     envelope = analyze(
         {"repo_path": str(repo), "base_ref": base, "head_ref": head, "output_format": "both"}
@@ -52,7 +56,7 @@ def test_findings_calls_connect_are_grouped_by_their_entry_points(repo_factory) 
         repo_factory,
         {"src/shop/money.py": MONEY, "src/shop/cart.py": CART, "src/shop/mail.py": MAIL},
     )
-    assert analysis["schema_version"] == "1.3"
+    assert analysis["schema_version"] == "1.4"
     symbols = _symbols(analysis)
     groups = [
         (
@@ -111,3 +115,76 @@ def test_a_change_no_call_connects_has_no_group_and_no_section(repo_factory) -> 
     assert len(analysis["behavior_changes"]) >= 2
     assert analysis["change_groups"] == []
     assert "### Connected changes" not in markdown
+
+
+LIMITS = "TIMEOUT = 30\nCODES = (502, 503)\n"
+WIDER = {"src/shop/limits.py": "TIMEOUT = 60\nCODES = (502, 503, 504)\n"}
+CLIENT = (
+    "from shop import limits\n"
+    "from shop.limits import TIMEOUT\n\n\n"
+    "def fetch(elapsed):\n    return elapsed < 10 * TIMEOUT\n\n\n"
+    "def should_retry(status):\n    return status in limits.CODES and status > 0\n\n\n"
+    "def log(TIMEOUT):\n    return TIMEOUT > 0\n"
+)
+
+
+def test_a_changed_module_variable_is_grouped_with_the_changed_code_reading_it(
+    repo_factory,
+) -> None:
+    analysis, markdown = _analysis(
+        repo_factory, {"src/shop/limits.py": LIMITS, "src/shop/client.py": CLIENT}, WIDER
+    )
+    symbols = _symbols(analysis)
+    groups = [
+        (
+            [symbols[item] for item in group["behavior_change_ids"]],
+            [symbols[item] for item in group["entry_points"]],
+            {symbols[item["behavior_change_id"]]: item["names"] for item in group["variables"]},
+        )
+        for group in analysis["change_groups"]
+    ]
+    # `log` reads its own parameter, which only shares the name.
+    assert sorted(groups) == [
+        (["fetch", "<module>"], ["fetch"], {"<module>": ["TIMEOUT"]}),
+        (["should_retry", "<module>"], ["should_retry"], {"<module>": ["CODES"]}),
+    ]
+    lines = [line for line in markdown.splitlines() if " reaches `" in line]
+    assert len(lines) == 2
+    fetch = next(line for line in lines if line.startswith("- `fetch`"))
+    assert " reaches `TIMEOUT` (src/shop/limits\\.py, `bc-" in fetch
+    assert fetch.endswith(": a test through `fetch` can exercise both.")
+    retry = next(line for line in lines if line.startswith("- `should_retry`"))
+    assert " reaches `CODES` (src/shop/limits\\.py, `bc-" in retry
+    assert "<module>" not in "\n".join(lines)
+
+
+def test_one_changed_symbol_and_the_variable_it_reads_are_grouped(repo_factory) -> None:
+    """Two findings, of one symbol and of top-level code, are enough to follow calls for."""
+    client = "from shop.limits import TIMEOUT\n\n\ndef fetch(elapsed):\n"
+    client += "    return elapsed < 10 * TIMEOUT\n"
+    analysis, markdown = _analysis(
+        repo_factory, {"src/shop/limits.py": LIMITS, "src/shop/client.py": client}, WIDER
+    )
+    (group,) = analysis["change_groups"]
+    assert [item["names"] for item in group["variables"]] == [["TIMEOUT"]]
+    assert "a test through `fetch` can exercise both." in markdown
+
+
+def test_each_variable_a_change_is_reached_through_is_named(repo_factory) -> None:
+    client = (
+        "from shop import limits\n\n\n"
+        "def fetch(elapsed, status):\n"
+        "    return elapsed < 10 * limits.TIMEOUT and status in limits.CODES\n"
+    )
+    analysis, markdown = _analysis(
+        repo_factory, {"src/shop/limits.py": LIMITS, "src/shop/client.py": client}, WIDER
+    )
+    (group,) = analysis["change_groups"]
+    assert [item["names"] for item in group["variables"]] == [["CODES", "TIMEOUT"]]
+    (line,) = (line for line in markdown.splitlines() if line.startswith("- `fetch`"))
+    module = group["variables"][0]["behavior_change_id"]
+    assert (
+        f" reaches `CODES` (src/shop/limits\\.py, `{module}`) and "
+        f"`TIMEOUT` (src/shop/limits\\.py, `{module}`): a test through `fetch` can exercise "
+        "all three."
+    ) in line

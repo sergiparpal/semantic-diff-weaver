@@ -404,6 +404,72 @@ def test_a_table_names_what_its_value_refers_to_without_calling_it() -> None:
     assert looping.contents("one.x") == frozenset()
 
 
+NET = {
+    "src/net/__init__.py": "from .limits import TIMEOUT\n",
+    "src/net/limits.py": (
+        "TIMEOUT = 30\n"
+        "CODES = (502, 503)\n"
+        "DOUBLE = TIMEOUT * 2\n\n\n"
+        "def retry():\n    return CODES\n\n\n"
+        "def reset():\n    global TIMEOUT\n    TIMEOUT = 30\n\n\n"
+        "def handler():\n    return None\n\n\n"
+        "handler = wrap(handler)\n"
+    ),
+    "src/net/client.py": (
+        "import net.limits\n"
+        "from net import TIMEOUT, limits\n"
+        "from net.limits import CODES\n\n\n"
+        "def fetch():\n    return TIMEOUT\n\n\n"
+        "def should_retry(status):\n    return status in limits.CODES\n\n\n"
+        "def count():\n    return net.limits.CODES.count(502)\n\n\n"
+        "def direct():\n    return CODES\n\n\n"
+        "def shadowed(TIMEOUT):\n    return TIMEOUT\n\n\n"
+        "def local():\n    CODES = ()\n    return CODES\n\n\n"
+        "def renamed(limits):\n    return limits.CODES\n\n\n"
+        "def wrapper():\n    return fetch()\n"
+    ),
+}
+LIMITS, CLIENT = "src/net/limits.py", "src/net/client.py"
+
+
+def test_code_reading_a_module_variable_is_found_wherever_it_reads_it() -> None:
+    """In the variable's own module, through `from … import`, through a package that re-exports
+    it, or through the module it lives in, its attributes too; a name the code binds itself is
+    its own, and top-level code is no reader."""
+    graph = graph_of(NET)
+    assert graph.readers(LIMITS, "TIMEOUT") == {(LIMITS, "reset"), (CLIENT, "fetch")}
+    assert graph.readers(LIMITS, "CODES") == {
+        (LIMITS, "retry"),
+        (CLIENT, "should_retry"),
+        (CLIENT, "count"),
+        (CLIENT, "direct"),
+    }
+    assert graph.readers(LIMITS, "DOUBLE") == frozenset()
+    assert graph.readers(CLIENT, "TIMEOUT") == frozenset()
+
+
+def test_a_dotted_name_names_a_module_variable_through_re_exports() -> None:
+    graph = graph_of(NET)
+    assert graph.variable("net.TIMEOUT") == (LIMITS, "TIMEOUT")
+    assert graph.variable("net.limits.CODES.count") == (LIMITS, "CODES")
+    assert graph.variable("net.limits") is None
+    # A name the module also defines a function by is the function, reassigned or not.
+    assert graph.variable("net.limits.handler") is None
+    assert graph.variable("net.missing") is None
+    assert graph.variable("elsewhere.TIMEOUT") is None
+    looping = graph_of({"src/one.py": "from two import x\n", "src/two.py": "from one import x\n"})
+    assert looping.variable("one.x") is None
+
+
+def test_code_that_calls_a_reader_reaches_the_variable_too() -> None:
+    assert graph_of(NET).reading(LIMITS, "TIMEOUT") == {
+        (LIMITS, "reset"),
+        (CLIENT, "fetch"),
+        (CLIENT, "wrapper"),
+    }
+    assert graph_of(NET).reading(LIMITS, "DOUBLE") == frozenset()
+
+
 VAULT = {
     "src/vault/lock.py": (
         "class Key:\n    def turn(self):\n        return 1\n\n\n"

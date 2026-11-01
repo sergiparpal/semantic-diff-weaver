@@ -601,10 +601,20 @@ def symbol_references(node: ast.AST, kind: str) -> SymbolReferences:
     dotted: set[str] = set()
     attributes: set[str] = set()
     own_attributes: set[str] = set()
+    bound: set[str] = set()
+    declared: set[str] = set()
     receiver = _receiver(node, kind)
     for child in ast.walk(node):
         if isinstance(child, ast.Name):
             names.add(child.id)
+            if isinstance(child.ctx, ast.Store):
+                bound.add(child.id)
+        elif isinstance(child, ast.arg):
+            bound.add(child.arg)
+        elif isinstance(child, ast.ExceptHandler) and child.name:
+            bound.add(child.name)
+        elif isinstance(child, ast.Global):
+            declared.update(child.names)
         elif isinstance(child, ast.Attribute):
             if isinstance(child.value, ast.Name) and child.value.id == receiver:
                 own_attributes.add(child.attr)
@@ -622,6 +632,7 @@ def symbol_references(node: ast.AST, kind: str) -> SymbolReferences:
         own_attributes=frozenset(own_attributes),
         bases=_bases(node) if isinstance(node, ast.ClassDef) else (),
         returns=_written_names(returns) if isinstance(returns, ast.expr) else frozenset(),
+        bound=frozenset(bound - declared),
     )
 
 
