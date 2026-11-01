@@ -41,7 +41,9 @@ import.
   only deterministic evidence IDs and cannot trigger reads, tools, subprocesses, network access, or
   configuration changes.
 - Delimiter characters inside untrusted model data are JSON-escaped, and terminal/bidirectional
-  controls are rendered visibly in Markdown.
+  controls are rendered visibly in Markdown. Repository text in a code span, a symbol or a path, is
+  shown as it is between more backticks than it holds, so it can close neither the span nor its
+  line; any other repository text in the brief is escaped as Markdown.
 - An ingested coverage report is untrusted input data: bounded by `max_coverage_bytes`, read
   as strict UTF-8, parsed with the standard library, and authorized like any other
   caller-selected path. Its entries are lookup keys only — no path inside a report is ever

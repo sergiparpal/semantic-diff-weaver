@@ -67,7 +67,7 @@ def test_a_second_push_is_read_against_the_first(repo_factory, tmp_path: Path) -
     assert "1 new, 1 updated, 1 unchanged, 1 resolved." in markdown
     assert f"`{by_symbol['added']}` · new ·" in markdown
     assert f"`{by_symbol['edited']}` · updated ·" in markdown
-    assert "output_contract_change in `app\\.py::reverted`" in markdown
+    assert "output_contract_change in `app.py::reverted`" in markdown
 
 
 def test_without_a_baseline_nothing_is_compared(repo_factory) -> None:

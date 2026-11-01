@@ -99,6 +99,25 @@ def _escape(text: str) -> str:
     return re.sub(r"([\\`*_{}\[\]()<>#+.!|~-])", r"\\\1", controlled)
 
 
+def _code(text: str) -> str:
+    """`text` as a code span, shown as it is but for its control characters, made visible.
+
+    Markdown reads no escape inside a code span, so `parse\\_amount` would show its backslash.
+    A span ends only at a run of backticks as long as the one it opened with, so it opens with
+    one longer than any it holds; and with a space inside each end when its text starts or ends
+    with a backtick, or with a space at both, since the span drops one space at each end.
+    """
+    shown = _visible_controls(text)
+    fence = "`" * (max((len(run) for run in re.findall(r"`+", shown)), default=0) + 1)
+    if (
+        shown[:1] == "`"
+        or shown[-1:] == "`"
+        or (shown[:1] == " " and shown[-1:] == " " and shown.strip())
+    ):
+        shown = f" {shown} "
+    return f"{fence}{shown}{fence}"
+
+
 def _reason_items(counts: list[tuple[str, int]], phrases: dict[str, str]) -> str:
     return " · ".join(
         f"{count} {phrases.get(reason) or _escape(reason)}" for reason, count in counts if count
@@ -123,8 +142,8 @@ def _candidate(item: CandidateTest) -> str:
     """One candidate test, or a test file standing for its tests related only through it."""
     details = f"{item.match_score:.2f}; {_escape(', '.join(item.match_reasons))}"
     if item.symbol == WHOLE_TEST_FILE:
-        return f"`{_escape(item.path)}` (whole file; {details})"
-    return f"`{_escape(item.path)}::{_escape(item.symbol)}` ({details})"
+        return f"{_code(item.path)} (whole file; {details})"
+    return f"{_code(f'{item.path}::{item.symbol}')} ({details})"
 
 
 _COUNTS = {3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine"}
@@ -146,7 +165,7 @@ def _symbol_mentions(ids: list[str], behaviors: dict[str, BehaviorChange]) -> li
         found.setdefault((evidence.path, evidence.symbol or "<module>"), []).append(behavior_id)
     mentions = []
     for (path, symbol), items in found.items():
-        name = f"`{_escape(symbol)}`"
+        name = _code(symbol)
         # No escaping is needed for the IDs: they are pattern-validated and of this result.
         listed = ", ".join(f"`{item}`" for item in items)
         mentions.append((name, f"{name} ({_escape(path)}, {listed})"))
@@ -221,7 +240,7 @@ def _baseline_lines(result: AnalysisResult) -> list[str]:
     ]
     if baseline.resolved:
         resolved = "; ".join(
-            f"{item.category.value} in `{_escape(item.path)}::{_escape(item.symbol)}` "
+            f"{item.category.value} in {_code(f'{item.path}::{item.symbol}')} "
             f"({item.risk.value} risk)"
             for item in baseline.resolved
         )
@@ -317,7 +336,7 @@ def render_markdown(result: AnalysisResult, *, excerpt_chars: int | None = None)
         for evidence in behavior.evidence:
             location = _escape(evidence.path)
             if evidence.symbol:
-                location += f" — `{_escape(evidence.symbol)}`"
+                location += f" — {_code(evidence.symbol)}"
             ranges = []
             if evidence.old_lines:
                 ranges.append(f"old {evidence.old_lines.start}-{evidence.old_lines.end}")

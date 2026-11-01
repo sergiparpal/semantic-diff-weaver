@@ -180,10 +180,13 @@ def test_controls_and_markdown_in_a_route_are_shown_escaped(repo_factory) -> Non
     markdown = envelope["markdown"]
     assert "\u001b" not in markdown and "\u202e" not in markdown
     assert r"\u001b" in markdown and r"\u202e" in markdown
-    # The symbol is shown escaped, and the evidence in a fence its backticks cannot close.
+    # The symbol is a code span its own four backticks cannot close, and the evidence's fence
+    # below stays whole: neither lets the route's Markdown out.
+    shown = route.replace(chr(0x1B), r"\u001b").replace(chr(0x202E), r"\u202e")
     (line,) = (line for line in markdown.splitlines() if "Evidence `ev-" in line)
-    assert r"\*\*bold\*\*\[link\]\(javascript:alert\)" in line
-    assert markdown.count("````") == 2
+    assert line.endswith(f"— ````` GET {shown} `````")
+    fences = [item.strip() for item in markdown.splitlines() if item.lstrip().startswith("````")]
+    assert fences == ["````text", "````"]
 
 
 def test_the_search_for_a_schema_marker_is_linear() -> None:
