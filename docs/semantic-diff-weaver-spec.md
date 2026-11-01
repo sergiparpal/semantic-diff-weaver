@@ -883,10 +883,10 @@ The MVP is complete when all of the following are true:
 
 ## 24. Roadmap
 
-Status on 2026-11-01, at release 0.6.2. The phase labels are this plan's, not package versions:
-the package reached 0.6.2 with v0.1 and v0.4 done, parts of v0.2 shipped, and v0.3 not started.
-It also ships what the plan did not foresee, a standalone CLI and a Claude Code plugin over MCP,
-beside the Hermes plugin.
+Status on 2026-11-01, at release 0.7.0. The phase labels are this plan's, not package versions:
+the package reached 0.7.0 with v0.1, v0.3, and v0.4 done and parts of v0.2 shipped. It also ships
+what the plan did not foresee, a standalone CLI and a Claude Code plugin over MCP, beside the
+Hermes plugin.
 
 ### v0.1 — Advisory semantic test plan (done)
 
@@ -910,7 +910,7 @@ beside the Hermes plugin.
 - Improved cross-file change grouping. *Partly:* a function moved between two files that both
   remain is matched as a move; findings are still grouped per symbol.
 
-### v0.3 — Test skeleton generation (open)
+### v0.3 — Test skeleton generation (done)
 
 - Generate framework-specific test skeletons from approved obligations. *Done on the command
   line:* `semantic-diff-weaver skeletons` adds a failing pytest or unittest test for each

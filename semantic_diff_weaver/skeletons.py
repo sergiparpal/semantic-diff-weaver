@@ -243,7 +243,8 @@ def _head_commit(repo: GitRepository, analysis: _Analysis) -> str:
         resolved = repo.resolve_ref(analysis.repository.head_commit)
     except WeaverError as exc:
         raise error from exc
-    # Git reads a name as a ref when no object has it, so a branch could stand in for the commit.
+    # Sixty-four digits cannot name an object in a SHA-1 repository, so Git reads them as a ref:
+    # a branch of that name would stand in for the commit the analysis names.
     if resolved != analysis.repository.head_commit:
         raise error
     return resolved
