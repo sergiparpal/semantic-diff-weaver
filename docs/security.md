@@ -53,6 +53,19 @@ import.
   caller-selected path, and validated field by field — a path in it must be repository-relative,
   and a category or risk must be a known value. Only those validated fields reach the result and
   the brief, escaped; the baseline's summaries and other prose are never rendered.
+- An analysis read for test skeletons is untrusted input data in the same way, under the same
+  `max_baseline_bytes`, and the code generated from it cannot be written by it. Its text reaches a
+  test file only as comments, each on a line of its own, with every non-printable character —
+  line breaks, NUL, and bidirectional controls among them — written as its escape, so it can
+  neither end its comment nor reorder what a reviewer sees. Test and class names are ASCII
+  identifiers, the only string literal names a pattern-validated obligation ID, and no skeleton
+  takes a name its file already binds, which would replace an existing test. Test files are read
+  from the analysis's head commit, a commit the analysis names exactly rather than a ref of that
+  name; a symbolic link, submodule, excluded file, file that does not parse, or path a patch
+  header would need quoted takes no skeleton, and neither does a production module merely named
+  like a test. Nothing is written: the result is a patch the user reviews and applies, and a
+  skipped obligation's reason has its path escaped too. `tests/security/test_skeleton_inputs.py`
+  holds the adversarial regressions.
 - The plugin makes no direct network request and emits no plugin telemetry.
 - Resource prioritization is deterministic and applies only to explicitly configured critical paths;
   it never expands the configured file, line, symbol, evidence, or model-input ceilings.

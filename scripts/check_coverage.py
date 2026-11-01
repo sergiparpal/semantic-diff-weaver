@@ -36,6 +36,9 @@ CRITICAL_MODULES = (
     "scoring.py",
     "semantic_interpreter.py",
     "service.py",
+    # Parses an untrusted earlier analysis and writes code from it, so what it lets through
+    # reaches a test file once the patch is applied.
+    "skeletons.py",
     "test_mapper.py",
 )
 

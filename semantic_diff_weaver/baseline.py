@@ -33,6 +33,7 @@ from .models import (
     RiskLabel,
     _repository_relative_posix_path,
 )
+from .textutil import read_bounded_text
 
 # More findings than any analysis reports: `rules.max_changed_symbols` caps symbols at 10,000.
 MAX_BASELINE_FINDINGS = 20_000
@@ -156,29 +157,6 @@ def _from_digest(digest: _Digest) -> Baseline:
     return Baseline(digest.analysis_id, digest.head_commit, findings)
 
 
-def _read_bounded(path: Path, limit: int) -> str:
-    try:
-        resolved = path.resolve(strict=True)
-        size = resolved.stat().st_size
-    except OSError as exc:
-        raise baseline_error("The baseline analysis is inaccessible.") from exc
-    if not resolved.is_file():
-        raise baseline_error("The baseline analysis is not a regular file.")
-    if size > limit:
-        raise baseline_error(
-            f"The baseline analysis is {size} bytes, above the {limit}-byte limit."
-        )
-    try:
-        # One character past the limit, so a file that grows between stat and read is caught.
-        with resolved.open("r", encoding="utf-8", errors="strict") as handle:
-            text = handle.read(limit + 1)
-    except (OSError, UnicodeDecodeError) as exc:
-        raise baseline_error("The baseline analysis is not readable UTF-8 text.") from exc
-    if len(text.encode("utf-8", errors="ignore")) > limit:
-        raise baseline_error("The baseline analysis exceeded the size limit while being read.")
-    return text
-
-
 def _analysis(document: Any) -> _Analysis:
     # `both` wraps the analysis beside the brief; `json` is the analysis itself.
     if isinstance(document, dict) and isinstance(document.get("analysis"), dict):
@@ -202,7 +180,9 @@ def _analysis(document: Any) -> _Analysis:
 def load_baseline(path: Path, limit: int) -> Baseline:
     """Read an earlier analysis, or the digest of one."""
     try:
-        document: Any = json.loads(_read_bounded(path, limit))
+        document: Any = json.loads(
+            read_bounded_text(path, limit, "baseline analysis", baseline_error)
+        )
     except (json.JSONDecodeError, RecursionError) as exc:
         raise baseline_error("The baseline analysis is not valid JSON.") from exc
     if isinstance(document, dict) and DIGEST_KEY in document:

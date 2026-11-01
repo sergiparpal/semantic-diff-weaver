@@ -146,6 +146,52 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Test skeletons (2026-11-01)
+
+The roadmap's v0.3, test skeleton generation, is the CLI's `skeletons` subcommand: the
+specification's `generate_test_skeletons(analysis_path, framework)` on the command line. It reads
+the analysis an earlier run saved with `--format json` or `--format both`, and the IDs of the
+obligations the user approved from it, and prints a patch adding one test per obligation. Six
+choices are deliberate:
+
+- **Approval is given twice, and nothing is written.** The user names each obligation by ID — no
+  flag approves them all — and applies the printed patch with `git apply` after reading it. The
+  tool writes no file and makes no commit, as the roadmap requires, so the read-only invariant
+  holds for this command too.
+- **A skeleton fails until it is written.** Under pytest it raises `NotImplementedError`, under
+  unittest it calls `self.fail()`, as PyCharm's generated tests and Eclipse's
+  `fail("Not yet implemented")` do. A skipped skeleton would have been safe to commit unwritten,
+  and an obligation someone approved would then pass CI with nothing tested; a failing one cannot
+  reach a protected `main` unwritten.
+- **It goes in the module's test file.** That is the file named `test_<module>.py` or
+  `<module>_test.py`, as candidate-test mirroring reads a name, preferring one among the
+  obligation's candidates and then one mirroring the module's directory. When there is none, it is
+  created as `test_<module>.py` in the first test root. A file with that name that cannot take the
+  skeleton is reported, not worked around with a second file beside it: pytest refuses two test
+  modules of one basename outside packages, as this repository's suite did while this change was
+  being written. A production module merely named like a test, as `test_mapper.py` is here, is not
+  a test file, by the rule candidate-test discovery already applies.
+- **The analysis's text is comments.** It is untrusted input, read under the baseline's bound and
+  validated field by field. Each Given, When, and Then, the behaviors and their symbols, and the
+  candidate tests reach the file only as comments, each line nothing but a comment, with every
+  non-printable character escaped. Test names are ASCII identifiers made from the symbol and the
+  obligation's title, and none rebinds a name the file already has: a second `def` of an existing
+  test's name would replace that test, which would then stop running without a sign.
+- **The patch is against the analysis's head commit.** Test files are read from it through the Git
+  boundary, never from the working tree, and the commit must be the one the analysis names, not a
+  ref of that name. When it is not `HEAD`, a warning says so. The diff keeps a file's CRLF endings
+  and gives a last line its missing line feed, so it applies to any file Git can show.
+- **The command line first.** In Claude Code the host model already writes tests from the
+  obligations, so the deterministic scaffold matters most to a person reading the brief. The
+  `generate_test_skeletons` tool for Hermes and MCP is left for later, and the result's JSON form,
+  `--format json`, is the shape it would return.
+
+An unusable analysis is the new `analysis_unreadable` error, additive like `baseline_unreadable`.
+An obligation the analysis does not list is a `configuration_error`, and an analysis of a commit
+the repository lacks is `invalid_ref`. The analysis's schema is unchanged. The bounded read the
+coverage report and the baseline each had a copy of is now `textutil.read_bounded_text`, shared by
+all three. `skeletons.py` is a critical module, held to the branch-coverage bar like `baseline.py`.
+
 ## Output-affecting corrections (2026-11-01, assignments)
 
 Assignments were the last probed feature whose rule read the targets of every assignment its

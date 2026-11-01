@@ -10,6 +10,10 @@ is populated from `--repo` and `--allow-root`.
 An operator who has already set that variable has expressed a narrower intent than the
 invocation, and the CLI never widens it: `--allow-root` is refused rather than merged, and
 a `--repo` outside the operator's bound fails exactly as it does today.
+
+`semantic-diff-weaver skeletons` is the one subcommand. It reads an earlier analysis and prints a
+patch of failing tests for the obligations a person approved from it, under the same
+authorization rule; nothing is applied or written.
 """
 
 from __future__ import annotations
@@ -17,6 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -29,6 +34,8 @@ from .models import MAX_PATH_PATTERNS, OutputFormat, RiskLabel
 from .path_policy import ALLOWED_ROOTS_ENV
 
 PROGRAM = "semantic-diff-weaver"
+SKELETONS_COMMAND = "skeletons"
+OBLIGATION_ID_RE = re.compile(r"to-\d{3,}")
 
 EXIT_SUCCESS = 0
 EXIT_ANALYSIS_ERROR = 1
@@ -51,6 +58,10 @@ def build_parser() -> argparse.ArgumentParser:
             "Analyze the behavioral meaning of a committed Git diff and emit risk-ranked "
             "test obligations. Read-only: never executes, imports, builds, or modifies the "
             "analyzed repository."
+        ),
+        epilog=(
+            f"To scaffold failing tests for approved obligations of a saved analysis, see "
+            f"`{PROGRAM} {SKELETONS_COMMAND} --help`."
         ),
     )
     parser.add_argument("--repo", default=".", metavar="PATH", help="repository to analyze")
@@ -114,6 +125,62 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-llm",
         action="store_true",
         help="skip inference entirely and report deterministic structural findings only",
+    )
+    return parser
+
+
+def _obligation_id(value: str) -> str:
+    if not OBLIGATION_ID_RE.fullmatch(value):
+        raise argparse.ArgumentTypeError(f"{value!r} is not an obligation ID such as to-001")
+    return value
+
+
+def build_skeletons_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog=f"{PROGRAM} {SKELETONS_COMMAND}",
+        description=(
+            "Print a patch adding a failing test for each approved obligation of an earlier "
+            "analysis, to the end of the test file named for the changed module. Read-only: the "
+            "patch is printed for review and `git apply`, never applied, and nothing in the "
+            "repository is executed or modified."
+        ),
+    )
+    parser.add_argument("--repo", default=".", metavar="PATH", help="repository the analysis is of")
+    parser.add_argument(
+        "--analysis",
+        required=True,
+        metavar="PATH",
+        help="the analysis, as --format json or both wrote it; read as untrusted data",
+    )
+    parser.add_argument(
+        "--obligation",
+        action="append",
+        required=True,
+        type=_obligation_id,
+        metavar="ID",
+        help="repeatable ID of an approved obligation, such as to-001",
+    )
+    parser.add_argument(
+        "--framework",
+        default="pytest",
+        choices=("pytest", "unittest"),
+        help="pytest test functions or unittest.TestCase methods; defaults to pytest",
+    )
+    parser.add_argument(
+        "--format",
+        default="patch",
+        choices=("patch", "json"),
+        help="the patch alone, or the JSON result that carries it",
+    )
+    parser.add_argument(
+        "--allow-root",
+        action="append",
+        metavar="PATH",
+        default=None,
+        help=(
+            "additional authorized root, such as the analysis file's directory; refused when "
+            f"{ALLOWED_ROOTS_ENV} is already set by the operator"
+        ),
     )
     return parser
 
@@ -223,13 +290,81 @@ def use_utf8(stream: Any) -> None:
         pass
 
 
+def _write_patch(patch: str, stream: Any) -> None:
+    """Write the patch's bytes as they are.
+
+    A text stream translates line feeds on Windows, and a patch whose every line gained a carriage
+    return would no longer match the file it adds to.
+    """
+    buffer = getattr(stream, "buffer", None)
+    if buffer is None:
+        stream.write(patch)
+        return
+    stream.flush()
+    buffer.write(patch.encode("utf-8"))
+    buffer.flush()
+
+
+def skeletons_main(argv: list[str]) -> int:
+    """Print the skeleton patch for approved obligations of an earlier analysis."""
+    from .skeletons import MAX_SKELETONS, generate_skeletons
+
+    try:
+        namespace = build_skeletons_parser().parse_args(argv)
+        if len(namespace.obligation) > MAX_SKELETONS:
+            raise ArgumentError(f"--obligation accepts at most {MAX_SKELETONS} IDs.")
+    except ArgumentError as exc:
+        print(f"{PROGRAM}: {exc}", file=sys.stderr)
+        return EXIT_ARGUMENT_ERROR
+    except SystemExit as exc:
+        # argparse already reported the problem on stderr.
+        return EXIT_SUCCESS if exc.code in (0, None) else EXIT_ARGUMENT_ERROR
+    request = {
+        "repo_path": namespace.repo,
+        "analysis_path": namespace.analysis,
+        "obligation_ids": namespace.obligation,
+        "framework": namespace.framework,
+    }
+    try:
+        with _authorization(namespace.repo, list(namespace.allow_root or ())):
+            result = generate_skeletons(request)
+    except ArgumentError as exc:
+        print(f"{PROGRAM}: {exc}", file=sys.stderr)
+        return EXIT_ARGUMENT_ERROR
+    except Exception as exc:
+        # Deliberately broad, as for an analysis: the stable public error payload only.
+        error = as_public_error(exc)
+        print(f"{PROGRAM}: {error['error']}: {error['message']}", file=sys.stderr)
+        print(f"{PROGRAM}: {error['remediation']}", file=sys.stderr)
+        return EXIT_ANALYSIS_ERROR
+    if namespace.format == "json":
+        print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+    else:
+        for warning in result["warnings"]:
+            print(f"{PROGRAM}: {warning}", file=sys.stderr)
+        for item in result["skipped"]:
+            print(
+                f"{PROGRAM}: no skeleton for {item['obligation_id']}: {item['reason']}.",
+                file=sys.stderr,
+            )
+        _write_patch(result["patch"], sys.stdout)
+    if not result["skeletons"]:
+        print(f"{PROGRAM}: no approved obligation could be given a skeleton.", file=sys.stderr)
+        return EXIT_ANALYSIS_ERROR
+    return EXIT_SUCCESS
+
+
 def main(argv: list[str] | None = None) -> int:
-    """Run one analysis. See the module docstring for the authorization rule."""
+    """Run one analysis, or the skeletons subcommand. See the module docstring for the
+    authorization rule."""
     use_utf8(sys.stdout)
     use_utf8(sys.stderr)
+    arguments = sys.argv[1:] if argv is None else argv
+    if arguments[:1] == [SKELETONS_COMMAND]:
+        return skeletons_main(arguments[1:])
     parser = build_parser()
     try:
-        namespace = parser.parse_args(argv)
+        namespace = parser.parse_args(arguments)
         request = _request(namespace)
     except ArgumentError as exc:
         print(f"{PROGRAM}: {exc}", file=sys.stderr)

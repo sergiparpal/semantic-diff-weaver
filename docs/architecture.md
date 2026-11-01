@@ -125,6 +125,14 @@ thresholds, and an analysis that left scope unread or compared a commit with its
 `baseline.py` compares the findings with those of an earlier analysis, read as untrusted JSON, by
 category, path, and symbol, and reports each as new, updated, unchanged, or resolved.
 
+`skeletons.py` serves the CLI's `skeletons` subcommand, beside the pipeline rather than in it. It
+reads an earlier analysis as untrusted JSON, validated like a baseline, and the test files of its
+head commit through `git_diff/`, and returns a patch adding a failing test for each obligation the
+user approved by ID: at the end of the test file named for the changed module, one of the
+obligation's candidate tests first, or in a new file in the first test root. The analysis's text
+reaches the generated code only as escaped comments, a skeleton never takes a name its file
+already binds, and the module writes nothing; the user reviews the patch and applies it.
+
 Semantic candidates are immutable and carry their own `(path, symbol)` identity. The three stages that
 merge them — rule grouping, model reconciliation, and service deduplication — each return new values,
 so no stage can invalidate a key another stage already computed. `service.py` threads a single

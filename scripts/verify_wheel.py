@@ -161,6 +161,11 @@ def verify_installation(wheel: Path) -> int:
             print(f"installed environment is missing {script.name}", file=sys.stderr)
             return 2
         subprocess.run([str(script), "--help"], check=True, shell=False, capture_output=True)
+        # The subcommand imports its module only when it runs, so `--help` alone would not show
+        # that the installed package can.
+        subprocess.run(
+            [str(script), "skeletons", "--help"], check=True, shell=False, capture_output=True
+        )
         server = _installed_script(python, "semantic-diff-weaver-mcp")
         if not server.exists():
             print(f"installed environment is missing {server.name}", file=sys.stderr)

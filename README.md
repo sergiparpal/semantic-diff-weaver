@@ -89,6 +89,42 @@ from the report is reported as **unknown, never uncovered**, so a path-prefix mi
 as a warning rather than as a fake coverage gap. See
 [configuration](docs/configuration.md#coverage-grounding).
 
+### Test skeletons
+
+Once you have read a brief and decided which obligations to test, the `skeletons` subcommand
+scaffolds them. It reads the analysis you saved and prints a patch adding one **failing** test per
+approved obligation; you review the patch and apply it yourself:
+
+```bash
+semantic-diff-weaver --repo . --base main --format json > analysis.json
+semantic-diff-weaver skeletons --analysis analysis.json \
+    --obligation to-001 --obligation to-004 > skeletons.patch
+git apply skeletons.patch
+```
+
+| Flag | Meaning |
+| --- | --- |
+| `--analysis PATH` | the analysis, as `--format json` or `both` wrote it; **required** |
+| `--obligation ID` | repeatable ID of an approved obligation, such as `to-001`; **required** |
+| `--framework {pytest,unittest}` | pytest functions or `unittest.TestCase` methods; `pytest` by default |
+| `--format {patch,json}` | the patch alone, or the JSON result carrying it; defaults to `patch` |
+| `--repo PATH` | the repository the analysis is of; defaults to `.` |
+| `--allow-root PATH` | repeatable additional authorized root, as for an analysis |
+
+Each skeleton lands at the end of the test file named for the changed module, `test_<module>.py`,
+preferring one among the obligation's candidate tests; when there is none, that file is created in
+the first test root. It carries the obligation's Given/When/Then, the behavior it tests, and its
+unverified candidate tests as comments, and it fails until it is written —
+`raise NotImplementedError(...)` under pytest, `self.fail(...)` under unittest — so an approved
+obligation cannot pass unwritten. No existing name is reused, so no existing test is replaced.
+
+The command never writes a file and never runs anything: the patch is built from the analysis's
+head commit, so it applies to a checkout of that commit. The analysis is read as untrusted data
+— its text reaches the test file only as escaped comments. An obligation that cannot be placed,
+for instance because its test file is a symbolic link, is reported on stderr with the reason;
+exit code `1` means none could be. See
+[the decision record](docs/decisions.md#test-skeletons-2026-11-01).
+
 ### Model provider
 
 Inference is optional and never required. Install the extra and export a key to enable it:
