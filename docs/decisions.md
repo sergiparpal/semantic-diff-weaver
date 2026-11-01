@@ -147,6 +147,27 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Test skeletons beside their candidates (2026-11-01)
+
+A module without a test file of its name now gets one beside the obligation's first candidate
+test, rather than in the first test root, at the user's choice once 0.7.0 had shipped. On this
+repository's `fed1578..63c8dec`, the obligations of `ast_diff/compare.py`, whose candidate tests
+are all in `tests/unit/test_category_probes.py`, were scaffolded into a new `tests/test_compare.py`,
+a directory above every test of the module; they now go to `tests/unit/test_compare.py`. Three
+rules keep it safe:
+
+- **Only a test file places one.** The candidate must be a test file at the analyzed commit —
+  under a test root or defining a test — readable, not excluded, and not a link. A production
+  module named like a test does not count, and a candidate path the mandatory exclusions refuse,
+  such as one under `.git`, is never looked up. Without such a candidate the first test root
+  stands, as before.
+- **One new file per module.** Two obligations of one module can have their first candidates in
+  two directories, and two new files of one basename would make pytest refuse the second outside
+  packages, so the first of the module's obligations, in the analysis's order, places the one file
+  all of them get.
+- **Nothing is overwritten.** Beside a candidate outside the test roots, a production module can
+  already bear the new file's name; that obligation is skipped, with the reason.
+
 ## The `generate_test_skeletons` tool (2026-11-01)
 
 The specification's optional `generate_test_skeletons` tool is served by both transports, the
@@ -197,11 +218,12 @@ choices are deliberate:
 - **It goes in the module's test file.** That is the file named `test_<module>.py` or
   `<module>_test.py`, as candidate-test mirroring reads a name, preferring one among the
   obligation's candidates and then one mirroring the module's directory. When there is none, it is
-  created as `test_<module>.py` in the first test root. A file with that name that cannot take the
-  skeleton is reported, not worked around with a second file beside it: pytest refuses two test
+  created as `test_<module>.py` in the first test root, and since "Test skeletons beside their
+  candidates" beside the obligation's first candidate test. A file with that name that cannot take
+  the skeleton is reported, not worked around with a second file beside it: pytest refuses two test
   modules of one basename outside packages, as this repository's suite did while this change was
-  being written. A production module merely named like a test, as `test_mapper.py` is here, is not
-  a test file, by the rule candidate-test discovery already applies.
+  being written. A production module merely named like a test, as `test_mapper.py` is here, is not a
+  test file, by the rule candidate-test discovery already applies.
 - **The analysis's text is comments.** It is untrusted input, read under the baseline's bound and
   validated field by field. Each Given, When, and Then, the behaviors and their symbols, and the
   candidate tests reach the file only as comments, each line nothing but a comment, with every

@@ -185,9 +185,9 @@ An unreadable, malformed, oversized, or non-1.x baseline, or a `--format markdow
 
 ## Test skeletons
 
-`semantic-diff-weaver skeletons` reads the repository's own configuration, with no risk profile
-or override: a new test file is created in the first `paths.test_roots` entry, a test file under
-`paths.exclude` takes no skeleton, and `rules.max_file_bytes` bounds each test file it reads. The
-analysis it reads is bounded by `rules.max_baseline_bytes`, as a baseline is, and an unreadable,
-malformed, oversized, or non-1.x analysis, or a `--format markdown` brief, is an
-`analysis_unreadable` error.
+`semantic-diff-weaver skeletons` reads the repository's own configuration, with no risk profile or
+override: a new test file is created beside the obligation's first candidate test, or in the first
+`paths.test_roots` entry without one, a test file under `paths.exclude` takes no skeleton, and
+`rules.max_file_bytes` bounds each test file it reads. The analysis it reads is bounded by
+`rules.max_baseline_bytes`, as a baseline is, and an unreadable, malformed, oversized, or non-1.x
+analysis, or a `--format markdown` brief, is an `analysis_unreadable` error.

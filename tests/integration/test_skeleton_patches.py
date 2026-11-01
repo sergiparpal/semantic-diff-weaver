@@ -324,3 +324,22 @@ def test_an_analysis_run_again_takes_the_arguments_that_shape_it(repo_factory, t
     )
     assert {item["path"] for item in result["skeletons"]} == {"tests/test_price.py"}
     assert [item["obligation_id"] for item in result["skeletons"]] == _ids(analysis)
+
+
+def test_a_new_test_file_goes_beside_the_obligations_candidates(repo_factory, tmp_path) -> None:
+    """The module's tests live in `tests/unit`, so its new test file does too, not in `tests`."""
+    checkout = (
+        "from shop.cart import total\n\n\n"
+        "def test_checkout_totals_the_cart():\n    assert total([1, 2], 5) == 3\n"
+    )
+    repo, path, analysis = _analyzed(
+        repo_factory, tmp_path, {"tests/unit/test_checkout.py": checkout}
+    )
+    first = analysis["test_obligations"][0]
+    assert first["candidate_existing_tests"][0]["path"] == "tests/unit/test_checkout.py"
+    result = _skeletons(repo, path, _ids(analysis))
+    assert {(item["path"], item["new_file"]) for item in result["skeletons"]} == {
+        ("tests/unit/test_cart.py", True)
+    }
+    _apply(repo, result["patch"])
+    assert (repo / "tests" / "unit" / "test_cart.py").is_file()

@@ -112,11 +112,12 @@ git apply skeletons.patch
 | `--allow-root PATH` | repeatable additional authorized root, as for an analysis |
 
 Each skeleton lands at the end of the test file named for the changed module, `test_<module>.py`,
-preferring one among the obligation's candidate tests; when there is none, that file is created in
-the first test root. It carries the obligation's Given/When/Then, the behavior it tests, and its
-unverified candidate tests as comments, and it fails until it is written —
-`raise NotImplementedError(...)` under pytest, `self.fail(...)` under unittest — so an approved
-obligation cannot pass unwritten. No existing name is reused, so no existing test is replaced.
+preferring one among the obligation's candidate tests; when there is none, that file is created
+beside the obligation's first candidate test, or in the first test root if it has none. It carries
+the obligation's Given/When/Then, the behavior it tests, and its unverified candidate tests as
+comments, and it fails until it is written — `raise NotImplementedError(...)` under pytest,
+`self.fail(...)` under unittest — so an approved obligation cannot pass unwritten. No existing name
+is reused, so no existing test is replaced.
 
 The command never writes a file and never runs anything: the patch is built from the analysis's
 head commit, so it applies to a checkout of that commit. The analysis is read as untrusted data
