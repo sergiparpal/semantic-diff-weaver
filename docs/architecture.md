@@ -30,7 +30,13 @@ class, function, async-function, method, and async-method symbols; normalizes co
 including return annotations and PEP 695 type parameters on both callables and classes, and records
 a callable's parameters without their typing, so that a signature change callers pass the same
 arguments across is reported as typing alone; retains only decorator names; preserves overload-like
-duplicate definitions; and correlates conservative moves across files that both remain. The
+duplicate definitions; and correlates conservative moves across files that both remain. A
+module's or a class's own statements are compared as they run: an `if TYPE_CHECKING:` block is
+set aside and its `else` kept, where the file binds `TYPE_CHECKING` to typing's constant and
+nothing in it can rebind the name. A module whose other statements are the same is a refactor
+when its imports changed in step with the code using them — each name it newly imports read in
+the file, each name it stops importing mentioned nowhere — and so is a body that differs only in
+the prose of the messages it raises. The
 `AstBudget` wall-clock deadline is checked between the parse, matching, and comparison phases and
 counts as spent once reached, so a coarse platform clock cannot let an exhausted budget read as
 live.
@@ -70,9 +76,10 @@ symbol's name; reordered conditions and calls are ordering changes. A changed lo
 a retry only when its own words, or its symbol's name, say so — `attempt`, `retry`, `timeout`,
 `sleep`, `backoff`, or `deadline`, but not `limit`, which every loop has — and is otherwise an
 unknown change. A changed call that no keyword explains is a dependency interaction unless every
-call that changed reaches the module's own code: a function or class the module defines, a method
-one of its classes defines, called through `self`, `cls`, or the class, or a builtin that computes
-in-process, such as `len` or `isinstance`. Such a change is an unknown change, since the
+call that changed reaches the project's own code: a function or class the module defines, a method
+one of its classes defines, called through `self`, `cls`, or the class, a builtin that computes
+in-process, such as `len` or `isinstance`, or what an import of its own package binds, relative or
+naming the top-level package its file sits in. Such a change is an unknown change, since the
 dependency category's obligations ask how the code handles a dependency's failures. What an
 attribute holds is not known statically, so `self.client.fetch()` and `self.callback()` stay
 dependency calls, as does a method inherited from another module's class. `warn` and `print` are

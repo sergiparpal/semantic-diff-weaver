@@ -6,7 +6,7 @@ import time
 
 from ..models import LineRange
 from ..source import SourceHunk, SourceRevisionPair
-from .compare import compare_symbol, own_call_names
+from .compare import compare_symbol, first_party_names, own_call_names
 from .extract import AstResourceLimit, extract_symbols
 from .limits import AstBudget
 from .match import match_cross_file_symbols, match_symbols
@@ -195,9 +195,11 @@ def analyze_ast(files: list[SourceRevisionPair], budget: AstBudget | None = None
     removed: list[tuple[SymbolSnapshot, SourceRevisionPair]] = []
     added: list[tuple[SymbolSnapshot, SourceRevisionPair]] = []
     own_calls_by_path: dict[str, frozenset[str]] = {}
+    first_party_by_path: dict[str, frozenset[str]] = {}
     for changed, old_symbols, new_symbols in parsed:
         path = changed.path
         own_calls_by_path[path] = own_call_names(old_symbols, new_symbols)
+        first_party_by_path[path] = first_party_names(path, old_symbols, new_symbols)
         # Matching and comparison are the other half of the cost, and symbol budgets alone do
         # not bound them in time. Without this the deadline covered only the parse phase.
         if _deadline_reached(deadline):
@@ -230,6 +232,7 @@ def analyze_ast(files: list[SourceRevisionPair], budget: AstBudget | None = None
                 old_path=changed.old_path or path,
                 new_path=changed.new_path or path,
                 own_calls=own_calls_by_path[path],
+                first_party=first_party_by_path[path],
             )
             if symbol_deltas:
                 changed_symbol_keys.add((path, pair.new.qualified_name))
@@ -251,6 +254,8 @@ def analyze_ast(files: list[SourceRevisionPair], budget: AstBudget | None = None
             # A moved symbol may call what either of its two modules defines.
             own_calls=own_calls_by_path.get(old_file.path, frozenset())
             | own_calls_by_path.get(new_file.path, frozenset()),
+            first_party=first_party_by_path.get(old_file.path, frozenset())
+            | first_party_by_path.get(new_file.path, frozenset()),
         )
         if symbol_deltas:
             changed_symbol_keys.add((path, new.qualified_name))

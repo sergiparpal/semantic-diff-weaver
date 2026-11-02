@@ -1,7 +1,7 @@
 # Labeled benchmark of real pull requests
 
-`cases.json` is a public benchmark for analyzers of behavioral change: 30 pull requests merged into
-five public Python repositories, each pinned by two commits, with every Python symbol it changes
+`cases.json` is a public benchmark for analyzers of behavioral change: 60 pull requests merged into
+ten public Python repositories, each pinned by two commits, with every Python symbol it changes
 outside its tests labeled by the categories a reviewer expects of it, or by none when its behavior
 does not change. `scripts/run_benchmark.py` measures Semantic Diff Weaver against it, and
 `docs/benchmark.md` holds the results.
@@ -12,14 +12,24 @@ repository's, under its MIT license.
 
 ## The sample
 
-The latest pull requests merged into the default branch of `psf/requests`, `pallets/click`,
-`psf/black`, `encode/httpx`, and `python-attrs/attrs` before the commit `sampled_from` names for
-each, six per repository, read back along the branch's first-parent history as
+The latest pull requests merged into the default branch of each repository before the commit
+`sampled_from` names for it, six per repository, read back along the branch's first-parent history as
 `scripts/validate_real_prs.py` reads it: a squash merge reviewed from its parent, a merge commit
 from where its pull request branched off. A pull request was taken when the analyzer's own count of
 the Python symbols it changes outside the tests is between 1 and 10 and none of its scope was left
 unread, and was never chosen by hand. `run_benchmark.py propose` reproduces the sample; it prints
 how many symbols and files each pull request changes and never a finding.
+
+## The splits
+
+Each case's `split` says what it is for. The 30 `development` cases, from `psf/requests`,
+`pallets/click`, `psf/black`, `encode/httpx`, and `python-attrs/attrs`, are the ones the analyzer is
+changed against: their disagreements are read to design a correction. The 30 `held_out` cases, from
+`pallets/flask`, `pallets/werkzeug`, `encode/starlette`, `Textualize/rich`, and
+`marshmallow-code/marshmallow`, were labeled and committed before the analyzer was first changed
+against the development ones, and measure a correction on code it was not designed from. Once a
+correction has been measured on them, a new held-out sample is labeled before the next one is
+designed.
 
 ## The labels
 
@@ -27,7 +37,9 @@ One annotator labeled every case from its diff and the files at its two commits,
 the analyzer's output on it; the labels were committed before the first measurement. Each label
 names a symbol as the analyzer does — `Class.method`, `function.nested` for a function defined
 directly in another's body, a class's own statements as `Class`, and a module's top-level
-statements as `<module>` — and says whether it was `modified`, `added`, or `removed`.
+statements as `<module>` — and says whether it was `modified`, `added`, or `removed`. A
+definition inside an `if` or a `try` belongs to the symbol around it, as werkzeug's module-level
+`__getattr__` under `if not t.TYPE_CHECKING:` belongs to `<module>`.
 
 - **A behavior change** lists every category of `docs/semantic-diff-weaver-spec.md` §7 a reviewer
   could fairly give it; a finding in any of them is right. `unknown_semantic_change` and
@@ -51,6 +63,8 @@ changes it, and never to agree with the analyzer.
 ```bash
 python scripts/run_benchmark.py --scratch /tmp/sdw-benchmark --disagreements
 ```
+
+`--split development` or `--split held_out` measures one split alone.
 
 Each repository is cloned whole, without a checkout, into the scratch directory, which must lie
 outside this working tree; the analyzer reads its Git objects in deterministic mode and nothing

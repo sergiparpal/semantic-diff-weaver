@@ -33,6 +33,7 @@ def _case(*labels: dict[str, object], number: int = 1) -> dict[str, object]:
         "base": SHA,
         "head": "b" * 40,
         "subject": "Fix (#1)",
+        "split": "development",
         "labels": list(labels),
     }
 
@@ -47,7 +48,8 @@ def _benchmark(*cases: dict[str, object]) -> dict[str, object]:
 
 def test_the_published_labels_are_valid() -> None:
     benchmark = load()
-    assert len(benchmark.cases) == 30
+    assert [case.split for case in benchmark.cases].count("development") == 30
+    assert [case.split for case in benchmark.cases].count("held_out") == 30
     assert {case.repository for case in benchmark.cases} == set(benchmark.sampled_from)
     for case in benchmark.cases:
         assert all(label.path.endswith(".py") for label in case.labels)
@@ -227,6 +229,9 @@ def test_a_case_is_measured_against_a_local_clone(tmp_path: Path, capsys) -> Non
     assert (
         "| Recall, behavior changes given one in an expected category | 1 of 1 (100.0%) |" in report
     )
+    # A split measures its own cases alone.
+    assert run_benchmark.main([*arguments, "--split", "held_out"]) == 0
+    assert "| Cases | 0 |" in capsys.readouterr().out
 
 
 def test_a_scratch_directory_inside_the_checkout_is_refused() -> None:

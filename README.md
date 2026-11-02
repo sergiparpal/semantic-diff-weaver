@@ -494,10 +494,10 @@ Hermes home and do not require a paid or live LLM.
   report is reported as unknown, never as uncovered.
 - Dynamic metaprogramming and external contracts may produce review questions or unknown semantic
   changes.
-- Categories are often wrong on real code. On the labeled benchmark of 30 real pull requests in
-  [docs/benchmark.md](docs/benchmark.md), every behavior change got a finding, but only 10 of 31 in
-  an expected category, and half the findings name none; 18 of 34 symbols whose behavior did not
-  change got a finding too.
+- Categories are often wrong on real code. On the held-out half of the labeled benchmark of 60 real
+  pull requests in [docs/benchmark.md](docs/benchmark.md), every behavior change got a finding, but
+  only 15 of 43 in an expected category, and nearly half the findings name none; 23 of 39 symbols
+  whose behavior did not change got a finding too.
 - Test selection follows imports, never runs: a test that reaches the code through an installed
   command, a process it starts other than Python, or a pytest plugin named only in pytest's
   configuration is not seen, nor one that reads a changed Python file as data.

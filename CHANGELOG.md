@@ -2,15 +2,30 @@
 
 ## Unreleased
 
-- **Evaluation:** a labeled public benchmark. `benchmark/cases.json` pins 30 pull requests merged
-  into `psf/requests`, `pallets/click`, `psf/black`, `encode/httpx`, and `python-attrs/attrs` by
-  their commits, sampled without choosing them by hand, and labels every Python symbol they change
-  outside their tests with the categories a reviewer expects, or none when its behavior does not
-  change; one annotator wrote the labels before reading the analyzer's output.
-  `scripts/run_benchmark.py` clones the repositories outside the working tree, measures, and lists
-  each disagreement, and `docs/benchmark.md` records the first measurement: every behavior change
-  got a finding, 10 of 31 in an expected category, and 18 of 34 unchanged symbols got one too. No
-  analyzer behavior changes.
+- **Evaluation:** a labeled public benchmark. `benchmark/cases.json` pins 60 pull requests merged
+  into ten public repositories by their commits, sampled without choosing them by hand, and labels
+  every Python symbol they change outside their tests with the categories a reviewer expects, or
+  none when its behavior does not change; one annotator wrote the labels before reading the
+  analyzer's output. Half are a `development` split, from `psf/requests`, `pallets/click`,
+  `psf/black`, `encode/httpx`, and `python-attrs/attrs`, which the analyzer is changed against, and
+  half a `held_out` split, from `pallets/flask`, `pallets/werkzeug`, `encode/starlette`,
+  `Textualize/rich`, and `marshmallow-code/marshmallow`, labeled before it first was.
+  `scripts/run_benchmark.py` clones the repositories outside the working tree, measures one split or
+  both, and lists each disagreement, and `docs/benchmark.md` records the measurements.
+- **Fix:** code that runs no differently is no longer a change. A module's or a class's own
+  statements are compared as they run, without the blocks of an `if TYPE_CHECKING:` that the file
+  binds to typing's constant and cannot rebind; a module whose other statements are the same is a
+  refactor, under the new `SDW-RULE-REFACTOR-IMPORTS`, when its imports changed in step with the
+  code using them; and a body that differs only in the prose of the messages it raises is one under
+  the new `SDW-RULE-REFACTOR-MESSAGE`. Like every refactor, both are hidden unless
+  `rules.emit_low_risk_refactors` is set. On the benchmark, unchanged symbols given a finding fell
+  from 18 to 7 of 34 in development and from 34 to 23 of 39 held out, and every behavior change
+  still has one.
+- **Fix:** a changed call into the package's own code is no longer a dependency interaction. What a
+  relative import binds, or an import naming the top-level package the file sits in, is the
+  project's own code, like the module's own functions, so a changed call that reaches only such code
+  is an unknown change under `SDW-RULE-UNKNOWN-INTERNAL-CALL`, whose summary now says "the project's
+  own code". Five development findings of the benchmark changed; none held out did.
 
 ## 0.15.0 - 2026-11-02
 

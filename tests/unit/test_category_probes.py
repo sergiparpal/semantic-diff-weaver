@@ -15,7 +15,13 @@ from dataclasses import replace
 import pytest
 
 from semantic_diff_weaver.ast_diff import StructuralDelta, extract_symbols, limits
-from semantic_diff_weaver.ast_diff.compare import is_internal_call, join_probes, own_call_names
+from semantic_diff_weaver.ast_diff.compare import (
+    first_party_names,
+    is_internal_call,
+    join_probes,
+    own_call_names,
+    root_package,
+)
 from semantic_diff_weaver.ast_diff.extract import category_probe
 from semantic_diff_weaver.ast_diff.types import CategoryProbe, SymbolSnapshot
 from semantic_diff_weaver.models import BehaviorCategory, LineRange, RulesConfig
@@ -710,6 +716,79 @@ def test_a_call_reaches_its_own_module_by_a_name_either_revision_defines() -> No
     assert own_call_names(old, new) == {"_old", "Worker", "Worker._new", "self._new", "cls._new"}
 
 
+PACKAGE_CODE = """\
+import requests
+import shop.money
+from . import events
+from .events import notify
+from shop.tax import rate as tax_rate
+from vendor.shop import price
+
+try:
+    from shop.fast import parse
+except ImportError:
+    from slowparse import parse
+
+
+def checkout(cart):
+    from .audit import record
+    return record(cart)
+"""
+
+
+@pytest.mark.parametrize(
+    ("path", "root"),
+    [
+        pytest.param("src/requests/models.py", "requests", id="under-src"),
+        pytest.param("lib/shop/cart.py", "shop", id="under-lib"),
+        pytest.param("httpx/_client.py", "httpx", id="at-the-root"),
+        pytest.param("setup.py", None, id="outside-a-package"),
+        pytest.param("src/setup.py", None, id="outside-a-package-under-src"),
+    ],
+)
+def test_a_file_belongs_to_the_top_level_package_its_path_names(
+    path: str, root: str | None
+) -> None:
+    assert root_package(path) == root
+
+
+@pytest.mark.parametrize(
+    ("path", "names"),
+    [
+        pytest.param(
+            "src/shop/cart.py",
+            {"events", "notify", "record", "shop", "tax_rate"},
+            id="relative-or-of-its-package",
+        ),
+        pytest.param(
+            "cart.py", {"events", "notify", "record"}, id="relative-only-outside-a-package"
+        ),
+    ],
+)
+def test_a_package_s_own_code_is_what_its_imports_bind_to_it(path: str, names: set[str]) -> None:
+    """`parse` comes from the package or from another one, which no static reading can tell."""
+    assert first_party_names(path, extract_symbols(PACKAGE_CODE)) == names
+
+
+@pytest.mark.parametrize(
+    ("name", "internal"),
+    [
+        pytest.param("events.publish", True, id="a-module-of-its-package"),
+        pytest.param("notify", True, id="a-name-of-its-package"),
+        pytest.param("shop.money.total", True, id="its-package-by-its-name"),
+        pytest.param("tax_rate", True, id="renamed"),
+        pytest.param("requests.get", False, id="another-package"),
+        pytest.param("price", False, id="another-package-s-name"),
+        pytest.param("parse", False, id="either-package"),
+    ],
+)
+def test_a_call_into_its_own_package_is_internal(name: str, internal: bool) -> None:
+    """black's `is_yield(node)` and `last_leaf(node)`, imported from `black.nodes`, are black's own
+    logic: changed calls to them read as dependency interactions in black#5646 and black#5647."""
+    first_party = first_party_names("src/shop/cart.py", extract_symbols(PACKAGE_CODE))
+    assert is_internal_call(name, frozenset(), first_party) is internal
+
+
 MODULE = "import sys\nimport warnings\n\nimport requests\n\n\ndef _clean(text):\n    return text.strip()\n\n\n"
 # The methods the cases call: a call reaches its own module only through what one of its classes
 # defines.
@@ -827,7 +906,12 @@ def test_an_internal_call_joins_an_unknown_condition_without_a_second_assumption
             "def _new(x):\n    return x\n", "unknown_semantic_change", id="defined-where-it-moved"
         ),
         pytest.param(
-            "from .helpers import _new\n", "dependency_interaction_change", id="imported-there"
+            "from vendor.helpers import _new\n",
+            "dependency_interaction_change",
+            id="imported-there",
+        ),
+        pytest.param(
+            "from .helpers import _new\n", "unknown_semantic_change", id="imported-from-its-package"
         ),
     ],
 )
