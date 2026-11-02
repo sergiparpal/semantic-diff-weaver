@@ -16,10 +16,10 @@ taxonomy, these are changes as maintainers made them.
 
 ## Results
 
-Each split measured with Semantic Diff Weaver 0.15.0, and with the analyzer after the three
-corrections of `docs/decisions.md` (2026-11-02, benchmark categories), not yet released.
+Each split measured with Semantic Diff Weaver 0.15.0, and with 0.16.0, which makes the three
+corrections of `docs/decisions.md` (2026-11-02, benchmark categories).
 
-| Measure | Development, 0.15.0 | Development, now | Held-out, 0.15.0 | Held-out, now |
+| Measure | Development, 0.15.0 | Development, 0.16.0 | Held-out, 0.15.0 | Held-out, 0.16.0 |
 | --- | --- | --- | --- | --- |
 | Labeled symbols | 72 | 72 | 90 | 90 |
 | Behavior changes | 31 | 31 | 43 | 43 |
@@ -76,7 +76,7 @@ development and 4 of the 32 held out are right. Most of the rest are calls on lo
 
 ## Per category
 
-With the analyzer after the corrections. Development:
+With 0.16.0. Development:
 
 | Category found | Findings | In an expected category | In another | On an unchanged symbol |
 | --- | --- | --- | --- | --- |
@@ -102,7 +102,7 @@ Held out:
 
 ## Per case
 
-With the analyzer after the corrections. The "Labels" column counts added symbols, whose findings
+With 0.16.0. The "Labels" column counts added symbols, whose findings
 are neither right nor wrong: attrs#1571's two findings are one on `__all__` and one on the new `ne`.
 
 | Case | Labels | Findings | Correct | Wrong category | False positive | Missed |

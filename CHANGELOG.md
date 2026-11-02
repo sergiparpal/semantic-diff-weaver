@@ -1,6 +1,17 @@
 # Changelog
 
-## Unreleased
+## 0.16.0 - 2026-11-02
+
+Sharper categories, measured on real code. A labeled public benchmark of 60 pull requests from ten
+repositories, half a development split and half a held-out one labeled before the analyzer
+changed, measures it, and three corrections designed against it read code that runs no differently
+as no change: what only a type checker reads, imports in step with the code using them, and a
+reworded exception message; a changed call into the package's own code is an unknown change rather
+than a dependency interaction. Held out, unchanged symbols given a finding fall from 34 to 23 of 39,
+every behavior change still has one, and the categories named stay as they were. A minor release
+for the two new refactor rules, `SDW-RULE-REFACTOR-IMPORTS` and `SDW-RULE-REFACTOR-MESSAGE`, both
+hidden by default like every refactor; schema 1.5 and every golden are unchanged, and the decision
+is recorded in `docs/decisions.md`.
 
 - **Evaluation:** a labeled public benchmark. `benchmark/cases.json` pins 60 pull requests merged
   into ten public repositories by their commits, sampled without choosing them by hand, and labels

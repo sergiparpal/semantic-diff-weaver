@@ -35,8 +35,8 @@ obligation-concept match (16 of 16), and zero fabricated evidence references. Ev
 finding had a linked obligation, and every candidate test remained explicitly unverified. The corpus
 now emits no prediction outside its reviewed expected labels. The 2026-10-31 re-measurements for
 0.4.0, 0.4.1, 0.5.0, 0.6.0, and 0.6.1, and the 2026-11-01 ones for 0.6.2, 0.7.0, 0.8.0, 0.8.1,
-0.8.2, 0.9.0, 0.10.0, 0.11.0, 0.11.1, 0.12.0, and 0.13.0, and the 2026-11-02 ones for 0.14.0 and
-0.15.0, found the same figures. Of 0.4.1's corrections only the output-contract one reaches the
+0.8.2, 0.9.0, 0.10.0, 0.11.0, 0.11.1, 0.12.0, and 0.13.0, and the 2026-11-02 ones for 0.14.0,
+0.15.0, and 0.16.0, found the same figures. Of 0.4.1's corrections only the output-contract one reaches the
 corpus: the `return annotation signature` case is now worded as a change to typing alone, at 0.80
 confidence instead of 0.879, and keeps its category, risk, and obligations. 0.5.0 gives every case a
 verdict, 3 `pass`, 12 `warn`, and 3 `review_required`, and a `null` baseline, without changing a
@@ -60,7 +60,9 @@ reading `ROOTS` did not change, so no case gains a group, and every golden chang
 lines, and no case supplies a coverage run, so no golden changes. 0.15.0 names the test files a
 change can affect, and no case's repository has one: every golden changes in its `schema_version`,
 now 1.5, and gains a `test_selection` that selects no test file, but for the `no changed Python
-source` case, whose changed README runs the whole suite.
+source` case, whose changed README runs the whole suite. 0.16.0 reads code only a type checker
+reads, imports in step with the code using them, and a reworded exception message as changing
+nothing, and a call into the package's own code as internal, and no golden changes.
 
 The previous measurement on this same corpus was 88.24% precision (15 of 17). The two surplus
 predictions were both `ordering_change` findings produced by comparing `statement_order` tuples for
@@ -79,11 +81,17 @@ a chain of calls on instances across a call graph at its module limit, a variabl
 read across a graph at its module limit, and a test selection following 999 test files through a
 chain of 999 modules at its file limit, with five-, two-, five-, and five-second ceilings for the
 first four, a one-second ceiling on grouping the fifth, and a five-second ceiling on the last. They
-completed in approximately 0.02, 0.41, 0.49, 0.80, 0.49, and 0.75 seconds in the 0.15.0 timing run,
-across six runs in which the fourth took 0.79 to 0.90 and the last 0.73 to 0.76. 0.14.0's code,
-timed beside it, took 0.02, 0.43, 0.49, 0.80, and 0.50 on the five fixtures it has, the fourth 0.79
-to 0.86: the full-service fixture has no test file, so the selection every analysis now makes reads
-none there. 0.14.0's own run, an hour and a half earlier, timed 0.02, 0.42, 0.48, 0.81, and 0.48,
+completed in approximately 0.02, 0.43, 0.55, 0.82, 0.53, and 0.80 seconds in the 0.16.0 timing run,
+across six runs in which the third took 0.51 to 0.63 and the fourth 0.76 to 0.93. 0.15.0's code,
+timed beside it, took 0.02, 0.46, 0.51, 0.83, 0.49, and 0.79, the third 0.47 to 0.52: each of the
+full-service fixture's 80 extractions now also walks its file once for the names it mentions,
+reads, and imports, and a module takes a second fingerprint without its imports. Before those
+walks were folded into one, and the rarer ones kept to a file that writes `TYPE_CHECKING` or a
+body that raises, the fixture took 0.66 beside 0.15.0's 0.48. 0.15.0's own run, earlier that day,
+timed 0.02, 0.41, 0.49, 0.80, 0.49, and 0.75, the fourth 0.79 to 0.90 and the last 0.73 to 0.76,
+beside 0.14.0's code at 0.02, 0.43, 0.49, 0.80, and 0.50 on the five fixtures it has, the fourth
+0.79 to 0.86: the full-service fixture has no test file, so the selection every analysis now makes
+reads none there. 0.14.0's own run, an hour and a half earlier, timed 0.02, 0.42, 0.48, 0.81, and 0.48,
 the fourth 0.80 to 0.84 and the last 0.48 to 0.50, beside 0.13.0's code at 0.02, 0.42, 0.48, 0.81,
 and 0.49, the fourth 0.79 to 0.84 and the last 0.49 each time: no fixture names a coverage run, so
 0.14.0 reads no test contexts in them, and they take as long as before. 0.13.0's own run, the
@@ -116,14 +124,15 @@ seconds for the last, and 0.5.0 timed 0.02, 0.42, 0.38, and 0.79 on code 0.6.0 l
 1.5 seconds for the mass-rename fixture then: the machine was slower at that hour, not the code, and
 that fixture is back at a fifth of its ceiling, as on 2026-07-26.
 
-The complete automated suite reports 97.96% overall branch-aware coverage across 1,588 passing tests
+The complete automated suite reports 98.06% overall branch-aware coverage across 1,689 passing tests
 and one skip, the real-Hermes discovery test, with at least 90% branch coverage in every critical
 module — the lowest is `path_policy.py` at 92.42%, followed by `semantic_interpreter.py` at 92.62%,
 `git_diff/` at 93.16%, and `config.py` at 94.74%. `cli.py`, `coverage_map.py`, and `baseline.py`,
 added to the critical set on 2026-10-31, are at 100%, as are `skeletons.py`, added with test
 skeletons, `change_groups.py`, added with connected changes, and `selection.py`, added with test
 selection. `schema_diff/`, added with API schemas and reading configuration files too, is at 98.91%,
-and `mcp_server.py`, added on 2026-10-05, at 98.21%. The suite ran with no `ANTHROPIC_API_KEY` in
+`mcp_server.py`, added on 2026-10-05, at 98.21%, and `ast_diff/`, whose comparison 0.16.0 extends,
+at 96.90%. The suite ran with no `ANTHROPIC_API_KEY` in
 the environment: no live LLM call or credential was used, and none is required.
 
 The 17-case figures, dated 2026-07-25, held after the 2026-07-26 review fixes:
