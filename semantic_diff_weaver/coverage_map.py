@@ -10,6 +10,11 @@ Two formats are supported, both parseable with the standard library:
 - **coverage.py's native JSON**, which this repository's own CI already emits;
 - **lcov `.info`**, line-oriented plain text.
 
+A run measured with per-test contexts, as `pytest --cov-context=test` records them, also says
+which test executed each line, so a test that ran a changed line is known by its run rather than
+by its name or imports. The run's coverage.py data file, `.coverage`, holds them once each and is
+read beside the report; a small report holds them too when `show_contexts` writes them.
+
 Cobertura and JaCoCo XML are excluded deliberately. Parsing untrusted XML would either add a
 `defusedxml` dependency or accept an entity-expansion surface in a tool whose selling point is
 safety against a hostile repository. See `docs/decisions.md`.
@@ -18,23 +23,51 @@ safety against a hostile repository. See `docs/decisions.md`.
 from __future__ import annotations
 
 import json
-from collections.abc import Collection, Iterable, Mapping
+import sqlite3
+import time
+from collections import defaultdict
+from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 
 from .errors import ErrorCode, WeaverError
 from .models import LineRange, WeaverConfig
-from .textutil import read_bounded_text
+from .textutil import read_bounded_bytes, read_bounded_text
 
 CoverageState = Literal["covered", "uncovered", "unknown"]
 
 SOURCE_COVERAGE_JSON = "coverage.py-json"
 SOURCE_LCOV = "lcov"
+SOURCE_COVERAGE_DATA = "coverage.py-data"
 
 # lcov is line-oriented; a hostile file could otherwise be one enormous line.
 MAX_LCOV_RECORDS = 200_000
 MAX_LINES_PER_FILE = 1_000_000
+# Test contexts are kept compactly, each test once, but a report may still name more of them,
+# or more pairs of a line and a test, than an analysis needs to hold; past either bound the
+# rest of the contexts are left unread and the report is said to be incomplete.
+MAX_CONTEXT_TESTS = 100_000
+MAX_CONTEXT_PAIRS = 2_000_000
+# A pytest node ID long past any real one names no test worth matching.
+MAX_CONTEXT_CHARS = 1_000
+# The phases pytest-cov's `--cov-context=test` labels each test's contexts with.
+CONTEXT_PHASES = ("|setup", "|run", "|teardown")
+# What a SQLite database, as coverage.py's data file is, starts with.
+SQLITE_HEADER = b"SQLite format 3\x00"
+# A data file is read within this long, whatever the queries its schema makes do.
+COVERAGE_DATA_SECONDS = 10.0
+# No value coverage.py writes comes near this; reading a longer one fails.
+MAX_DATA_VALUE_BYTES = 1_000_000
+# A file's line numbers as coverage.py's numbits hold them, a bit each, up to the line bound.
+MAX_NUMBITS_BYTES = MAX_LINES_PER_FILE // 8 + 1
+# The connection settings Python 3.12 can make, by name, each with the value it is given.
+DEFENSIVE_SETTINGS = (
+    ("SQLITE_DBCONFIG_DEFENSIVE", True),
+    ("SQLITE_DBCONFIG_TRUSTED_SCHEMA", False),
+    ("SQLITE_DBCONFIG_ENABLE_VIEW", False),
+    ("SQLITE_DBCONFIG_ENABLE_TRIGGER", False),
+)
 
 
 def coverage_error(message: str) -> WeaverError:
@@ -45,12 +78,24 @@ def coverage_error(message: str) -> WeaverError:
     )
 
 
+def data_error(message: str) -> WeaverError:
+    return WeaverError(
+        ErrorCode.COVERAGE_UNREADABLE,
+        message,
+        "Supply the .coverage data file your own test run wrote with per-test contexts, as "
+        "pytest --cov-context=test records them.",
+    )
+
+
 @dataclass(frozen=True)
 class FileCoverage:
     """Executed and unexecuted line numbers for one file in the report."""
 
     covered: frozenset[int]
     uncovered: frozenset[int]
+    # Per executed line, the tests its contexts say executed it, by position in the report's
+    # `tests`; empty for a report without contexts.
+    contexts: Mapping[int, frozenset[int]] = field(default_factory=dict, hash=False)
 
     @property
     def known(self) -> frozenset[int]:
@@ -71,6 +116,11 @@ class CoverageMap:
 
     source: str
     files: Mapping[str, FileCoverage]
+    # The tests the report's contexts name, each once: a pytest node ID without its phase or
+    # parameters, or coverage.py's own dotted test name.
+    tests: tuple[str, ...] = ()
+    # Whether a bound left some of the contexts unread.
+    contexts_incomplete: bool = False
     _unmatched: set[str] = field(default_factory=set)
     _matched: set[str] = field(default_factory=set)
     # Suffix resolution is pure, and the same few changed paths are asked about repeatedly:
@@ -169,6 +219,81 @@ class CoverageMap:
             return 0, 0
         return _known_counts(entry, lines)
 
+    def measured(self, lines_by_path: Mapping[str, Collection[int]]) -> int:
+        """How many of `lines_by_path` the report measures, executed or not."""
+        measured = 0
+        for path, lines in lines_by_path.items():
+            entry = self.resolve(path)
+            if entry is not None:
+                measured += sum(1 for line in lines if line in entry.known)
+        return measured
+
+    def executed(
+        self, lines_by_path: Mapping[str, Collection[int]]
+    ) -> dict[str, frozenset[tuple[str, int]]]:
+        """Per test the contexts name, which of `lines_by_path` it executed, each with its path;
+        nothing for a file the contexts do not cover."""
+        executed: dict[str, set[tuple[str, int]]] = defaultdict(set)
+        for path, lines in lines_by_path.items():
+            entry = self.resolve(path)
+            if entry is None:
+                continue
+            for line in lines:
+                for test in entry.contexts.get(line, ()):
+                    executed[self.tests[test]].add((path, line))
+        return {test: frozenset(found) for test, found in executed.items()}
+
+
+class ContextTests:
+    """Which of an analysis's tests the context labels of a report name.
+
+    A pytest node ID names a test by its file and its names, the file matched as the report's
+    own paths are, by the longest suffix it shares with a test's file, since pytest names files
+    from its root directory rather than the repository's. coverage.py's dotted name names it by
+    its module and names, matched by the longest dotted suffix, since a module's name depends on
+    how the tests were imported. An exact match wins, and a label that the tests of two files
+    match equally well names neither: claiming either would be a guess.
+    """
+
+    def __init__(self, tests: Sequence[tuple[str, str]]) -> None:
+        # Each test as its file and its names within the file, `TestRounding.test_round_total`.
+        self._tests = list(tests)
+        self._by_name: dict[str, list[int]] = defaultdict(list)
+        for position, (_, symbol) in enumerate(self._tests):
+            self._by_name[symbol.rpartition(".")[2]].append(position)
+        self._found: dict[str, frozenset[int]] = {}
+
+    def positions(self, label: str) -> frozenset[int]:
+        """The positions in `tests` of the tests a label names, as `_test_label` writes it."""
+        if label not in self._found:
+            self._found[label] = self._resolve(label)
+        return self._found[label]
+
+    def _resolve(self, label: str) -> frozenset[int]:
+        scored: list[tuple[int, int]] = []
+        if "::" in label:
+            location, *names = label.split("::")
+            query = PurePosixPath(location).parts
+            for position in self._by_name.get(names[-1], ()):
+                path, symbol = self._tests[position]
+                if symbol.split(".") == names:
+                    exact = int(path == location)
+                    scored.append(
+                        (_suffix_score(PurePosixPath(path).parts, query) + exact, position)
+                    )
+        else:
+            names = label.split(".")
+            for position in self._by_name.get(names[-1], ()):
+                path, symbol = self._tests[position]
+                dotted = [*PurePosixPath(path).with_suffix("").parts, *symbol.split(".")]
+                if dotted[-len(names) :] == names:
+                    scored.append((len(names) + int(len(dotted) == len(names)), position))
+        best = max((score for score, _ in scored), default=0)
+        chosen = [position for score, position in scored if best and score == best]
+        if len({self._tests[position][0] for position in chosen}) != 1:
+            return frozenset()
+        return frozenset(chosen)
+
 
 def _known_counts(entry: FileCoverage, lines: Iterable[int]) -> tuple[int, int]:
     covered = uncovered = 0
@@ -210,7 +335,95 @@ def _suffix_score(candidate: tuple[str, ...], query: tuple[str, ...]) -> int:
     return shared
 
 
-def _parse_coverage_json(text: str) -> dict[str, FileCoverage]:
+def _test_label(raw: Any) -> str | None:
+    """The test a context label names: a pytest node ID without its phase or parameters,
+    `tests/test_money.py::TestRounding::test_round_total`, or coverage.py's own dotted test name,
+    `test_money.TestRounding.test_round_total`.
+
+    None for the empty context, of code that ran outside any test, such as an import, and for
+    anything else, a static context such as `unit` among them.
+    """
+    if not isinstance(raw, str) or not raw or len(raw) > MAX_CONTEXT_CHARS:
+        return None
+    for phase in CONTEXT_PHASES:
+        if raw.endswith(phase):
+            raw = raw[: -len(phase)]
+            break
+    if "::" in raw:
+        location, _, rest = raw.partition("::")
+        # A parameter ID is any text, separators included, but a name holds no bracket.
+        names = rest.split("[", 1)[0].split("::")
+        path = _posix(location)
+        if not path or not all(name.isidentifier() for name in names):
+            return None
+        return "::".join([path, *names])
+    names = raw.split(".")
+    if len(names) < 2 or not all(name.isidentifier() for name in names):
+        return None
+    return raw
+
+
+class _Contexts:
+    """Test contexts as they are read, under bounds: each test once, by position."""
+
+    def __init__(self) -> None:
+        self.tests: dict[str, int] = {}
+        self.pairs = 0
+        self.incomplete = False
+
+    def position(self, test: str) -> int | None:
+        """A test's position, given on first sight; none once the tests reach their bound."""
+        position = self.tests.get(test)
+        if position is None:
+            if len(self.tests) >= MAX_CONTEXT_TESTS:
+                self.incomplete = True
+                return None
+            position = self.tests[test] = len(self.tests)
+        return position
+
+    def counted(self, pairs: int) -> bool:
+        """Count pairs of a line and a test; false once they pass their bound."""
+        self.pairs += pairs
+        if self.pairs > MAX_CONTEXT_PAIRS:
+            self.incomplete = True
+        return not self.incomplete
+
+    def lines(self, value: Any, executed: frozenset[int]) -> dict[int, frozenset[int]]:
+        """Per executed line of a JSON report's file entry, the tests its `contexts` say
+        executed it."""
+        found: dict[int, frozenset[int]] = {}
+        if not isinstance(value, dict):
+            return found
+        for raw_line, labels in value.items():
+            line = _context_line(raw_line)
+            if line is None or line not in executed or not isinstance(labels, list):
+                continue
+            tests: set[int] = set()
+            for label in labels:
+                test = _test_label(label)
+                if test is None:
+                    continue
+                position = self.position(test)
+                if position is None:
+                    return found
+                tests.add(position)
+            if not tests:
+                continue
+            if not self.counted(len(tests)):
+                return found
+            found[line] = frozenset(tests)
+        return found
+
+
+def _context_line(value: Any) -> int | None:
+    """A line number as a `contexts` object keys it, `"12"`, within bounds."""
+    if not isinstance(value, str) or not value.isdecimal() or len(value) > 7:
+        return None
+    number = int(value)
+    return number if 1 <= number <= MAX_LINES_PER_FILE else None
+
+
+def _parse_coverage_json(text: str) -> tuple[dict[str, FileCoverage], _Contexts]:
     try:
         document: Any = json.loads(text)
     except json.JSONDecodeError as exc:
@@ -221,6 +434,7 @@ def _parse_coverage_json(text: str) -> dict[str, FileCoverage]:
     if not isinstance(files, dict):
         raise coverage_error("The coverage report has no 'files' object.")
     parsed: dict[str, FileCoverage] = {}
+    contexts = _Contexts()
     for raw_path, entry in files.items():
         if not isinstance(raw_path, str) or not isinstance(entry, dict):
             continue
@@ -229,10 +443,11 @@ def _parse_coverage_json(text: str) -> dict[str, FileCoverage]:
             continue
         covered = _line_numbers(entry.get("executed_lines"))
         uncovered = _line_numbers(entry.get("missing_lines"))
-        parsed[key] = _merge_entry(parsed.get(key), covered, uncovered)
+        tests = {} if contexts.incomplete else contexts.lines(entry.get("contexts"), covered)
+        parsed[key] = _merge_entry(parsed.get(key), covered, uncovered, tests)
     if not parsed:
         raise coverage_error("The coverage report contained no usable file entries.")
-    return parsed
+    return parsed, contexts
 
 
 def _parse_lcov(text: str) -> dict[str, FileCoverage]:
@@ -294,13 +509,20 @@ def _line_numbers(value: Any) -> frozenset[int]:
 
 
 def _merge_entry(
-    existing: FileCoverage | None, covered: frozenset[int], uncovered: frozenset[int]
+    existing: FileCoverage | None,
+    covered: frozenset[int],
+    uncovered: frozenset[int],
+    contexts: Mapping[int, frozenset[int]] | None = None,
 ) -> FileCoverage:
-    """Union duplicate entries for one path; an executed line stays executed."""
+    """Union duplicate entries for one path; an executed line stays executed, and keeps every
+    test either entry says executed it."""
+    merged = dict(contexts or {})
     if existing is not None:
         covered = covered | existing.covered
         uncovered = uncovered | existing.uncovered
-    return FileCoverage(covered=covered, uncovered=uncovered - covered)
+        for line, tests in existing.contexts.items():
+            merged[line] = merged.get(line, frozenset()) | tests
+    return FileCoverage(covered=covered, uncovered=uncovered - covered, contexts=merged)
 
 
 def load_coverage(path: Path, config: WeaverConfig) -> CoverageMap:
@@ -310,7 +532,13 @@ def load_coverage(path: Path, config: WeaverConfig) -> CoverageMap:
     )
     stripped = text.lstrip()
     if stripped.startswith("{"):
-        return CoverageMap(source=SOURCE_COVERAGE_JSON, files=_parse_coverage_json(text))
+        files, contexts = _parse_coverage_json(text)
+        return CoverageMap(
+            source=SOURCE_COVERAGE_JSON,
+            files=files,
+            tests=tuple(contexts.tests),
+            contexts_incomplete=contexts.incomplete,
+        )
     if "SF:" in text:
         return CoverageMap(source=SOURCE_LCOV, files=_parse_lcov(text))
     raise coverage_error("The coverage report is neither coverage.py JSON nor lcov text.")
@@ -331,3 +559,134 @@ def summarize(
         covered += hit
         uncovered += miss
     return changed, covered, uncovered
+
+
+def _harden(connection: sqlite3.Connection, deadline: float) -> None:
+    """Set a connection up to read a hostile database: no view, trigger, attached database, or
+    function a schema names, a bound on every value, and each query interrupted at `deadline`.
+
+    Before Python 3.12 no view or trigger can be turned off, so the tables read are checked to be
+    ordinary ones, and the deadline still stops whatever a schema makes a query do.
+    """
+    setconfig = getattr(connection, "setconfig", None)
+    if setconfig is not None:
+        for name, value in DEFENSIVE_SETTINGS:
+            setconfig(getattr(sqlite3, name), value)
+    connection.setlimit(sqlite3.SQLITE_LIMIT_ATTACHED, 0)
+    connection.setlimit(sqlite3.SQLITE_LIMIT_LENGTH, MAX_DATA_VALUE_BYTES)
+    connection.set_progress_handler(lambda: time.monotonic() > deadline, 10_000)
+    connection.execute("PRAGMA trusted_schema = OFF")
+    connection.execute("PRAGMA cell_size_check = ON")
+    connection.execute("PRAGMA query_only = ON")
+
+
+def _numbits(value: Any) -> Iterator[int]:
+    """The line numbers coverage.py's numbits hold: bit `n % 8` of byte `n // 8` is line `n`."""
+    if not isinstance(value, bytes) or len(value) > MAX_NUMBITS_BYTES:
+        return
+    for index, byte in enumerate(value):
+        for bit in range(8) if byte else ():
+            if byte >> bit & 1 and (line := index * 8 + bit) >= 1:
+                yield line
+
+
+def _read_data(connection: sqlite3.Connection) -> CoverageMap:
+    """The test contexts of a coverage.py data file, from the tables coverage.py writes.
+
+    Each of `file` and `context`, and `line_bits` or `arc`, must be an ordinary table: a view or
+    a virtual table by that name could run anything a query reaches. Lines come from `line_bits`
+    when lines were measured and from `arc`, whose ends are lines, when branches were.
+    """
+    tables = {
+        name: (kind, sql)
+        for name, kind, sql in connection.execute("SELECT name, type, sql FROM sqlite_master")
+    }
+
+    def ordinary(name: str) -> bool:
+        kind, sql = tables.get(name, (None, None))
+        return kind == "table" and isinstance(sql, str) and sql.upper().startswith("CREATE TABLE")
+
+    if not (ordinary("file") and ordinary("context")):
+        raise data_error("The coverage data file holds no files and contexts as coverage.py's do.")
+    paths = {
+        file_id: key
+        for file_id, raw_path in connection.execute("SELECT id, path FROM file")
+        if isinstance(file_id, int) and isinstance(raw_path, str) and (key := _posix(raw_path))
+    }
+    contexts = _Contexts()
+    tests: dict[int, int] = {}
+    for context_id, label in connection.execute("SELECT id, context FROM context"):
+        test = _test_label(label)
+        if not isinstance(context_id, int) or test is None:
+            continue
+        position = contexts.position(test)
+        if position is None:
+            break
+        tests[context_id] = position
+    lines: dict[str, dict[int, set[int]]] = defaultdict(lambda: defaultdict(set))
+
+    def record(file_id: Any, context_id: Any, numbers: Iterable[int]) -> bool:
+        path = paths.get(file_id)
+        test = tests.get(context_id)
+        if path is None or test is None:
+            return True
+        found = lines[path]
+        added = 0
+        for line in numbers:
+            if 1 <= line <= MAX_LINES_PER_FILE and test not in found[line]:
+                found[line].add(test)
+                added += 1
+        return contexts.counted(added)
+
+    if ordinary("line_bits"):
+        query = "SELECT file_id, context_id, numbits FROM line_bits"
+        for file_id, context_id, numbits in connection.execute(query):
+            if not record(file_id, context_id, _numbits(numbits)):
+                break
+    if ordinary("arc") and not contexts.incomplete:
+        query = "SELECT file_id, context_id, fromno, tono FROM arc"
+        for file_id, context_id, start, end in connection.execute(query):
+            ends = [line for line in (start, end) if isinstance(line, int)]
+            if not record(file_id, context_id, ends):
+                break
+    return CoverageMap(
+        source=SOURCE_COVERAGE_DATA,
+        files={
+            path: FileCoverage(
+                covered=frozenset(found),
+                uncovered=frozenset(),
+                contexts={line: frozenset(ran) for line, ran in found.items()},
+            )
+            for path, found in lines.items()
+        },
+        tests=tuple(contexts.tests),
+        contexts_incomplete=contexts.incomplete,
+    )
+
+
+def load_coverage_data(path: Path, config: WeaverConfig) -> CoverageMap:
+    """Read which test executed each line from a coverage.py data file, `.coverage`.
+
+    The file is a SQLite database and untrusted input: its bytes are read under their own bound
+    and handed to SQLite as an in-memory database, so SQLite opens no path and leaves no
+    journal, and the connection is hardened before the schema is parsed. The map it gives says
+    which test ran a line and nothing else: which lines did not run takes the source, which only
+    the report was computed from.
+    """
+    data = read_bounded_bytes(
+        path, config.rules.max_coverage_data_bytes, "coverage data file", data_error
+    )
+    if not data.startswith(SQLITE_HEADER):
+        raise data_error("The coverage data file is not a SQLite database.")
+    connection = sqlite3.connect(":memory:")
+    try:
+        deserialize = getattr(connection, "deserialize", None)
+        if deserialize is None:
+            raise data_error("This Python's SQLite cannot read a database from memory.")
+        _harden(connection, time.monotonic() + COVERAGE_DATA_SECONDS)
+        deserialize(data)
+        return _read_data(connection)
+    except sqlite3.Error as exc:
+        raise data_error("The coverage data file is not a readable coverage.py data file.") from exc
+    finally:
+        connection.close()

@@ -147,6 +147,65 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Tests that ran a change (2026-11-02)
+
+The roadmap's v0.2 asked for composition with coverage history, and an ingested report said only
+whether a changed line ran. A run measured with per-test contexts records which test ran it, and the
+tests that ran a change are now candidates for it, at the user's choice, rather than several reports
+joined into one, which `coverage combine` already does, or a base revision's report set against the
+head's. Six choices are deliberate:
+
+- **The data file beside the report.** A coverage.py JSON report written with `show_contexts`
+  repeats a file's contexts in every function and class it holds: this repository's own suite of
+  about 1,450 tests writes a 2.2 GB report, `service.py`'s entry alone 248 MB, past any bound a
+  report may have. The run's `.coverage` data file holds each context once, in 35 MB, and reads in
+  0.6 seconds. At the user's choice it is read too, as a new argument beside the report —
+  `coverage_data`, `--coverage-data`, `coverage.data_path`, and the Action's `coverage-data` —
+  because the data file says which test ran a line and never which lines did not run, which
+  coverage.py computes from the source for the report. Named without a report it is a
+  `configuration_error`. A small report's own contexts are read as well.
+- **SQLite, read defensively.** The data file is an untrusted database, a kind of input this tool
+  had not read, and the standard library's `sqlite3` reads it with no dependency added. Its bytes
+  are read under `rules.max_coverage_data_bytes`, 100 MB by default, and deserialized into an
+  in-memory connection, so SQLite opens no path and leaves no journal. Before the schema is parsed
+  the connection takes no attached database, refuses a value over 1 MB, queries read-only, and stops
+  after ten seconds, and `trusted_schema` is off; on Python 3.12 or later defensive mode is on and
+  views and triggers are off. Only fixed queries run, over the tables coverage.py writes, and each
+  must be an ordinary table: a view by that name, which on 3.11 nothing could turn off, is never
+  queried.
+- **A test that ran the change is a candidate on its own.** At the user's choice: at 0.65 when it
+  executed every changed line the report measures, and 0.55 when it executed some, above any one
+  static signal, as a requested route or a key's name is. The score adds to the test's other
+  evidence; it is evidence about the test, never its file, so the test stands alone; and it
+  overrides the rule that a private helper no call reaches has no candidate but a mapping. The test
+  stays unverified: running a line is not asserting what it does.
+- **More of the change ranks first.** Scores cap at 1.0, and every test that builds a model runs its
+  validator: on #45's change, with this repository's data, tests that ran one of ten changed lines
+  tied with the one that ran nine. Among equal scores, the test that ran the larger share of a
+  finding's change comes first. In an obligation that merges findings, `obligations.py`'s order, the
+  test files taking turns, stands.
+- **The changed lines, named as the report's paths are.** Only the changed head-side lines a finding
+  rests on count, as for the grounded verdict, so a finding that only removed lines names no test
+  this way, and a module's top-level code, which runs on import outside any test, names none. A
+  label is a pytest node ID, its phase and parameters dropped, or coverage.py's dotted
+  `test_function` name, matched to the indexed tests by the longest suffix its file or dotted name
+  shares, an exact match winning and a tie between files naming neither. A label is a lookup key,
+  never opened and never written into the brief: a candidate's path and name are the index's.
+- **Bounded, and never silent.** The contexts are bounded at 100,000 tests and 2,000,000 pairs of a
+  line and a test, past either of which the rest is left unread with a warning, and a label longer
+  than 1,000 characters is skipped. A data file recorded without contexts, and contexts that ran the
+  changed lines with no test the analysis found, are warnings too, the second naming a path suffix
+  the report and the repository may not share.
+
+The analysis's schema is unchanged and so is every golden: no case of the corpus has a coverage
+report. Both tools' input schemas gain the optional `coverage_data`, and `generate_test_skeletons`
+passes it on with the other analysis arguments, since candidate tests decide an obligation's
+coverage status and with it how obligations merge and are numbered.
+
+On #45's change, with this repository's own report and data file, 90 of the 110 candidates of its 22
+obligations ran the changed lines, and 18 of the tests among them were candidates for nothing
+without the data file.
+
 ## Connected changes through module variables (2026-11-01)
 
 Connected changes grouped the findings calls connect, and a module's top-level code was in no group,

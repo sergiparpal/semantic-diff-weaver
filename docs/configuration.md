@@ -224,13 +224,16 @@ untrusted input data, exactly like repository content.
 ```yaml
 coverage:
   report_path: "coverage.json"
+  data_path: ".coverage"
 rules:
   max_coverage_bytes: 20000000
+  max_coverage_data_bytes: 100000000
 ```
 
-Equivalently, `--coverage PATH` on the command line or `coverage_report` in the tool arguments.
-The path is subject to the same authorization rules as `risk_profile`: it must resolve below an
-authorized root, so a report outside the repository needs its directory passed with
+Equivalently, `--coverage PATH` on the command line or `coverage_report` in the tool arguments, and
+for the data file of the same run, which says which test ran each line, `--coverage-data PATH` or
+`coverage_data`. Each path is subject to the same authorization rules as `risk_profile`: it must
+resolve below an authorized root, so a file outside the repository needs its directory passed with
 `--allow-root`.
 
 Two formats are supported, sniffed by content rather than by file extension:
@@ -263,6 +266,51 @@ rests on is unexecuted, and `covered_by_existing_tests` only when every one is e
 mixed or unknown range keeps the existing `candidate_exists_unverified` / `no_candidate_found`
 semantics. `CandidateTest.verified` stays `false` in every case: coverage says a *line* was
 executed by the suite, not that a specific candidate test asserts the changed behavior.
+
+### Which tests ran a change
+
+A run measured with per-test contexts also records which test executed each line, and a test that
+executed a changed line is then a candidate test for that finding, whatever its name, imports, or
+calls show. Record the contexts with pytest-cov, and pass the `.coverage` data file the run leaves
+beside its report:
+
+```bash
+python -m pytest --cov=src --cov-context=test --cov-report=json:coverage.json
+semantic-diff-weaver --base main --coverage coverage.json --coverage-data .coverage
+```
+
+The data file needs the report beside it: it says which test ran a line, never which lines did not
+run, which coverage.py computes from the source for the report, and named without one it is a
+`configuration_error`. It holds each test's context once: this repository's own suite of about 1,450
+tests leaves a 35 MB data file, which reads in under a second, while the same contexts written into
+a JSON report, which repeats them for every function and class of a file, come to 2.2 GB. Only a
+small project's contexts fit in a report, written with `show_contexts`:
+
+```toml
+[tool.coverage.json]
+show_contexts = true
+```
+
+coverage.py's own `dynamic_context = test_function` records contexts too. A pytest node ID names a
+test by its file and its names, `tests/test_money.py::TestRound::test_total`, without its phase or
+parameters, and the file is matched as the report's paths are, by the longest suffix it shares with
+a test's file; coverage.py's dotted name, `test_money.TestRound.test_total`, is matched by its
+longest dotted suffix. A label that the tests of two files match equally well names neither.
+
+A test that executed every changed line the report measures of a finding scores 0.65, and one that
+executed some of them 0.55: either is a candidate on its own, and the score adds to the test's other
+evidence. Its reason says how much it ran, "executed 2 of the 4 changed lines in the coverage
+report", and among tests of equal score the one that ran more of the change comes first. It stays
+unverified, since running a line is not asserting what it does. Only the changed head-side lines
+count, as for the grounded verdict, so a finding that only removed lines names no test this way.
+lcov reports carry no per-test contexts.
+
+`max_coverage_data_bytes` defaults to 100 MB and is clamped to `[1024, 500000000]`. The contexts are
+bounded at 100,000 tests and 2,000,000 pairs of a line and a test; past either bound the rest is
+left unread, with a warning, and a label longer than 1,000 characters is skipped. A data file that
+is no coverage.py data, or cannot be read within its bounds, is a `coverage_unreadable` error, and
+one recorded without contexts, or whose contexts name tests that ran the changed lines but none the
+analysis found, is named in a warning: its test IDs and the repository's paths may share no suffix.
 
 
 ## Baseline comparison

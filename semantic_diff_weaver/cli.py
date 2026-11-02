@@ -83,6 +83,15 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--coverage-data",
+        metavar="PATH",
+        help=(
+            "the .coverage data file of the same run, recorded with per-test contexts, to "
+            "name the tests that ran each changed line; needs --coverage, and is read as "
+            "untrusted data"
+        ),
+    )
+    parser.add_argument(
         "--baseline",
         metavar="PATH",
         help=(
@@ -255,6 +264,8 @@ def _request(namespace: argparse.Namespace) -> dict[str, Any]:
         request["risk_profile"] = namespace.risk_profile
     if namespace.coverage is not None:
         request["coverage_report"] = namespace.coverage
+    if namespace.coverage_data is not None:
+        request["coverage_data"] = namespace.coverage_data
     if namespace.baseline is not None:
         request["baseline_report"] = namespace.baseline
     return request

@@ -10,6 +10,7 @@ from semantic_diff_weaver.git_diff import ChangeHistory, GitTreeEntry
 from semantic_diff_weaver.models import LineRange, MappingRule, WeaverConfig
 from semantic_diff_weaver.semantic_candidates import build_candidates
 from semantic_diff_weaver.test_mapper import (
+    Executed,
     IndexedTest,
     TestIndex,
     _distinctive_stem,
@@ -1701,3 +1702,117 @@ def test_changing_together_adds_to_what_else_ties_the_test_to_the_module() -> No
 def test_only_a_test_file_of_the_index_is_a_candidate() -> None:
     commits = [{"src/api.py", "tests/test_gone.py", "src/other.py"}] * 3
     assert history_candidates(commits, BILLING) == []
+
+
+def executed_candidates(
+    executed: Executed, tests: list[IndexedTest]
+) -> list[tuple[str, str, float, list[str]]]:
+    mapped = map_candidate_tests(
+        [boundary_candidate()],
+        TestIndex(tests=tests, incomplete=False, warnings=[]),
+        WeaverConfig(),
+        executed={0: executed},
+    )[0]
+    return [(item.path, item.symbol, item.match_score, item.match_reasons) for item in mapped]
+
+
+@pytest.mark.parametrize(
+    ("measured", "lines", "score", "reason"),
+    [
+        (1, 1, 0.65, "executed the changed line in the coverage report"),
+        (3, 3, 0.65, "executed all 3 changed lines in the coverage report"),
+        (4, 2, 0.55, "executed 2 of the 4 changed lines in the coverage report"),
+    ],
+)
+def test_a_test_the_coverage_report_saw_run_the_change_is_a_candidate_alone(
+    measured: int, lines: int, score: float, reason: str
+) -> None:
+    unrelated = plain_test("tests/test_misc.py", "test_loaded_by_name")
+    assert executed_candidates(Executed(measured=measured, tests={0: lines}), [unrelated]) == [
+        ("tests/test_misc.py", "test_loaded_by_name", score, [reason])
+    ]
+
+
+def test_running_the_change_adds_to_other_evidence_and_names_the_test_itself() -> None:
+    """Running is evidence about the test, not its file: each test that ran stands alone."""
+    tests = [
+        plain_test("tests/test_limits.py", "test_limits", imports={"src.api"}),
+        plain_test("tests/test_limits.py", "test_other_limits", imports={"src.api"}),
+        plain_test("tests/test_limits.py", "test_unrelated", imports={"src.api"}),
+    ]
+    assert executed_candidates(Executed(measured=2, tests={0: 2, 1: 1}), tests) == [
+        (
+            "tests/test_limits.py",
+            "test_limits",
+            0.9,
+            [
+                "executed all 2 changed lines in the coverage report",
+                "direct module or symbol import",
+            ],
+        ),
+        (
+            "tests/test_limits.py",
+            "test_other_limits",
+            0.8,
+            [
+                "executed 1 of the 2 changed lines in the coverage report",
+                "direct module or symbol import",
+            ],
+        ),
+    ]
+
+
+def test_a_finding_the_report_says_nothing_about_keeps_its_static_candidates() -> None:
+    importing = [plain_test("tests/test_limits.py", "test_limits", imports={"src.api"})]
+    mapped = map_candidate_tests(
+        [boundary_candidate()],
+        TestIndex(tests=importing, incomplete=False, warnings=[]),
+        WeaverConfig(),
+        executed={1: Executed(measured=1, tests={0: 1})},
+    )[0]
+    assert [item.match_reasons for item in mapped] == []
+
+
+def test_a_private_helper_a_test_ran_has_that_test_as_its_candidate() -> None:
+    """No call reaches `_describe`, which rules the test file out, but the report saw a test
+    run it."""
+    candidate = build_candidates(
+        [
+            StructuralDelta(
+                path="src/cli.py",
+                symbol="_describe",
+                kind="symbol_added",
+                old=None,
+                new="(text)",
+                old_lines=None,
+                new_lines=LineRange(start=1, end=2),
+                hunk_id="src/cli.py#hunk-001",
+            )
+        ]
+    )[0]
+    index = TestIndex(
+        tests=_index_source("tests/test_cli.py", CLI_TESTS), incomplete=False, warnings=[]
+    )
+    graph = CallGraph({"src/cli.py": module_references(CLI_MODULE, package_of("src/cli.py"))})
+    mapped = map_candidate_tests(
+        [candidate], index, WeaverConfig(), graph, executed={0: Executed(measured=2, tests={1: 2})}
+    )[0]
+    assert [(item.symbol, item.match_reasons[0]) for item in mapped] == [
+        (
+            "test_an_unknown_option_is_rejected",
+            "executed all 2 changed lines in the coverage report",
+        )
+    ]
+
+
+def test_among_equal_scores_the_test_that_ran_more_of_the_change_comes_first() -> None:
+    tests = [
+        plain_test("tests/test_limits.py", "test_a_little", imports={"src.api"}),
+        plain_test("tests/test_limits.py", "test_most", imports={"src.api"}),
+    ]
+    assert [
+        (symbol, score)
+        for _, symbol, score, _ in executed_candidates(
+            Executed(measured=4, tests={0: 1, 1: 3}), tests
+        )
+    ] == [("test_most", 0.8), ("test_a_little", 0.8)]

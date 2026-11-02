@@ -27,7 +27,8 @@ imports, executes, builds, or modifies the repository.
    and `head_ref`, and leave `output_format` unset. The default is the Markdown brief: every
    finding and obligation with its ID, at about half the size of the JSON. When a large brief
    says its evidence excerpts were shortened, `git diff` shows the code. Pass `coverage_report`
-   only when a coverage.py JSON or lcov file already exists; do not run tests to create one.
+   only when a coverage.py JSON or lcov file already exists, and `coverage_data` beside it only
+   when the same run's `.coverage` file exists; do not run tests to create either.
    Pass `baseline_report` only to compare with an earlier analysis saved as JSON, when the user
    asks what changed since it; the brief then marks each finding new or updated.
 3. **Keep a large diff readable.** If the result is saved to a file for being too large, read
@@ -57,13 +58,13 @@ imports, executes, builds, or modifies the repository.
    truncation or omitted scope.
 6. **Scaffold only what the user approves.** When the user names obligations to test, call
    `generate_test_skeletons` with their IDs and the same `repo_path`, `base_ref`, `head_ref`,
-   `include`, `exclude`, `risk_profile`, and `coverage_report` as the analysis whose brief they
-   read: the server analyzes again without inference, so the brief's IDs name the same
-   obligations. Never choose obligations for the user. Pass `framework: "unittest"` when the
-   project's tests are `unittest.TestCase` classes. The result is JSON: show the patch, say
-   where each test went, and give the reason for any obligation that got none. The tool writes
-   nothing; apply the patch with `git apply` only if the user asks. Each skeleton fails until
-   it is written, so offer to write the tests the obligations describe.
+   `include`, `exclude`, `risk_profile`, `coverage_report`, and `coverage_data` as the analysis
+   whose brief they read: the server analyzes again without inference, so the brief's IDs name
+   the same obligations. Never choose obligations for the user. Pass `framework: "unittest"`
+   when the project's tests are `unittest.TestCase` classes. The result is JSON: show the patch,
+   say where each test went, and give the reason for any obligation that got none. The tool
+   writes nothing; apply the patch with `git apply` only if the user asks. Each skeleton fails
+   until it is written, so offer to write the tests the obligations describe.
 
 **Explaining a risk score.** The brief gives each finding's label; the JSON's
 `score_explanation` gives its four axes, which combine as

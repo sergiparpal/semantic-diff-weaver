@@ -83,6 +83,7 @@ as given.
 | `include` | *(empty)* | newline-separated include globs |
 | `exclude` | *(empty)* | newline-separated exclude globs |
 | `coverage-report` | *(empty)* | coverage.py JSON or lcov `.info` path |
+| `coverage-data` | *(empty)* | the same run's `.coverage` data file, recorded with per-test contexts; needs `coverage-report` |
 | `risk-profile` | *(empty)* | additional bounded YAML configuration file |
 | `baseline` | `previous` | compare with `previous`, the analysis this action recorded in its last comment; `none`; or a path in the checkout to an earlier analysis's JSON |
 | `fail-on` | `none` | fail the step at this overall risk level |
@@ -131,6 +132,12 @@ jobs:
 A changed file absent from the report is reported as **unknown, never uncovered**, so a
 report generated in a different working directory shows up as a warning rather than as a fake
 coverage gap. See [configuration](configuration.md#coverage-grounding).
+
+To name the tests that ran each changed line as candidates, record the run with per-test contexts,
+`pytest --cov --cov-context=test --cov-report=json:coverage.json`, upload the `.coverage` data file
+beside the report — `upload-artifact` leaves hidden files out unless given `include-hidden-files:
+true` — and pass it as `coverage-data: .coverage`. See [which tests ran a
+change](configuration.md#which-tests-ran-a-change).
 
 ## Comment behavior
 

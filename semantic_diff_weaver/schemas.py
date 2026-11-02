@@ -27,6 +27,7 @@ ANALYZE_SEMANTIC_DIFF_SCHEMA: dict[str, Any] = {
             "head_ref": {"type": "string", "minLength": 1, "default": "HEAD"},
             "risk_profile": {"type": "string", "minLength": 1},
             "coverage_report": {"type": "string", "minLength": 1},
+            "coverage_data": {"type": "string", "minLength": 1},
             "baseline_report": {"type": "string", "minLength": 1},
             "include": {"type": "array", "items": {"type": "string", "minLength": 1}},
             "exclude": {"type": "array", "items": {"type": "string", "minLength": 1}},
@@ -46,7 +47,7 @@ GENERATE_TEST_SKELETONS_SCHEMA: dict[str, Any] = {
         "obligation the user approved by ID: at the end of the changed module's test file, or in "
         "that file created beside the obligation's first candidate test, or in the first test "
         "root without one. Name the analysis the IDs come from: pass the "
-        "base_ref, head_ref, include, exclude, risk_profile, and coverage_report "
+        "base_ref, head_ref, include, exclude, risk_profile, coverage_report, and coverage_data "
         "analyze_semantic_diff was given, to analyze again without inference, or analysis_path "
         "for an analysis saved as JSON. An analysis made with inference may number its "
         "obligations otherwise than one without, so pass analysis_path for such an analysis. "
@@ -72,6 +73,7 @@ GENERATE_TEST_SKELETONS_SCHEMA: dict[str, Any] = {
             "head_ref": {"type": "string", "minLength": 1},
             "risk_profile": {"type": "string", "minLength": 1},
             "coverage_report": {"type": "string", "minLength": 1},
+            "coverage_data": {"type": "string", "minLength": 1},
             "include": {"type": "array", "items": {"type": "string", "minLength": 1}},
             "exclude": {"type": "array", "items": {"type": "string", "minLength": 1}},
         },

@@ -120,6 +120,7 @@ class AnalyzeRequest(StrictModel):
     head_ref: str = Field(default="HEAD", min_length=1, max_length=MAX_REF_CHARS)
     risk_profile: str | None = Field(default=None, max_length=MAX_PATH_CHARS)
     coverage_report: str | None = Field(default=None, max_length=MAX_PATH_CHARS)
+    coverage_data: str | None = Field(default=None, max_length=MAX_PATH_CHARS)
     baseline_report: str | None = Field(default=None, max_length=MAX_PATH_CHARS)
     include: Annotated[list[RelativePattern], Field(max_length=MAX_PATH_PATTERNS)] | None = None
     exclude: Annotated[list[RelativePattern], Field(max_length=MAX_PATH_PATTERNS)] | None = None
@@ -169,6 +170,9 @@ class RulesConfig(StrictModel):
     max_model_input_chars_per_call: int = Field(default=48000, ge=1024, le=1_000_000)
     max_llm_calls: int = Field(default=8, ge=0, le=8)
     max_coverage_bytes: int = Field(default=20_000_000, ge=1024, le=200_000_000)
+    # A coverage.py data file holds each test's context once, and a suite's is still larger
+    # than its report: this repository's own is 35 MB.
+    max_coverage_data_bytes: int = Field(default=100_000_000, ge=1024, le=500_000_000)
     max_baseline_bytes: int = Field(default=20_000_000, ge=1024, le=200_000_000)
     max_obligations_per_behavior: int = Field(default=6, ge=1, le=50)
     max_test_obligations: int = Field(default=100, ge=1, le=1000)
@@ -209,9 +213,12 @@ class VerdictConfig(StrictModel):
 
 
 class CoverageConfig(StrictModel):
-    """An optional coverage report to ingest. The tool never produces one."""
+    """An optional coverage report to ingest, and the coverage.py data file of the same run,
+    which says which test executed each line. The tool never produces either."""
 
     report_path: str | None = Field(default=None, max_length=MAX_PATH_CHARS)
+    # Read only beside `report_path`: see `service._load_coverage_data`.
+    data_path: str | None = Field(default=None, max_length=MAX_PATH_CHARS)
 
 
 class PrivacyConfig(StrictModel):

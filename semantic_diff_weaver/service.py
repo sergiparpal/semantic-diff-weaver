@@ -16,7 +16,13 @@ from .baseline import Baseline, compare_with_baseline, load_baseline
 from .call_graph import build_call_graph
 from .change_groups import group_changes
 from .config import load_config
-from .coverage_map import CoverageMap, load_coverage, summarize
+from .coverage_map import (
+    ContextTests,
+    CoverageMap,
+    load_coverage,
+    load_coverage_data,
+    summarize,
+)
 from .errors import ErrorCode, WeaverError
 from .git_diff import ChangedFile, DiffCollection, GitRepository, collect_diff, read_history
 from .llm_client import LlmClient
@@ -52,7 +58,13 @@ from .schema_diff import DocumentAnalysis, analyze_schemas, analyze_settings
 from .scoring import advisory_verdict, confidence_score, score_risk
 from .semantic_candidates import SemanticCandidate, build_candidates, evidence_identity
 from .semantic_interpreter import InterpreterResult, interpret_candidates
-from .test_mapper import TestIndex, build_test_index, defines_tests, map_candidate_tests
+from .test_mapper import (
+    Executed,
+    TestIndex,
+    build_test_index,
+    defines_tests,
+    map_candidate_tests,
+)
 from .textutil import canonical_phrase
 
 HIGH_IMPACT_DELTA_KINDS = {
@@ -371,6 +383,27 @@ def _load_coverage(config: WeaverConfig, state: _PipelineState) -> CoverageMap |
     return load_coverage(ensure_authorized_path(Path(report_path)), config)
 
 
+def _load_coverage_data(config: WeaverConfig) -> CoverageMap | None:
+    """Ingest the configured coverage.py data file, if any, for which test ran each line.
+
+    Untrusted like the report, and as hard an error when unreadable: someone who asked which
+    tests ran a change should not be handed candidates that look as if none had. It is read
+    only beside the report: the data file says which test ran a line, never which lines did not
+    run, which coverage.py computes from the source for the report.
+    """
+    data_path = config.coverage.data_path
+    if not data_path:
+        return None
+    if not config.coverage.report_path:
+        raise WeaverError(
+            ErrorCode.CONFIGURATION_ERROR,
+            "A coverage data file was named without the coverage report of the same run.",
+            "Pass the run's coverage.py JSON or lcov report beside it, as coverage_report, "
+            "--coverage, or coverage.report_path.",
+        )
+    return load_coverage_data(ensure_authorized_path(Path(data_path)), config)
+
+
 def _load_baseline(request: AnalyzeRequest, config: WeaverConfig) -> Baseline | None:
     """Read the earlier analysis to compare with, if the request names one.
 
@@ -414,6 +447,66 @@ def _finding_lines(
         span = range(item.new_lines.start, item.new_lines.end + 1)
         lines[item.path].update(line for line in changed_lines.get(item.path, ()) if line in span)
     return {path: values for path, values in lines.items() if values}
+
+
+def _executed_tests(
+    coverage: CoverageMap | None,
+    contexts: CoverageMap | None,
+    reportable: list[_ScoredCandidate],
+    index: TestIndex,
+    changed_lines: Mapping[str, frozenset[int]],
+    state: _PipelineState,
+) -> dict[int, Executed]:
+    """Per Python finding, by position, the indexed tests the test contexts say executed its
+    changed lines: those of the coverage data file when there is one, and of the report itself
+    otherwise.
+
+    Contexts that ran the changed lines, but none of whose tests is one the analysis found, are
+    named in a warning, as unmatched files are: their test IDs and the repository's paths may
+    share no suffix.
+    """
+    if coverage is None:
+        return {}
+    source = contexts or coverage
+    if contexts is not None and not contexts.tests:
+        state.warnings.append(
+            "The coverage data file records no per-test contexts; record them with "
+            "pytest --cov-context=test."
+        )
+    if source.contexts_incomplete:
+        state.warnings.append(
+            "The coverage test contexts exceeded their bounds and were read in part; tests that "
+            "executed the changed lines may be missing."
+        )
+    if not source.tests:
+        return {}
+    tests = ContextTests([(test.path, test.symbol) for test in index.tests])
+    executed: dict[int, Executed] = {}
+    named = False
+    for position, item in enumerate(reportable):
+        if not item.candidate.path.endswith(".py"):
+            continue
+        lines_by_path = _finding_lines(item.candidate, changed_lines)
+        by_label = source.executed(lines_by_path)
+        lines: dict[int, set[tuple[str, int]]] = defaultdict(set)
+        for label, ran in by_label.items():
+            named = True
+            for test in tests.positions(label):
+                lines[test] |= ran
+        if lines:
+            # A line some test ran was measured, whether or not the report knows its file.
+            ran_at_all = len(set().union(*by_label.values()))
+            executed[position] = Executed(
+                measured=max(coverage.measured(lines_by_path), ran_at_all),
+                tests={test: len(ran) for test, ran in lines.items()},
+            )
+    if named and not executed:
+        state.warnings.append(
+            "The coverage test contexts name tests that executed the changed lines, but none of "
+            "them is a test the analysis found; check that their test IDs share a path suffix "
+            "with the repository's."
+        )
+    return executed
 
 
 def _candidate_coverage_state(
@@ -683,6 +776,7 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
             "predates it, such as the branch it will merge into."
         )
     coverage = _load_coverage(config, state)
+    contexts = _load_coverage_data(config)
     baseline = _load_baseline(request, config)
     collection = collect_diff(repo, base_commit, head_commit, config)
     _set_aside_test_modules(collection, config)
@@ -769,15 +863,20 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
             "The commits up to the base could not be read whole; tests that changed with the "
             "code there may be missing."
         )
+    changed_lines = _changed_head_lines(collection) if coverage is not None else {}
     mapped_by_index = map_candidate_tests(
-        [item.candidate for item in reportable], test_index, config, call_graph, history
+        [item.candidate for item in reportable],
+        test_index,
+        config,
+        call_graph,
+        history,
+        _executed_tests(coverage, contexts, reportable, test_index, changed_lines, state),
     )
     reportable = [
         replace(item, tests=mapped_by_index.get(index, [])) for index, item in enumerate(reportable)
     ]
     fallback_mode = not interpreted.status.available
     partial_fallback = bool(interpreted.status.failures or interpreted.omitted_batches)
-    changed_lines = _changed_head_lines(collection) if coverage is not None else {}
     behaviors, tests_by_behavior, coverage_states = _materialize_behaviors(
         reportable,
         config,

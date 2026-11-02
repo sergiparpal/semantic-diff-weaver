@@ -399,6 +399,7 @@ def test_the_analysis_is_bounded_before_it_is_parsed(tmp_path: Path) -> None:
         ),
         ({"analysis_path": "a.json", "include": ["src/**"]}, "A saved analysis takes no include"),
         ({"analysis_path": "a.json", "coverage_report": "c.json"}, "takes no coverage_report"),
+        ({"analysis_path": "a.json", "coverage_data": ".coverage"}, "takes no coverage_data"),
     ],
 )
 def test_exactly_one_analysis_is_named(source: dict[str, Any], message: str) -> None:
@@ -418,6 +419,7 @@ def test_an_analysis_run_again_is_given_the_analysis_arguments_only() -> None:
             "base_ref": "main",
             "include": ["src/**"],
             "coverage_report": "coverage.json",
+            "coverage_data": ".coverage",
         }
     )
     assert _analysis_arguments(request) == {
@@ -426,6 +428,7 @@ def test_an_analysis_run_again_is_given_the_analysis_arguments_only() -> None:
         "base_ref": "main",
         "include": ["src/**"],
         "coverage_report": "coverage.json",
+        "coverage_data": ".coverage",
     }
 
 

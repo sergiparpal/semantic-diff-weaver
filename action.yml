@@ -36,6 +36,13 @@ inputs:
       consumes a report and never produces one.
     required: false
     default: ""
+  coverage-data:
+    description: >-
+      Path to the .coverage data file of the same run, recorded with per-test contexts
+      (pytest --cov-context=test), to name the tests that ran each changed line. Needs
+      coverage-report beside it.
+    required: false
+    default: ""
   risk-profile:
     description: Path to an additional bounded YAML configuration file.
     required: false
@@ -162,6 +169,7 @@ runs:
         INCLUDE_GLOBS: ${{ inputs.include }}
         EXCLUDE_GLOBS: ${{ inputs.exclude }}
         COVERAGE_REPORT: ${{ inputs.coverage-report }}
+        COVERAGE_DATA: ${{ inputs.coverage-data }}
         RISK_PROFILE: ${{ inputs.risk-profile }}
         BASELINE: ${{ inputs.baseline }}
         RECORDED_BASELINE: ${{ steps.baseline.outputs.path }}
@@ -172,6 +180,7 @@ runs:
         args=(--repo . --base "${BASE_REF}" --format both --fail-on "${FAIL_ON}")
         [ -n "${HEAD_REF}" ] && args+=(--head "${HEAD_REF}")
         [ -n "${COVERAGE_REPORT}" ] && args+=(--coverage "${COVERAGE_REPORT}")
+        [ -n "${COVERAGE_DATA}" ] && args+=(--coverage-data "${COVERAGE_DATA}")
         [ -n "${RISK_PROFILE}" ] && args+=(--risk-profile "${RISK_PROFILE}")
         case "${BASELINE}" in
           previous) [ -n "${RECORDED_BASELINE}" ] && args+=(--baseline "${RECORDED_BASELINE}") ;;
