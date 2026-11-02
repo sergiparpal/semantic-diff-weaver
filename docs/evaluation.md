@@ -35,29 +35,32 @@ obligation-concept match (16 of 16), and zero fabricated evidence references. Ev
 finding had a linked obligation, and every candidate test remained explicitly unverified. The corpus
 now emits no prediction outside its reviewed expected labels. The 2026-10-31 re-measurements for
 0.4.0, 0.4.1, 0.5.0, 0.6.0, and 0.6.1, and the 2026-11-01 ones for 0.6.2, 0.7.0, 0.8.0, 0.8.1,
-0.8.2, 0.9.0, 0.10.0, 0.11.0, 0.11.1, 0.12.0, and 0.13.0, and the 2026-11-02 one for 0.14.0, found
-the same figures. Of 0.4.1's corrections only the output-contract one reaches the corpus: the
-`return annotation signature` case is now worded as a change to typing alone, at 0.80 confidence
-instead of 0.879, and keeps its category, risk, and obligations. 0.5.0 gives every case a verdict, 3
-`pass`, 12 `warn`, and 3 `review_required`, and a `null` baseline, without changing a finding, risk,
-confidence, or obligation. 0.6.0 changes no golden: its baseline lives in the GitHub Action's
-comment. Nor do 0.6.1 and 0.6.2. The corpus's one dependency case changes a call on a client passed
-in as a parameter, which stays a dependency interaction; no case changes a `print`; and the `state
-assignment` case changes the value it writes to `state`, so its state word comes from the assignment
-that changed. 0.7.0 adds test skeletons beside the analysis and changes none, nor do 0.8.0, which
-serves them as a tool, 0.8.1, which changes how the package is built, and 0.8.2, which changes where
-a new test file goes. 0.9.0 compares API schemas, which no case contains, and changes one golden
-line: the `no changed Python source` case's limitation now says the diff held no included changed
-Python source or API schema. 0.10.0 compares the configuration files a repository names, which no
-case does, and changes none. 0.11.0 groups the findings calls connect, and calls connect the
-findings of no case: every golden changes in its `schema_version`, now 1.3, and an empty
+0.8.2, 0.9.0, 0.10.0, 0.11.0, 0.11.1, 0.12.0, and 0.13.0, and the 2026-11-02 ones for 0.14.0 and
+0.15.0, found the same figures. Of 0.4.1's corrections only the output-contract one reaches the
+corpus: the `return annotation signature` case is now worded as a change to typing alone, at 0.80
+confidence instead of 0.879, and keeps its category, risk, and obligations. 0.5.0 gives every case a
+verdict, 3 `pass`, 12 `warn`, and 3 `review_required`, and a `null` baseline, without changing a
+finding, risk, confidence, or obligation. 0.6.0 changes no golden: its baseline lives in the GitHub
+Action's comment. Nor do 0.6.1 and 0.6.2. The corpus's one dependency case changes a call on a
+client passed in as a parameter, which stays a dependency interaction; no case changes a `print`;
+and the `state assignment` case changes the value it writes to `state`, so its state word comes from
+the assignment that changed. 0.7.0 adds test skeletons beside the analysis and changes none, nor do
+0.8.0, which serves them as a tool, 0.8.1, which changes how the package is built, and 0.8.2, which
+changes where a new test file goes. 0.9.0 compares API schemas, which no case contains, and changes
+one golden line: the `no changed Python source` case's limitation now says the diff held no included
+changed Python source or API schema. 0.10.0 compares the configuration files a repository names,
+which no case does, and changes none. 0.11.0 groups the findings calls connect, and calls connect
+the findings of no case: every golden changes in its `schema_version`, now 1.3, and an empty
 `change_groups` alone. 0.11.1 changes only how the brief writes a code span, and no golden. 0.12.0
 reads the commits up to the base for tests that changed with the code; each corpus repository has a
 single commit there, too few to make any a candidate, and no golden changes. 0.13.0 groups a changed
 module variable with the changed code that reads it; in the `module constant` case the function
 reading `ROOTS` did not change, so no case gains a group, and every golden changes in its
 `schema_version`, now 1.4, alone. 0.14.0 names the tests a coverage run saw execute the changed
-lines, and no case supplies a coverage run, so no golden changes.
+lines, and no case supplies a coverage run, so no golden changes. 0.15.0 names the test files a
+change can affect, and no case's repository has one: every golden changes in its `schema_version`,
+now 1.5, and gains a `test_selection` that selects no test file, but for the `no changed Python
+source` case, whose changed README runs the whole suite.
 
 The previous measurement on this same corpus was 88.24% precision (15 of 17). The two surplus
 predictions were both `ordering_change` findings produced by comparing `statement_order` tuples for
@@ -72,31 +75,36 @@ went into the analyzer, consistent with the 2026-07-17 fixture-label review. See
 
 The deterministic performance suite covers a 100-symbol AST fixture, a 500-symbol mass-rename
 matching fixture, a warmed full-service fixture with 40 files, 3,000 changed lines, and 100 symbols,
-a chain of calls on instances across a call graph at its module limit, and a variable 4,990
-functions read across a graph at its module limit, with five-, two-, five-, and five-second ceilings
-for the first four and a one-second ceiling on grouping the last. They completed in approximately
-0.02, 0.42, 0.48, 0.81, and 0.48 seconds in the 0.14.0 timing run, across six runs in which the
-fourth took 0.80 to 0.84 and the last 0.48 to 0.50. 0.13.0's code, timed beside it, took 0.02, 0.42,
-0.48, 0.81, and 0.49, the fourth 0.79 to 0.84 and the last 0.49 each time: no fixture names a
-coverage run, so 0.14.0 reads no test contexts in them, and they take as long as before. 0.13.0's
-own run, the evening before, timed 0.02, 0.41, 0.47, 0.82, and 0.48, the fourth 0.81 to 0.85 and the
-last 0.48 to 0.51, of which grouping takes a tenth of a second and building its 500-module graph the
-rest, beside 0.12.0's code at 0.02, 0.41, 0.47, and 0.81, the fourth 0.79 to 0.86, so the four
-fixtures both have took as long as before. 0.12.0's own run, three hours earlier, timed 0.02, 0.43,
-0.47, and 0.81, the last 0.78 to 0.85, beside 0.11.1's code at 0.02, 0.41, 0.50, and 0.81, the last
-0.80 to 0.81: the one bounded `git log` 0.12.0 adds to an analysis with tests costs no more than the
-runs vary. 0.11.1's own run, 45 minutes earlier, timed 0.02, 0.41, 0.48, and 0.81 beside 0.11.0's
-code at 0.02, 0.41, 0.47, and 0.80, since 0.11.1 changes only how the brief writes a code span.
-0.11.0's own run, half an hour before that, timed 0.02, 0.42, 0.47, and 0.81 beside 0.10.0's code at
-0.02, 0.45, 0.39, and 0.82: the full-service fixture, which has no tests, now builds the call graph
-to group its findings, at 0.08 seconds of its five-second ceiling. 0.10.0's own run, an hour before
-that, timed 0.02, 0.42, 0.39, and 0.81, as 0.9.0's code did beside it, since 0.10.0 reads only the
-configuration files a repository names and the fixtures name none. 0.9.0's own run, half an hour
-before that, timed 0.02, 0.41, 0.38, and 0.80 beside 0.8.2's code at 0.02, 0.41, 0.38, and 0.79, so
-reading changed YAML and JSON apart from the Python files left the fixtures' cost as it was. 0.8.2's
-own run, an hour before that on a busier machine, timed 0.02, 0.50, 0.45, and 0.93 beside 0.8.1's
-code at 0.02, 0.49, 0.44, and 0.95, and 0.8.1's own, earlier that afternoon, 0.02, 0.43, 0.40, and
-0.82 beside 0.8.0's code at 0.02, 0.43, 0.39, and 0.81. 0.8.0's own run, earlier that afternoon on a
+a chain of calls on instances across a call graph at its module limit, a variable 4,990 functions
+read across a graph at its module limit, and a test selection following 999 test files through a
+chain of 999 modules at its file limit, with five-, two-, five-, and five-second ceilings for the
+first four, a one-second ceiling on grouping the fifth, and a five-second ceiling on the last. They
+completed in approximately 0.02, 0.41, 0.49, 0.80, 0.49, and 0.75 seconds in the 0.15.0 timing run,
+across six runs in which the fourth took 0.79 to 0.90 and the last 0.73 to 0.76. 0.14.0's code,
+timed beside it, took 0.02, 0.43, 0.49, 0.80, and 0.50 on the five fixtures it has, the fourth 0.79
+to 0.86: the full-service fixture has no test file, so the selection every analysis now makes reads
+none there. 0.14.0's own run, an hour and a half earlier, timed 0.02, 0.42, 0.48, 0.81, and 0.48,
+the fourth 0.80 to 0.84 and the last 0.48 to 0.50, beside 0.13.0's code at 0.02, 0.42, 0.48, 0.81,
+and 0.49, the fourth 0.79 to 0.84 and the last 0.49 each time: no fixture names a coverage run, so
+0.14.0 reads no test contexts in them, and they take as long as before. 0.13.0's own run, the
+evening before, timed 0.02, 0.41, 0.47, 0.82, and 0.48, the fourth 0.81 to 0.85 and the last 0.48 to
+0.51, of which grouping takes a tenth of a second and building its 500-module graph the rest, beside
+0.12.0's code at 0.02, 0.41, 0.47, and 0.81, the fourth 0.79 to 0.86, so the four fixtures both have
+took as long as before. 0.12.0's own run, three hours earlier, timed 0.02, 0.43, 0.47, and 0.81, the
+last 0.78 to 0.85, beside 0.11.1's code at 0.02, 0.41, 0.50, and 0.81, the last 0.80 to 0.81: the
+one bounded `git log` 0.12.0 adds to an analysis with tests costs no more than the runs vary.
+0.11.1's own run, 45 minutes earlier, timed 0.02, 0.41, 0.48, and 0.81 beside 0.11.0's code at 0.02,
+0.41, 0.47, and 0.80, since 0.11.1 changes only how the brief writes a code span. 0.11.0's own run,
+half an hour before that, timed 0.02, 0.42, 0.47, and 0.81 beside 0.10.0's code at 0.02, 0.45, 0.39,
+and 0.82: the full-service fixture, which has no tests, now builds the call graph to group its
+findings, at 0.08 seconds of its five-second ceiling. 0.10.0's own run, an hour before that, timed
+0.02, 0.42, 0.39, and 0.81, as 0.9.0's code did beside it, since 0.10.0 reads only the configuration
+files a repository names and the fixtures name none. 0.9.0's own run, half an hour before that,
+timed 0.02, 0.41, 0.38, and 0.80 beside 0.8.2's code at 0.02, 0.41, 0.38, and 0.79, so reading
+changed YAML and JSON apart from the Python files left the fixtures' cost as it was. 0.8.2's own
+run, an hour before that on a busier machine, timed 0.02, 0.50, 0.45, and 0.93 beside 0.8.1's code
+at 0.02, 0.49, 0.44, and 0.95, and 0.8.1's own, earlier that afternoon, 0.02, 0.43, 0.40, and 0.82
+beside 0.8.0's code at 0.02, 0.43, 0.39, and 0.81. 0.8.0's own run, earlier that afternoon on a
 busier machine, timed 0.02, 0.44, 0.40, and 0.86 beside 0.7.0's code at 0.02, 0.47, 0.41, and 0.88,
 so its new tool left the analysis's cost as it was; at noon 0.7.0's own run timed 0.02, 0.42, 0.39,
 and 0.82 beside 0.6.2's code at 0.02, 0.43, 0.38, and 0.82. 0.6.2's own run, that morning, timed
@@ -108,15 +116,15 @@ seconds for the last, and 0.5.0 timed 0.02, 0.42, 0.38, and 0.79 on code 0.6.0 l
 1.5 seconds for the mass-rename fixture then: the machine was slower at that hour, not the code, and
 that fixture is back at a fifth of its ceiling, as on 2026-07-26.
 
-The complete automated suite reports 97.83% overall branch-aware coverage across 1,486 passing tests
+The complete automated suite reports 97.96% overall branch-aware coverage across 1,588 passing tests
 and one skip, the real-Hermes discovery test, with at least 90% branch coverage in every critical
 module — the lowest is `path_policy.py` at 92.42%, followed by `semantic_interpreter.py` at 92.62%,
-`git_diff/` at 93.10%, and `config.py` at 94.59%. `cli.py`, `coverage_map.py`, and `baseline.py`,
+`git_diff/` at 93.16%, and `config.py` at 94.74%. `cli.py`, `coverage_map.py`, and `baseline.py`,
 added to the critical set on 2026-10-31, are at 100%, as are `skeletons.py`, added with test
-skeletons, and `change_groups.py`, added with connected changes. `schema_diff/`, added with API
-schemas and reading configuration files too, is at 98.91%, and `mcp_server.py`, added on 2026-10-05,
-at 98.21%. The suite ran with no `ANTHROPIC_API_KEY` in the environment: no live LLM call or
-credential was used, and none is required.
+skeletons, `change_groups.py`, added with connected changes, and `selection.py`, added with test
+selection. `schema_diff/`, added with API schemas and reading configuration files too, is at 98.91%,
+and `mcp_server.py`, added on 2026-10-05, at 98.21%. The suite ran with no `ANTHROPIC_API_KEY` in
+the environment: no live LLM call or credential was used, and none is required.
 
 The 17-case figures, dated 2026-07-25, held after the 2026-07-26 review fixes:
 `tests/fixtures/golden/canonical_outputs.json` was byte-identical across them, and precision,
