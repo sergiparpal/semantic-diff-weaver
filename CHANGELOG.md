@@ -1,6 +1,16 @@
 # Changelog
 
-## Unreleased
+## 0.14.0 - 2026-11-02
+
+Tests that ran a change. A coverage run measured with per-test contexts says which test executed
+each changed line, and each such test is now a candidate for the finding on its own, at 0.65 when it
+executed every changed line the report measures and 0.55 when it executed some, and still
+unverified. The contexts come from the run's `.coverage` data file, named beside its report and read
+as an untrusted SQLite database through a hardened connection, or from a small JSON report written
+with `show_contexts`. With 0.12.0's test history, this completes the roadmap's composition with test
+and coverage history, the last open part of its v0.2. A minor release for the new input and its
+setting; schema 1.4 and every golden are unchanged, both tools' input schemas gain `coverage_data`,
+and the decision is recorded in `docs/decisions.md`.
 
 - **Feature:** tests that ran a change. A run measured with per-test contexts, as `pytest
   --cov-context=test` records them, says which test executed each changed line, and each such test
