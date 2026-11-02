@@ -3,8 +3,8 @@
 The plugin follows a typed, bounded pipeline:
 
 ```text
-request/config -> repository + resolved refs -> changed committed blobs
--> AST deltas and API schema deltas -> deterministic evidence/candidates
+request/config -> repository + resolved refs -> changed paths -> test selection
+-> changed committed blobs -> AST deltas and API schema deltas -> deterministic evidence/candidates
 -> static candidate-test index -> optional structured LLM -> reconciliation
 -> optional ingested coverage report -> risk/confidence -> obligations and change groups
 -> canonical JSON -> optional Markdown
@@ -149,7 +149,7 @@ produce bounded unknown findings rather than losing all evidence. Conservative s
 connect renamed or moved functions, including moves between two existing files, but refuses ambiguous
 near-ties and lowers confidence for the unmatched lifecycle findings.
 
-The canonical schema version is `1.4`. Markdown is derived entirely from the canonical analysis.
+The canonical schema version is `1.5`. Markdown is derived entirely from the canonical analysis.
 Risk estimates impact and test gap; confidence estimates support strength. They are intentionally
 independent. `change_groups.py` groups the findings in Python code that calls connect, through
 `call_graph.py`: a finding reaches another when its symbol's code calls the other's, directly or
@@ -180,6 +180,19 @@ nothing; the user reviews the patch and applies it. As the `generate_test_skelet
 the analysis by its arguments too, from `base_ref` on, and has `service.analyze` run it again
 without inference: a deterministic analysis numbers its obligations alike on every run, so the IDs
 of a brief name the same obligations in it.
+
+`selection.py` names the test files a change can affect, as `test_selection`, from every changed
+path rather than the analyzed ones, so a changed test or script selects the tests that import it.
+It reads the head revision from each test file and `conftest.py` through what they import, as
+untrusted source under bounds of its own, locating modules as `call_graph.py` does, and follows a
+module to its package's `__init__.py`, a test file to each `conftest.py` above it, and a
+`conftest.py` to the plugins it names. A test file reaching a changed file is selected, with the
+nearest such file and the first one on the way there as its reason; one reaching a file that loads
+modules it does not name, or one never read by policy, is selected whenever Python changed. A
+changed file it cannot follow — not Python and not in `selection.ignore`, never read by policy, or
+setting up how Python builds or starts — and a head revision it cannot read whole make the
+selection the whole suite, with the reasons. The CLI's `select` subcommand runs this stage alone,
+on the paths `git_diff/` lists, without analyzing what changed.
 
 Semantic candidates are immutable and carry their own `(path, symbol)` identity. The three stages that
 merge them — rule grouping, model reconciliation, and service deduplication — each return new values,

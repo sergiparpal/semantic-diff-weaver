@@ -7,7 +7,7 @@ from its defining module, so the boundary stays visible rather than being widene
 
 from __future__ import annotations
 
-from .collect import collect_diff
+from .collect import changed_files, collect_diff
 from .history import ChangeHistory, read_history
 from .repository import GitRepository
 from .types import BlobBatch, ChangedFile, DiffCollection, GitTreeEntry
@@ -19,6 +19,7 @@ __all__ = [
     "DiffCollection",
     "GitRepository",
     "GitTreeEntry",
+    "changed_files",
     "collect_diff",
     "read_history",
 ]

@@ -12,9 +12,10 @@ ANALYZE_SEMANTIC_DIFF_SCHEMA: dict[str, Any] = {
     "name": "analyze_semantic_diff",
     "description": (
         "Analyze the behavioral meaning of a bounded local Git diff and return evidence-backed, "
-        "risk-ranked test obligations with unverified candidate existing tests. Call this when "
-        "reviewing a change to Python code, to an OpenAPI, Swagger, or JSON Schema document, or "
-        "to a configuration file the repository names, or planning regression tests. The tool is "
+        "risk-ranked test obligations with unverified candidate existing tests, and the test "
+        "files the change can affect. Call this when reviewing a change to Python code, to an "
+        "OpenAPI, Swagger, or JSON Schema document, or to a configuration file the repository "
+        "names, when planning regression tests, or when choosing which tests to run. The tool is "
         "advisory and read-only; it does not execute, import, test, or modify repository code."
     ),
     "parameters": {

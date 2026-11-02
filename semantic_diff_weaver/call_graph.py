@@ -85,7 +85,7 @@ def package_of(path: str, roots: frozenset[str] = SOURCE_ROOTS) -> str:
     return name if PurePosixPath(path).name == "__init__.py" else name.rpartition(".")[0]
 
 
-def _locator(paths: Iterable[str], roots: frozenset[str]) -> dict[str, str]:
+def module_locator(paths: Iterable[str], roots: frozenset[str]) -> dict[str, str]:
     """Importable name to path; the first path in order wins a shared name.
 
     Case counts, as it does for Python's imports: `shop.Cart` is what `shop/__init__.py` binds,
@@ -117,7 +117,7 @@ def _closure_of(nodes: Iterable[Node], edges: Mapping[Node, Iterable[Node]]) -> 
     return frozenset(seen)
 
 
-def _locate(located: Mapping[str, str], dotted: str) -> tuple[str, list[str]] | None:
+def locate_module(located: Mapping[str, str], dotted: str) -> tuple[str, list[str]] | None:
     """The file a dotted name's longest importable prefix names, and the rest of the name.
 
     A name written from the repository root, such as `src.distiller.cli`, is read without its
@@ -154,7 +154,7 @@ class CallGraph:
         self.modules = dict(modules)
         self.incomplete = incomplete
         self.warnings = list(warnings)
-        self._located = _locator(
+        self._located = module_locator(
             self.modules, source_roots(self.modules) if roots is None else roots
         )
         self._named: dict[str, dict[str, frozenset[str]]] = {}
@@ -245,7 +245,7 @@ class CallGraph:
 
     def locate(self, dotted: str) -> tuple[str, list[str]] | None:
         """The indexed module a dotted name starts with, and the rest of the name."""
-        return _locate(self._located, dotted)
+        return locate_module(self._located, dotted)
 
     def named(self, path: str, name: str) -> frozenset[str]:
         """The symbols of a module whose own name reads as `name`, already bare."""
@@ -666,10 +666,10 @@ def build_call_graph(
         and not is_test_support_path(path, config.paths.test_roots)
     ]
     roots = source_roots(repository_files)
-    located = _locator(product, roots)
+    located = module_locator(product, roots)
     known = set(product)
     seeds = {path for path in changed if path in known}
-    seeds.update(found[0] for name in imports if (found := _locate(located, name)))
+    seeds.update(found[0] for name in imports if (found := locate_module(located, name)))
     pending = sorted(seeds)
     seen = set(pending)
     modules: dict[str, ModuleReferences] = {}
@@ -718,7 +718,7 @@ def build_call_graph(
                 continue
             modules[path] = module
             for name in (*module.imports.values(), *module.loads):
-                found = _locate(located, name)
+                found = locate_module(located, name)
                 if found and found[0] not in seen:
                     seen.add(found[0])
                     following.add(found[0])

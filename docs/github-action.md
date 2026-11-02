@@ -91,10 +91,39 @@ as given.
 | `python-version` | `3.12` | interpreter used to run the analyzer |
 
 Outputs: `analysis` (path to the JSON envelope under `RUNNER_TEMP`), `overall-risk`, and, from
-0.5.0, `verdict`: `pass`, `warn`, or `review_required`, as `docs/configuration.md` describes.
+0.5.0, `verdict`: `pass`, `warn`, or `review_required`, as `docs/configuration.md` describes. From
+0.15.0, `run-all-tests` and `selected-tests` say which tests to run, as [the next
+section](#running-only-the-tests-a-change-can-affect) shows.
 
 Set `base-ref` explicitly on any event that is not `pull_request` — there is no pull request to
 branch off, and the action fails with a message saying so rather than guessing a range.
+
+## Running only the tests a change can affect
+
+`run-all-tests` is `false` when `selected-tests` names every test file the pull request can affect,
+space-separated, and empty when none can be. It is `true` when the whole suite has to run, and
+empty when no analysis was written, which means the same. A later step of the same job runs them,
+with `id: weaver` on the step that uses the action, reading both outputs through the environment
+rather than interpolating them into the script:
+
+```yaml
+      - name: Run the tests the pull request can affect
+        env:
+          RUN_ALL_TESTS: ${{ steps.weaver.outputs.run-all-tests }}
+          SELECTED_TESTS: ${{ steps.weaver.outputs.selected-tests }}
+        run: |
+          if [ "${RUN_ALL_TESTS}" != false ]; then
+            python -m pytest
+          elif [ -n "${SELECTED_TESTS}" ]; then
+            python -m pytest ${SELECTED_TESTS}
+          fi
+```
+
+A selected path is only ever letters, digits, and `_./-`, and never starts with `-`, so the unquoted
+list splits into paths and nothing else; a test file named otherwise makes the whole suite run.
+Which test files a change can affect, and when the whole suite runs instead, is in
+`docs/configuration.md`. Run the whole suite on the default branch as well: no static reading sees
+a test that reaches the code through an installed command.
 
 ## Passing a coverage report from a prior job
 

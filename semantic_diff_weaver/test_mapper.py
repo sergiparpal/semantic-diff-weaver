@@ -6,7 +6,7 @@ import ast
 import math
 import re
 from collections import Counter, defaultdict
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, replace
 from functools import cache, lru_cache
 from itertools import pairwise
@@ -476,42 +476,37 @@ class _DynamicImports:
         return imports, binding
 
 
-class _ModuleRunVisitor(ast.NodeVisitor):
-    """Collect the modules a test file runs as a program rather than imports.
+def _modules_run(nodes: Iterable[ast.AST]) -> frozenset[str]:
+    """The modules code runs as a program rather than imports, among every node of a file.
 
     `[sys.executable, "-m", "pkg"]`, `"python -m pkg"`, and `runpy.run_module("pkg")` all run
     `pkg/__main__.py`, which no import reaches.
     """
-
-    def __init__(self) -> None:
-        self.modules: set[str] = set()
-
-    def _add(self, value: object) -> None:
-        if isinstance(value, str) and MODULE_NAME_RE.fullmatch(value):
-            self.modules.add(value)
-
-    def _visit_sequence(self, node: ast.List | ast.Tuple) -> None:
-        values = [item.value if isinstance(item, ast.Constant) else None for item in node.elts]
-        for flag, value in pairwise(values):
-            if flag == "-m":
-                self._add(value)
-        self.generic_visit(node)
-
-    visit_List = _visit_sequence
-    visit_Tuple = _visit_sequence
-
-    def visit_Constant(self, node: ast.Constant) -> None:
-        if isinstance(node.value, str):
-            self.modules.update(RUN_FLAG_RE.findall(node.value))
-
-    def visit_Call(self, node: ast.Call) -> None:
-        function = node.func
-        runs_module = (isinstance(function, ast.Attribute) and function.attr == "run_module") or (
-            isinstance(function, ast.Name) and function.id == "run_module"
-        )
-        if runs_module and node.args and isinstance(node.args[0], ast.Constant):
-            self._add(node.args[0].value)
-        self.generic_visit(node)
+    modules: set[str] = set()
+    for node in nodes:
+        if isinstance(node, (ast.List, ast.Tuple)):
+            values = [item.value if isinstance(item, ast.Constant) else None for item in node.elts]
+            modules.update(
+                value
+                for flag, value in pairwise(values)
+                if flag == "-m" and isinstance(value, str) and MODULE_NAME_RE.fullmatch(value)
+            )
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            modules.update(RUN_FLAG_RE.findall(node.value))
+        elif isinstance(node, ast.Call):
+            function = node.func
+            runs_module = (
+                isinstance(function, ast.Attribute) and function.attr == "run_module"
+            ) or (isinstance(function, ast.Name) and function.id == "run_module")
+            first = node.args[0] if node.args else None
+            if (
+                runs_module
+                and isinstance(first, ast.Constant)
+                and isinstance(first.value, str)
+                and MODULE_NAME_RE.fullmatch(first.value)
+            ):
+                modules.add(first.value)
+    return frozenset(modules)
 
 
 def _tokens(text: str) -> frozenset[str]:
@@ -629,9 +624,7 @@ def _index_source(path: str, source: str) -> list[IndexedTest]:
     dynamic = _DynamicImports(tree, package_of(path))
     file_loaded, file_bound = dynamic.scan(shared, _static_bindings(shared))
     file_imports = _static_imports(shared) | file_loaded
-    runs_visitor = _ModuleRunVisitor()
-    runs_visitor.visit(tree)
-    modules_run = frozenset(runs_visitor.modules)
+    modules_run = _modules_run(ast.walk(tree))
     helper_nodes = {
         bare_name(node.name): node
         for node in tree.body
@@ -682,7 +675,57 @@ def defines_tests(source: str) -> bool:
         tree = ast.parse(source)
     except (MemoryError, RecursionError, SyntaxError, TypeError, ValueError):
         return False
+    return has_tests(tree)
+
+
+def has_tests(tree: ast.Module) -> bool:
+    """Whether a parsed module defines a test, as candidate-test discovery collects them."""
     return next(_test_functions(tree.body), None) is not None
+
+
+@dataclass(frozen=True)
+class RunTimeLoads:
+    """What a file loads only when it runs, as candidate-test discovery reads it."""
+
+    # What `import_module` loads, directly or through a same-file loader.
+    modules: frozenset[str]
+    # What the file runs with `-m`, as written.
+    programs: frozenset[str]
+    # Whether a call loads a module by a name the file does not write out.
+    unnamed: bool
+
+
+def loads_at_run_time(
+    tree: ast.Module, package: str, nodes: Sequence[ast.AST] | None = None
+) -> RunTimeLoads:
+    """The modules a file loads by name and runs, resolved against its `package`.
+
+    A private same-file loader's own calls name their module through its parameters, so they
+    are read at each call in the file that passes them; a public one may be called from any
+    file. A call left with a name known only when it runs is unnamed. `nodes` is every node of
+    `tree`, for a caller that walked it already.
+    """
+    walked = list(ast.walk(tree)) if nodes is None else nodes
+    dynamic = _DynamicImports(tree, package)
+    modules, _ = dynamic.scan(walked, {})
+    inside = {
+        id(node)
+        for statement in tree.body
+        if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and statement.name in dynamic.loaders
+        and statement.name.startswith("_")
+        for node in ast.walk(statement)
+    }
+    unnamed = any(
+        (
+            _loads_module(node)
+            or (isinstance(node.func, ast.Name) and node.func.id in dynamic.loaders)
+        )
+        and not dynamic.load(node)[0]
+        for node in walked
+        if isinstance(node, ast.Call) and id(node) not in inside
+    )
+    return RunTimeLoads(modules=frozenset(modules), programs=_modules_run(walked), unnamed=unnamed)
 
 
 def build_test_index(repo: GitRepository, head_commit: str, config: WeaverConfig) -> TestIndex:

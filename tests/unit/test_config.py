@@ -78,6 +78,26 @@ def test_configuration_files_are_named_by_the_repository_and_none_by_default(
     assert load_config(tmp_path)[0].paths.config_files == ["config/**", "settings.toml"]
 
 
+@pytest.mark.parametrize("pattern", ["../docs/*.md", "/etc/*.md", "C:\\docs\\*.md"])
+def test_unsafe_selection_ignore_globs_are_rejected(tmp_path: Path, pattern: str) -> None:
+    profile = tmp_path / "profile.yaml"
+    profile.write_text(f"version: 1\nselection:\n  ignore: [{pattern!r}]\n", encoding="utf-8")
+    with pytest.raises(WeaverError) as caught:
+        load_config(tmp_path, request(tmp_path, risk_profile=str(profile)))
+    assert caught.value.code is ErrorCode.CONFIGURATION_ERROR
+
+
+def test_files_no_test_reads_are_named_by_the_repository_and_none_by_default(
+    tmp_path: Path,
+) -> None:
+    assert load_config(tmp_path)[0].selection.ignore == []
+    (tmp_path / ".semantic-diff-weaver.yaml").write_text(
+        "version: 1\nselection:\n  ignore: ['docs\\**', 'CHANGELOG.md']\n",
+        encoding="utf-8",
+    )
+    assert load_config(tmp_path)[0].selection.ignore == ["docs/**", "CHANGELOG.md"]
+
+
 def test_unsupported_language_has_public_error(tmp_path: Path) -> None:
     profile = tmp_path / "other.yaml"
     profile.write_text("version: 1\nlanguage:\n  primary: javascript\n", encoding="utf-8")
@@ -171,9 +191,11 @@ def test_malformed_path_sections_are_left_for_strict_model_validation() -> None:
         "paths": "invalid",
         "critical_paths": ["invalid", {}],
         "mapping": ["invalid", {"tests": "invalid"}, {}],
+        "selection": {"ignore": "invalid"},
     }
     _validate_config_paths(data)
     assert data["paths"] == "invalid"
+    assert data["selection"] == {"ignore": "invalid"}
 
 
 def test_empty_pattern_and_single_hermes_config_are_covered(tmp_path: Path) -> None:
@@ -213,6 +235,8 @@ def test_this_repository_analyzes_only_its_production_code(path: str, analyzed: 
     assert warnings == []
     assert is_included(path, config.paths.include, config.paths.exclude) is analyzed
     assert config.paths.test_roots == ["tests"]
+    # Only files no test reads: README.md, for one, is read by `test_hermes_discovery.py`.
+    assert config.selection.ignore == ["docs/**", "CHANGELOG.md"]
 
 
 def test_a_verdict_level_can_be_turned_off(tmp_path: Path) -> None:

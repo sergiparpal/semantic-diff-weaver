@@ -329,6 +329,34 @@ def test_blob_and_tree_edge_cases_are_bounded(tmp_path: Path, monkeypatch) -> No
     assert repo.list_files(commit) == ["good.py"]
 
 
+def test_a_strict_listing_refuses_a_python_path_it_cannot_read(tmp_path: Path, monkeypatch) -> None:
+    """Test selection follows imports through every Python file, so it cannot leave one out."""
+    repo = GitRepository(tmp_path, "git")
+    commit = "a" * 40
+    listing = b"../notes\x00good.py\x00\xff\x00"
+    monkeypatch.setattr(repo, "run", lambda *args, **kwargs: listing)
+    assert repo.list_files(commit, strict=True) == ["good.py"]
+    for unreadable in (b"good.py\x00\xff.py\x00", b"../bad.py\x00"):
+        listing = unreadable
+        assert repo.list_files(commit) == ([] if unreadable.startswith(b"..") else ["good.py"])
+        with pytest.raises(WeaverError, match="Python file"):
+            repo.list_files(commit, strict=True)
+
+
+def test_every_changed_path_is_kept_before_any_exclusion(repo_factory) -> None:
+    repo_path, base, head = repo_factory(
+        {".env": "A=1\n", "notes.md": "a\n", "old.py": "x = 1\n"},
+        {".env": "A=2\n", "notes.md": "b\n", "new.py": "x = 1\n"},
+        remove=("old.py",),
+    )
+    result = collect_diff(GitRepository.open(str(repo_path)), base, head, WeaverConfig())
+    assert [(item.status[:1], item.old_path, item.new_path) for item in result.changed] == [
+        ("M", ".env", ".env"),
+        ("R", "old.py", "new.py"),
+        ("M", "notes.md", "notes.md"),
+    ]
+
+
 def test_malformed_and_truncated_numstat_records_are_ignored() -> None:
     assert _parse_numstat(b"malformed\x00") == ({}, 0)
     assert _parse_numstat(b"1\t1\t\x00") == ({}, 0)

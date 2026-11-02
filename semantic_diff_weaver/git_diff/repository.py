@@ -402,7 +402,11 @@ class GitRepository:
                 failures.pop(object_id, None)
         return BlobBatch(result, failures)
 
-    def list_files(self, commit: str, max_bytes: int = limits.MAX_GIT_OUTPUT_BYTES) -> list[str]:
+    def list_files(
+        self, commit: str, max_bytes: int = limits.MAX_GIT_OUTPUT_BYTES, *, strict: bool = False
+    ) -> list[str]:
+        """The commit's file paths. A path that is not valid UTF-8 or not a safe repository path
+        is left out, unless `strict` asks for an error when it is a Python file's."""
         raw = self.run(
             ["ls-tree", "-r", "-z", "--name-only", commit, "--"],
             max_bytes=max_bytes,
@@ -414,6 +418,11 @@ class GitRepository:
                 continue
             try:
                 result.append(normalize_repo_path(item.decode("utf-8", errors="strict")))
-            except (UnicodeDecodeError, WeaverError):
-                continue
+            except (UnicodeDecodeError, WeaverError) as exc:
+                if strict and item.endswith(b".py"):
+                    raise _git_error(
+                        ErrorCode.PATH_OUTSIDE_REPOSITORY,
+                        "A committed Python file's path could not be read safely.",
+                        "Rename the file to a valid UTF-8 repository path.",
+                    ) from exc
         return result

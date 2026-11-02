@@ -56,7 +56,7 @@ def test_findings_calls_connect_are_grouped_by_their_entry_points(repo_factory) 
         repo_factory,
         {"src/shop/money.py": MONEY, "src/shop/cart.py": CART, "src/shop/mail.py": MAIL},
     )
-    assert analysis["schema_version"] == "1.4"
+    assert analysis["schema_version"] == "1.5"
     symbols = _symbols(analysis)
     groups = [
         (

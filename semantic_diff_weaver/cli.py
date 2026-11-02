@@ -11,9 +11,10 @@ An operator who has already set that variable has expressed a narrower intent th
 invocation, and the CLI never widens it: `--allow-root` is refused rather than merged, and
 a `--repo` outside the operator's bound fails exactly as it does today.
 
-`semantic-diff-weaver skeletons` is the one subcommand. It reads an earlier analysis and prints a
-patch of failing tests for the obligations a person approved from it, under the same
-authorization rule; nothing is applied or written.
+Two subcommands follow the same authorization rule. `semantic-diff-weaver skeletons` reads an
+earlier analysis and prints a patch of failing tests for the obligations a person approved from
+it; nothing is applied or written. `semantic-diff-weaver select` prints the test files a committed
+change can affect, for a test runner to run, and exits 4 when the whole suite has to run.
 """
 
 from __future__ import annotations
@@ -35,12 +36,15 @@ from .path_policy import ALLOWED_ROOTS_ENV
 
 PROGRAM = "semantic-diff-weaver"
 SKELETONS_COMMAND = "skeletons"
+SELECT_COMMAND = "select"
 OBLIGATION_ID_RE = re.compile(r"to-\d{3,}")
 
 EXIT_SUCCESS = 0
 EXIT_ANALYSIS_ERROR = 1
 EXIT_ARGUMENT_ERROR = 2
 EXIT_RISK_THRESHOLD = 3
+# `select` found no narrower set of tests: run them all. Any other failure means the same.
+EXIT_WHOLE_SUITE = 4
 
 FAIL_ON_CHOICES = ("none", "low", "medium", "high", "critical")
 # Ascending, so a threshold is met when the overall risk sorts at or above it.
@@ -61,7 +65,8 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         epilog=(
             f"To scaffold failing tests for approved obligations of a saved analysis, see "
-            f"`{PROGRAM} {SKELETONS_COMMAND} --help`."
+            f"`{PROGRAM} {SKELETONS_COMMAND} --help`; to list the test files a change can affect, "
+            f"`{PROGRAM} {SELECT_COMMAND} --help`."
         ),
     )
     parser.add_argument("--repo", default=".", metavar="PATH", help="repository to analyze")
@@ -188,6 +193,43 @@ def build_skeletons_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "additional authorized root, such as the analysis file's directory; refused when "
+            f"{ALLOWED_ROOTS_ENV} is already set by the operator"
+        ),
+    )
+    return parser
+
+
+def build_select_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog=f"{PROGRAM} {SELECT_COMMAND}",
+        description=(
+            "Print the test files a committed change can affect, one per line, for a test runner "
+            "to run: those that import a changed file, directly or through other modules. When "
+            f"the whole suite has to run, print none, say why on stderr, and exit "
+            f"{EXIT_WHOLE_SUITE}. Read-only: nothing in the repository is executed or modified."
+        ),
+    )
+    parser.add_argument("--repo", default=".", metavar="PATH", help="repository to select in")
+    parser.add_argument("--base", required=True, metavar="REF", help="base revision")
+    parser.add_argument("--head", default="HEAD", metavar="REF", help="head revision")
+    parser.add_argument(
+        "--risk-profile",
+        metavar="PATH",
+        help="additional configuration file, such as one setting selection.ignore",
+    )
+    parser.add_argument(
+        "--format",
+        default="paths",
+        choices=("paths", "json"),
+        help="one test file per line, or the JSON selection with each file's reasons",
+    )
+    parser.add_argument(
+        "--allow-root",
+        action="append",
+        metavar="PATH",
+        default=None,
+        help=(
+            "additional authorized root, such as the risk profile's directory; refused when "
             f"{ALLOWED_ROOTS_ENV} is already set by the operator"
         ),
     )
@@ -365,14 +407,51 @@ def skeletons_main(argv: list[str]) -> int:
     return EXIT_SUCCESS
 
 
+def select_main(argv: list[str]) -> int:
+    """Print the test files a committed change can affect, or exit to say the whole suite."""
+    try:
+        namespace = build_select_parser().parse_args(argv)
+    except SystemExit as exc:
+        # argparse already reported the problem on stderr.
+        return EXIT_SUCCESS if exc.code in (0, None) else EXIT_ARGUMENT_ERROR
+    request = {"repo_path": namespace.repo, "base_ref": namespace.base, "head_ref": namespace.head}
+    if namespace.risk_profile is not None:
+        request["risk_profile"] = namespace.risk_profile
+    try:
+        with _authorization(namespace.repo, list(namespace.allow_root or ())):
+            from .service import select
+
+            selection = select(request)
+    except ArgumentError as exc:
+        print(f"{PROGRAM}: {exc}", file=sys.stderr)
+        return EXIT_ARGUMENT_ERROR
+    except Exception as exc:
+        # Deliberately broad, as for an analysis: the stable public error payload only.
+        error = as_public_error(exc)
+        print(f"{PROGRAM}: {error['error']}: {error['message']}", file=sys.stderr)
+        print(f"{PROGRAM}: {error['remediation']}", file=sys.stderr)
+        return EXIT_ANALYSIS_ERROR
+    if namespace.format == "json":
+        print(json.dumps(selection, ensure_ascii=False, indent=2, sort_keys=True))
+    else:
+        for item in selection["tests"]:
+            print(item["path"])
+    if selection["run_all"]:
+        for reason in selection["reasons"]:
+            print(f"{PROGRAM}: run the whole suite: {reason}", file=sys.stderr)
+        return EXIT_WHOLE_SUITE
+    return EXIT_SUCCESS
+
+
 def main(argv: list[str] | None = None) -> int:
-    """Run one analysis, or the skeletons subcommand. See the module docstring for the
-    authorization rule."""
+    """Run one analysis, or a subcommand. See the module docstring for the authorization rule."""
     use_utf8(sys.stdout)
     use_utf8(sys.stderr)
     arguments = sys.argv[1:] if argv is None else argv
     if arguments[:1] == [SKELETONS_COMMAND]:
         return skeletons_main(arguments[1:])
+    if arguments[:1] == [SELECT_COMMAND]:
+        return select_main(arguments[1:])
     parser = build_parser()
     try:
         namespace = parser.parse_args(arguments)

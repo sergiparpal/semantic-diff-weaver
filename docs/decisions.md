@@ -147,6 +147,63 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Tests a change can affect (2026-11-02)
+
+The roadmap's v1.0 asks for integration with regression selection downstream. The analysis named
+candidate tests already, but those are ranked by what an obligation is about, five at most, and a
+test outside them may still fail: they cannot say which tests a pipeline may skip. Each analysis now
+names the test files its change can affect, as `test_selection`, and the `select` subcommand prints
+them for a test runner. Six choices are deliberate:
+
+- **A subset, or the whole suite.** At the user's choice, the selection promises a subset only when
+  it can follow every changed file to the tests that load it, and otherwise says the whole suite has
+  to run, and why, rather than ordering tests or joining the candidate tests. A test it leaves out
+  must be one the change cannot reach, not one that seemed less relevant.
+- **Test files, by what they load.** At the user's choice, the unit is the test file: an import, a
+  fixture, and a `conftest.py` run for the whole file, and a file is what a static reading can
+  justify. A test file is affected by a changed file it imports, directly or through the
+  repository's other modules, with the packages an import runs above a module, the `conftest.py`
+  files above it, and the plugins those name; by its own change; and, when it loads modules by a
+  name it does not write out, from a file path, or by starting another Python, by any change to
+  Python. A coverage run's contexts are not read for it: a test that ran a module in its own process
+  imported it, which the imports already follow, or loaded it in a way that selects the test file
+  for any change.
+- **What is not Python runs the whole suite.** At the user's choice: a test may read any file as
+  data — this repository's `test_hermes_discovery.py` reads `README.md` — so a changed file that is
+  not Python runs the whole suite, unless the new `selection.ignore` says no test reads it. So does
+  a changed file never read by policy, which is never named, and a changed `setup.py` or another
+  file setting up how the repository builds or starts Python.
+- **In the analysis and on its own.** At the user's choice, schema 1.5 adds `test_selection` to the
+  analysis, so the CLI, both tools, and the Action carry it, and the brief gains "Tests to run".
+  `select` runs that stage alone, without analyzing what the change does, prints a test file per
+  line, and exits 4 when the whole suite has to run, as any failure does. The Action outputs
+  `run-all-tests` and `selected-tests`.
+- **Only the suite's tests.** A test file is one named as pytest and unittest collect them by
+  default, `test_*.py`, `*_test.py`, `test.py`, or `tests.py`, that defines a test, outside the
+  directories pytest's default `norecursedirs` skips. distiller keeps the tests of its Claude Code
+  hooks in `.claude/hooks/tests/`, which pytest never collects: selected by name, they would have
+  run outside the suite. `paths.include` and `paths.exclude` scope the findings alone: a changed
+  test outside the analyzed code is still a test to run.
+- **Paths a shell can take as they are.** A selected path goes into `pytest $tests`, from a pull
+  request anyone may open: a test file whose path holds anything but letters, digits, and `_./-`,
+  or starts with `-`, makes the whole suite run rather than being quoted.
+
+The selection's bounds, 2,000 Python files, 32 MiB, and ten seconds, are its own, and reaching one
+runs the whole suite. Every golden changes in `schema_version`, now 1.5, and gains `test_selection`:
+none of the corpus's repositories has a test, so 17 cases select no test file, and the `no changed
+Python source` case, whose README changed, runs the whole suite.
+
+On this repository a change to `scripts/pr_comment.py` alone selects 4 of the 78 test files, its own
+test and the three that start another Python, and one to any module of the package selects all 78,
+since `tests/conftest.py` imports the package, whose `__init__.py` imports nearly all of it. Over
+the last 40 commits of three field repositories, with Markdown files and `docs/` ignored,
+distiller's 17 test files gave 23 subsets of 2 to 6, 15 commits that select none, and 2 whole
+suites; adaptive-policy-compilation's 90 gave 6 subsets of 34 to 79, 19 that select none, and 15
+whole suites, 14 of them for a changed JSON file of experiment results; meal-manager gave 12
+subsets, 11 that select none, and 17 whole suites, for its YAML workflows and configuration. Without
+`selection.ignore`, all but six of those 120 commits ran the whole suite, since each changed some
+file that is not Python. The longest selection took 1.7 seconds.
+
 ## Tests that ran a change (2026-11-02)
 
 The roadmap's v0.2 asked for composition with coverage history, and an ingested report said only

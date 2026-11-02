@@ -1,6 +1,6 @@
 ---
 name: semantic-diff
-description: Review the behavioral meaning of a committed change to Python code, to API schemas (OpenAPI, Swagger, JSON Schema), or to configuration files the repository names, and plan regression tests with the read-only analyze_semantic_diff tool, then scaffold failing tests for the obligations the user approves with generate_test_skeletons. Use when the user asks what a diff, branch, or pull request changes in behavior, how risky it is, what to test before merging, or to scaffold those tests.
+description: Review the behavioral meaning of a committed change to Python code, to API schemas (OpenAPI, Swagger, JSON Schema), or to configuration files the repository names, and plan regression tests with the read-only analyze_semantic_diff tool, then scaffold failing tests for the obligations the user approves with generate_test_skeletons. Use when the user asks what a diff, branch, or pull request changes in behavior, how risky it is, what to test before merging, which existing tests to run, or to scaffold those tests.
 ---
 
 # Semantic diff review
@@ -55,7 +55,10 @@ imports, executes, builds, or modifies the repository.
    tests related to the change only through their file, none of them by name. When the brief
    lists connected changes, say which findings a test through each entry point can exercise
    together, a changed module-level variable it reads among them. Say so if the result reports
-   truncation or omitted scope.
+   truncation or omitted scope. When the user asks which tests to run, give the brief's "Tests
+   to run": the test files the change can affect, by what they import, or the whole suite with
+   the reasons it gives. If the user asks you to run them, run exactly those files, or the whole
+   suite when the brief says so; never narrow it further by guesswork.
 6. **Scaffold only what the user approves.** When the user names obligations to test, call
    `generate_test_skeletons` with their IDs and the same `repo_path`, `base_ref`, `head_ref`,
    `include`, `exclude`, `risk_profile`, `coverage_report`, and `coverage_data` as the analysis

@@ -1,16 +1,16 @@
-"""Validated domain and transport models for schema version 1.4."""
+"""Validated domain and transport models for schema version 1.5."""
 
 from __future__ import annotations
 
 from enum import StrEnum
 from pathlib import PurePosixPath, PureWindowsPath
-from typing import Annotated, Literal
+from typing import Annotated, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .errors import ErrorCode
 
-SCHEMA_VERSION: Literal["1.4"] = "1.4"
+SCHEMA_VERSION: Literal["1.5"] = "1.5"
 MAX_PATH_CHARS = 4096
 MAX_REF_CHARS = 1024
 MAX_PATTERN_CHARS = 512
@@ -221,6 +221,14 @@ class CoverageConfig(StrictModel):
     data_path: str | None = Field(default=None, max_length=MAX_PATH_CHARS)
 
 
+class SelectionConfig(StrictModel):
+    """Which changed files no test reads: changed alone, they select no test file."""
+
+    ignore: Annotated[list[RelativePattern], Field(max_length=MAX_PATH_PATTERNS)] = Field(
+        default_factory=list
+    )
+
+
 class PrivacyConfig(StrictModel):
     redact_patterns: Literal[True] = True
     allow_network: Literal[False] = False
@@ -240,6 +248,7 @@ class WeaverConfig(StrictModel):
     privacy: PrivacyConfig = Field(default_factory=PrivacyConfig)
     coverage: CoverageConfig = Field(default_factory=CoverageConfig)
     verdict: VerdictConfig = Field(default_factory=VerdictConfig)
+    selection: SelectionConfig = Field(default_factory=SelectionConfig)
 
     @model_validator(mode="after")
     def unique_mappings(self) -> WeaverConfig:
@@ -456,9 +465,46 @@ class ChangeGroup(StrictModel):
     variables: list[ChangedVariables] = Field(default_factory=list)
 
 
+class SelectedTest(StrictModel):
+    """A test file the change can affect, and why."""
+
+    path: str = Field(min_length=1)
+    reasons: list[str] = Field(min_length=1)
+
+    @field_validator("path")
+    @classmethod
+    def relative_path(cls, value: str) -> str:
+        return _repository_relative_posix_path(value)
+
+
+class TestSelection(StrictModel):
+    """The test files a change can affect, or the whole suite when the analysis cannot tell.
+
+    `run_all` names no test file and says why in `reasons`; otherwise `tests` is every test file
+    the change can affect, sorted, and none at all when no test can be.
+    """
+
+    __test__: ClassVar[bool] = False
+
+    run_all: bool
+    reasons: list[str] = Field(default_factory=list)
+    tests: list[SelectedTest] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def consistent(self) -> TestSelection:
+        if self.run_all != bool(self.reasons):
+            raise ValueError("the whole suite runs exactly when a reason says why")
+        if self.run_all and self.tests:
+            raise ValueError("a run of the whole suite names no test file")
+        paths = [item.path for item in self.tests]
+        if paths != sorted(set(paths)):
+            raise ValueError("selected test files must be distinct and sorted")
+        return self
+
+
 class AnalysisResult(StrictModel):
     success: Literal[True] = True
-    schema_version: Literal["1.4"] = SCHEMA_VERSION
+    schema_version: Literal["1.5"] = SCHEMA_VERSION
     analysis_id: str = Field(pattern=r"^sdw_[A-Za-z0-9_-]+$")
     repository: RepositoryIdentity
     summary: Summary
@@ -472,6 +518,7 @@ class AnalysisResult(StrictModel):
     coverage: CoverageSummary | None = None
     baseline: BaselineComparison | None = None
     change_groups: list[ChangeGroup] = Field(default_factory=list)
+    test_selection: TestSelection | None = None
 
     @model_validator(mode="after")
     def references_resolve(self) -> AnalysisResult:
@@ -565,14 +612,14 @@ class AnalysisResult(StrictModel):
 
 class MarkdownEnvelope(StrictModel):
     success: Literal[True] = True
-    schema_version: Literal["1.4"] = SCHEMA_VERSION
+    schema_version: Literal["1.5"] = SCHEMA_VERSION
     analysis_id: str = Field(pattern=r"^sdw_[A-Za-z0-9_-]+$")
     markdown: str
 
 
 class BothEnvelope(StrictModel):
     success: Literal[True] = True
-    schema_version: Literal["1.4"] = SCHEMA_VERSION
+    schema_version: Literal["1.5"] = SCHEMA_VERSION
     analysis: AnalysisResult
     markdown: str
 

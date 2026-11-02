@@ -64,6 +64,8 @@ class DiffCollection:
     # Changed files `paths.config_files` names, read whole for `schema_diff` to compare as
     # configuration.
     config_files: list[ChangedFile] = field(default_factory=list)
+    # Every changed path with its status, before any exclusion or filter, for test selection.
+    changed: list[ChangedFile] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
