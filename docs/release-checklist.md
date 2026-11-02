@@ -29,4 +29,10 @@
       The pin check keeps those examples agreeing with each other, but it cannot know which
       tag is current until the tag exists — `--verify-remote` fails once the examples name a
       release that was never pushed.
+- [x] Once the tag is pushed, create its GitHub Release under the same authorization: titled
+      with the tag's one-line message, its notes the version's `CHANGELOG.md` section with each
+      paragraph on one line, and the wheel and source distribution the gate built and
+      `scripts/verify_wheel.py` checked attached; `gh release create --verify-tag` never makes
+      or moves a tag. No workflow runs on a release. The releases of v0.1.0 through v0.14.0 were
+      created on 2026-11-02 from their tags, with notes alone.
 - [x] Publish or push only with separate authorization.
