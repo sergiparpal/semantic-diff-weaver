@@ -1,7 +1,11 @@
 name: ci
 
+# A pull request runs every check before its merge, and main runs them again on the merged
+# commit. A push to any other branch, or a tag on a commit main has run, would only repeat a run,
+# with a second ci-complete that can fail on its own, as a leg left without a runner does.
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
