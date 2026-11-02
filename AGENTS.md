@@ -6,7 +6,7 @@ Production code lives in `semantic_diff_weaver/`. The `git_diff/` package collec
 
 Each package's `__init__.py` exports only its pipeline-facing surface. Import internals (parsers, the process runner, limit constants) from their defining module rather than widening the facade, and do not re-export private names.
 
-Tests are grouped under `tests/unit`, `contract`, `integration`, `security`, `performance`, and `evaluation`; reusable inputs belong in `tests/fixtures`. User-facing design and operational notes belong in `docs/`.
+Tests are grouped under `tests/unit`, `contract`, `integration`, `security`, `performance`, and `evaluation`; reusable inputs belong in `tests/fixtures`. User-facing design and operational notes belong in `docs/`. `benchmark/cases.json` is the labeled public benchmark of real pull requests that `scripts/run_benchmark.py` measures into `docs/benchmark.md`; never change a label to agree with the analyzer, and correct one found wrong only with its reason in the commit.
 
 ## Build, Test, and Development Commands
 

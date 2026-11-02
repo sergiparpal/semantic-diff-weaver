@@ -1,0 +1,926 @@
+{
+  "version": 1,
+  "annotation": "One annotator, Claude Opus 5.5, labeled every Python symbol each pull request changes outside its tests, from the diff and the files at its two commits, before reading the analyzer's output on it. reviewed_by names whoever checks a case's labels later.",
+  "sampled_from": {
+    "psf/requests": "3c7baaa05ab4aa49cc819ce3a819d260de19c157",
+    "pallets/click": "2247b35ea1c47c727d7a06e51fa280e12a863ff6",
+    "psf/black": "945d902bef347d2e7e1d26897aa89a9c177fb535",
+    "encode/httpx": "b5addb64f0161ff6bfe94c124ef76f6a1fba5254",
+    "python-attrs/attrs": "c8bb9bfaa2843e7844b5bb13bed4370b51feec4f"
+  },
+  "cases": [
+    {
+      "id": "psf/requests#7505",
+      "repository": "psf/requests",
+      "pull_request": 7505,
+      "base": "6f205ff422bccd5e4c4fc0b64c5f3e7df5181db6",
+      "head": "6f66281a1d6326b1b9c4ac09ca30de0fc4e6ef43",
+      "subject": "Add hasattr checks for remaining protocol isinstance checks (#7505)",
+      "labels": [
+        {
+          "path": "src/requests/_types.py",
+          "symbol": "has_read",
+          "change": "added",
+          "expected": [],
+          "rationale": "A new helper: isinstance against SupportsRead, or any object with a read attribute."
+        },
+        {
+          "path": "src/requests/models.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Imports the _types module at run time instead of one name from it; the same module is loaded either way."
+        },
+        {
+          "path": "src/requests/models.py",
+          "symbol": "RequestEncodingMixin._encode_params",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "output_contract_change"
+          ],
+          "rationale": "An object that only proxies read through __getattr__ now takes the file-like branch and is returned as given, where it fell through to the iterable or plain-value branches."
+        },
+        {
+          "path": "src/requests/models.py",
+          "symbol": "RequestEncodingMixin._encode_files",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The same isinstance-or-hasattr test, moved into has_read; a comment goes."
+        },
+        {
+          "path": "src/requests/models.py",
+          "symbol": "PreparedRequest.prepare_body",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "output_contract_change"
+          ],
+          "rationale": "A body object that only proxies read now counts as file-like, so no form-urlencoded Content-Type is set for it."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "psf/requests#7502",
+      "repository": "psf/requests",
+      "pull_request": 7502,
+      "base": "661970d171d9c3e12e4c789c4768db647d8c4da0",
+      "head": "6f205ff422bccd5e4c4fc0b64c5f3e7df5181db6",
+      "subject": "Fix `_encode_files` detection for `__getattr__`-based file wrappers (#7502)",
+      "labels": [
+        {
+          "path": "src/requests/models.py",
+          "symbol": "RequestEncodingMixin._encode_files",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "output_contract_change"
+          ],
+          "rationale": "A file wrapper with read only through __getattr__ is now read with fp.read(), where it was passed on as the object itself."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "psf/requests#7498",
+      "repository": "psf/requests",
+      "pull_request": 7498,
+      "base": "e50e5945294f79ee9ab4ec69de24d14f9b26a7ae",
+      "head": "1190afd14fca74292946d62c4c8169880a47ff67",
+      "subject": "Add type annotation for `Request.hooks` (#7498)",
+      "labels": [
+        {
+          "path": "src/requests/models.py",
+          "symbol": "Request",
+          "change": "modified",
+          "expected": [],
+          "rationale": "A class-level annotation for hooks, with no value: typing only."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "psf/requests#7496",
+      "repository": "psf/requests",
+      "pull_request": 7496,
+      "base": "3be097d450ee4ca8a2f9c1a3a58eb61ed19936b0",
+      "head": "e50e5945294f79ee9ab4ec69de24d14f9b26a7ae",
+      "subject": "Improve static typing of 3rd party imports  (#7496)",
+      "labels": [
+        {
+          "path": "src/requests/__init__.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Type-checker comments removed, and an import reflowed onto the same names."
+        },
+        {
+          "path": "src/requests/compat.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "chardet is imported under TYPE_CHECKING for the type checker; at run time it is resolved as before."
+        },
+        {
+          "path": "src/requests/help.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Type-checker comments removed."
+        },
+        {
+          "path": "src/requests/help.py",
+          "symbol": "_implementation",
+          "change": "modified",
+          "expected": [],
+          "rationale": "A type-checker comment moved onto one line."
+        },
+        {
+          "path": "src/requests/models.py",
+          "symbol": "RequestEncodingMixin._encode_files",
+          "change": "modified",
+          "expected": [],
+          "rationale": "A type-checker comment removed."
+        },
+        {
+          "path": "src/requests/models.py",
+          "symbol": "Response.iter_lines",
+          "change": "modified",
+          "expected": [],
+          "rationale": "A type-checker comment removed."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "psf/requests#7460",
+      "repository": "psf/requests",
+      "pull_request": 7460,
+      "base": "6e83187b8feb273ed4c6cdab5efd8d54901dfab3",
+      "head": "cd90742ed94d901759e26766197d0ce7c7bd9c8e",
+      "subject": "docs: indent continuation line in Session.get :param params: (#7460)",
+      "labels": [
+        {
+          "path": "src/requests/sessions.py",
+          "symbol": "Session.get",
+          "change": "modified",
+          "expected": [],
+          "rationale": "A docstring line re-indented."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "psf/requests#7441",
+      "repository": "psf/requests",
+      "pull_request": 7441,
+      "base": "b7b549b54571d03950b16afd2d01bc6ff0348224",
+      "head": "84d10f0be83e8f6aeca8a05230c52216431c4d0b",
+      "subject": "Move Request.headers back to Mapping (#7441)",
+      "labels": [
+        {
+          "path": "src/requests/_types.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "A type alias under TYPE_CHECKING widens MutableMapping to Mapping: typing only."
+        },
+        {
+          "path": "src/requests/models.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "An import under TYPE_CHECKING removed."
+        },
+        {
+          "path": "src/requests/models.py",
+          "symbol": "Request",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The headers annotation widens to Mapping: typing only."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "pallets/click#3781",
+      "repository": "pallets/click",
+      "pull_request": 3781,
+      "base": "2103e157683c5e4cadc8ee1838df526a54bde9a4",
+      "head": "a1d87858abd77fa8e3ffc204670ccd75b96c4781",
+      "subject": "Add support of `pathlib.Path` to `edit` (#3781)",
+      "labels": [
+        {
+          "path": "src/click/_termui_impl.py",
+          "symbol": "Editor.edit_files",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The filenames annotation widens to path-like values; the body is unchanged."
+        },
+        {
+          "path": "src/click/termui.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "import os added."
+        },
+        {
+          "path": "src/click/termui.py",
+          "symbol": "edit",
+          "change": "modified",
+          "expected": [
+            "validation_change"
+          ],
+          "rationale": "A single os.PathLike filename is now accepted and wrapped as one file, where only a str was; the overloads and docstring follow."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "pallets/click#3777",
+      "repository": "pallets/click",
+      "pull_request": 3777,
+      "base": "61b69e967e525bd502f5bf42def4d551e761fe0e",
+      "head": "a6256bfb5971d5e58585fe7b6c656134e1ade5a4",
+      "subject": "Forward all user's parameters set in `PAGER` and improve flag detection (#3777)",
+      "labels": [
+        {
+          "path": "src/click/_termui_impl.py",
+          "symbol": "_pager_contextmanager",
+          "change": "modified",
+          "expected": [
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "The temp-file pager is now handed the PAGER parameters, so the program it starts gets them."
+        },
+        {
+          "path": "src/click/_termui_impl.py",
+          "symbol": "_less_uses_raw_mode",
+          "change": "added",
+          "expected": [],
+          "rationale": "A new parser of less options for a raw-control-characters request."
+        },
+        {
+          "path": "src/click/_termui_impl.py",
+          "symbol": "_pipepager",
+          "change": "modified",
+          "expected": [
+            "output_contract_change",
+            "default_behavior_change"
+          ],
+          "rationale": "Colors are kept only for a real -r, -R, or --raw-control-chars option, no longer for any r in the flags or file names, and less.exe is recognized like less."
+        },
+        {
+          "path": "src/click/_termui_impl.py",
+          "symbol": "_tempfilepager",
+          "change": "modified",
+          "expected": [
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Takes the PAGER parameters and passes them to the program before the file name."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "pallets/click#3776",
+      "repository": "pallets/click",
+      "pull_request": 3776,
+      "base": "f36d58bbd7f188178de2d4fe1d0292c510375ca7",
+      "head": "9835b0f7612d1b1ea180a975fd6d24cf16791ba8",
+      "subject": "Resolve the pager command once, in `_pager_contextmanager` (#3776)",
+      "labels": [
+        {
+          "path": "src/click/_termui_impl.py",
+          "symbol": "_resolve_pager_command",
+          "change": "added",
+          "expected": [],
+          "rationale": "Pager command resolution with shutil.which, moved out of the two strategies."
+        },
+        {
+          "path": "src/click/_termui_impl.py",
+          "symbol": "_pager_contextmanager",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "Resolves the command itself with the same routing and null-pager fallback, but the context it returns now yields None for an undecided color where it yielded False."
+        },
+        {
+          "path": "src/click/_termui_impl.py",
+          "symbol": "get_pager_file",
+          "change": "modified",
+          "expected": [],
+          "rationale": "bool(color) turns the strategies' new None into the False they yielded before: the stream it wraps behaves as before."
+        },
+        {
+          "path": "src/click/_termui_impl.py",
+          "symbol": "_pipepager",
+          "change": "modified",
+          "expected": [
+            "output_contract_change",
+            "error_handling_change"
+          ],
+          "rationale": "Takes a resolved path and parameters instead of resolving them, no longer falls back to the null pager itself, and yields None for an undecided color instead of False."
+        },
+        {
+          "path": "src/click/_termui_impl.py",
+          "symbol": "_tempfilepager",
+          "change": "modified",
+          "expected": [
+            "output_contract_change",
+            "error_handling_change"
+          ],
+          "rationale": "Takes a resolved path instead of resolving it, no longer falls back to the null pager itself, and yields None for an undecided color instead of False."
+        },
+        {
+          "path": "src/click/_termui_impl.py",
+          "symbol": "_nullpager",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "Yields the color as given, None included, instead of turning None into False."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "pallets/click#3764",
+      "repository": "pallets/click",
+      "pull_request": 3764,
+      "base": "150d1071d69c5cdad7de78590013ffe56cf9e3bb",
+      "head": "1f9cd54f686eb343cec714230ad825ce972739ab",
+      "subject": "Fix error reporting on Windows when an error is raised in the pager  (#3764)",
+      "labels": [
+        {
+          "path": "src/click/_termui_impl.py",
+          "symbol": "_tempfilepager",
+          "change": "modified",
+          "expected": [
+            "error_handling_change"
+          ],
+          "rationale": "The temp file is closed in finally, so an error while paging propagates instead of being replaced by the PermissionError of unlinking an open file on Windows."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "pallets/click#3769",
+      "repository": "pallets/click",
+      "pull_request": 3769,
+      "base": "8b44edfff7d9a6c895fa804148c16b3a0bc9efb5",
+      "head": "f316d5cb3aa89b57c14aee54da6ac9062ac5bec4",
+      "subject": "Settles progress bar on its final position (#3769)",
+      "labels": [
+        {
+          "path": "src/click/_termui_impl.py",
+          "symbol": "ProgressBar.render_finish",
+          "change": "modified",
+          "expected": [
+            "output_contract_change",
+            "state_transition_change",
+            "side_effect_change"
+          ],
+          "rationale": "Applies the pending sub-threshold steps and renders once more before finishing, so the bar ends on its true position."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "pallets/click#3739",
+      "repository": "pallets/click",
+      "pull_request": 3739,
+      "base": "9c4dfdaebe0e6b2aabc566eb81f6f10eb5cd6ea1",
+      "head": "a2ac5839f29f61cf7f3f229c67b97d07988e479b",
+      "subject": "Changed `tempfile.NamedTemporaryFile` mode to `w` (#3739)",
+      "labels": [
+        {
+          "path": "src/click/_termui_impl.py",
+          "symbol": "_tempfilepager",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "The temp file opens in text mode instead of binary, so the stream it yields takes str rather than bytes."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "psf/black#5649",
+      "repository": "psf/black",
+      "pull_request": 5649,
+      "base": "a755b562f5ed7d941bce785a6600fde233126fe0",
+      "head": "945d902bef347d2e7e1d26897aa89a9c177fb535",
+      "subject": "Keep the blank line after a nested import that is followed by a comment (#5649)",
+      "labels": [
+        {
+          "path": "src/black/lines.py",
+          "symbol": "EmptyLineTracker._maybe_empty_lines",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "The blank line after an import is kept before a comment in more cases: two exclusions go and a converted import line no longer counts before a comment, so the counts it returns change."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "psf/black#5647",
+      "repository": "psf/black",
+      "pull_request": 5647,
+      "base": "e0d5d1fa43105a1fd993b4e9ee447b4ed753fb3c",
+      "head": "a755b562f5ed7d941bce785a6600fde233126fe0",
+      "subject": "Fix `# fmt: skip` on the last line of a multi-line conditional expression in brackets (#5647)",
+      "labels": [
+        {
+          "path": "src/black/linegen.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "last_leaf imported."
+        },
+        {
+          "path": "src/black/linegen.py",
+          "symbol": "LineGenerator.visit_test",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "A conditional expression whose last leaf is a # fmt: skip comment is no longer wrapped in invisible parentheses, which changes the lines generated."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "psf/black#5493",
+      "repository": "psf/black",
+      "pull_request": 5493,
+      "base": "b55619dec89084b3d001063104bdcc9721715d23",
+      "head": "e0d5d1fa43105a1fd993b4e9ee447b4ed753fb3c",
+      "subject": "Preserve blank lines after imports with --line-ranges (#5493)",
+      "labels": [
+        {
+          "path": "src/black/lines.py",
+          "symbol": "EmptyLineTracker._maybe_empty_lines",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "With --line-ranges, an import line outside the selected ranges now counts as an import for the blank line after it, and two cases of the class and comment rules change, so the counts it returns change."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "psf/black#5646",
+      "repository": "psf/black",
+      "pull_request": 5646,
+      "base": "e49fc44cef105c8a948873982fc566dc4df8d549",
+      "head": "b55619dec89084b3d001063104bdcc9721715d23",
+      "subject": "Remove redundant parentheses around yields of tuples (#5646)",
+      "labels": [
+        {
+          "path": "src/black/linegen.py",
+          "symbol": "maybe_make_parens_invisible_in_atom",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "Under the parenthesize_tuple_in_yield preview, a yielded tuple no longer keeps the atom's visible parentheses, so redundant ones are removed."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "psf/black#5645",
+      "repository": "psf/black",
+      "pull_request": 5645,
+      "base": "2f0b40783a273eeb907b0f052a0eadc326c1e1c3",
+      "head": "e49fc44cef105c8a948873982fc566dc4df8d549",
+      "subject": "Fix blackd client encoding for custom Content-Type charsets (#5645)",
+      "labels": [
+        {
+          "path": "src/blackd/client.py",
+          "symbol": "BlackDClient.__init__",
+          "change": "modified",
+          "expected": [
+            "state_transition_change",
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "A custom content-type header of any case now replaces the default Content-Type instead of being kept beside it."
+        },
+        {
+          "path": "src/blackd/client.py",
+          "symbol": "BlackDClient.format_code",
+          "change": "modified",
+          "expected": [
+            "dependency_interaction_change",
+            "side_effect_change"
+          ],
+          "rationale": "The request body is encoded with the Content-Type charset through a StringPayload instead of always as UTF-8 bytes."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "psf/black#5643",
+      "repository": "psf/black",
+      "pull_request": 5643,
+      "base": "324e93c0cb20d7dab06345131c14aab9c9fa5d5b",
+      "head": "2f0b40783a273eeb907b0f052a0eadc326c1e1c3",
+      "subject": "Fix crashes on a `# fmt: off` region that ends at a closing bracket (#5643)",
+      "labels": [
+        {
+          "path": "src/black/comments.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Preview imported."
+        },
+        {
+          "path": "src/black/comments.py",
+          "symbol": "_is_fmt_off_region_before_newline",
+          "change": "added",
+          "expected": [],
+          "rationale": "A new predicate for a # fmt: off region that ends its line."
+        },
+        {
+          "path": "src/black/comments.py",
+          "symbol": "_needs_newline_after",
+          "change": "added",
+          "expected": [],
+          "rationale": "The newline rule of stringify_standalone_comment, moved out, with one new case."
+        },
+        {
+          "path": "src/black/comments.py",
+          "symbol": "_handle_regular_fmt_block",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "Its stringify_node no longer adds the newline after a # fmt: off region whose newline is in the next leaf's prefix, so the hidden code is joined differently."
+        },
+        {
+          "path": "src/black/comments.py",
+          "symbol": "_handle_regular_fmt_block.stringify_standalone_comment",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "No newline is appended after a # fmt: off region that already ends before one."
+        },
+        {
+          "path": "src/black/comments.py",
+          "symbol": "generate_ignored_nodes",
+          "change": "modified",
+          "expected": [
+            "output_contract_change",
+            "boundary_change"
+          ],
+          "rationale": "Under the new preview, a # fmt: off region without # fmt: on ends at the bracket closing the brackets it is in, so fewer nodes are ignored."
+        },
+        {
+          "path": "src/black/mode.py",
+          "symbol": "Preview",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "default_behavior_change"
+          ],
+          "rationale": "A new preview feature, end_fmt_off_at_closing_bracket, which --preview turns on."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "encode/httpx#3699",
+      "repository": "encode/httpx",
+      "pull_request": 3699,
+      "base": "ca097c96f97d8d2a5da09b8ca736c7e78a2467f6",
+      "head": "ae1b9f66238f75ced3ced5e4485408435de10768",
+      "subject": "Expose `FunctionAuth` in `__all__` (#3699)",
+      "labels": [
+        {
+          "path": "httpx/__init__.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "__all__ gains FunctionAuth, so a star import of httpx exports it."
+        },
+        {
+          "path": "httpx/_auth.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "__all__ gains FunctionAuth, and httpx's star import of _auth makes httpx.FunctionAuth exist, where it was an AttributeError."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "encode/httpx#3651",
+      "repository": "encode/httpx",
+      "pull_request": 3651,
+      "base": "89102021fcb44f6c3fab6304e5f951692723c908",
+      "head": "364697efcafe39290358745da8be451a40a3eab2",
+      "subject": "Upgrade Python formatter ruff (#3651)",
+      "labels": [
+        {
+          "path": "httpx/_exceptions.py",
+          "symbol": "StreamClosed.__init__",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Two adjacent string literals joined into one: the same message."
+        },
+        {
+          "path": "httpx/_urls.py",
+          "symbol": "URL.__repr__",
+          "change": "modified",
+          "expected": [],
+          "rationale": "An f-string's quotes swapped: the same string."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "encode/httpx#3571",
+      "repository": "encode/httpx",
+      "pull_request": 3571,
+      "base": "6c7af967734bafd011164f2a1653abc87905a62b",
+      "head": "336204f0121a9aefdebac5cacd81f912bafe8057",
+      "subject": "Display proxy protocol scheme on error (#3571)",
+      "labels": [
+        {
+          "path": "httpx/_transports/default.py",
+          "symbol": "AsyncHTTPTransport.__init__",
+          "change": "modified",
+          "expected": [
+            "error_handling_change"
+          ],
+          "rationale": "The ValueError for an unsupported proxy scheme now names the scheme, where its message held the placeholder text."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "encode/httpx#3519",
+      "repository": "encode/httpx",
+      "pull_request": 3519,
+      "base": "e70d0b08c929e5140e38aa92a419de0c6d494148",
+      "head": "4189b7f051c6c51ce74c3bee1a5f269f9c50c6b2",
+      "subject": "fix typo (#3519)",
+      "labels": [
+        {
+          "path": "httpx/_client.py",
+          "symbol": "AsyncClient._send_single_request",
+          "change": "modified",
+          "expected": [],
+          "rationale": "A typo fixed in an error message: the same information."
+        },
+        {
+          "path": "httpx/_models.py",
+          "symbol": "Response.close",
+          "change": "modified",
+          "expected": [],
+          "rationale": "A typo fixed in an error message: the same information."
+        },
+        {
+          "path": "httpx/_models.py",
+          "symbol": "Response.aiter_raw",
+          "change": "modified",
+          "expected": [],
+          "rationale": "A typo fixed in an error message: the same information."
+        },
+        {
+          "path": "httpx/_models.py",
+          "symbol": "Response.aclose",
+          "change": "modified",
+          "expected": [],
+          "rationale": "A typo fixed in an error message: the same information."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "encode/httpx#3445",
+      "repository": "encode/httpx",
+      "pull_request": 3445,
+      "base": "89599a9541af14bcf906fc4ed58ccbdf403802ba",
+      "head": "26d48e0634e6ee9cdc0533996db289ce4b430177",
+      "subject": "Version 0.28.1 (#3445)",
+      "labels": [
+        {
+          "path": "httpx/__version__.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The release's version string."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "encode/httpx#3442",
+      "repository": "encode/httpx",
+      "pull_request": 3442,
+      "base": "8ecb86f0d74ffc52d4663214fae9526bee89358d",
+      "head": "89599a9541af14bcf906fc4ed58ccbdf403802ba",
+      "subject": "Fix `verify=False`, `cert=...` case. (#3442)",
+      "labels": [
+        {
+          "path": "httpx/_config.py",
+          "symbol": "create_ssl_context",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "verify=False no longer returns early, so the context it returns now also loads the client certificate and the rest of the configuration."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "python-attrs/attrs#1636",
+      "repository": "python-attrs/attrs",
+      "pull_request": 1636,
+      "base": "0a08cee06960e415f735dec4cf2fb91d669e2433",
+      "head": "8f76a5262b3b426bfb6a1127f12d49430d168c8b",
+      "subject": "Improve astuple performance for nested atomic sequences (#1636)",
+      "labels": [
+        {
+          "path": "src/attr/_funcs.py",
+          "symbol": "astuple",
+          "change": "modified",
+          "expected": [],
+          "rationale": "An atomic value skips the has() check, which is false for it anyway: faster, and the same tuple."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "python-attrs/attrs#1625",
+      "repository": "python-attrs/attrs",
+      "pull_request": 1625,
+      "base": "bf47028ae4ec31975de7dfd389148756f15ee525",
+      "head": "a602f78ff670f22be90fb8aea501a6cc30e10fdd",
+      "subject": "docs/fix: remove duplicated words in docs and source comment (#1625)",
+      "labels": [
+        {
+          "path": "src/attr/_make.py",
+          "symbol": "Attribute.evolve",
+          "change": "modified",
+          "expected": [],
+          "rationale": "A duplicated word removed from a comment."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "python-attrs/attrs#1606",
+      "repository": "python-attrs/attrs",
+      "pull_request": 1606,
+      "base": "f38b8a3f1625060aa4245930822c34c11c252f83",
+      "head": "f53fc5440d7f86aac4328aec7a563eb48634177f",
+      "subject": "Stop evolve dunders from being modified (#1606)",
+      "labels": [
+        {
+          "path": "src/attr/_make.py",
+          "symbol": "_ClassBuilder.add_replace",
+          "change": "modified",
+          "expected": [
+            "side_effect_change",
+            "state_transition_change"
+          ],
+          "rationale": "__replace__ is now a local proxy for evolve, so _add_method_dunders renames the proxy instead of mutating the module-level evolve's __qualname__ and __module__."
+        },
+        {
+          "path": "src/attr/_make.py",
+          "symbol": "_ClassBuilder.add_replace.__replace__",
+          "change": "added",
+          "expected": [],
+          "rationale": "The new proxy that calls evolve."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "python-attrs/attrs#1571",
+      "repository": "python-attrs/attrs",
+      "pull_request": 1571,
+      "base": "f616f732c6c5f87a8f7a762176422baed250a6be",
+      "head": "5aa76a4450c311d87eda43946ec0ecd743572649",
+      "subject": "Add `ne` validator (#1571)",
+      "labels": [
+        {
+          "path": "src/attr/validators.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "__all__ gains ne, so a star import of attr.validators exports it."
+        },
+        {
+          "path": "src/attr/validators.py",
+          "symbol": "ne",
+          "change": "added",
+          "expected": [],
+          "rationale": "A new validator rejecting a value equal to val."
+        },
+        {
+          "path": "src/attr/validators.py",
+          "symbol": "matches_re",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Docstring punctuation."
+        },
+        {
+          "path": "src/attr/validators.py",
+          "symbol": "deep_iterable",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Docstring punctuation."
+        },
+        {
+          "path": "src/attr/validators.py",
+          "symbol": "ge",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Docstring punctuation."
+        },
+        {
+          "path": "src/attr/validators.py",
+          "symbol": "gt",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Docstring punctuation."
+        },
+        {
+          "path": "src/attr/validators.py",
+          "symbol": "max_len",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Docstring punctuation."
+        },
+        {
+          "path": "src/attr/validators.py",
+          "symbol": "min_len",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Docstring punctuation."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "python-attrs/attrs#1593",
+      "repository": "python-attrs/attrs",
+      "pull_request": 1593,
+      "base": "6851ab593cd25f3c14393e9355d57d22bec2a074",
+      "head": "97f8d175656bc03c373a1c9038048a4d312c307c",
+      "subject": "Fix ClassVar forward reference detection (#1593)",
+      "labels": [
+        {
+          "path": "src/attr/_make.py",
+          "symbol": "_is_class_var",
+          "change": "modified",
+          "expected": [
+            "output_contract_change",
+            "validation_change"
+          ],
+          "rationale": "A typing.ForwardRef annotation is unwrapped to its string first, so a forward-referenced ClassVar is now recognized as one."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "python-attrs/attrs#1589",
+      "repository": "python-attrs/attrs",
+      "pull_request": 1589,
+      "base": "45de9beb093d2142517ab7d1ebda6522e3d3c4ac",
+      "head": "d544dd2dacb4cbd660891e323ad92751ba65b4e0",
+      "subject": "update dev (#1589)",
+      "labels": [
+        {
+          "path": "typing-examples/baseline.py",
+          "symbol": "ValidatedOptionalOverTuple",
+          "change": "modified",
+          "expected": [],
+          "rationale": "A type-checker comment removed from a field."
+        }
+      ],
+      "reviewed_by": []
+    }
+  ]
+}

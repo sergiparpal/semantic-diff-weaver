@@ -959,9 +959,10 @@ plugin.
   ingested report and data file; the tool never runs tests.
 - Verified source-to-test mapping. *Open by design:* every candidate test is reported as
   unverified.
-- Evaluation corpus and public benchmark. *Partly:* the 18-case corpus of `docs/evaluation.md`
-  and the observations on real pull requests in `docs/real-pr-validation.md`; there is no labeled
-  public benchmark.
+- Evaluation corpus and public benchmark. *Done:* the 18-case corpus of `docs/evaluation.md`,
+  and `benchmark/cases.json`, 30 real pull requests from five public repositories with every Python
+  symbol they change labeled, which `scripts/run_benchmark.py` measures in `docs/benchmark.md`. One
+  annotator labeled it, so its labels await review.
 - Downstream integration with regression selection and autonomous test generation. *Partly:*
   `test_selection` and the `select` subcommand name the test files a change can affect, by the
   imports their tests follow, or say why the whole suite has to run; autonomous test generation
