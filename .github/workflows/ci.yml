@@ -98,6 +98,8 @@ jobs:
     needs: [test, action-pins, hermes-compatibility]
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      actions: read
     steps:
       - name: Fail unless every required job succeeded
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')
@@ -105,3 +107,24 @@ jobs:
           echo "A required job did not succeed:"
           echo '${{ toJSON(needs) }}'
           exit 1
+      # needs.*.result alone can pass a leg that never ran: GitHub reports a matrix job as a
+      # success when one of its legs is cancelled because no runner took it, though the run
+      # itself fails. So every leg of every required job is read from this run attempt, where
+      # a leg is named after its job, and each must have succeeded.
+      - name: Fail unless every leg of every required job succeeded
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          legs=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs?per_page=100" --jq '
+            if .total_count > (.jobs | length) then error("the run has more jobs than one page lists") else . end
+            | .jobs as $jobs
+            | ($ENV.NEEDS | fromjson | keys[]) as $need
+            | [$jobs[] | select(.name == $need or (.name | startswith($need + " (")))]
+            | if length == 0 then error("no job of this run is named after \($need)") else .[] end
+            | "\(.conclusion // .status)\t\(.name)"')
+          echo "$legs"
+          if printf '%s\n' "$legs" | grep -qv $'^success\t'; then
+            echo "A leg of a required job did not succeed."
+            exit 1
+          fi
