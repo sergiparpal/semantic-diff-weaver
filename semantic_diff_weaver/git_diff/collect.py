@@ -309,15 +309,8 @@ def _named_config(path: str, config: WeaverConfig) -> bool:
     )
 
 
-def collect_diff(
-    repo: GitRepository,
-    base_commit: str,
-    head_commit: str,
-    config: WeaverConfig,
-) -> DiffCollection:
-    """Collect bounded changed Python blobs, the YAML and JSON files an API schema can be
-    written in, and the configuration files the repository names, without checking out or
-    executing code."""
+def changed_files(repo: GitRepository, base_commit: str, head_commit: str) -> list[ChangedFile]:
+    """Every path the diff changes, with its status, before any exclusion or filter."""
     name_raw = repo.run(
         [
             "diff",
@@ -332,7 +325,24 @@ def collect_diff(
         ],
         binary=True,
     )
-    files = parse_name_status(name_raw)
+    return parse_name_status(name_raw)
+
+
+def collect_diff(
+    repo: GitRepository,
+    base_commit: str,
+    head_commit: str,
+    config: WeaverConfig,
+) -> DiffCollection:
+    """Collect bounded changed Python blobs, the YAML and JSON files an API schema can be
+    written in, and the configuration files the repository names, without checking out or
+    executing code."""
+    files = changed_files(repo, base_commit, head_commit)
+    # The paths themselves, before anything below reads or mutates a record.
+    every_path = [
+        ChangedFile(status=item.status, old_path=item.old_path, new_path=item.new_path)
+        for item in files
+    ]
     numstat_raw = repo.run(
         [
             "diff",
@@ -457,4 +467,5 @@ def collect_diff(
         truncated=selected_scope is not None or reading.truncated,
         documents=read_documents,
         config_files=read_config_files,
+        changed=every_path,
     )

@@ -24,7 +24,14 @@ from .coverage_map import (
     summarize,
 )
 from .errors import ErrorCode, WeaverError
-from .git_diff import ChangedFile, DiffCollection, GitRepository, collect_diff, read_history
+from .git_diff import (
+    ChangedFile,
+    DiffCollection,
+    GitRepository,
+    changed_files,
+    collect_diff,
+    read_history,
+)
 from .llm_client import LlmClient
 from .models import (
     AnalysisResult,
@@ -56,6 +63,7 @@ from .path_policy import (
 from .renderer import render_transport
 from .schema_diff import DocumentAnalysis, analyze_schemas, analyze_settings
 from .scoring import advisory_verdict, confidence_score, score_risk
+from .selection import select_tests
 from .semantic_candidates import SemanticCandidate, build_candidates, evidence_identity
 from .semantic_interpreter import InterpreterResult, interpret_candidates
 from .test_mapper import (
@@ -779,6 +787,9 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
     contexts = _load_coverage_data(config)
     baseline = _load_baseline(request, config)
     collection = collect_diff(repo, base_commit, head_commit, config)
+    # From every changed path, whatever the analysis below includes: a changed test or script
+    # selects the tests that import it.
+    selection = select_tests(repo, base_commit, head_commit, collection.changed, config)
     _set_aside_test_modules(collection, config)
     state.warnings.extend(collection.warnings)
     ast_result = analyze_ast([item.as_revision_pair() for item in collection.files])
@@ -974,5 +985,14 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
         ),
         llm=interpreted.status if deterministic else LlmStatus(),
         deterministic_mode=fallback_mode or partial_fallback,
+        test_selection=selection,
     )
     return render_transport(analysis, request.output_format)
+
+
+def select(arguments: dict[str, Any]) -> dict[str, Any]:
+    """The test files a committed change can affect, as the analysis selects them, without
+    analyzing what the change does."""
+    _, repo, base_commit, head_commit, config, _ = _bootstrap(arguments)
+    changed = changed_files(repo, base_commit, head_commit)
+    return select_tests(repo, base_commit, head_commit, changed, config).model_dump(mode="json")

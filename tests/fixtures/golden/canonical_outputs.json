@@ -67,7 +67,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.4",
+    "schema_version": "1.5",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -114,6 +114,11 @@
         "when": "The changed cases are reviewed"
       }
     ],
+    "test_selection": {
+      "reasons": [],
+      "run_all": false,
+      "tests": []
+    },
     "warnings": []
   },
   "authorization guard": {
@@ -184,7 +189,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.4",
+    "schema_version": "1.5",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -247,6 +252,11 @@
         "when": "The changed operation is attempted"
       }
     ],
+    "test_selection": {
+      "reasons": [],
+      "run_all": false,
+      "tests": []
+    },
     "warnings": []
   },
   "call ordering": {
@@ -315,7 +325,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.4",
+    "schema_version": "1.5",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -378,6 +388,11 @@
         "when": "The operation executes"
       }
     ],
+    "test_selection": {
+      "reasons": [],
+      "run_all": false,
+      "tests": []
+    },
     "warnings": []
   },
   "default argument": {
@@ -446,7 +461,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.4",
+    "schema_version": "1.5",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -525,6 +540,11 @@
         "when": "The callable is invoked"
       }
     ],
+    "test_selection": {
+      "reasons": [],
+      "run_all": false,
+      "tests": []
+    },
     "warnings": []
   },
   "dependency arguments": {
@@ -595,7 +615,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.4",
+    "schema_version": "1.5",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -674,6 +694,11 @@
         "when": "The changed interaction runs"
       }
     ],
+    "test_selection": {
+      "reasons": [],
+      "run_all": false,
+      "tests": []
+    },
     "warnings": []
   },
   "exception type": {
@@ -742,7 +767,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.4",
+    "schema_version": "1.5",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -805,6 +830,11 @@
         "when": "The surrounding handler executes"
       }
     ],
+    "test_selection": {
+      "reasons": [],
+      "run_all": false,
+      "tests": []
+    },
     "warnings": []
   },
   "inclusive boundary": {
@@ -873,7 +903,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.4",
+    "schema_version": "1.5",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -952,6 +982,11 @@
         "when": "The changed operation is invoked"
       }
     ],
+    "test_selection": {
+      "reasons": [],
+      "run_all": false,
+      "tests": []
+    },
     "warnings": []
   },
   "mixed parseable and unparseable Python": {
@@ -1061,7 +1096,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.4",
+    "schema_version": "1.5",
     "scope": {
       "analyzed_files": [
         "src/bad.py",
@@ -1162,6 +1197,11 @@
         "when": "The changed cases are reviewed"
       }
     ],
+    "test_selection": {
+      "reasons": [],
+      "run_all": false,
+      "tests": []
+    },
     "warnings": [
       "Could not parse changed Python source 'src/bad.py'; analysis is incomplete."
     ]
@@ -1234,7 +1274,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.4",
+    "schema_version": "1.5",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -1281,6 +1321,11 @@
         "when": "The changed cases are reviewed"
       }
     ],
+    "test_selection": {
+      "reasons": [],
+      "run_all": false,
+      "tests": []
+    },
     "warnings": []
   },
   "moved renamed function": {
@@ -1310,7 +1355,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.4",
+    "schema_version": "1.5",
     "scope": {
       "analyzed_files": [
         "src/new.py",
@@ -1346,6 +1391,11 @@
       "verdict": "pass"
     },
     "test_obligations": [],
+    "test_selection": {
+      "reasons": [],
+      "run_all": false,
+      "tests": []
+    },
     "warnings": []
   },
   "no changed Python source": {
@@ -1375,7 +1425,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.4",
+    "schema_version": "1.5",
     "scope": {
       "analyzed_files": [],
       "changed_files_total": 1,
@@ -1405,6 +1455,13 @@
       "verdict": "pass"
     },
     "test_obligations": [],
+    "test_selection": {
+      "reasons": [
+        "Tests may read changed files that are not Python: README.md."
+      ],
+      "run_all": true,
+      "tests": []
+    },
     "warnings": []
   },
   "output field": {
@@ -1473,7 +1530,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.4",
+    "schema_version": "1.5",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -1536,6 +1593,11 @@
         "when": "It uses the changed callable"
       }
     ],
+    "test_selection": {
+      "reasons": [],
+      "run_all": false,
+      "tests": []
+    },
     "warnings": []
   },
   "oversized critical path prioritization": {
@@ -1605,7 +1667,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.4",
+    "schema_version": "1.5",
     "scope": {
       "analyzed_files": [
         "critical.py"
@@ -1689,6 +1751,11 @@
         "when": "The changed operation is invoked"
       }
     ],
+    "test_selection": {
+      "reasons": [],
+      "run_all": false,
+      "tests": []
+    },
     "warnings": [
       "The diff exceeded global resource limits; analyzed prioritized critical-path scope only."
     ]
@@ -1795,7 +1862,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.4",
+    "schema_version": "1.5",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -1874,6 +1941,11 @@
         "when": "The changed retry policy evaluates it"
       }
     ],
+    "test_selection": {
+      "reasons": [],
+      "run_all": false,
+      "tests": []
+    },
     "warnings": []
   },
   "return annotation signature": {
@@ -1944,7 +2016,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.4",
+    "schema_version": "1.5",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -2007,6 +2079,11 @@
         "when": "It uses the changed callable"
       }
     ],
+    "test_selection": {
+      "reasons": [],
+      "run_all": false,
+      "tests": []
+    },
     "warnings": []
   },
   "side effect": {
@@ -2077,7 +2154,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.4",
+    "schema_version": "1.5",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -2156,6 +2233,11 @@
         "when": "The changed operation runs"
       }
     ],
+    "test_selection": {
+      "reasons": [],
+      "run_all": false,
+      "tests": []
+    },
     "warnings": []
   },
   "stable refactor": {
@@ -2185,7 +2267,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.4",
+    "schema_version": "1.5",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -2220,6 +2302,11 @@
       "verdict": "pass"
     },
     "test_obligations": [],
+    "test_selection": {
+      "reasons": [],
+      "run_all": false,
+      "tests": []
+    },
     "warnings": []
   },
   "state assignment": {
@@ -2288,7 +2375,7 @@
       "head_ref": "<head-ref>",
       "path": "."
     },
-    "schema_version": "1.4",
+    "schema_version": "1.5",
     "scope": {
       "analyzed_files": [
         "src/case.py"
@@ -2367,6 +2454,11 @@
         "when": "The changed operation runs"
       }
     ],
+    "test_selection": {
+      "reasons": [],
+      "run_all": false,
+      "tests": []
+    },
     "warnings": []
   }
 }

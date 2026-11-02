@@ -7,6 +7,7 @@ import pytest
 from semantic_diff_weaver.ast_diff import StructuralDelta, analyze_ast, module_references
 from semantic_diff_weaver.call_graph import MAX_CALL_GRAPH_FILES, CallGraph, package_of
 from semantic_diff_weaver.change_groups import group_changes
+from semantic_diff_weaver.git_diff import ChangedFile, GitTreeEntry
 from semantic_diff_weaver.models import (
     BehaviorCategory,
     BehaviorChange,
@@ -17,6 +18,7 @@ from semantic_diff_weaver.models import (
     ScoreExplanation,
     WeaverConfig,
 )
+from semantic_diff_weaver.selection import MAX_SELECTION_FILES, select_tests
 from semantic_diff_weaver.semantic_candidates import build_candidates
 from semantic_diff_weaver.service import analyze
 from semantic_diff_weaver.source import SourceHunk, SourceRevisionPair
@@ -227,3 +229,46 @@ def test_a_variable_every_module_reads_is_grouped_in_one_walk() -> None:
     assert len(group.behavior_change_ids) == len(behaviors)
     assert [item.names for item in group.variables] == [["TIMEOUT"]]
     assert elapsed < 1.0
+
+
+class _Tree:
+    """A head revision held in memory, read the way test selection reads a repository's."""
+
+    def __init__(self, files: dict[str, str]) -> None:
+        self.files = files
+        self.ids = {path: f"{index:040x}" for index, path in enumerate(sorted(files))}
+        self.paths = {object_id: path for path, object_id in self.ids.items()}
+
+    def list_files(self, commit: str, *, strict: bool = False) -> list[str]:
+        return sorted(self.files)
+
+    def tree_entries(self, commit: str, paths: list[str]) -> dict[str, GitTreeEntry]:
+        return {path: GitTreeEntry(mode="100644", object_id=self.ids[path]) for path in paths}
+
+    def read_blob_objects(
+        self, object_ids: set[str], max_bytes: int, *, max_total_bytes: int
+    ) -> dict[str, str | None]:
+        return {object_id: self.files[self.paths[object_id]] for object_id in object_ids}
+
+
+@pytest.mark.performance
+@pytest.mark.no_cover
+def test_test_selection_follows_imports_at_its_file_limit() -> None:
+    """Round the selection's file limit, half the files are tests, each importing one module of
+    a chain whose last module changed, so every test reaches the change."""
+    count = (MAX_SELECTION_FILES - 1) // 2
+    files = {"pkg/__init__.py": ""}
+    functions = "".join(f"def f{n}(x):\n    return x + {n}\n\n\n" for n in range(20))
+    tests = "".join(f"def test_{n}():\n    assert f1({n}) == {n + 1}\n\n\n" for n in range(10))
+    for index in range(count):
+        following = f"from pkg import m{index + 1}\n" if index + 1 < count else ""
+        files[f"pkg/m{index}.py"] = f"{following}import json\n\n\n{functions}"
+        files[f"tests/test_{index}.py"] = f"import pytest\nfrom pkg.m{index} import f1\n\n\n{tests}"
+    last = f"pkg/m{count - 1}.py"
+    changed = [ChangedFile(status="M", old_path=last, new_path=last)]
+    started = time.perf_counter()
+    result = select_tests(_Tree(files), "a" * 40, "b" * 40, changed, WeaverConfig())
+    elapsed = time.perf_counter() - started
+    assert not result.run_all
+    assert len(result.tests) == count
+    assert elapsed < 5.0

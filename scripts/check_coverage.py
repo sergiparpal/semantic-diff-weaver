@@ -39,6 +39,9 @@ CRITICAL_MODULES = (
     # which of them are API schemas.
     "schema_diff/",
     "scoring.py",
+    # Decides which tests a change lets a pipeline skip, from an untrusted head revision, and
+    # hands their paths to a shell.
+    "selection.py",
     "semantic_interpreter.py",
     "service.py",
     # Parses an untrusted earlier analysis and writes code from it, so what it lets through

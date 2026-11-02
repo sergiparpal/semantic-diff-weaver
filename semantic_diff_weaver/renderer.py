@@ -74,6 +74,8 @@ EXCLUSION_PHRASES = {
     "unreadable_config_file": "named configuration file(s) not readable as bounded text",
     "unsupported_config_format": "named configuration file(s) in a format not compared",
 }
+# How many selected test files the brief lists; the analysis's `test_selection` holds them all.
+MAX_BRIEF_TESTS = 20
 
 
 def _visible_controls(text: str, *, preserve_newlines: bool = False) -> str:
@@ -205,6 +207,34 @@ def _connected_lines(result: AnalysisResult) -> list[str]:
         else:
             said = f"{leading}, which reach each other, reach {_listed([m for _, m in reached])}"
         lines.append(f"- {said}: a test through {through} can exercise {everything}.")
+    return lines
+
+
+def _selection_lines(result: AnalysisResult) -> list[str]:
+    """The test files the change can affect, or why the whole suite runs; nothing without a
+    selection, as in an analysis read from before it had one."""
+    selection = result.test_selection
+    if selection is None:
+        return []
+    lines = ["", "### Tests to run", ""]
+    if selection.run_all:
+        lines.append("The whole suite:")
+        lines.extend(f"- {_escape(reason)}" for reason in selection.reasons)
+        return lines
+    if not selection.tests:
+        lines.append(
+            "None: no test file imports a changed Python file, and `selection.ignore` covers every "
+            "other changed file."
+        )
+        return lines
+    lines.append(f"{len(selection.tests)} test file(s) the change can affect, by their imports:")
+    lines.append("")
+    shown = selection.tests[:MAX_BRIEF_TESTS]
+    lines.extend(f"- {_code(item.path)}: {_escape(' '.join(item.reasons))}" for item in shown)
+    if len(selection.tests) > len(shown):
+        lines.append(
+            f"- and {len(selection.tests) - len(shown)} more, in the analysis's `test_selection`."
+        )
     return lines
 
 
@@ -382,6 +412,7 @@ def render_markdown(result: AnalysisResult, *, excerpt_chars: int | None = None)
             lines.append(f"  - Candidate existing tests (unverified): {candidates}")
         else:
             lines.append(f"  - Candidate existing tests: none ({obligation.coverage_status.value})")
+    lines.extend(_selection_lines(result))
     review = [
         item
         for item in result.behavior_changes

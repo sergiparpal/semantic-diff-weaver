@@ -47,6 +47,8 @@ privacy:
 verdict:
   warn_at: medium
   review_required_at: high
+selection:
+  ignore: []
 ```
 
 `summary.verdict` is an advisory `pass`, `warn`, or `review_required`, read from the overall risk:
@@ -332,6 +334,47 @@ path, symbol, and risk — never by the baseline's prose, which could otherwise 
 
 An unreadable, malformed, oversized, or non-1.x baseline, or a `--format markdown` brief, is a
 `baseline_unreadable` error rather than an analysis that silently compared nothing.
+
+## Which tests a change can affect
+
+Every analysis names, in `test_selection`, the test files its change can affect, and the `select`
+subcommand prints them for a test runner. A test file is selected when it changed, when it imports
+a changed Python file, directly or through the repository's other modules — importing a module runs
+the packages above it too — or when a `conftest.py` above it, or a plugin one names in
+`pytest_plugins`, does. A test file is one named as pytest and unittest collect them by default,
+`test_*.py`, `*_test.py`, `test.py`, or `tests.py`, that defines a test. `paths.include` and
+`paths.exclude` scope the findings alone, never the selection.
+
+```yaml
+selection:
+  # Changed files no test reads: a change to them alone selects no test file.
+  ignore: ["docs/**", "**/*.md"]
+```
+
+`selection.ignore` is the only setting that leaves a changed file out. Without it, a changed file
+that is not Python runs the whole suite, since a test may read it as data; so does a changed
+`setup.py`, `noxfile.py`, `sitecustomize.py`, or `usercustomize.py`, which set up what every test
+runs on, and a changed file never read by policy, which the reason never names. Its patterns are
+globs as `paths.include`'s are, where `*` stops at a `/`: `*.md` matches the root's Markdown files,
+and `**/*.md` every one.
+
+The head revision is read from its test files and each `conftest.py` through what they import, at
+most 2,000 Python files, 32 MiB, and ten seconds, as untrusted source parsed and never imported or
+run. A file it cannot read whole — past `rules.max_file_bytes`, a symbolic link, or one that does
+not parse — and a bound reached run the whole suite, and the reason names the file. A module
+imported by a shorter name than its path's, as a test that puts `scripts` on `sys.path` imports
+`scripts/pr_comment.py` as `pr_comment`, is found by its name's tail, unless the name is the
+standard library's. A test file that loads modules by a name it does not write out, from a file
+path, or as installed plugins, or that starts another Python with a script rather than with `-m` or
+`-c` code written out, may reach any module and is selected whenever Python changed; so is one that
+imports a file never read by policy. A selected path holding anything but letters, digits, and
+`_./-`, or starting with `-`, runs the whole suite instead, so a shell and pytest read each as a
+path and nothing more.
+
+What no static reading sees is a test that reaches the code through an installed console command,
+a process other than Python, or a pytest plugin named only in pytest's own configuration, with `-p`
+or an entry point, or one that reads a changed Python file as data: run the whole suite on the
+default branch as well.
 
 ## Test skeletons
 

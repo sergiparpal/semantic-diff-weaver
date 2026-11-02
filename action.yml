@@ -77,6 +77,16 @@ outputs:
   verdict:
     description: Advisory verdict for the analyzed diff (pass, warn, or review_required).
     value: ${{ steps.analyze.outputs.verdict }}
+  run-all-tests:
+    description: >-
+      false when selected-tests names every test file the diff can affect; true when the whole
+      suite has to run, and empty when no analysis was written, which means the same.
+    value: ${{ steps.analyze.outputs.run-all-tests }}
+  selected-tests:
+    description: >-
+      The test files the diff can affect, space-separated, when run-all-tests is false; empty
+      when no test can be affected.
+    value: ${{ steps.analyze.outputs.selected-tests }}
 
 runs:
   using: composite
@@ -207,6 +217,11 @@ runs:
         echo "overall-risk=${risk}" >> "${GITHUB_OUTPUT}"
         verdict="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["analysis"]["summary"]["verdict"])' "${envelope}" 2>/dev/null || echo unknown)"
         echo "verdict=${verdict}" >> "${GITHUB_OUTPUT}"
+        # Selected paths are limited to letters, digits, and `_./-`, or the whole suite runs.
+        run_all="$(python -c 'import json,sys; print(str(json.load(open(sys.argv[1]))["analysis"]["test_selection"]["run_all"] is not False).lower())' "${envelope}" 2>/dev/null || echo true)"
+        echo "run-all-tests=${run_all}" >> "${GITHUB_OUTPUT}"
+        selected="$(python -c 'import json,sys; print(" ".join(item["path"] for item in json.load(open(sys.argv[1]))["analysis"]["test_selection"]["tests"]))' "${envelope}" 2>/dev/null || true)"
+        echo "selected-tests=${selected}" >> "${GITHUB_OUTPUT}"
         echo "SDW_EXIT=${status}" >> "${GITHUB_ENV}"
 
     - name: Upsert the pull-request comment

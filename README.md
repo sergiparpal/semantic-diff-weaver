@@ -136,6 +136,45 @@ for instance because its test file is a symbolic link, is reported on stderr wit
 exit code `1` means none could be. See
 [the decision record](docs/decisions.md#test-skeletons-2026-11-01).
 
+### Tests to run
+
+Every analysis also says which test files the change can affect, in its `test_selection` and in the
+brief's "Tests to run": those that import a changed file, directly or through the repository's
+other modules, those below a changed `conftest.py`, and the changed test files themselves. The
+`select` subcommand prints just those, one per line, for a test runner, without analyzing what the
+change does:
+
+```bash
+if tests="$(semantic-diff-weaver select --base origin/main)"; then
+  # Nothing at all to run when no test can be affected.
+  if [ -n "${tests}" ]; then python -m pytest ${tests}; fi
+else
+  # Exit code 4: the whole suite has to run, and stderr says why. Any failure means the same.
+  python -m pytest
+fi
+```
+
+| Flag | Meaning |
+| --- | --- |
+| `--base REF` | base revision; **required** |
+| `--head REF` | head revision; defaults to `HEAD` |
+| `--repo PATH` | repository to select in; defaults to `.` |
+| `--risk-profile PATH` | additional bounded YAML configuration file, such as one setting `selection.ignore` |
+| `--format {paths,json}` | one test file per line, or the JSON selection with each file's reasons; defaults to `paths` |
+| `--allow-root PATH` | repeatable additional authorized root, as for an analysis |
+
+The selection gives up narrowness wherever a static reading cannot see. A changed file that is not
+Python runs the whole suite, since a test may read it, unless
+[`selection.ignore`](docs/configuration.md#which-tests-a-change-can-affect) says none does: name
+your documentation there and a change to it selects nothing. A changed `setup.py`, a changed file
+never read by policy, and a repository whose tests' imports cannot all be followed within the
+bounds run the whole suite too. A test file that loads modules by a name it does not write out or
+from a file path, or that starts another Python, is selected whenever Python changed. A selected
+path is only ever letters, digits, and `_./-`, so a shell can take the list as it is. What no
+static reading sees is a test that reaches the code through an installed command, or a pytest
+plugin named only in pytest's configuration: run the whole suite on your default branch as well.
+See [the decision record](docs/decisions.md#tests-a-change-can-affect-2026-11-02).
+
 ### Model provider
 
 Inference is optional and never required. Install the extra and export a key to enable it:
@@ -211,8 +250,8 @@ Re-runs **edit** the existing comment rather than appending a new one, matched o
 marker. Third-party actions are pinned to a full commit SHA because a moving tag is mutable and
 this job holds `pull-requests: write`; `scripts/check_action_pins.py` runs in CI and fails if a
 pin loses its SHA or if the examples above stop naming the same commit the workflows use.
-Inputs, the fork-pull-request caveat, and how to pass a coverage report from a prior job are in
-[docs/github-action.md](docs/github-action.md).
+Inputs, the outputs that say which tests to run, the fork-pull-request caveat, and how to pass a
+coverage report from a prior job are in [docs/github-action.md](docs/github-action.md).
 
 ## Install and enable the Hermes plugin
 
@@ -361,7 +400,9 @@ these roots. Filesystem roots are never accepted as authorization roots.
 
 The handler always returns a JSON-encoded string. JSON mode returns the canonical schema-versioned
 analysis. Markdown mode returns a JSON envelope containing the PR-ready brief. Both mode returns the
-canonical analysis and matching Markdown together.
+canonical analysis and matching Markdown together. The analysis's `test_selection` names the test
+files the change can affect, or says why the whole suite has to run: see [tests to
+run](#tests-to-run).
 
 The second, `generate_test_skeletons`, is the [`skeletons`](#test-skeletons) subcommand as a
 tool. Given the IDs of the obligations the user approved, it returns a patch adding a failing
@@ -411,6 +452,8 @@ rules:
 An `include` like this one also leaves out the repository's API schemas; name them too, as
 `"api/openapi.yaml"`, to keep them. Configuration files are compared only where `paths.config_files`
 names them, as `config_files: ["config/**"]`, and a file it names needs no `include` of its own.
+Changed files no test reads, such as documentation, are named in `selection.ignore`, as
+`ignore: ["docs/**", "**/*.md"]`, so that a change to them alone runs no test.
 
 Mandatory secret and control-directory exclusions cannot be disabled. Configuration cannot enable
 network access, code execution, or paths outside the repository boundary.
@@ -451,6 +494,9 @@ Hermes home and do not require a paid or live LLM.
   report is reported as unknown, never as uncovered.
 - Dynamic metaprogramming and external contracts may produce review questions or unknown semantic
   changes.
+- Test selection follows imports, never runs: a test that reaches the code through an installed
+  command, a process it starts other than Python, or a pytest plugin named only in pytest's
+  configuration is not seen, nor one that reads a changed Python file as data.
 - No network ref lookup, test execution, or test generation. The GitHub Action posts a comment
   through the `gh` CLI using the workflow's own token; the analyzer itself makes no network
   request and reads no pull-request API.

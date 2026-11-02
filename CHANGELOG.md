@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- **Feature:** the tests a change can affect. Every analysis names, as the new `test_selection`,
+  the test files its change can affect — those that import a changed file, directly or through the
+  repository's other modules, those below a changed `conftest.py` or plugin it names, and the
+  changed test files themselves — or says why the whole suite has to run: a changed file that is
+  not Python, unless the new `selection.ignore` says no test reads it, a changed `setup.py`, a
+  changed file never read by policy, or a head revision whose tests' imports cannot be followed
+  within the bounds. A test file that loads modules by a name it does not write out or from a file
+  path, or that starts another Python, is selected whenever Python changed. The brief gains "Tests
+  to run"; the new `select` subcommand prints the test files alone, one per line, without
+  analyzing what changed, and exits 4 when the whole suite has to run; and the Action gains the
+  `run-all-tests` and `selected-tests` outputs. A selected path is only letters, digits, and
+  `_./-`, or the whole suite runs. Schema 1.5: the analysis gains `test_selection`.
+
 ## 0.14.0 - 2026-11-02
 
 Tests that ran a change. A coverage run measured with per-test contexts says which test executed

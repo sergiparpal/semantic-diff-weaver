@@ -63,6 +63,14 @@ import.
   views and triggers are off. Only fixed queries over the tables coverage.py writes are run, and
   each of those must be an ordinary table, never a view or a virtual table. A file that is no such
   database is a `coverage_unreadable` error.
+- Test selection reads the head revision's test files, each `conftest.py`, and the modules they
+  import as untrusted source: parsed with `ast` under 2,000 files, 32 MiB, ten seconds, and
+  `rules.max_file_bytes` each, never imported or run, with a symbolic link never followed and a file
+  never read by policy never named. Code a test runs in another Python, given as `-c` text, is
+  parsed one level deep. A file it cannot read whole, or a bound reached, runs the whole suite. A
+  selected path goes into a shell and to pytest, so one holding anything but letters, digits, and
+  `_./-`, or starting with `-`, makes the whole suite run instead; the Action reads the outputs
+  through the environment, never into its script.
 - A baseline analysis is untrusted input data in the same way: bounded by `max_baseline_bytes`,
   read as strict UTF-8, parsed with the standard library, authorized like any other
   caller-selected path, and validated field by field — a path in it must be repository-relative,

@@ -204,15 +204,19 @@ def _python_on(bin_dir: Path) -> None:
     shim.chmod(0o755)
 
 
-def _analyzer_stub(tmp_path: Path) -> Path:
+def _analyzer_stub(tmp_path: Path, selection: dict[str, object] | None = None) -> Path:
     """A `semantic-diff-weaver` that records its arguments and prints a canned envelope."""
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     _python_on(bin_dir)
     envelope = tmp_path / "canned.json"
+    analysis: dict[str, object] = {
+        "summary": {"overall_risk": "high", "verdict": "review_required"}
+    }
+    if selection is not None:
+        analysis["test_selection"] = selection
     envelope.write_text(
-        '{"success": true, "analysis": {"summary": '
-        '{"overall_risk": "high", "verdict": "review_required"}}, "markdown": "brief"}',
+        json.dumps({"success": True, "analysis": analysis, "markdown": "brief"}),
         encoding="utf-8",
     )
     stub = bin_dir / "semantic-diff-weaver"
@@ -224,8 +228,10 @@ def _analyzer_stub(tmp_path: Path) -> Path:
     return bin_dir
 
 
-def _analyze(tmp_path: Path, **env: str) -> tuple[dict[str, str], list[str]]:
-    bin_dir = _analyzer_stub(tmp_path)
+def _analyze(
+    tmp_path: Path, selection: dict[str, object] | None = None, **env: str
+) -> tuple[dict[str, str], list[str]]:
+    bin_dir = _analyzer_stub(tmp_path, selection)
     variables = {
         "BASE_REF": "base",
         "HEAD_REF": "",
@@ -252,6 +258,33 @@ def test_the_outputs_carry_the_overall_risk_and_the_verdict(tmp_path: Path) -> N
     outputs, _ = _analyze(tmp_path)
     assert outputs["overall-risk"] == "high"
     assert outputs["verdict"] == "review_required"
+
+
+def _selected(*paths: str) -> list[dict[str, object]]:
+    return [{"path": path, "reasons": ["It changed."]} for path in paths]
+
+
+@pytest.mark.parametrize(
+    ("selection", "run_all", "selected"),
+    [
+        pytest.param(
+            {"run_all": False, "reasons": [], "tests": _selected("tests/a.py", "tests/b.py")},
+            "false",
+            "tests/a.py tests/b.py",
+            id="a-subset",
+        ),
+        pytest.param({"run_all": False, "reasons": [], "tests": []}, "false", "", id="none"),
+        pytest.param({"run_all": True, "reasons": ["why"], "tests": []}, "true", "", id="all"),
+        # No selection, as no analysis written, is the whole suite too.
+        pytest.param(None, "true", "", id="no-selection"),
+    ],
+)
+def test_the_outputs_carry_the_tests_to_run(
+    tmp_path: Path, selection: dict[str, object] | None, run_all: str, selected: str
+) -> None:
+    outputs, _ = _analyze(tmp_path, selection)
+    assert outputs["run-all-tests"] == run_all
+    assert outputs["selected-tests"] == selected
 
 
 @pytest.mark.parametrize(

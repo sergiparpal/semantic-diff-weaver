@@ -13,6 +13,7 @@ from semantic_diff_weaver.models import (
     ErrorResponse,
     Evidence,
     LineRange,
+    TestSelection,
     WeaverConfig,
 )
 
@@ -65,7 +66,7 @@ def test_candidate_tests_are_explicitly_unverified() -> None:
 
 
 def test_transport_schemas_are_versioned() -> None:
-    assert AnalysisResult.model_json_schema()["properties"]["schema_version"]["const"] == "1.4"
+    assert AnalysisResult.model_json_schema()["properties"]["schema_version"]["const"] == "1.5"
     assert ErrorResponse(success=False, error="invalid_ref", message="bad", remediation="fix")
 
 
@@ -388,3 +389,59 @@ def test_a_change_group_names_findings_of_its_own_analysis(
     else:
         with pytest.raises(ValidationError, match=error):
             AnalysisResult.model_validate(_grouped(groups))
+
+
+ONE_TEST = {"path": "tests/test_a.py", "reasons": ["It changed."]}
+
+
+@pytest.mark.parametrize(
+    ("selection", "error"),
+    [
+        pytest.param({"run_all": False}, None, id="no-test-affected"),
+        pytest.param({"run_all": False, "tests": [ONE_TEST]}, None, id="a-subset"),
+        pytest.param({"run_all": True, "reasons": ["why"]}, None, id="the-whole-suite"),
+        pytest.param({"run_all": True}, "a reason says why", id="whole-suite-without-a-reason"),
+        pytest.param(
+            {"run_all": False, "reasons": ["why"]}, "a reason says why", id="a-reason-for-a-subset"
+        ),
+        pytest.param(
+            {"run_all": True, "reasons": ["why"], "tests": [ONE_TEST]},
+            "names no test file",
+            id="whole-suite-with-a-file",
+        ),
+        pytest.param(
+            {"run_all": False, "tests": [ONE_TEST, ONE_TEST]},
+            "distinct and sorted",
+            id="repeated",
+        ),
+        pytest.param(
+            {"run_all": False, "tests": [{**ONE_TEST, "path": "tests/z.py"}, ONE_TEST]},
+            "distinct and sorted",
+            id="unsorted",
+        ),
+        pytest.param(
+            {"run_all": False, "tests": [{**ONE_TEST, "path": "../escape.py"}]},
+            "traversal",
+            id="outside-the-repository",
+        ),
+        pytest.param(
+            {"run_all": False, "tests": [{**ONE_TEST, "reasons": []}]},
+            "at least 1 item",
+            id="no-reason",
+        ),
+    ],
+)
+def test_a_test_selection_is_a_subset_or_the_whole_suite(
+    selection: dict, error: str | None
+) -> None:
+    if error is None:
+        assert TestSelection.model_validate(selection).run_all is selection["run_all"]
+    else:
+        with pytest.raises(ValidationError, match=error):
+            TestSelection.model_validate(selection)
+
+
+def test_selection_ignore_patterns_are_bounded() -> None:
+    assert WeaverConfig().selection.ignore == []
+    with pytest.raises(ValidationError):
+        WeaverConfig(selection={"ignore": ["x"] * (MAX_PATH_PATTERNS + 1)})

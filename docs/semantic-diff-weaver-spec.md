@@ -400,7 +400,7 @@ The future tools are explicitly outside the MVP.
 
 ```json
 {
-  "schema_version": "1.4",
+  "schema_version": "1.5",
   "analysis_id": "sdw_01J...",
   "repository": {
     "path": ".",
@@ -462,6 +462,16 @@ The future tools are explicitly outside the MVP.
     }
   ],
   "change_groups": [],
+  "test_selection": {
+    "run_all": false,
+    "reasons": [],
+    "tests": [
+      {
+        "path": "tests/payments/test_retry.py",
+        "reasons": ["It loads src/payments/retry.py, which changed."]
+      }
+    ]
+  },
   "warnings": [],
   "limitations": [
     "Candidate test mapping is static and does not prove runtime coverage."
@@ -951,7 +961,10 @@ plan did not foresee, a standalone CLI and a Claude Code plugin over MCP, beside
 - Evaluation corpus and public benchmark. *Partly:* the 18-case corpus of `docs/evaluation.md`
   and the observations on real pull requests in `docs/real-pr-validation.md`; there is no labeled
   public benchmark.
-- Downstream integration with regression selection and autonomous test generation. *Open.*
+- Downstream integration with regression selection and autonomous test generation. *Partly:*
+  `test_selection` and the `select` subcommand name the test files a change can affect, by the
+  imports their tests follow, or say why the whole suite has to run; autonomous test generation
+  stays open, since a skeleton is written only for an obligation a person approved.
 
 ---
 

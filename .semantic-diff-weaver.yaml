@@ -16,3 +16,10 @@ paths:
     - "scripts/**/*.py"
     # The loader a `hermes plugins install` clone executes.
     - "__init__.py"
+# No test reads the design notes or the changelog, so a change to them alone runs no test. Every
+# other file that is not Python is read by some test — README.md, after-install.md, the skill,
+# plugin.yaml, action.yml, pyproject.toml — and still runs the whole suite.
+selection:
+  ignore:
+    - "docs/**"
+    - "CHANGELOG.md"

@@ -98,6 +98,11 @@ def _validate_config_paths(data: dict[str, Any]) -> None:
                 paths[field] = [
                     _validate_relative_pattern(value, f"paths.{field}") for value in values
                 ]
+    selection = data.get("selection", {})
+    if isinstance(selection, dict) and isinstance(selection.get("ignore"), list):
+        selection["ignore"] = [
+            _validate_relative_pattern(value, "selection.ignore") for value in selection["ignore"]
+        ]
     for item in data.get("critical_paths", []) or []:
         if isinstance(item, dict) and "pattern" in item:
             item["pattern"] = _validate_relative_pattern(item["pattern"], "critical_paths.pattern")
