@@ -1005,7 +1005,7 @@ structural change
 
 ## 26. Open Design Questions
 
-Seven of the eight are answered by the shipped design, where shown; the sixth is still open.
+All eight are answered by the shipped design, where shown.
 
 1. Should the MVP infer repository purpose from README content, or require an explicit project
    summary? *Answered:* a bounded, redacted excerpt of the committed README
@@ -1022,8 +1022,10 @@ Seven of the eight are answered by the shipped design, where shown; the sixth is
    similarity matching that accepts at 0.82 and refuses near-ties within 0.03, moves between two
    files that both remain included (`ast_diff/match.py`).
 6. Which public repositories can form an evaluation corpus with human-labeled behavioral diffs?
-   *Open:* `docs/real-pr-validation.md` samples four public repositories as unlabeled observations
-   with a small hand review; the labeled corpus stays synthetic.
+   *Answered:* ten public Python libraries, six merged pull requests each, sampled without
+   choosing them by hand and labeled symbol by symbol, half held out from the analyzer's changes
+   (`benchmark/cases.json`, measured in `docs/benchmark.md`). One annotator wrote the labels, so
+   they await review.
 7. Should deterministic findings be emitted when the LLM is unavailable? *Answered:* yes, by
    default: with `rules.deterministic_fallback` on, a run without a model, or whose every model
    call fails, reports the deterministic findings; turned off, it fails with `llm_unavailable`.
