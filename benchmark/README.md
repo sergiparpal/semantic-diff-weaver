@@ -34,12 +34,13 @@ designed.
 ## The labels
 
 One annotator labeled every case from its diff and the files at its two commits, before reading
-the analyzer's output on it; the labels were committed before the first measurement. Each label
-names a symbol as the analyzer does — `Class.method`, `function.nested` for a function defined
-directly in another's body, a class's own statements as `Class`, and a module's top-level
-statements as `<module>` — and says whether it was `modified`, `added`, or `removed`. A
-definition inside an `if` or a `try` belongs to the symbol around it, as werkzeug's module-level
-`__getattr__` under `if not t.TYPE_CHECKING:` belongs to `<module>`.
+the analyzer's output on it; the labels were committed before the first measurement. A reviewer
+then checked every label on a page that showed each symbol's diff and never the analyzer's
+findings, and corrected 26. Each label names a symbol as the analyzer does — `Class.method`,
+`function.nested` for a function defined directly in another's body, a class's own statements as
+`Class`, and a module's top-level statements as `<module>` — and says whether it was `modified`,
+`added`, or `removed`. A definition inside an `if` or a `try` belongs to the symbol around it, as
+werkzeug's module-level `__getattr__` under `if not t.TYPE_CHECKING:` belongs to `<module>`.
 
 - **A behavior change** lists every category of `docs/semantic-diff-weaver-spec.md` §7 a reviewer
   could fairly give it; a finding in any of them is right. `unknown_semantic_change` and
@@ -49,8 +50,14 @@ definition inside an `if` or a `try` belongs to the symbol around it, as werkzeu
   the same predicate moved into a helper, a version string, or an error message reworded with the
   same information. A message that now tells something it did not, as one that names a value it
   held as placeholder text, is an error-handling change.
+- **A change is judged on the Python versions both commits support.** A branch that only a version
+  the head drops could run is no behavior change, as flask#6168's for Python 3.10 is.
 - **An added symbol** with an empty list is not scored for its category: a new function is new
   behavior rather than a change to any.
+- **A removed symbol** lists what its callers lose, an output contract change when they could call
+  it; removing a symbol is not a change by itself. Its list is empty, and like an added symbol's
+  not scored, when what it did is still served, as the module's `__getattr__` serves werkzeug's
+  `wsgi.wrap_file`, or is labeled on the only symbol that used it.
 - An `__all__` that exports a new name changes the module's public contract, an output contract
   change.
 
