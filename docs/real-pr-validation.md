@@ -5,7 +5,8 @@ Generated 2026-10-31 by `scripts/validate_real_prs.py`, deterministic mode (`--n
 **These are observations on unlabeled data, not precision measurements.** No one has
 reviewed these diffs to the standard the golden corpus requires, so nothing here is a
 true-positive or false-positive rate. Real-PR cases are deliberately *not* added to the
-golden corpus. The measured numbers live in `docs/evaluation.md`.
+golden corpus. The measured numbers live in `docs/evaluation.md`, and those on labeled real pull
+requests in `docs/benchmark.md`.
 
 ## Aggregate
 

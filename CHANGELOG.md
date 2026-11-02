@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- **Evaluation:** a labeled public benchmark. `benchmark/cases.json` pins 30 pull requests merged
+  into `psf/requests`, `pallets/click`, `psf/black`, `encode/httpx`, and `python-attrs/attrs` by
+  their commits, sampled without choosing them by hand, and labels every Python symbol they change
+  outside their tests with the categories a reviewer expects, or none when its behavior does not
+  change; one annotator wrote the labels before reading the analyzer's output.
+  `scripts/run_benchmark.py` clones the repositories outside the working tree, measures, and lists
+  each disagreement, and `docs/benchmark.md` records the first measurement: every behavior change
+  got a finding, 10 of 31 in an expected category, and 18 of 34 unchanged symbols got one too. No
+  analyzer behavior changes.
+
 ## 0.15.0 - 2026-11-02
 
 Tests to run. Every analysis names the test files its change can affect, by what they import, or

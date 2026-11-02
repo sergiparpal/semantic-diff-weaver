@@ -1,0 +1,60 @@
+# Labeled benchmark of real pull requests
+
+`cases.json` is a public benchmark for analyzers of behavioral change: 30 pull requests merged into
+five public Python repositories, each pinned by two commits, with every Python symbol it changes
+outside its tests labeled by the categories a reviewer expects of it, or by none when its behavior
+does not change. `scripts/run_benchmark.py` measures Semantic Diff Weaver against it, and
+`docs/benchmark.md` holds the results.
+
+Only labels are published here. The code stays in its repositories, under their own licenses, and
+is fetched from them when the benchmark is measured; the labels and their rationales are this
+repository's, under its MIT license.
+
+## The sample
+
+The latest pull requests merged into the default branch of `psf/requests`, `pallets/click`,
+`psf/black`, `encode/httpx`, and `python-attrs/attrs` before the commit `sampled_from` names for
+each, six per repository, read back along the branch's first-parent history as
+`scripts/validate_real_prs.py` reads it: a squash merge reviewed from its parent, a merge commit
+from where its pull request branched off. A pull request was taken when the analyzer's own count of
+the Python symbols it changes outside the tests is between 1 and 10 and none of its scope was left
+unread, and was never chosen by hand. `run_benchmark.py propose` reproduces the sample; it prints
+how many symbols and files each pull request changes and never a finding.
+
+## The labels
+
+One annotator labeled every case from its diff and the files at its two commits, before reading
+the analyzer's output on it; the labels were committed before the first measurement. Each label
+names a symbol as the analyzer does — `Class.method`, `function.nested` for a function defined
+directly in another's body, a class's own statements as `Class`, and a module's top-level
+statements as `<module>` — and says whether it was `modified`, `added`, or `removed`.
+
+- **A behavior change** lists every category of `docs/semantic-diff-weaver-spec.md` §7 a reviewer
+  could fairly give it; a finding in any of them is right. `unknown_semantic_change` and
+  `refactor_likely_no_behavior_change` are never expected: a reviewer names what a change does.
+- **No behavior change** is an empty list on a modified symbol: a comment, a docstring, a type
+  annotation or a type-checker comment, an import that loads what was loaded before, formatting,
+  the same predicate moved into a helper, a version string, or an error message reworded with the
+  same information. A message that now tells something it did not, as one that names a value it
+  held as placeholder text, is an error-handling change.
+- **An added symbol** with an empty list is not scored for its category: a new function is new
+  behavior rather than a change to any.
+- An `__all__` that exports a new name changes the module's public contract, an output contract
+  change.
+
+Each label carries one line of rationale. A case's `reviewed_by` names whoever checks its labels
+after the first annotator; a label found wrong is corrected with its reason in the commit that
+changes it, and never to agree with the analyzer.
+
+## Running it
+
+```bash
+python scripts/run_benchmark.py --scratch /tmp/sdw-benchmark --disagreements
+```
+
+Each repository is cloned whole, without a checkout, into the scratch directory, which must lie
+outside this working tree; the analyzer reads its Git objects in deterministic mode and nothing
+from it is installed or run. The script prints the measures, a table per category and per case,
+and with `--disagreements` every finding not in an expected category and every behavior change
+missed. Findings on files that are not Python, such as an API schema, are counted apart, since only
+Python is labeled.
