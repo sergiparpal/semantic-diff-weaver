@@ -240,6 +240,8 @@ def test_a_file_s_names_are_read_by_scope() -> None:
         "    match options:\n"
         "        case {'a': captured, **others}:\n"
         "            return captured, others\n"
+        "        case {'b': plain}:\n"
+        "            return plain\n"
         "    try:\n"
         "        pass\n"
         "    except Failure as caught:\n"
@@ -247,6 +249,10 @@ def test_a_file_s_names_are_read_by_scope() -> None:
         "    return [item for item in rest], os.sep, lambda q, d=late: q + free\n"
         "class C:\n"
         "    attr = at_class_level\n"
+        "    import json as class_json\n"
+        "    global CLASS_LEVEL\n"
+        "    class Inner:\n"
+        "        pass\n"
     )
     mentioned, read, imported = file_names(ast.parse(source))
     assert read == {
@@ -254,9 +260,9 @@ def test_a_file_s_names_are_read_by_scope() -> None:
         "enclosing_only", "exported", "free", "late", "local", "more", "os",
     }  # fmt: skip
     assert mentioned - read == {
-        "SHARED", "attr", "captured", "caught", "item", "options", "others", "q", "rest",
+        "SHARED", "attr", "captured", "caught", "item", "options", "others", "plain", "q", "rest",
     }  # fmt: skip
-    assert imported == {"os": frozenset({"os"})}
+    assert imported == {"os": frozenset({"os"}), "class_json": frozenset({"json"})}
 
 
 @pytest.mark.parametrize(

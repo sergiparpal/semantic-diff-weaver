@@ -447,87 +447,29 @@ def top_level_imports(body: list[ast.stmt]) -> tuple[dict[str, tuple[str, ...]],
 _FUNCTION_SCOPES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)
 
 
-def _own_names(node: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda) -> frozenset[str]:
-    """The names a function binds in its own scope: its parameters, and what its body assigns,
-    imports, defines, catches, or captures, unless it declares them `global` or `nonlocal`. The
-    bodies of the functions and classes it defines are scopes of their own."""
-    arguments = node.args
-    bound = {
+def _parameters(node: ast.arguments) -> set[str]:
+    return {
         item.arg
-        for item in (
-            *arguments.posonlyargs,
-            *arguments.args,
-            *arguments.kwonlyargs,
-            arguments.vararg,
-            arguments.kwarg,
-        )
+        for item in (*node.posonlyargs, *node.args, *node.kwonlyargs, node.vararg, node.kwarg)
         if item is not None
     }
-    declared: set[str] = set()
-    pending: list[ast.AST] = list(node.body) if isinstance(node.body, list) else [node.body]
-    while pending:
-        child = pending.pop()
-        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            bound.add(child.name)
-            continue
-        if isinstance(child, ast.Lambda):
-            continue
-        if isinstance(child, ast.Name) and not isinstance(child.ctx, ast.Load):
-            bound.add(child.id)
-        elif isinstance(child, (ast.Import, ast.ImportFrom)):
-            bound.update(name for name, _ in _bound_by(child))
-        elif isinstance(child, (ast.ExceptHandler, ast.MatchAs, ast.MatchStar)) and child.name:
-            bound.add(child.name)
-        elif isinstance(child, ast.MatchMapping) and child.rest:
-            bound.add(child.rest)
-        elif isinstance(child, (ast.Global, ast.Nonlocal)):
-            declared.update(child.names)
-        pending.extend(ast.iter_child_nodes(child))
-    return frozenset(bound - declared)
 
 
-def _names_read(tree: ast.AST) -> set[str]:
-    """Every name some code of a file reads without binding it in its own function.
-
-    Module and class code reads each name it uses as a global or a builtin. A function reads its
-    own names, and any other as a global, a builtin, or an enclosing function's, which counts
-    here too; its decorators, defaults, and annotations are read where it is defined.
-    """
-    read: set[str] = set()
-    pending: list[tuple[ast.AST, frozenset[str]]] = [(tree, frozenset())]
-    while pending:
-        node, own = pending.pop()
-        if isinstance(node, ast.Name):
-            if isinstance(node.ctx, ast.Load) and node.id not in own:
-                read.add(node.id)
-        elif isinstance(node, _FUNCTION_SCOPES):
-            body = node.body if isinstance(node.body, list) else [node.body]
-            inner = _own_names(node)
-            pending.extend((child, inner) for child in body)
-            in_body = {id(item) for item in body}
-            pending.extend(
-                (child, own) for child in ast.iter_child_nodes(node) if id(child) not in in_body
-            )
-        else:
-            pending.extend((child, own) for child in ast.iter_child_nodes(node))
-    return read
-
-
-def _listed_in_all(node: ast.AST) -> list[str]:
+def _listed_in_all(node: ast.Assign | ast.AugAssign | ast.AnnAssign | ast.Call) -> list[str]:
     """The names a statement or call puts in `__all__`: `__all__ = [...]`, `__all__ += [...]`,
     and `__all__.extend([...])` or `.append(...)`."""
     listed: ast.AST | None = None
-    if isinstance(node, (ast.Assign, ast.AugAssign, ast.AnnAssign)):
+    if isinstance(node, ast.Call):
+        if (
+            isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "__all__"
+        ):
+            listed = node
+    else:
         targets = node.targets if isinstance(node, ast.Assign) else [node.target]
         if any(isinstance(item, ast.Name) and item.id == "__all__" for item in targets):
             listed = node.value
-    elif (
-        isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Attribute)
-        and isinstance(node.func.value, ast.Name)
-        and node.func.value.id == "__all__"
-    ):
-        listed = node
     if listed is None:
         return []
     return [
@@ -540,28 +482,82 @@ def _listed_in_all(node: ast.AST) -> list[str]:
 def file_names(
     tree: ast.AST,
 ) -> tuple[frozenset[str], frozenset[str], dict[str, frozenset[str]]]:
-    """The names a file mentions, the names it reads, and what its imports bind.
+    """The names a file mentions, the names it reads, and what its imports bind, in one walk.
 
     It mentions each name its code holds, in any role and any block, annotations and
-    `TYPE_CHECKING` blocks among them, and reads each one some code reads without binding it in
-    its own function (see `_names_read`). Each name its `__all__` lists, which a star import of the
-    module reads, counts as both. Each name an import binds, at the top level or not, maps to what
-    the imports binding it import.
+    `TYPE_CHECKING` blocks among them. It reads each name some code reads without binding it in its
+    own function: module and class code reads every name it uses, as a global or a builtin, and a
+    function every name it does not bind itself — as a parameter, an assignment, an import, a
+    definition, a caught exception, or a match capture — unless it declares the name `global` or
+    `nonlocal`. A name a nested function reads from the function around it counts as read too, and
+    a function's decorators, defaults, and annotations are read where it is defined. Each name its
+    `__all__` lists, which a star import of the module reads, counts as both. Each name an import
+    binds, at the top level or not, maps to what the imports binding it import.
     """
     mentioned: set[str] = set()
     exported: set[str] = set()
     imported: dict[str, set[str]] = defaultdict(set)
-    for node in ast.walk(tree):
+    # Per scope, the module's and then each function's: what its code reads, binds, and declares.
+    loads: list[set[str]] = [set()]
+    bound: list[set[str]] = [set()]
+    declared: list[set[str]] = [set()]
+    # Each node with its scope, and whether what it binds is that scope's: a class body's is not.
+    pending: list[tuple[ast.AST, int, bool]] = [(tree, 0, True)]
+    while pending:
+        node, scope, binds = pending.pop()
         if isinstance(node, ast.Name):
             mentioned.add(node.id)
-        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            if isinstance(node.ctx, ast.Load):
+                loads[scope].add(node.id)
+            elif binds:
+                bound[scope].add(node.id)
+            continue
+        if isinstance(node, _FUNCTION_SCOPES):
+            inner = len(loads)
+            loads.append(set())
+            bound.append(_parameters(node.args))
+            declared.append(set())
+            if binds and not isinstance(node, ast.Lambda):
+                bound[scope].add(node.name)
+            body = node.body if isinstance(node.body, list) else [node.body]
+            in_body = {id(item) for item in body}
+            pending.extend(
+                (child, inner, True) if id(child) in in_body else (child, scope, binds)
+                for child in ast.iter_child_nodes(node)
+            )
+            continue
+        if isinstance(node, ast.ClassDef):
+            if binds:
+                bound[scope].add(node.name)
+            in_body = {id(item) for item in node.body}
+            pending.extend(
+                (child, scope, binds and id(child) not in in_body)
+                for child in ast.iter_child_nodes(node)
+            )
+            continue
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
             for name, target in _bound_by(node):
                 imported[name].add(target)
-        else:
+                if binds:
+                    bound[scope].add(name)
+        elif isinstance(node, (ast.ExceptHandler, ast.MatchAs, ast.MatchStar)):
+            if node.name and binds:
+                bound[scope].add(node.name)
+        elif isinstance(node, ast.MatchMapping):
+            if node.rest and binds:
+                bound[scope].add(node.rest)
+        elif isinstance(node, (ast.Global, ast.Nonlocal)):
+            if binds:
+                declared[scope].update(node.names)
+        elif isinstance(node, (ast.Assign, ast.AugAssign, ast.AnnAssign, ast.Call)):
             exported.update(_listed_in_all(node))
+        pending.extend((child, scope, binds) for child in ast.iter_child_nodes(node))
+    read = set(loads[0])
+    for index in range(1, len(loads)):
+        read |= loads[index] - (bound[index] - declared[index])
     return (
         frozenset(mentioned | exported),
-        frozenset(_names_read(tree) | exported),
+        frozenset(read | exported),
         {name: frozenset(targets) for name, targets in imported.items()},
     )
 
@@ -783,6 +779,7 @@ def snapshot_symbol(
         node = running
     body = list(getattr(node, "body", []))
     fingerprint = body_fingerprint(body)
+    inventory = node_inventory(body)
     visitor = FeatureVisitor(node)
     visitor.visit(node)
     parameters: str | None = None
@@ -818,13 +815,18 @@ def snapshot_symbol(
         fingerprint=fingerprint,
         features={name: tuple(getattr(visitor, name)) for name in limits.FEATURE_NAMES},
         statement_order=tuple(visitor.statement_order),
-        node_inventory=node_inventory(body),
+        node_inventory=inventory,
         probes={name: tuple(values) for name, values in visitor.probes.items()},
         assigned=tuple(visitor.assigned),
         docstring_only=not body_without_docstring(body),
         display=display,
         parameters=parameters,
-        fingerprint_without_messages=fingerprint_without_messages(body, fingerprint),
+        # Only a body that raises can have a message to blank.
+        fingerprint_without_messages=(
+            fingerprint_without_messages(body, fingerprint)
+            if any(name == "Raise" for name, _ in inventory)
+            else fingerprint
+        ),
         imports=imports,
         fingerprint_without_imports=without_imports,
     )
@@ -887,7 +889,8 @@ def extract_symbols(source: str, budget: AstBudget | None = None) -> list[Symbol
     tree = parse_module(source)
     _validate_ast_budget(tree, effective_budget)
     symbols: list[SymbolSnapshot] = []
-    type_checking = type_checking_spellings(tree)
+    # A file that never writes `TYPE_CHECKING` spells it no way, and is spared the walk.
+    type_checking = type_checking_spellings(tree) if "TYPE_CHECKING" in source else frozenset()
     for name, kind, node in _symbol_nodes(tree.body):
         if len(symbols) >= effective_budget.max_symbols_per_file:
             raise AstResourceLimit("symbol budget exceeded")
