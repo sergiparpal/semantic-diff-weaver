@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import copy
 import hashlib
 from collections import Counter, defaultdict
 from collections.abc import Iterator
@@ -231,6 +232,340 @@ def node_inventory(body: list[ast.stmt]) -> tuple[tuple[str, int], ...]:
     return tuple(sorted(counts.items()))
 
 
+# The endings of an exception class's name, which every builtin exception and warning has: a
+# `raise` that calls anything else, `os.system(...)` or `subprocess.Popen(...)`, runs it first.
+EXCEPTION_NAME_ENDINGS = ("Error", "Exception", "Warning", "Exit", "Interrupt", "Iteration")
+
+
+def message_literals(node: ast.Raise) -> list[ast.Constant]:
+    """The prose of the message a `raise` builds: each string literal with whitespace that the
+    exception's constructor receives, alone, in an f-string, joined by `+`, or as the format of
+    `%` or `.format()`.
+
+    Only a constructor named as an exception class counts. A literal it passes to any other call,
+    as in `ValueError(eval("..."))`, is code rather than a message, and one without whitespace is
+    a key or a code, as `KeyError("user_id")` holds, as `category_probe` reads prose.
+    """
+    exception = node.exc
+    if not isinstance(exception, ast.Call):
+        return []
+    callee = exception.func
+    name = callee.id if isinstance(callee, ast.Name) else getattr(callee, "attr", "")
+    if not name.endswith(EXCEPTION_NAME_ENDINGS):
+        return []
+    literals: list[ast.Constant] = []
+    pending = [*exception.args, *(keyword.value for keyword in exception.keywords)]
+    while pending:
+        part = pending.pop()
+        if isinstance(part, ast.Constant):
+            if isinstance(part.value, str) and any(item.isspace() for item in part.value):
+                literals.append(part)
+        elif isinstance(part, ast.JoinedStr):
+            pending.extend(item for item in part.values if isinstance(item, ast.Constant))
+        elif isinstance(part, ast.BinOp) and isinstance(part.op, ast.Add):
+            pending.extend((part.left, part.right))
+        elif isinstance(part, ast.BinOp) and isinstance(part.op, ast.Mod):
+            pending.append(part.left)
+        elif (
+            isinstance(part, ast.Call)
+            and isinstance(part.func, ast.Attribute)
+            and part.func.attr == "format"
+            and isinstance(part.func.value, ast.Constant)
+        ):
+            pending.append(part.func.value)
+    return literals
+
+
+def fingerprint_without_messages(body: list[ast.stmt], fingerprint: str) -> str:
+    """The body's fingerprint, `fingerprint`, with the prose of the messages it raises blanked.
+
+    Two bodies with the same fingerprint here raise the same exceptions from the same places with
+    the same values in their messages, and differ at most in how those messages are worded (see
+    `message_literals`).
+    """
+    literals = [
+        literal
+        for statement in body_without_docstring(body)
+        for node in ast.walk(statement)
+        if isinstance(node, ast.Raise)
+        for literal in message_literals(node)
+    ]
+    if not literals:
+        return fingerprint
+    # Blanked in place for one dump and restored: the statements are shared with every symbol
+    # whose body holds them.
+    wording = [literal.value for literal in literals]
+    try:
+        for literal in literals:
+            literal.value = ""
+        return body_fingerprint(body)
+    finally:
+        for literal, text in zip(literals, wording, strict=True):
+            literal.value = text
+
+
+TYPING_MODULES = frozenset({"typing", "typing_extensions"})
+
+
+def type_checking_spellings(tree: ast.AST) -> frozenset[str]:
+    """How a file writes `typing.TYPE_CHECKING`, false whenever its code runs.
+
+    `TYPE_CHECKING` counts when every binding of it in the file imports it from `typing` or
+    `typing_extensions`, star-imports one of them, or assigns it `False`, the spelling that spares
+    importing `typing`; `t.TYPE_CHECKING` counts when every binding of `t` imports one of those
+    modules. None counts in a file that sets an attribute named `TYPE_CHECKING`, names it in a
+    string, as `globals()` or `setattr` would, or star-imports another module, any of which could
+    make it true: code is set aside as a type checker's only when nothing in its file can run it.
+    """
+    imported: dict[str, set[str]] = defaultdict(set)
+    rebound: set[str] = set()
+    assigned_false: set[int] = set()
+    starred = False
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, (ast.Assign, ast.AnnAssign))
+            and isinstance(node.value, ast.Constant)
+            and node.value.value is False
+        ):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            assigned_false.update(
+                id(target)
+                for target in targets
+                if isinstance(target, ast.Name) and target.id == "TYPE_CHECKING"
+            )
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            if isinstance(node, ast.ImportFrom) and any(item.name == "*" for item in node.names):
+                if node.module not in TYPING_MODULES or node.level:
+                    return frozenset()
+                starred = True
+            for name, target in _bound_by(node):
+                imported[name].add(target)
+        elif isinstance(node, ast.Attribute):
+            if node.attr == "TYPE_CHECKING" and not isinstance(node.ctx, ast.Load):
+                return frozenset()
+        elif isinstance(node, ast.Constant):
+            if node.value == "TYPE_CHECKING":
+                return frozenset()
+        elif isinstance(node, ast.Name):
+            if not isinstance(node.ctx, ast.Load) and id(node) not in assigned_false:
+                rebound.add(node.id)
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            rebound.add(node.name)
+        elif isinstance(node, ast.arg):
+            rebound.add(node.arg)
+        elif isinstance(node, (ast.ExceptHandler, ast.MatchAs, ast.MatchStar)) and node.name:
+            rebound.add(node.name)
+        elif isinstance(node, ast.MatchMapping) and node.rest:
+            rebound.add(node.rest)
+    spellings = {
+        f"{name}.TYPE_CHECKING"
+        for name, targets in imported.items()
+        if name not in rebound and targets <= TYPING_MODULES
+    }
+    bare = imported.get("TYPE_CHECKING", set())
+    if (
+        "TYPE_CHECKING" not in rebound
+        and bare <= {f"{module}.TYPE_CHECKING" for module in TYPING_MODULES}
+        and (bare or starred or assigned_false)
+    ):
+        spellings.add("TYPE_CHECKING")
+    return frozenset(spellings)
+
+
+def _type_checking(test: ast.expr, spellings: frozenset[str]) -> bool | None:
+    """True for a test of `TYPE_CHECKING` as the file spells it, False for `not TYPE_CHECKING`,
+    and None for any other test (see `type_checking_spellings`)."""
+    negated = False
+    if isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not):
+        negated, test = True, test.operand
+    if isinstance(test, ast.Name):
+        spelled = test.id
+    elif isinstance(test, ast.Attribute) and isinstance(test.value, ast.Name):
+        spelled = f"{test.value.id}.{test.attr}"
+    else:
+        return None
+    return not negated if spelled in spellings else None
+
+
+def runtime_statements(body: list[ast.stmt], spellings: frozenset[str]) -> list[ast.stmt]:
+    """The statements of a body that run, without what only a type checker reads.
+
+    An `if TYPE_CHECKING:` block runs its `else` alone, and an `if not TYPE_CHECKING:` block its
+    body alone, where `spellings` says how the file writes `TYPE_CHECKING`. The rest holds imports
+    and aliases for annotations, so editing it changes nothing that runs; an import that moves out
+    of it and starts to run is still a change.
+    """
+    statements: list[ast.stmt] = []
+    for statement in body:
+        if (
+            isinstance(statement, ast.If)
+            and (checking := _type_checking(statement.test, spellings)) is not None
+        ):
+            kept = statement.orelse if checking else statement.body
+            statements.extend(runtime_statements(kept, spellings))
+        else:
+            statements.append(statement)
+    return statements
+
+
+def _bound_by(node: ast.Import | ast.ImportFrom) -> list[tuple[str, str]]:
+    """Each name an import binds, with what it imports as written, a relative import's dots
+    included: `import a.b` binds `a` and imports `a.b`, which it loads. A star import binds no
+    name that could be followed, and a `__future__` import none at all."""
+    if isinstance(node, ast.Import):
+        return [(alias.asname or alias.name.split(".", 1)[0], alias.name) for alias in node.names]
+    if node.module == "__future__":
+        return []
+    base = "." * node.level + (f"{node.module}." if node.module else "")
+    return [
+        (alias.asname or alias.name, f"{base}{alias.name}")
+        for alias in node.names
+        if alias.name != "*"
+    ]
+
+
+def top_level_imports(body: list[ast.stmt]) -> tuple[dict[str, tuple[str, ...]], list[ast.stmt]]:
+    """What a module body's own imports bind, each name to what it imports, and its other
+    statements. A star or `__future__` import is one of those: what the one binds cannot be
+    followed, and the other changes how the module compiles."""
+    bindings: dict[str, list[str]] = defaultdict(list)
+    others: list[ast.stmt] = []
+    for statement in body:
+        if isinstance(statement, ast.Import) or (
+            isinstance(statement, ast.ImportFrom)
+            and statement.module != "__future__"
+            and all(alias.name != "*" for alias in statement.names)
+        ):
+            for name, target in _bound_by(statement):
+                bindings[name].append(target)
+        else:
+            others.append(statement)
+    return {name: tuple(targets) for name, targets in bindings.items()}, others
+
+
+# Scopes whose own names a function binds: what it reads of any other is a global or a builtin.
+_FUNCTION_SCOPES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)
+
+
+def _own_names(node: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda) -> frozenset[str]:
+    """The names a function binds in its own scope: its parameters, and what its body assigns,
+    imports, defines, catches, or captures, unless it declares them `global` or `nonlocal`. The
+    bodies of the functions and classes it defines are scopes of their own."""
+    arguments = node.args
+    bound = {
+        item.arg
+        for item in (
+            *arguments.posonlyargs,
+            *arguments.args,
+            *arguments.kwonlyargs,
+            arguments.vararg,
+            arguments.kwarg,
+        )
+        if item is not None
+    }
+    declared: set[str] = set()
+    pending: list[ast.AST] = list(node.body) if isinstance(node.body, list) else [node.body]
+    while pending:
+        child = pending.pop()
+        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            bound.add(child.name)
+            continue
+        if isinstance(child, ast.Lambda):
+            continue
+        if isinstance(child, ast.Name) and not isinstance(child.ctx, ast.Load):
+            bound.add(child.id)
+        elif isinstance(child, (ast.Import, ast.ImportFrom)):
+            bound.update(name for name, _ in _bound_by(child))
+        elif isinstance(child, (ast.ExceptHandler, ast.MatchAs, ast.MatchStar)) and child.name:
+            bound.add(child.name)
+        elif isinstance(child, ast.MatchMapping) and child.rest:
+            bound.add(child.rest)
+        elif isinstance(child, (ast.Global, ast.Nonlocal)):
+            declared.update(child.names)
+        pending.extend(ast.iter_child_nodes(child))
+    return frozenset(bound - declared)
+
+
+def _names_read(tree: ast.AST) -> set[str]:
+    """Every name some code of a file reads without binding it in its own function.
+
+    Module and class code reads each name it uses as a global or a builtin. A function reads its
+    own names, and any other as a global, a builtin, or an enclosing function's, which counts
+    here too; its decorators, defaults, and annotations are read where it is defined.
+    """
+    read: set[str] = set()
+    pending: list[tuple[ast.AST, frozenset[str]]] = [(tree, frozenset())]
+    while pending:
+        node, own = pending.pop()
+        if isinstance(node, ast.Name):
+            if isinstance(node.ctx, ast.Load) and node.id not in own:
+                read.add(node.id)
+        elif isinstance(node, _FUNCTION_SCOPES):
+            body = node.body if isinstance(node.body, list) else [node.body]
+            inner = _own_names(node)
+            pending.extend((child, inner) for child in body)
+            in_body = {id(item) for item in body}
+            pending.extend(
+                (child, own) for child in ast.iter_child_nodes(node) if id(child) not in in_body
+            )
+        else:
+            pending.extend((child, own) for child in ast.iter_child_nodes(node))
+    return read
+
+
+def _listed_in_all(node: ast.AST) -> list[str]:
+    """The names a statement or call puts in `__all__`: `__all__ = [...]`, `__all__ += [...]`,
+    and `__all__.extend([...])` or `.append(...)`."""
+    listed: ast.AST | None = None
+    if isinstance(node, (ast.Assign, ast.AugAssign, ast.AnnAssign)):
+        targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+        if any(isinstance(item, ast.Name) and item.id == "__all__" for item in targets):
+            listed = node.value
+    elif (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "__all__"
+    ):
+        listed = node
+    if listed is None:
+        return []
+    return [
+        item.value
+        for item in ast.walk(listed)
+        if isinstance(item, ast.Constant) and isinstance(item.value, str)
+    ]
+
+
+def file_names(
+    tree: ast.AST,
+) -> tuple[frozenset[str], frozenset[str], dict[str, frozenset[str]]]:
+    """The names a file mentions, the names it reads, and what its imports bind.
+
+    It mentions each name its code holds, in any role and any block, annotations and
+    `TYPE_CHECKING` blocks among them, and reads each one some code reads without binding it in
+    its own function (see `_names_read`). Each name its `__all__` lists, which a star import of the
+    module reads, counts as both. Each name an import binds, at the top level or not, maps to what
+    the imports binding it import.
+    """
+    mentioned: set[str] = set()
+    exported: set[str] = set()
+    imported: dict[str, set[str]] = defaultdict(set)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name):
+            mentioned.add(node.id)
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            for name, target in _bound_by(node):
+                imported[name].add(target)
+        else:
+            exported.update(_listed_in_all(node))
+    return (
+        frozenset(mentioned | exported),
+        frozenset(_names_read(tree) | exported),
+        {name: frozenset(targets) for name, targets in imported.items()},
+    )
+
+
 class FeatureVisitor(ast.NodeVisitor):
     """Collect bounded behavior-bearing syntax while avoiding nested symbol bodies."""
 
@@ -432,11 +767,27 @@ def module_display(body: list[ast.stmt]) -> str:
     return "\n".join(lines) or "module"
 
 
-def snapshot_symbol(node: ast.AST, qualified_name: str, kind: str) -> SymbolSnapshot:
+def snapshot_symbol(
+    node: ast.AST,
+    qualified_name: str,
+    kind: str,
+    *,
+    type_checking: frozenset[str] = frozenset(),
+) -> SymbolSnapshot:
+    """A symbol as the comparison reads it. A module's or a class's own statements are taken as
+    they run: the code of an `if TYPE_CHECKING:` block, spelled as one of `type_checking`, is no
+    part of either."""
+    if isinstance(node, (ast.Module, ast.ClassDef)):
+        running = copy.copy(node)
+        running.body = runtime_statements(node.body, type_checking)
+        node = running
     body = list(getattr(node, "body", []))
+    fingerprint = body_fingerprint(body)
     visitor = FeatureVisitor(node)
     visitor.visit(node)
     parameters: str | None = None
+    imports: dict[str, tuple[str, ...]] = {}
+    without_imports: str | None = None
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
         signature = function_signature(node)
         parameters = function_parameters(node)
@@ -454,6 +805,8 @@ def snapshot_symbol(node: ast.AST, qualified_name: str, kind: str) -> SymbolSnap
         defaults = {}
         decorators = ()
         display = module_display(body)
+        imports, others = top_level_imports(body)
+        without_imports = body_fingerprint(others)
     return SymbolSnapshot(
         qualified_name=qualified_name,
         kind=kind,
@@ -462,7 +815,7 @@ def snapshot_symbol(node: ast.AST, qualified_name: str, kind: str) -> SymbolSnap
         signature=signature,
         default_map=defaults,
         decorators=decorators,
-        fingerprint=body_fingerprint(body),
+        fingerprint=fingerprint,
         features={name: tuple(getattr(visitor, name)) for name in limits.FEATURE_NAMES},
         statement_order=tuple(visitor.statement_order),
         node_inventory=node_inventory(body),
@@ -471,6 +824,9 @@ def snapshot_symbol(node: ast.AST, qualified_name: str, kind: str) -> SymbolSnap
         docstring_only=not body_without_docstring(body),
         display=display,
         parameters=parameters,
+        fingerprint_without_messages=fingerprint_without_messages(body, fingerprint),
+        imports=imports,
+        fingerprint_without_imports=without_imports,
     )
 
 
@@ -531,13 +887,15 @@ def extract_symbols(source: str, budget: AstBudget | None = None) -> list[Symbol
     tree = parse_module(source)
     _validate_ast_budget(tree, effective_budget)
     symbols: list[SymbolSnapshot] = []
+    type_checking = type_checking_spellings(tree)
     for name, kind, node in _symbol_nodes(tree.body):
         if len(symbols) >= effective_budget.max_symbols_per_file:
             raise AstResourceLimit("symbol budget exceeded")
-        snapshot = snapshot_symbol(node, name, kind)
+        snapshot = snapshot_symbol(node, name, kind, type_checking=type_checking)
         if kind == "module":
             snapshot.start = 1
             snapshot.end = max(1, len(source.splitlines()))
+            snapshot.names, snapshot.reads, snapshot.imported = file_names(tree)
         symbols.append(snapshot)
     return symbols
 

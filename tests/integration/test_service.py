@@ -256,6 +256,55 @@ def test_minimum_confidence_and_refactor_policies_are_visible(repo_factory) -> N
     assert any(item["reason"] == "minimum_confidence" for item in result["scope"]["omitted"])
 
 
+@pytest.mark.parametrize("emitted", [False, True], ids=["by-default", "emitted"])
+def test_changes_to_no_running_code_are_low_risk_refactors(repo_factory, emitted: bool) -> None:
+    """An edited type-checking block, an import nothing reads, and a reworded message."""
+    config = f"version: 1\nrules:\n  emit_low_risk_refactors: {str(emitted).lower()}\n"
+    types = "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    from shop.cart import {}\n"
+    paths = "import os\nimport sys\n\n\ndef cart_path(name):\n    return os.path.join('c', name)\n"
+    check = "def check(cart):\n    if not cart:\n        raise ValueError('{}')\n    return cart\n"
+    repo, base, head = repo_factory(
+        {
+            ".semantic-diff-weaver.yaml": config,
+            "shop/types.py": types.format("Cart"),
+            "shop/paths.py": paths,
+            "shop/check.py": check.format("An empty cart has no total"),
+        },
+        {
+            ".semantic-diff-weaver.yaml": config,
+            "shop/types.py": types.format("Cart, Item"),
+            "shop/paths.py": paths.replace("import sys\n", ""),
+            "shop/check.py": check.format("An empty cart cannot be totalled"),
+        },
+    )
+    result = analyze(
+        {"repo_path": str(repo), "base_ref": base, "head_ref": head, "output_format": "json"}
+    )
+    found = {
+        item["evidence"][0]["path"]: (item["category"], item["summary"])
+        for item in result["behavior_changes"]
+    }
+    if not emitted:
+        assert found == {}
+        assert {"reason": "low_risk_refactor_policy", "count": 3} in result["scope"]["omitted"]
+        return
+    refactor = "refactor_likely_no_behavior_change"
+    assert found == {
+        "shop/types.py": (
+            refactor,
+            "The changed symbol retains the same normalized behavior-bearing structure.",
+        ),
+        "shop/paths.py": (
+            refactor,
+            "Only the module's imports appear to have changed, in step with the code using them.",
+        ),
+        "shop/check.py": (
+            refactor,
+            "Only the wording of an exception message appears to have changed.",
+        ),
+    }
+
+
 def test_uninspectable_included_source_is_truncated_with_zero_empty_confidence(
     repo_factory,
 ) -> None:

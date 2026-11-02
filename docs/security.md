@@ -35,6 +35,15 @@ import.
   deadline covering parsing, matching, and comparison have immutable budgets; files exceeding a
   budget fail closed with explicit incomplete scope. A deadline that has been reached is spent, so
   platform clock granularity cannot extend the budget.
+- Code is read as changing no behavior only where nothing in its file can run it differently. An
+  `if TYPE_CHECKING:` block is set aside only in a file that imports `TYPE_CHECKING` from `typing`
+  or `typing_extensions`, or assigns it `False`, and never rebinds it, sets an attribute of that
+  name, names it in a string, as `globals()` or `setattr` would, or star-imports another module. A
+  literal in a `raise` is a reworded message only when a constructor named as an exception class
+  receives it as text, never through another call such as `eval` or `os.system`, and a body that
+  differs anywhere else keeps every change. An import changes nothing only when each name it newly
+  binds is read by the module's code and named nothing else there before; one nothing reads may run
+  anything when it loads. `tests/security/test_hidden_changes.py` holds the adversarial regressions.
 - Candidate-test indexing is bounded by per-file size and aggregate file/byte ceilings; reaching an
   aggregate ceiling marks mapping incomplete instead of silently claiming a complete index.
 - Model input separates trusted instructions from delimited untrusted evidence. Output may reference

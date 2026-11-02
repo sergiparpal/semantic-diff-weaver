@@ -147,6 +147,78 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-11-02, benchmark categories)
+
+The labeled benchmark's first measurement found 18 of its 34 unchanged symbols given a finding,
+and three kinds of finding among its development cases' disagreements: a module whose imports or
+`if TYPE_CHECKING:` block alone changed, read as an unknown change; a changed call into the
+package's own code, read as a dependency interaction; and a reworded error message, read as an
+error-handling change. At the user's choice, all three are corrected, and at the user's choice the
+corrections were measured on a new sample as well: 30 pull requests from five other repositories,
+labeled blind as the benchmark's `held_out` split before the analyzer changed. The corrections were
+designed from the 30 `development` cases alone.
+
+- **What only a type checker reads.** A module's and a class's own statements are compared as
+  they run: an `if TYPE_CHECKING:` block is set aside, and its `else` kept, as is the body of an
+  `if not TYPE_CHECKING:`. requests#7441 dropped an import from such a block, which nothing runs.
+  Only typing's constant counts: `TYPE_CHECKING` imported from `typing` or `typing_extensions`,
+  star-imported from one, or assigned `False`, and `t.TYPE_CHECKING` where `t` imports one of those
+  modules. A file that rebinds either, sets an attribute of that name, names it in a string, as
+  `globals()` or `setattr` would, or star-imports another module keeps its blocks, since any of
+  those could make one run: a hostile change must not pass for one a type checker alone reads.
+- **Imports in step with the code using them.** A module whose other statements are the same is a
+  refactor, under the new `SDW-RULE-REFACTOR-IMPORTS`, when each name it newly imports is read
+  somewhere in the file, and, where the old file read that name too, as a builtin, a global, or an
+  import, it was imported there from the same place; when each name it stops importing is mentioned
+  nowhere in the new file, and a package's `__init__.py` keeps each public one, which importers of
+  the package may read; and when no name is imported from somewhere else, as `json` from `orjson`,
+  or `import xml.etree.ElementTree` for `import xml`. click#3781 imports `os` for the `os.PathLike`
+  that `edit`'s annotations now name, and requests#7505 moves `from . import _types as _t` out of
+  its type-checking block to call `_t.has_read`. A name read only as another function's local variable is not read, as black's
+  `last_leaf` was a local before black#5647 imported the function. An import nothing reads may run
+  anything when its module loads, and stays a change, as do a `__future__` import and a star import.
+- **Calls into the package's own code.** A changed call is internal, and so an unknown change
+  rather than a dependency interaction, when it reaches what an import of the symbol's own package
+  binds as well as when it reaches its module's own code: a relative import, or one naming the
+  top-level package the file sits in, read from its path without a leading `src` or `lib`. black's
+  `is_yield(node)`, imported from `black.nodes` into `src/black/linegen.py`, and requests'
+  `_t.has_read(data)` are their packages' own logic. A name some import in the file binds to
+  another package, as a `try` that falls back to one does, is not.
+- **Reworded messages.** A body that differs from the old one only in the prose of the messages it
+  raises is a refactor, under the new `SDW-RULE-REFACTOR-MESSAGE`: httpx#3519 fixed "an sync" to "a
+  sync" in four messages. Prose is a string literal with whitespace, as the category probes read
+  it, that a constructor named as an exception class receives as text: alone, in an f-string,
+  joined by `+`, or as the format of `%` or `.format()`. A literal without whitespace is a key or a
+  code, `KeyError("user_id")`; a message that now interpolates a value says something new, as
+  httpx#3571's names its URL's scheme; and a literal another call receives, `eval(...)` or
+  `os.system(...)`, is code. A body that changes anywhere else keeps every change, the raise among
+  them.
+
+Both new refactors have a materiality of 0 and, like every refactor, are hidden unless
+`rules.emit_low_risk_refactors` is set. The internal-call rule's summary now reads "the project's
+own code" rather than "the module's own code".
+
+| Measure | Development, before | Development, after | Held-out, before | Held-out, after |
+| --- | --- | --- | --- | --- |
+| Findings on Python | 80 | 64 | 131 | 120 |
+| Precision, findings in an expected category | 10 of 73 | 10 of 57 | 16 of 125 | 16 of 114 |
+| Precision, findings naming a behavior category | 10 of 32 | 10 of 23 | 16 of 61 | 16 of 61 |
+| Unchanged symbols given a finding | 18 of 34 | 7 of 34 | 34 of 39 | 23 of 39 |
+| Unchanged symbols given one naming a behavior category | 6 of 34 | 1 of 34 | 17 of 39 | 17 of 39 |
+
+Every behavior change of both splits still has a finding, and the same ones are in an expected
+category. On the held-out split the first correction alone applied: 11 unchanged modules lost
+their finding, and no finding there was a reworded message or a dependency interaction calling only
+its package's own code, so the categories it names did not change. The held-out split was measured
+once after the corrections. Two changes came after it and moved none of its results: the read
+check above, for black#5647, which first counted any mention of a name in the old file, and the
+safeguards for `TYPE_CHECKING` and for literals that are code, which `docs/security.md` records with
+their adversarial regressions in `tests/security/test_hidden_changes.py`. Its disagreements were
+listed before and after the corrections, though none of them shaped one, so the next correction
+needs a new held-out sample. Of the 20 pull requests of `docs/real-pr-validation.md`, one loses a
+finding: click#3866's `core.py`, whose only module-level change imports `FrameType` for the code
+using it. The 18 corpus goldens are unchanged.
+
 ## Tests a change can affect (2026-11-02)
 
 The roadmap's v1.0 asks for integration with regression selection downstream. The analysis named

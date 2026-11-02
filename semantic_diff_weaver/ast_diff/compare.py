@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Iterable, Sequence
+from pathlib import PurePosixPath
 from typing import Any
 
 from ..models import LineRange
@@ -248,13 +249,49 @@ def own_call_names(*revisions: Sequence[SymbolSnapshot]) -> frozenset[str]:
     return frozenset(names)
 
 
-def is_internal_call(name: str, own_calls: frozenset[str]) -> bool:
-    """Whether a call reaches only the caller's own module: its own code, or a pure builtin.
+def root_package(path: str) -> str | None:
+    """The top-level package a file belongs to, read from its path without a `src` or `lib`
+    directory: `requests` for `src/requests/models.py`, and none for a file outside a directory.
+    """
+    parts = PurePosixPath(path).parts
+    if parts and parts[0] in {"src", "lib"}:
+        parts = parts[1:]
+    return parts[0] if len(parts) > 1 else None
+
+
+def first_party_names(path: str, *revisions: Sequence[SymbolSnapshot]) -> frozenset[str]:
+    """The names a module's imports bind to code of its own package, in either revision.
+
+    An import is of the package's own code when it is relative, `from . import _types`, or names
+    the top-level package the file belongs to, `from black.nodes import is_yield` in
+    `src/black/linegen.py`. A name some import binds to other code is not one of them.
+    """
+    root = root_package(path)
+    targets: dict[str, set[str]] = {}
+    for symbols in revisions:
+        for item in symbols:
+            for name, imported in item.imported.items():
+                targets.setdefault(name, set()).update(imported)
+    return frozenset(
+        name
+        for name, imported in targets.items()
+        if all(
+            target.startswith(".") or (root is not None and target.split(".", 1)[0] == root)
+            for target in imported
+        )
+    )
+
+
+def is_internal_call(
+    name: str, own_calls: frozenset[str], first_party: frozenset[str] = frozenset()
+) -> bool:
+    """Whether a call reaches only the caller's own code: its module's, a pure builtin, or what
+    an import of its own package binds.
 
     `self.client.fetch` calls whatever `self` holds, which may be anything, and a name the module
-    imports is another module's code.
+    imports from another package is that package's code.
     """
-    return name in own_calls or name in PURE_BUILTINS
+    return name in own_calls or name in PURE_BUILTINS or name.split(".", 1)[0] in first_party
 
 
 def _append_call_delta(
@@ -264,6 +301,7 @@ def _append_call_delta(
     new: SymbolSnapshot,
     hunk_id: str | None,
     own_calls: frozenset[str],
+    first_party: frozenset[str],
 ) -> None:
     old_names = feature_texts(old, "calls")
     new_names = feature_texts(new, "calls")
@@ -283,10 +321,10 @@ def _append_call_delta(
             probe=join_probes(old, new, "calls"),
             old_calls=[item.split("(", 1)[0] for item in old_names],
             new_calls=[item.split("(", 1)[0] for item in new_names],
-            # Every call that changed reaches only this module: the call rule tells it from a
-            # dependency by this alone.
+            # Every call that changed reaches only this package's own code: the call rule tells
+            # it from a dependency by this alone.
             internal_calls=bool(changed)
-            and all(is_internal_call(name, own_calls) for name in changed),
+            and all(is_internal_call(name, own_calls, first_party) for name in changed),
         )
     )
 
@@ -362,6 +400,127 @@ def _append_feature_deltas(
         )
 
 
+def is_reworded(old: SymbolSnapshot, new: SymbolSnapshot) -> bool:
+    """Whether two bodies differ in nothing but the wording of the exception messages they raise.
+
+    httpx's "an sync iterator" became "a sync iterator": the same exception, raised from the same
+    place, with the same values in its message. A message that now interpolates a value it did
+    not, as `f"Unknown scheme {url.scheme!r}"` for "Unknown scheme", is a change of what it says.
+    """
+    return (
+        old.fingerprint != new.fingerprint
+        and old.fingerprint_without_messages is not None
+        and old.fingerprint_without_messages == new.fingerprint_without_messages
+    )
+
+
+def _changed_raises(snapshot: SymbolSnapshot, other: SymbolSnapshot) -> str | None:
+    """The raises of `snapshot` that `other` does not hold as many times, as a delta shows them."""
+    changed = Counter(feature_texts(snapshot, "raises")) - Counter(feature_texts(other, "raises"))
+    return "; ".join(changed.elements()) or None
+
+
+def only_imports_changed(path: str, old: SymbolSnapshot, new: SymbolSnapshot) -> bool:
+    """Whether a module's own code differs only in imports, each in step with the code using it.
+
+    Every other statement must be the same. A name it newly imports must be read in the new file,
+    and, where the old file read it too, as a builtin, a global, or an import, have been imported
+    there from the same place, as an import moved out of an `if TYPE_CHECKING:` block was: a
+    local variable of the same name is not a read. A name it stops importing must be mentioned
+    nowhere in the new file, and a package's `__init__.py` must keep each public one, which
+    importers of the package may read. A name imported from somewhere else, `json` from
+    `orjson`, changes what the code calls.
+    """
+    if (
+        old.fingerprint_without_imports is None
+        or old.fingerprint_without_imports != new.fingerprint_without_imports
+    ):
+        return False
+    package = PurePosixPath(path).name == "__init__.py"
+    for name in old.imports.keys() | new.imports.keys():
+        before, after = old.imports.get(name), new.imports.get(name)
+        if before == after:
+            continue
+        if before is not None and after is not None:
+            return False
+        if after is not None:
+            if name not in new.reads:
+                # Imported for what loading it does, or to export it.
+                return False
+            if name in old.reads and old.imported.get(name) != frozenset(after):
+                return False
+        elif name in new.names or (package and not name.startswith("_")):
+            return False
+    return True
+
+
+def _bindings(snapshot: SymbolSnapshot, other: SymbolSnapshot) -> str | None:
+    """The imports of `snapshot` that bind a name `other` does not import, as `name = target`."""
+    return (
+        "; ".join(
+            f"{name} = {target}"
+            for name in sorted(snapshot.imports.keys() - other.imports.keys())
+            for target in snapshot.imports[name]
+        )
+        or None
+    )
+
+
+def _delta_without_features(
+    path: str,
+    old: SymbolSnapshot,
+    new: SymbolSnapshot,
+    hunk_id: str | None,
+    *,
+    reworded: bool,
+) -> StructuralDelta:
+    """The one delta of a changed symbol whose signature, decorators, and features all match.
+
+    A rename, or a body that is the same once formatting is set aside, is a refactor as material
+    as the two symbols are different. A body that differs only in a message's wording, or a
+    module whose imports alone changed in step with the code using them, is one with nothing
+    material. Any other body is a change that cannot be named.
+    """
+    if old.qualified_name != new.qualified_name or old.fingerprint == new.fingerprint:
+        return make_structural_delta(
+            path,
+            old,
+            new,
+            hunk_id,
+            "structural_refactor",
+            old.qualified_name,
+            new.qualified_name,
+            materiality=round(max(0.0, 1.0 - symbol_similarity(old, new)), 3),
+        )
+    if reworded:
+        return make_structural_delta(
+            path,
+            old,
+            new,
+            hunk_id,
+            "structural_refactor",
+            _changed_raises(old, new) or old.qualified_name,
+            _changed_raises(new, old) or new.qualified_name,
+            materiality=0.0,
+            reworded=True,
+        )
+    if old.kind == "module" and only_imports_changed(path, old, new):
+        return make_structural_delta(
+            path,
+            old,
+            new,
+            hunk_id,
+            "structural_refactor",
+            _bindings(old, new) or old.qualified_name,
+            _bindings(new, old) or new.qualified_name,
+            materiality=0.0,
+            imports_only=True,
+        )
+    return make_structural_delta(
+        path, old, new, hunk_id, "unknown_structure", "body changed", "body changed"
+    )
+
+
 def compare_symbol(
     path: str,
     old: SymbolSnapshot | None,
@@ -373,6 +532,7 @@ def compare_symbol(
     old_hunks: Sequence[SourceHunk] | None = None,
     new_hunks: Sequence[SourceHunk] | None = None,
     own_calls: frozenset[str] = frozenset(),
+    first_party: frozenset[str] = frozenset(),
 ) -> list[StructuralDelta]:
     effective_old_path = old_path or path
     effective_new_path = new_path or path
@@ -450,8 +610,12 @@ def compare_symbol(
                 ", ".join(new.decorators),
             )
         )
-    _append_feature_deltas(result, path, old, new, hunk_id)
-    _append_call_delta(result, path, old, new, hunk_id, own_calls)
+    reworded = is_reworded(old, new)
+    if not reworded:
+        # A reworded message changes the text of its raise and of the call that builds the
+        # exception, and nothing either does.
+        _append_feature_deltas(result, path, old, new, hunk_id)
+        _append_call_delta(result, path, old, new, hunk_id, own_calls, first_party)
     result = suppress_redundant_deltas(result)
     result = _maybe_drop_return_when_comparison_explained(result, old, new)
     result = _maybe_drop_return_when_call_explained(result, old, new)
@@ -469,29 +633,8 @@ def compare_symbol(
                 "; ".join(new.statement_order),
             )
         )
-    if not result and (
-        old.qualified_name != new.qualified_name or old.fingerprint == new.fingerprint
-    ):
-        result.append(
-            make_structural_delta(
-                path,
-                old,
-                new,
-                hunk_id,
-                "structural_refactor",
-                old.qualified_name,
-                new.qualified_name,
-                materiality=round(max(0.0, 1.0 - symbol_similarity(old, new)), 3),
-            )
-        )
-    # ``not result`` is load-bearing, not redundant with the branch above: that branch's own
-    # condition is a conjunction, so this one is reached whenever ``result`` is non-empty too.
-    elif old.fingerprint != new.fingerprint and not result:
-        result.append(
-            make_structural_delta(
-                path, old, new, hunk_id, "unknown_structure", "body changed", "body changed"
-            )
-        )
+    if not result:
+        result.append(_delta_without_features(path, old, new, hunk_id, reworded=reworded))
     if effective_old_path != effective_new_path:
         for item in result:
             item.metadata.update(old_path=effective_old_path, new_path=effective_new_path)

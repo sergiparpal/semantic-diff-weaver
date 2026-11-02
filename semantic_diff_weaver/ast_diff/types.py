@@ -69,6 +69,24 @@ class SymbolSnapshot:
     # A callable's signature without its typing: what a caller passes. None for a class, a module,
     # or a snapshot built without it, whose signature changes are never read as typing alone.
     parameters: str | None = None
+    # The fingerprint with the prose of the exceptions its body raises blanked: equal to another's
+    # while the fingerprints differ, the two differ only in how a message is worded. None for a
+    # snapshot built without it, which is never read as reworded.
+    fingerprint_without_messages: str | None = None
+    # A module's own top-level imports as they run: each name one binds, to what it imports as
+    # written, `._types` for `from . import _types`.
+    imports: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    # A module's fingerprint without those imports. None for any other symbol, or a module built
+    # without it, whose changes are never read as imports alone.
+    fingerprint_without_imports: str | None = None
+    # A module's whole file: every name its code mentions, in any role and any block, and every
+    # name its `__all__` lists.
+    names: frozenset[str] = frozenset()
+    # A module's whole file: every name some code reads without binding it in its own function, as
+    # a global or a builtin, and every name its `__all__` lists. A local `last_leaf` is not one.
+    reads: frozenset[str] = frozenset()
+    # A module's whole file: each name an import anywhere in it binds, to what those imports import.
+    imported: dict[str, frozenset[str]] = field(default_factory=dict)
 
     @property
     def signature_shape(self) -> str:

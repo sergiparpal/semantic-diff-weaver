@@ -453,13 +453,14 @@ def _classify_call(
             "SDW-RULE-SIDE-EFFECT",
         )
     if delta.metadata.get("internal_calls"):
-        # A call to its own method, its module's own function, or a pure builtin has no failure or
-        # unexpected response of a dependency to test for: 8 of the 15 dependency findings on the
-        # real pull requests of 2026-10-31 changed such calls.
+        # A call to its own method, its module's own function, a pure builtin, or what an import
+        # of its own package binds has no failure or unexpected response of a dependency to test
+        # for: 8 of the 15 dependency findings on the real pull requests of 2026-10-31 changed
+        # such calls.
         return (
             BehaviorCategory.UNKNOWN,
-            "A call to the module's own code changed without enough local contract context.",
-            "The symbol now relies on different logic of its own module; the observable effect "
+            "A call to the project's own code changed without enough local contract context.",
+            "The symbol now relies on different logic of its own project; the observable effect "
             "needs review.",
             0.55,
             # The unknown condition's own assumption: a finding is penalized for each distinct
@@ -499,6 +500,26 @@ def _classify_refactor(
 ) -> Classification | None:
     if delta.kind != "structural_refactor":
         return None
+    if delta.metadata.get("reworded"):
+        return (
+            BehaviorCategory.REFACTOR,
+            "Only the wording of an exception message appears to have changed.",
+            "The same failures raise the same exceptions with the same values; only the prose "
+            "of their messages differs.",
+            0.82,
+            ["Nothing matches the message's old wording, as a test's pytest.raises(match=) can."],
+            "SDW-RULE-REFACTOR-MESSAGE",
+        )
+    if delta.metadata.get("imports_only"):
+        return (
+            BehaviorCategory.REFACTOR,
+            "Only the module's imports appear to have changed, in step with the code using them.",
+            "The module runs the same top-level code; each name it newly imports is used by its "
+            "code, and none it stopped importing is.",
+            0.82,
+            ["Loading a module the code now imports has no effect the code relies on."],
+            "SDW-RULE-REFACTOR-IMPORTS",
+        )
     materiality = float(delta.metadata.get("materiality", 0.0))
     if materiality > rules.refactor_materiality_threshold:
         return (
