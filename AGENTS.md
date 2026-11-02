@@ -36,7 +36,7 @@ Pytest files and functions use `test_*.py` and `test_*`. Add unit tests for algo
 
 History uses Conventional Commit subjects, for example `feat: implement semantic diff weaver MVP`. Continue with `feat:`, `fix:`, `test:`, or `docs:`. Commit message bodies and pull requests should explain behavior and contract impact and call out security, schema, evaluation, or documentation changes; a pull request also links issues and lists the commands run. Include screenshots only when rendered Markdown changes materially.
 
-`main` is protected by a branch ruleset: **direct pushes are rejected**, and merging requires the `ci-complete` status check to pass. Nobody can bypass it, the repository owner included. So the loop is branch, push, open a PR, let CI go green, merge. Review approvals are **not** required (the count is 0) — a solo change stays a one-person operation, gated by CI rather than by a second pair of eyes.
+`main` is protected by a branch ruleset: **direct pushes are rejected**, and merging requires the `ci-complete` status check to pass. Nobody can bypass it, the repository owner included. So the loop is branch, push, open a PR, let CI go green, merge. CI runs on the pull request, not on a branch pushed without one, and again on `main` after the merge. Review approvals are **not** required (the count is 0) — a solo change stays a one-person operation, gated by CI rather than by a second pair of eyes.
 
 Before pushing, run the local gate, which is what the `test` and `action-pins` jobs run:
 
