@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "annotation": "One annotator, Claude Opus 5.5, labeled every Python symbol each pull request changes outside its tests, from the diff and the files at its two commits, before reading the analyzer's output on it. The held_out cases were labeled before the analyzer was changed against the development ones. reviewed_by names whoever checks a case's labels later.",
+  "annotation": "One annotator, Claude Opus 5.5, labeled every Python symbol each pull request changes outside its tests, from the diff and the files at its two commits, before reading the analyzer's output on it. The held_out cases were labeled before the analyzer was changed against the development ones. A reviewer, sergiparpal, then checked every label on a page that showed each symbol's diff and never the analyzer's findings, and corrected 26. reviewed_by names whoever checked a case's labels after the annotator.",
   "sampled_from": {
     "psf/requests": "3c7baaa05ab4aa49cc819ce3a819d260de19c157",
     "pallets/click": "2247b35ea1c47c727d7a06e51fa280e12a863ff6",
@@ -58,13 +58,14 @@
           "symbol": "PreparedRequest.prepare_body",
           "change": "modified",
           "expected": [
-            "validation_change",
             "output_contract_change"
           ],
           "rationale": "A body object that only proxies read now counts as file-like, so no form-urlencoded Content-Type is set for it."
         }
       ],
-      "reviewed_by": [],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
       "split": "development"
     },
     {
@@ -81,12 +82,16 @@
           "change": "modified",
           "expected": [
             "validation_change",
-            "output_contract_change"
+            "output_contract_change",
+            "side_effect_change",
+            "dependency_interaction_change"
           ],
-          "rationale": "A file wrapper with read only through __getattr__ is now read with fp.read(), where it was passed on as the object itself."
+          "rationale": "A file wrapper with read only through __getattr__ is now read with fp.read(), where it was passed on as the object itself, so its content is what gets encoded and the read advances its position."
         }
       ],
-      "reviewed_by": [],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
       "split": "development"
     },
     {
@@ -105,7 +110,9 @@
           "rationale": "A class-level annotation for hooks, with no value: typing only."
         }
       ],
-      "reviewed_by": [],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
       "split": "development"
     },
     {
@@ -159,7 +166,9 @@
           "rationale": "A type-checker comment removed."
         }
       ],
-      "reviewed_by": [],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
       "split": "development"
     },
     {
@@ -178,7 +187,9 @@
           "rationale": "A docstring line re-indented."
         }
       ],
-      "reviewed_by": [],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
       "split": "development"
     },
     {
@@ -211,7 +222,9 @@
           "rationale": "The headers annotation widens to Mapping: typing only."
         }
       ],
-      "reviewed_by": [],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
       "split": "development"
     },
     {
@@ -246,7 +259,9 @@
           "rationale": "A single os.PathLike filename is now accepted and wrapped as one file, where only a str was; the overloads and docstring follow."
         }
       ],
-      "reviewed_by": [],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
       "split": "development"
     },
     {
@@ -295,7 +310,9 @@
           "rationale": "Takes the PAGER parameters and passes them to the program before the file name."
         }
       ],
-      "reviewed_by": [],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
       "split": "development"
     },
     {
@@ -318,9 +335,11 @@
           "symbol": "_pager_contextmanager",
           "change": "modified",
           "expected": [
-            "output_contract_change"
+            "output_contract_change",
+            "ordering_change",
+            "default_behavior_change"
           ],
-          "rationale": "Resolves the command itself with the same routing and null-pager fallback, but the context it returns now yields None for an undecided color where it yielded False."
+          "rationale": "Resolves the pager command when called, before any strategy's context is entered, where each strategy resolved it on entry, and the context it returns yields None for an undecided color where it yielded False, which get_pager_file still turns into a bool."
         },
         {
           "path": "src/click/_termui_impl.py",
@@ -334,32 +353,37 @@
           "symbol": "_pipepager",
           "change": "modified",
           "expected": [
+            "error_handling_change",
             "output_contract_change",
-            "error_handling_change"
+            "default_behavior_change"
           ],
-          "rationale": "Takes a resolved path and parameters instead of resolving them, no longer falls back to the null pager itself, and yields None for an undecided color instead of False."
+          "rationale": "Takes a resolved path and parameters instead of resolving them, no longer falls back to the null pager itself, and yields the default color, None, as given instead of turning it into False."
         },
         {
           "path": "src/click/_termui_impl.py",
           "symbol": "_tempfilepager",
           "change": "modified",
           "expected": [
+            "error_handling_change",
             "output_contract_change",
-            "error_handling_change"
+            "default_behavior_change"
           ],
-          "rationale": "Takes a resolved path instead of resolving it, no longer falls back to the null pager itself, and yields None for an undecided color instead of False."
+          "rationale": "Takes a resolved path instead of resolving it, no longer falls back to the null pager itself, and yields the default color, None, as given instead of turning it into False."
         },
         {
           "path": "src/click/_termui_impl.py",
           "symbol": "_nullpager",
           "change": "modified",
           "expected": [
-            "output_contract_change"
+            "output_contract_change",
+            "default_behavior_change"
           ],
-          "rationale": "Yields the color as given, None included, instead of turning None into False."
+          "rationale": "Yields the color as given, its default None included, instead of turning None into False."
         }
       ],
-      "reviewed_by": [],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
       "split": "development"
     },
     {
@@ -375,12 +399,16 @@
           "symbol": "_tempfilepager",
           "change": "modified",
           "expected": [
-            "error_handling_change"
+            "error_handling_change",
+            "side_effect_change",
+            "ordering_change"
           ],
-          "rationale": "The temp file is closed in finally, so an error while paging propagates instead of being replaced by the PermissionError of unlinking an open file on Windows."
+          "rationale": "The temp file is closed before it is unlinked, also when paging fails, so an error while paging propagates instead of being replaced by the PermissionError of unlinking an open file on Windows."
         }
       ],
-      "reviewed_by": [],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
       "split": "development"
     },
     {
@@ -403,7 +431,9 @@
           "rationale": "Applies the pending sub-threshold steps and renders once more before finishing, so the bar ends on its true position."
         }
       ],
-      "reviewed_by": [],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
       "split": "development"
     },
     {
@@ -419,12 +449,15 @@
           "symbol": "_tempfilepager",
           "change": "modified",
           "expected": [
-            "output_contract_change"
+            "output_contract_change",
+            "dependency_interaction_change"
           ],
-          "rationale": "The temp file opens in text mode instead of binary, so the stream it yields takes str rather than bytes."
+          "rationale": "tempfile.NamedTemporaryFile is now called with a text mode instead of a binary one, so the stream it yields takes str rather than bytes."
         }
       ],
-      "reviewed_by": [],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
       "split": "development"
     },
     {
@@ -445,7 +478,9 @@
           "rationale": "The blank line after an import is kept before a comment in more cases: two exclusions go and a converted import line no longer counts before a comment, so the counts it returns change."
         }
       ],
-      "reviewed_by": [],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
       "split": "development"
     },
     {
@@ -473,7 +508,9 @@
           "rationale": "A conditional expression whose last leaf is a # fmt: skip comment is no longer wrapped in invisible parentheses, which changes the lines generated."
         }
       ],
-      "reviewed_by": [],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
       "split": "development"
     },
     {
@@ -494,7 +531,9 @@
           "rationale": "With --line-ranges, an import line outside the selected ranges now counts as an import for the blank line after it, and two cases of the class and comment rules change, so the counts it returns change."
         }
       ],
-      "reviewed_by": [],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
       "split": "development"
     },
     {
@@ -515,7 +554,9 @@
           "rationale": "Under the parenthesize_tuple_in_yield preview, a yielded tuple no longer keeps the atom's visible parentheses, so redundant ones are removed."
         }
       ],
-      "reviewed_by": [],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
       "split": "development"
     },
     {
@@ -548,7 +589,9 @@
           "rationale": "The request body is encoded with the Content-Type charset through a StringPayload instead of always as UTF-8 bytes."
         }
       ],
-      "reviewed_by": [],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
       "split": "development"
     },
     {
@@ -614,12 +657,15 @@
           "change": "modified",
           "expected": [
             "validation_change",
+            "output_contract_change",
             "default_behavior_change"
           ],
-          "rationale": "A new preview feature, end_fmt_off_at_closing_bracket, which --preview turns on."
+          "rationale": "A new member, end_fmt_off_at_closing_bracket, which --enable-unstable-feature now accepts by name and --preview turns on, since it is not among the unstable features."
         }
       ],
-      "reviewed_by": [],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
       "split": "development"
     },
     {
@@ -649,7 +695,9 @@
           "rationale": "__all__ gains FunctionAuth, and httpx's star import of _auth makes httpx.FunctionAuth exist, where it was an AttributeError."
         }
       ],
-      "reviewed_by": [],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
       "split": "development"
     },
     {
@@ -675,7 +723,9 @@
           "rationale": "An f-string's quotes swapped: the same string."
         }
       ],
-      "reviewed_by": [],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
       "split": "development"
     },
     {
@@ -696,7 +746,9 @@
           "rationale": "The ValueError for an unsupported proxy scheme now names the scheme, where its message held the placeholder text."
         }
       ],
-      "reviewed_by": [],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
       "split": "development"
     },
     {
@@ -736,7 +788,9 @@
           "rationale": "A typo fixed in an error message: the same information."
         }
       ],
-      "reviewed_by": [],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
       "split": "development"
     },
     {
@@ -755,7 +809,9 @@
           "rationale": "The release's version string."
         }
       ],
-      "reviewed_by": [],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
       "split": "development"
     },
     {
@@ -771,12 +827,17 @@
           "symbol": "create_ssl_context",
           "change": "modified",
           "expected": [
-            "output_contract_change"
+            "error_handling_change",
+            "output_contract_change",
+            "side_effect_change",
+            "dependency_interaction_change"
           ],
-          "rationale": "verify=False no longer returns early, so the context it returns now also loads the client certificate and the rest of the configuration."
+          "rationale": "verify=False no longer returns early, so with a cert it now warns that cert is deprecated and loads the certificate with load_cert_chain, which can raise, into the context it returns."
         }
       ],
-      "reviewed_by": [],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
       "split": "development"
     },
     {
@@ -795,7 +856,9 @@
           "rationale": "An atomic value skips the has() check, which is false for it anyway: faster, and the same tuple."
         }
       ],
-      "reviewed_by": [],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
       "split": "development"
     },
     {
@@ -814,7 +877,9 @@
           "rationale": "A duplicated word removed from a comment."
         }
       ],
-      "reviewed_by": [],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
       "split": "development"
     },
     {
@@ -843,7 +908,9 @@
           "rationale": "The new proxy that calls evolve."
         }
       ],
-      "reviewed_by": [],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
       "split": "development"
     },
     {
@@ -913,7 +980,9 @@
           "rationale": "Docstring punctuation."
         }
       ],
-      "reviewed_by": [],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
       "split": "development"
     },
     {
@@ -929,13 +998,14 @@
           "symbol": "_is_class_var",
           "change": "modified",
           "expected": [
-            "output_contract_change",
-            "validation_change"
+            "output_contract_change"
           ],
           "rationale": "A typing.ForwardRef annotation is unwrapped to its string first, so a forward-referenced ClassVar is now recognized as one."
         }
       ],
-      "reviewed_by": [],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
       "split": "development"
     },
     {
@@ -954,7 +1024,9 @@
           "rationale": "A type-checker comment removed from a field."
         }
       ],
-      "reviewed_by": [],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
       "split": "development"
     },
     {
@@ -978,7 +1050,7 @@
           "symbol": "_CollectErrors.raise_any",
           "change": "modified",
           "expected": [],
-          "rationale": "The branch for Python before 3.11, no longer supported, goes; on every supported version it raises the same BaseExceptionGroup."
+          "rationale": "The branch for Python before 3.11, which the head no longer supports, goes; on every version both commits support it raises the same BaseExceptionGroup."
         },
         {
           "path": "src/flask/sessions.py",
@@ -995,7 +1067,9 @@
           "rationale": "datetime.UTC is timezone.utc under another name."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [
+        "sergiparpal"
+      ]
     },
     {
       "id": "pallets/flask#6133",
@@ -1014,7 +1088,9 @@
           "rationale": "A new route shortcut for the QUERY method."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [
+        "sergiparpal"
+      ]
     },
     {
       "id": "pallets/flask#6096",
@@ -1037,11 +1113,14 @@
           "symbol": "Flask.run",
           "change": "modified",
           "expected": [
-            "default_behavior_change",
+            "boundary_change",
             "validation_change",
+            "error_handling_change",
+            "side_effect_change",
+            "default_behavior_change",
             "dependency_interaction_change"
           ],
-          "rationale": "Without a host or port given, SERVER_NAME is parsed with urlsplit, so an IPv6 address yields its real host and port for run_simple, where splitting at the first colon broke it."
+          "rationale": "SERVER_NAME is parsed with urlsplit, so without a host or port given an IPv6 address yields its real host and port for run_simple, where splitting at the first colon broke it, and a malformed address or a port outside 0 to 65535 raises ValueError even when both are given."
         },
         {
           "path": "src/flask/testing.py",
@@ -1050,12 +1129,15 @@
           "expected": [
             "state_transition_change",
             "side_effect_change",
+            "default_behavior_change",
             "dependency_interaction_change"
           ],
           "rationale": "The cookie domain is the host URL's hostname, so an IPv6 host is no longer cut at its first colon, and a missing one is localhost."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [
+        "sergiparpal"
+      ]
     },
     {
       "id": "pallets/flask#6013",
@@ -1071,13 +1153,14 @@
           "symbol": "App.select_jinja_autoescape",
           "change": "modified",
           "expected": [
-            "output_contract_change",
-            "validation_change"
+            "output_contract_change"
           ],
           "rationale": "File extensions compare case-insensitively, so page.HTML now turns autoescaping on."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [
+        "sergiparpal"
+      ]
     },
     {
       "id": "pallets/flask#5917",
@@ -1093,13 +1176,16 @@
           "symbol": "App.add_url_rule",
           "change": "modified",
           "expected": [
+            "validation_change",
             "state_transition_change",
             "side_effect_change"
           ],
-          "rationale": "OPTIONS is added to the rule's methods whenever automatic options are on, including when the argument or the view enables them explicitly, which it was not before."
+          "rationale": "OPTIONS is added to the rule's methods whenever automatic options are on, including when the argument or the view enables them explicitly, which it was not before, so the rule now accepts OPTIONS requests."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [
+        "sergiparpal"
+      ]
     },
     {
       "id": "pallets/flask#5899",
@@ -1145,7 +1231,9 @@
           "rationale": "should_ignore_error is now a class attribute holding None."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [
+        "sergiparpal"
+      ]
     },
     {
       "id": "pallets/werkzeug#3338",
@@ -1189,7 +1277,9 @@
           "rationale": "The cookie pattern's quantifiers become possessive; none of them needed to give back what it matched, so it matches the same text, faster."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [
+        "sergiparpal"
+      ]
     },
     {
       "id": "pallets/werkzeug#3332",
@@ -1211,8 +1301,12 @@
           "path": "src/werkzeug/utils.py",
           "symbol": "send_file",
           "change": "modified",
-          "expected": [],
-          "rationale": "Wraps the file through Request.wrap_file, which uses the same server wrapper or the same fallback, and builds the Request earlier."
+          "expected": [
+            "state_transition_change",
+            "side_effect_change",
+            "ordering_change"
+          ],
+          "rationale": "Builds its Request before the response, also when conditional is false, and the Request stores itself in the caller's environ as werkzeug.request; the file is wrapped by Request.wrap_file with the same server wrapper or fallback."
         },
         {
           "path": "src/werkzeug/wrappers/request.py",
@@ -1250,10 +1344,12 @@
             "side_effect_change",
             "output_contract_change"
           ],
-          "rationale": "The module's __getattr__, defined under `if not TYPE_CHECKING`, now serves wsgi.wrap_file with a DeprecationWarning."
+          "rationale": "The module's __getattr__, defined under `if not TYPE_CHECKING`, now serves wsgi.wrap_file with a DeprecationWarning, and a star import, with no __all__, no longer binds it."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [
+        "sergiparpal"
+      ]
     },
     {
       "id": "pallets/werkzeug#3331",
@@ -1300,9 +1396,10 @@
           "symbol": "<module>",
           "change": "modified",
           "expected": [
-            "default_behavior_change"
+            "default_behavior_change",
+            "dependency_interaction_change"
           ],
-          "rationale": "_log_add_style and its Colorama probe go, so styles are no longer turned off on Windows without Colorama."
+          "rationale": "_log_add_style and its Colorama probe go, so on Windows the module no longer imports colorama when it is installed nor turns styles off when it is not."
         },
         {
           "path": "src/werkzeug/serving.py",
@@ -1322,7 +1419,9 @@
           "rationale": "A type-checker comment added."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [
+        "sergiparpal"
+      ]
     },
     {
       "id": "pallets/werkzeug#3329",
@@ -1368,7 +1467,9 @@
           "rationale": "The application iterator and the selector are closed through context managers, so they are closed even when draining the socket raises."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [
+        "sergiparpal"
+      ]
     },
     {
       "id": "pallets/werkzeug#3327",
@@ -1414,7 +1515,9 @@
           "rationale": "A Location or Content-Location that is an IRI now emits a DeprecationWarning; the headers sent are converted as before."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [
+        "sergiparpal"
+      ]
     },
     {
       "id": "pallets/werkzeug#3322",
@@ -1437,10 +1540,12 @@
           "symbol": "wrap_file",
           "change": "modified",
           "expected": [
+            "boundary_change",
+            "output_contract_change",
             "default_behavior_change",
-            "output_contract_change"
+            "dependency_interaction_change"
           ],
-          "rationale": "The default buffer size grows from 8 KiB to 128 KiB, and without a server wrapper the file comes back in a _FileWrapper instead of as itself."
+          "rationale": "The default buffer size, which bounds each block and is passed to the server's wrapper, grows from 8 KiB to 128 KiB, and without a server wrapper the file comes back in a _FileWrapper, iterated in blocks instead of lines."
         },
         {
           "path": "src/werkzeug/wsgi.py",
@@ -1454,9 +1559,11 @@
           "symbol": "_FileWrapper.__init__",
           "change": "modified",
           "expected": [
+            "boundary_change",
+            "state_transition_change",
             "default_behavior_change"
           ],
-          "rationale": "The default buffer size grows from 8 KiB to 128 KiB."
+          "rationale": "The default buffer size it stores, which bounds every later read, grows from 8 KiB to 128 KiB."
         },
         {
           "path": "src/werkzeug/wsgi.py",
@@ -1509,7 +1616,9 @@
           "rationale": "An assignment expression for the same read and test."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [
+        "sergiparpal"
+      ]
     },
     {
       "id": "encode/starlette#3736",
@@ -1537,7 +1646,9 @@
           "rationale": "A functools.partial endpoint is unwrapped to its function, so it is listed in the schema instead of being read as a class with method attributes."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [
+        "sergiparpal"
+      ]
     },
     {
       "id": "encode/starlette#3772",
@@ -1560,7 +1671,9 @@
           "rationale": "A memoryview chunk is sent cast to bytes, or copied when not contiguous, so a typed memoryview's body length counts bytes rather than elements."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [
+        "sergiparpal"
+      ]
     },
     {
       "id": "encode/starlette#3768",
@@ -1579,7 +1692,9 @@
           "rationale": "media_type gains an annotation; its value is still None."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [
+        "sergiparpal"
+      ]
     },
     {
       "id": "encode/starlette#3728",
@@ -1598,7 +1713,9 @@
           "rationale": "The release's version string."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [
+        "sergiparpal"
+      ]
     },
     {
       "id": "encode/starlette#3725",
@@ -1614,9 +1731,12 @@
           "symbol": "replace_params",
           "change": "modified",
           "expected": [
-            "output_contract_change"
+            "state_transition_change",
+            "output_contract_change",
+            "side_effect_change",
+            "ordering_change"
           ],
-          "rationale": "Placeholders are substituted in one pass over the path, so a value that itself looks like a placeholder is no longer substituted again."
+          "rationale": "Placeholders are substituted in one pass in path order, each key popped from the caller's path_params before it is converted, so a value that looks like a placeholder is no longer substituted again and a repeated placeholder is filled only once."
         },
         {
           "path": "starlette/routing.py",
@@ -1626,7 +1746,9 @@
           "rationale": "A new private pattern compiled for replace_params."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [
+        "sergiparpal"
+      ]
     },
     {
       "id": "encode/starlette#3599",
@@ -1642,12 +1764,16 @@
           "symbol": "FormParser.parse",
           "change": "modified",
           "expected": [
-            "output_contract_change"
+            "output_contract_change",
+            "ordering_change",
+            "dependency_interaction_change"
           ],
-          "rationale": "The parser is finalized once the stream ends, not only on an empty chunk, so a body without a trailing empty chunk keeps its last field."
+          "rationale": "Every chunk, empty ones included, is written to the python-multipart parser, which is finalized once after the stream ends rather than at an empty chunk, so a body without a trailing empty chunk keeps its last field."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [
+        "sergiparpal"
+      ]
     },
     {
       "id": "Textualize/rich#4079",
@@ -1669,7 +1795,9 @@
           "rationale": "A Text, such as inline code, is appended as it is instead of being restyled with the cell's current style, which also no longer mutates the Text passed in."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [
+        "sergiparpal"
+      ]
     },
     {
       "id": "Textualize/rich#4077",
@@ -1688,7 +1816,9 @@
           "rationale": "The proxy now reports whether the file it wraps is a terminal."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [
+        "sergiparpal"
+      ]
     },
     {
       "id": "Textualize/rich#4076",
@@ -1706,10 +1836,12 @@
           "expected": [
             "output_contract_change"
           ],
-          "rationale": "Lines are split at newlines only, not at the other separators splitlines knows, and text ending in a newline now yields a final empty line."
+          "rationale": "Lines are split at newlines only, not at the other separators splitlines knows, text ending in a newline now yields a final empty line, and empty text yields one empty line instead of none."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [
+        "sergiparpal"
+      ]
     },
     {
       "id": "Textualize/rich#4075",
@@ -1746,7 +1878,9 @@
           "rationale": "The signature reflowed onto several lines."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [
+        "sergiparpal"
+      ]
     },
     {
       "id": "Textualize/rich#3941",
@@ -1786,7 +1920,9 @@
           "rationale": "The path annotation and docstring widen to PathLike."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [
+        "sergiparpal"
+      ]
     },
     {
       "id": "Textualize/rich#3845",
@@ -1801,8 +1937,11 @@
           "path": "rich/style.py",
           "symbol": "<module>",
           "change": "modified",
-          "expected": [],
-          "rationale": "The imports and a new private id counter the changed methods draw from."
+          "expected": [
+            "state_transition_change",
+            "side_effect_change"
+          ],
+          "rationale": "A new private id counter starts at getrandbits(24) when the module loads, which draws from the shared random generator and so shifts the numbers other code gets from it."
         },
         {
           "path": "rich/style.py",
@@ -1812,7 +1951,7 @@
             "state_transition_change",
             "output_contract_change"
           ],
-          "rationale": "A link id is the next number of a counter started at random instead of a random number, so ids no longer collide."
+          "rationale": "A link id is the next number of a counter started at random instead of a random number, so two styles in one process no longer draw the same id."
         },
         {
           "path": "rich/style.py",
@@ -1855,7 +1994,9 @@
           "rationale": "A link id is the next number of a counter started at random instead of a random number."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [
+        "sergiparpal"
+      ]
     },
     {
       "id": "marshmallow-code/marshmallow#3004",
@@ -1876,7 +2017,9 @@
           "rationale": "A NaN value's ValueError is now caught and raised as the field's invalid ValidationError, where it escaped as a ValueError."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [
+        "sergiparpal"
+      ]
     },
     {
       "id": "marshmallow-code/marshmallow#3016",
@@ -1892,12 +2035,15 @@
           "symbol": "URL.RegexMemoizer._regex_generator",
           "change": "modified",
           "expected": [
-            "validation_change"
+            "validation_change",
+            "output_contract_change"
           ],
-          "rationale": "A fragment may follow an empty path, so http://example.com#top is now accepted."
+          "rationale": "The pattern it returns lets a fragment follow an empty path, so http://example.com#top is now accepted."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [
+        "sergiparpal"
+      ]
     },
     {
       "id": "marshmallow-code/marshmallow#2988",
@@ -1916,7 +2062,9 @@
           "rationale": "index is already None when index_errors is off, so the unknown-field error gets the same index without the second test."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [
+        "sergiparpal"
+      ]
     },
     {
       "id": "marshmallow-code/marshmallow#2799",
@@ -1963,9 +2111,12 @@
           "symbol": "Field.deserialize",
           "change": "modified",
           "expected": [
-            "output_contract_change"
+            "validation_change",
+            "output_contract_change",
+            "ordering_change",
+            "dependency_interaction_change"
           ],
-          "rationale": "Applies the pre_load callables before deserializing and the post_load ones after validating, so a field with them returns the transformed value."
+          "rationale": "Passes the value through the pre_load callables after the missing check and before the None check and deserializing, and the validated output through the post_load ones, so validation sees the transformed input and the field returns a post_load result that is not validated again."
         },
         {
           "path": "src/marshmallow/fields.py",
@@ -1982,7 +2133,9 @@
           "rationale": "A TypeVar and two type aliases for annotations."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [
+        "sergiparpal"
+      ]
     },
     {
       "id": "marshmallow-code/marshmallow#2937",
@@ -1998,7 +2151,7 @@
           "symbol": "<module>",
           "change": "modified",
           "expected": [],
-          "rationale": "The unicode letter range becomes a private module constant."
+          "rationale": "The range U+00A1 to U+FFFF, not only letters, that URL's pattern built locally becomes a private module constant."
         },
         {
           "path": "src/marshmallow/validate.py",
@@ -2014,19 +2167,22 @@
           "expected": [
             "validation_change"
           ],
-          "rationale": "DOMAIN_REGEX accepts unicode letters, so an internationalized domain matches as written."
+          "rationale": "DOMAIN_REGEX accepts any character from U+00A1 to U+FFFF, letters or not, so an internationalized domain matches as written."
         },
         {
           "path": "src/marshmallow/validate.py",
           "symbol": "Email.__call__",
           "change": "modified",
           "expected": [
-            "validation_change"
+            "validation_change",
+            "error_handling_change"
           ],
-          "rationale": "The fallback that retried a rejected domain in its IDNA form goes, so a domain only that retry accepted is now rejected."
+          "rationale": "A domain the pattern rejects is no longer retried in its IDNA form, a retry whose UnicodeError was caught, so a domain only that retry accepted, such as one with a character past U+FFFF, is now rejected."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [
+        "sergiparpal"
+      ]
     },
     {
       "id": "marshmallow-code/marshmallow#2935",
@@ -2049,12 +2205,16 @@
           "symbol": "Nested.schema",
           "change": "modified",
           "expected": [
-            "output_contract_change"
+            "validation_change",
+            "output_contract_change",
+            "dependency_interaction_change"
           ],
-          "rationale": "A callable nested value is called unless it is a schema class, where any class was left uncalled, so a non-schema class is now called."
+          "rationale": "A callable nested value is called as a factory unless it is a schema class, where any class was left uncalled, so a non-schema class is now accepted as a factory and called for the schema."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [
+        "sergiparpal"
+      ]
     }
   ]
 }

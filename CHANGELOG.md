@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- **Evaluation:** a person reviewed every benchmark label. A reviewer checked the 162 labels of
+  `benchmark/cases.json` on a page that showed each symbol's diff and never the analyzer's
+  findings, and corrected 26 with their reasons: three drop a validation change the code does not
+  make, 21 add categories a reviewer could fairly give, and two find a behavior change in a symbol
+  labeled unchanged, rich's id counter and werkzeug's `send_file`. Every case's `reviewed_by` names
+  the reviewer, and `benchmark/README.md` states two rules the review settled: a change is judged
+  on the Python versions both commits support, and removing a symbol is no change by itself. No
+  development measure moved; held out, 22 of the 61 findings naming a category are right where 16
+  were, with 0.15.0 and 0.16.0 alike, and `docs/benchmark.md` records both measurements again. No
+  analyzer behavior changes.
+
 ## 0.16.0 - 2026-11-02
 
 Sharper categories, measured on real code. A labeled public benchmark of 60 pull requests from ten
