@@ -92,6 +92,9 @@ class Case(BaseModel):
     base: str
     head: str
     subject: str = Field(min_length=1)
+    # The analyzer is changed against the development cases; the held-out ones, labeled before
+    # such a change, measure whether it holds on cases it was not made from.
+    split: Literal["development", "held_out"]
     labels: list[Label] = Field(min_length=1)
     # The people who checked the labels after their first annotator, by name.
     reviewed_by: list[str] = Field(default_factory=list)
@@ -446,8 +449,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--cases", default=str(CASES), metavar="PATH")
     parser.add_argument("--scratch", default=default_scratch, metavar="DIR")
     parser.add_argument("--disagreements", action="store_true", help="also list each one")
+    parser.add_argument(
+        "--split", choices=("development", "held_out"), help="measure one split only"
+    )
     namespace = parser.parse_args(arguments)
     benchmark = load(Path(namespace.cases))
+    if namespace.split is not None:
+        benchmark = benchmark.model_copy(
+            update={"cases": [case for case in benchmark.cases if case.split == namespace.split]}
+        )
     scores = measure(benchmark, _scratch(namespace.scratch))
     print(render(benchmark, scores, total(benchmark, scores)))
     if namespace.disagreements:

@@ -1,12 +1,17 @@
 {
   "version": 1,
-  "annotation": "One annotator, Claude Opus 5.5, labeled every Python symbol each pull request changes outside its tests, from the diff and the files at its two commits, before reading the analyzer's output on it. reviewed_by names whoever checks a case's labels later.",
+  "annotation": "One annotator, Claude Opus 5.5, labeled every Python symbol each pull request changes outside its tests, from the diff and the files at its two commits, before reading the analyzer's output on it. The held_out cases were labeled before the analyzer was changed against the development ones. reviewed_by names whoever checks a case's labels later.",
   "sampled_from": {
     "psf/requests": "3c7baaa05ab4aa49cc819ce3a819d260de19c157",
     "pallets/click": "2247b35ea1c47c727d7a06e51fa280e12a863ff6",
     "psf/black": "945d902bef347d2e7e1d26897aa89a9c177fb535",
     "encode/httpx": "b5addb64f0161ff6bfe94c124ef76f6a1fba5254",
-    "python-attrs/attrs": "c8bb9bfaa2843e7844b5bb13bed4370b51feec4f"
+    "python-attrs/attrs": "c8bb9bfaa2843e7844b5bb13bed4370b51feec4f",
+    "pallets/flask": "49943b5a94413a530761350f04e896f76e8d620e",
+    "pallets/werkzeug": "2adaad1ab68312fa46efb07ff072b15b720e2444",
+    "encode/starlette": "0f08970e5cce0aec4fc1cea7447c262d741795eb",
+    "Textualize/rich": "9d8f9a372cc5916fd4781fec207ced7ddac2f08f",
+    "marshmallow-code/marshmallow": "70868ff4169b21e9cd108d942c2734342f912729"
   },
   "cases": [
     {
@@ -59,7 +64,8 @@
           "rationale": "A body object that only proxies read now counts as file-like, so no form-urlencoded Content-Type is set for it."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [],
+      "split": "development"
     },
     {
       "id": "psf/requests#7502",
@@ -80,7 +86,8 @@
           "rationale": "A file wrapper with read only through __getattr__ is now read with fp.read(), where it was passed on as the object itself."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [],
+      "split": "development"
     },
     {
       "id": "psf/requests#7498",
@@ -98,7 +105,8 @@
           "rationale": "A class-level annotation for hooks, with no value: typing only."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [],
+      "split": "development"
     },
     {
       "id": "psf/requests#7496",
@@ -151,7 +159,8 @@
           "rationale": "A type-checker comment removed."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [],
+      "split": "development"
     },
     {
       "id": "psf/requests#7460",
@@ -169,7 +178,8 @@
           "rationale": "A docstring line re-indented."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [],
+      "split": "development"
     },
     {
       "id": "psf/requests#7441",
@@ -201,7 +211,8 @@
           "rationale": "The headers annotation widens to Mapping: typing only."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [],
+      "split": "development"
     },
     {
       "id": "pallets/click#3781",
@@ -235,7 +246,8 @@
           "rationale": "A single os.PathLike filename is now accepted and wrapped as one file, where only a str was; the overloads and docstring follow."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [],
+      "split": "development"
     },
     {
       "id": "pallets/click#3777",
@@ -283,7 +295,8 @@
           "rationale": "Takes the PAGER parameters and passes them to the program before the file name."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [],
+      "split": "development"
     },
     {
       "id": "pallets/click#3776",
@@ -346,7 +359,8 @@
           "rationale": "Yields the color as given, None included, instead of turning None into False."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [],
+      "split": "development"
     },
     {
       "id": "pallets/click#3764",
@@ -366,7 +380,8 @@
           "rationale": "The temp file is closed in finally, so an error while paging propagates instead of being replaced by the PermissionError of unlinking an open file on Windows."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [],
+      "split": "development"
     },
     {
       "id": "pallets/click#3769",
@@ -388,7 +403,8 @@
           "rationale": "Applies the pending sub-threshold steps and renders once more before finishing, so the bar ends on its true position."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [],
+      "split": "development"
     },
     {
       "id": "pallets/click#3739",
@@ -408,7 +424,8 @@
           "rationale": "The temp file opens in text mode instead of binary, so the stream it yields takes str rather than bytes."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [],
+      "split": "development"
     },
     {
       "id": "psf/black#5649",
@@ -428,7 +445,8 @@
           "rationale": "The blank line after an import is kept before a comment in more cases: two exclusions go and a converted import line no longer counts before a comment, so the counts it returns change."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [],
+      "split": "development"
     },
     {
       "id": "psf/black#5647",
@@ -455,7 +473,8 @@
           "rationale": "A conditional expression whose last leaf is a # fmt: skip comment is no longer wrapped in invisible parentheses, which changes the lines generated."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [],
+      "split": "development"
     },
     {
       "id": "psf/black#5493",
@@ -475,7 +494,8 @@
           "rationale": "With --line-ranges, an import line outside the selected ranges now counts as an import for the blank line after it, and two cases of the class and comment rules change, so the counts it returns change."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [],
+      "split": "development"
     },
     {
       "id": "psf/black#5646",
@@ -495,7 +515,8 @@
           "rationale": "Under the parenthesize_tuple_in_yield preview, a yielded tuple no longer keeps the atom's visible parentheses, so redundant ones are removed."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [],
+      "split": "development"
     },
     {
       "id": "psf/black#5645",
@@ -527,7 +548,8 @@
           "rationale": "The request body is encoded with the Content-Type charset through a StringPayload instead of always as UTF-8 bytes."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [],
+      "split": "development"
     },
     {
       "id": "psf/black#5643",
@@ -597,7 +619,8 @@
           "rationale": "A new preview feature, end_fmt_off_at_closing_bracket, which --preview turns on."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [],
+      "split": "development"
     },
     {
       "id": "encode/httpx#3699",
@@ -626,7 +649,8 @@
           "rationale": "__all__ gains FunctionAuth, and httpx's star import of _auth makes httpx.FunctionAuth exist, where it was an AttributeError."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [],
+      "split": "development"
     },
     {
       "id": "encode/httpx#3651",
@@ -651,7 +675,8 @@
           "rationale": "An f-string's quotes swapped: the same string."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [],
+      "split": "development"
     },
     {
       "id": "encode/httpx#3571",
@@ -671,7 +696,8 @@
           "rationale": "The ValueError for an unsupported proxy scheme now names the scheme, where its message held the placeholder text."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [],
+      "split": "development"
     },
     {
       "id": "encode/httpx#3519",
@@ -710,7 +736,8 @@
           "rationale": "A typo fixed in an error message: the same information."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [],
+      "split": "development"
     },
     {
       "id": "encode/httpx#3445",
@@ -728,7 +755,8 @@
           "rationale": "The release's version string."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [],
+      "split": "development"
     },
     {
       "id": "encode/httpx#3442",
@@ -748,7 +776,8 @@
           "rationale": "verify=False no longer returns early, so the context it returns now also loads the client certificate and the rest of the configuration."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [],
+      "split": "development"
     },
     {
       "id": "python-attrs/attrs#1636",
@@ -766,7 +795,8 @@
           "rationale": "An atomic value skips the has() check, which is false for it anyway: faster, and the same tuple."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [],
+      "split": "development"
     },
     {
       "id": "python-attrs/attrs#1625",
@@ -784,7 +814,8 @@
           "rationale": "A duplicated word removed from a comment."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [],
+      "split": "development"
     },
     {
       "id": "python-attrs/attrs#1606",
@@ -812,7 +843,8 @@
           "rationale": "The new proxy that calls evolve."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [],
+      "split": "development"
     },
     {
       "id": "python-attrs/attrs#1571",
@@ -881,7 +913,8 @@
           "rationale": "Docstring punctuation."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [],
+      "split": "development"
     },
     {
       "id": "python-attrs/attrs#1593",
@@ -902,7 +935,8 @@
           "rationale": "A typing.ForwardRef annotation is unwrapped to its string first, so a forward-referenced ClassVar is now recognized as one."
         }
       ],
-      "reviewed_by": []
+      "reviewed_by": [],
+      "split": "development"
     },
     {
       "id": "python-attrs/attrs#1589",
@@ -918,6 +952,1106 @@
           "change": "modified",
           "expected": [],
           "rationale": "A type-checker comment removed from a field."
+        }
+      ],
+      "reviewed_by": [],
+      "split": "development"
+    },
+    {
+      "id": "pallets/flask#6168",
+      "repository": "pallets/flask",
+      "pull_request": 6168,
+      "base": "d73fa1cdcbd8b1465c151db8924ba58b1dd14e35",
+      "head": "7689f98403e2c0b0bc8d1031e60f8cff2620e86a",
+      "subject": "drop support for Python 3.10 (#6168)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/flask/cli.py",
+          "symbol": "SeparatedPathType.convert",
+          "change": "modified",
+          "expected": [],
+          "rationale": "A comment about Python before 3.12 removed."
+        },
+        {
+          "path": "src/flask/helpers.py",
+          "symbol": "_CollectErrors.raise_any",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The branch for Python before 3.11, no longer supported, goes; on every supported version it raises the same BaseExceptionGroup."
+        },
+        {
+          "path": "src/flask/sessions.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Imports datetime.UTC instead of timezone."
+        },
+        {
+          "path": "src/flask/sessions.py",
+          "symbol": "SessionInterface.get_expiration_time",
+          "change": "modified",
+          "expected": [],
+          "rationale": "datetime.UTC is timezone.utc under another name."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "pallets/flask#6133",
+      "repository": "pallets/flask",
+      "pull_request": 6133,
+      "base": "3596b1ab61cea85edb8970e83ff61daa073facf8",
+      "head": "89992954ec71b594b1b911f98977cdc8ad46a057",
+      "subject": "add `app.query` route decorator (#6133)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/flask/sansio/scaffold.py",
+          "symbol": "Scaffold.query",
+          "change": "added",
+          "expected": [],
+          "rationale": "A new route shortcut for the QUERY method."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "pallets/flask#6096",
+      "repository": "pallets/flask",
+      "pull_request": 6096,
+      "base": "514fc6b3e8402e4c646d5284e97a4f0ab50a7c4b",
+      "head": "7203feabf723edae0286ae5dc64fec8ac4c91735",
+      "subject": "Fix `.partition(\":\")` usage on potential IPv6 addresses (#6096)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/flask/app.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "urlsplit imported."
+        },
+        {
+          "path": "src/flask/app.py",
+          "symbol": "Flask.run",
+          "change": "modified",
+          "expected": [
+            "default_behavior_change",
+            "validation_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Without a host or port given, SERVER_NAME is parsed with urlsplit, so an IPv6 address yields its real host and port for run_simple, where splitting at the first colon broke it."
+        },
+        {
+          "path": "src/flask/testing.py",
+          "symbol": "FlaskClient.session_transaction",
+          "change": "modified",
+          "expected": [
+            "state_transition_change",
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "The cookie domain is the host URL's hostname, so an IPv6 host is no longer cut at its first colon, and a missing one is localhost."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "pallets/flask#6013",
+      "repository": "pallets/flask",
+      "pull_request": 6013,
+      "base": "06ea505ce2b2042af26e96d35ebf159af7c0869d",
+      "head": "9368fb3f3c52d74534d14c1bef03c79c103356cd",
+      "subject": "autoescape selection uses case-insensitive comparison (#6013)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/flask/sansio/app.py",
+          "symbol": "App.select_jinja_autoescape",
+          "change": "modified",
+          "expected": [
+            "output_contract_change",
+            "validation_change"
+          ],
+          "rationale": "File extensions compare case-insensitively, so page.HTML now turns autoescaping on."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "pallets/flask#5917",
+      "repository": "pallets/flask",
+      "pull_request": 5917,
+      "base": "d3b78fd18a8d9e224cb9ef58a23cec9b1ffc9ce9",
+      "head": "e82db2ca3a22c9614c1987392c9cfaa8c6ce99ad",
+      "subject": "fix provide_automatic_options override (#5917)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/flask/sansio/app.py",
+          "symbol": "App.add_url_rule",
+          "change": "modified",
+          "expected": [
+            "state_transition_change",
+            "side_effect_change"
+          ],
+          "rationale": "OPTIONS is added to the rule's methods whenever automatic options are on, including when the argument or the view enables them explicitly, which it was not before."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "pallets/flask#5899",
+      "repository": "pallets/flask",
+      "pull_request": 5899,
+      "base": "9b74a90dd3c47f792734823e8793ac36f38bc4dd",
+      "head": "c77a5203438fe772d41f6a47303ad3f57a4efe6d",
+      "subject": "deprecate `should_ignore_error` (#5899)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/flask/app.py",
+          "symbol": "Flask.full_dispatch_request",
+          "change": "modified",
+          "expected": [
+            "side_effect_change"
+          ],
+          "rationale": "The first request emits a DeprecationWarning when should_ignore_error is overridden."
+        },
+        {
+          "path": "src/flask/app.py",
+          "symbol": "Flask.wsgi_app",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The call is guarded now that the default is None; an override is still called and the default ignores nothing, as before."
+        },
+        {
+          "path": "src/flask/sansio/app.py",
+          "symbol": "App.should_ignore_error",
+          "change": "removed",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "The method that returned False is gone, so calling app.should_ignore_error(error) now fails."
+        },
+        {
+          "path": "src/flask/sansio/app.py",
+          "symbol": "App",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "should_ignore_error is now a class attribute holding None."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "pallets/werkzeug#3338",
+      "repository": "pallets/werkzeug",
+      "pull_request": 3338,
+      "base": "ec95ee993a7975460c2e6468ebeccdd7c67386ba",
+      "head": "4f03444db604edec0e818182fe6988b72d943a8e",
+      "subject": "improve parsing performance (#3338)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/werkzeug/datastructures/accept.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The private _mime_split_re pattern goes."
+        },
+        {
+          "path": "src/werkzeug/datastructures/accept.py",
+          "symbol": "_normalize_mime",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "Splits by hand instead of with the pattern: the same parts for a usual value, but only the first slash splits the type and a parameter is never split at a slash."
+        },
+        {
+          "path": "src/werkzeug/datastructures/accept.py",
+          "symbol": "MIMEAccept._specificity",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "Uses _normalize_mime, which also lowercases and treats parameters and extra slashes differently, so some values get a different specificity."
+        },
+        {
+          "path": "src/werkzeug/http.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The cookie pattern's quantifiers become possessive; none of them needed to give back what it matched, so it matches the same text, faster."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "pallets/werkzeug#3332",
+      "repository": "pallets/werkzeug",
+      "pull_request": 3332,
+      "base": "ac7d7dd8a4dc0755ada16f7105afd14f736da831",
+      "head": "e49785c25326ae73269c4363331b9a788f702be2",
+      "subject": "deprecate `wrap_file` (#3332)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/werkzeug/utils.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "An import of wrap_file goes."
+        },
+        {
+          "path": "src/werkzeug/utils.py",
+          "symbol": "send_file",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Wraps the file through Request.wrap_file, which uses the same server wrapper or the same fallback, and builds the Request earlier."
+        },
+        {
+          "path": "src/werkzeug/wrappers/request.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "_FileWrapper imported."
+        },
+        {
+          "path": "src/werkzeug/wrappers/request.py",
+          "symbol": "Request.wrap_file",
+          "change": "added",
+          "expected": [],
+          "rationale": "A new method doing what wsgi.wrap_file does."
+        },
+        {
+          "path": "src/werkzeug/wsgi.py",
+          "symbol": "wrap_file",
+          "change": "removed",
+          "expected": [],
+          "rationale": "Renamed _wrap_file; the module's __getattr__ still returns it under the old name."
+        },
+        {
+          "path": "src/werkzeug/wsgi.py",
+          "symbol": "_wrap_file",
+          "change": "added",
+          "expected": [],
+          "rationale": "wrap_file under its new private name, with a deprecation note."
+        },
+        {
+          "path": "src/werkzeug/wsgi.py",
+          "symbol": "__getattr__",
+          "change": "modified",
+          "expected": [
+            "side_effect_change",
+            "output_contract_change"
+          ],
+          "rationale": "wsgi.wrap_file is now served by __getattr__ with a DeprecationWarning."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "pallets/werkzeug#3331",
+      "repository": "pallets/werkzeug",
+      "pull_request": 3331,
+      "base": "92229dc4167511fd75055002acc49bd7e297ce81",
+      "head": "5ab01003c364a41a5a49bbe03ecc8869f6c9ec6c",
+      "subject": "remove colorama (#3331)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/werkzeug/_internal.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "import sys goes."
+        },
+        {
+          "path": "src/werkzeug/_internal.py",
+          "symbol": "_ColorStreamHandler",
+          "change": "removed",
+          "expected": [],
+          "rationale": "The private Colorama handler goes; _log no longer uses it."
+        },
+        {
+          "path": "src/werkzeug/_internal.py",
+          "symbol": "_ColorStreamHandler.__init__",
+          "change": "removed",
+          "expected": [],
+          "rationale": "Goes with its class."
+        },
+        {
+          "path": "src/werkzeug/_internal.py",
+          "symbol": "_log",
+          "change": "modified",
+          "expected": [
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "The default handler is a plain StreamHandler, so on Windows with Colorama installed the log stream is no longer wrapped by it."
+        },
+        {
+          "path": "src/werkzeug/serving.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [
+            "default_behavior_change"
+          ],
+          "rationale": "_log_add_style and its Colorama probe go, so styles are no longer turned off on Windows without Colorama."
+        },
+        {
+          "path": "src/werkzeug/serving.py",
+          "symbol": "_ansi_style",
+          "change": "modified",
+          "expected": [
+            "output_contract_change",
+            "default_behavior_change"
+          ],
+          "rationale": "Always returns the styled text, where it returned the plain value when styling was off."
+        },
+        {
+          "path": "src/werkzeug/testapp.py",
+          "symbol": "test_app",
+          "change": "modified",
+          "expected": [],
+          "rationale": "A type-checker comment added."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "pallets/werkzeug#3329",
+      "repository": "pallets/werkzeug",
+      "pull_request": 3329,
+      "base": "456407ae4201661b14f726e1409db185418b6df7",
+      "head": "b71ddc615fb5ac2248cb4e7df20d6eedd8f77b2b",
+      "subject": "clean up on client disconnect (#3329)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/werkzeug/_internal.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "A TypeVar defined for annotations."
+        },
+        {
+          "path": "src/werkzeug/serving.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "import contextlib."
+        },
+        {
+          "path": "src/werkzeug/serving.py",
+          "symbol": "WSGIRequestHandler.run_wsgi",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "side_effect_change"
+          ],
+          "rationale": "Its execute now closes the application iterator and the selector even when draining the socket fails, as when the client disconnected."
+        },
+        {
+          "path": "src/werkzeug/serving.py",
+          "symbol": "WSGIRequestHandler.run_wsgi.execute",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "side_effect_change"
+          ],
+          "rationale": "The application iterator and the selector are closed through context managers, so they are closed even when draining the socket raises."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "pallets/werkzeug#3327",
+      "repository": "pallets/werkzeug",
+      "pull_request": 3327,
+      "base": "0819a2a9b262aceab39d19ef30f3824d6048daf4",
+      "head": "3d27209c27b14cf2a2b0796767cb34f1a4c3e94e",
+      "subject": "deprecate correcting location from iri (#3327)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/werkzeug/sansio/response.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "iri_to_uri and uri_to_iri imported."
+        },
+        {
+          "path": "src/werkzeug/sansio/response.py",
+          "symbol": "Response",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "location and content_location convert an IRI to a URI when set and back when read."
+        },
+        {
+          "path": "src/werkzeug/utils.py",
+          "symbol": "redirect",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "Sets response.location, so the returned response's Location header holds the URI form from the start."
+        },
+        {
+          "path": "src/werkzeug/wrappers/response.py",
+          "symbol": "Response.get_wsgi_headers",
+          "change": "modified",
+          "expected": [
+            "side_effect_change"
+          ],
+          "rationale": "A Location or Content-Location that is an IRI now emits a DeprecationWarning; the headers sent are converted as before."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "pallets/werkzeug#3322",
+      "repository": "pallets/werkzeug",
+      "pull_request": 3322,
+      "base": "ed82ed5e8c37f34b04a5910d58200c40b866605f",
+      "head": "ff60e6990185b878c795a19b164f4b8a4345f913",
+      "subject": "increase `wrap_file` `buffer_size` (#3322)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/werkzeug/wsgi.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "A FileWrapper type imported under TYPE_CHECKING."
+        },
+        {
+          "path": "src/werkzeug/wsgi.py",
+          "symbol": "wrap_file",
+          "change": "modified",
+          "expected": [
+            "default_behavior_change",
+            "output_contract_change"
+          ],
+          "rationale": "The default buffer size grows from 8 KiB to 128 KiB, and without a server wrapper the file comes back in a _FileWrapper instead of as itself."
+        },
+        {
+          "path": "src/werkzeug/wsgi.py",
+          "symbol": "_FileWrapper",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The class docstring."
+        },
+        {
+          "path": "src/werkzeug/wsgi.py",
+          "symbol": "_FileWrapper.__init__",
+          "change": "modified",
+          "expected": [
+            "default_behavior_change"
+          ],
+          "rationale": "The default buffer size grows from 8 KiB to 128 KiB."
+        },
+        {
+          "path": "src/werkzeug/wsgi.py",
+          "symbol": "_FileWrapper.close",
+          "change": "modified",
+          "expected": [
+            "error_handling_change"
+          ],
+          "rationale": "Calls close and swallows an AttributeError instead of checking for close first, so one raised inside close is now swallowed too."
+        },
+        {
+          "path": "src/werkzeug/wsgi.py",
+          "symbol": "_FileWrapper.seekable",
+          "change": "removed",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "The wrapper no longer offers seekable."
+        },
+        {
+          "path": "src/werkzeug/wsgi.py",
+          "symbol": "_FileWrapper.seek",
+          "change": "removed",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "The wrapper no longer offers seek."
+        },
+        {
+          "path": "src/werkzeug/wsgi.py",
+          "symbol": "_FileWrapper.tell",
+          "change": "removed",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "The wrapper no longer offers tell."
+        },
+        {
+          "path": "src/werkzeug/wsgi.py",
+          "symbol": "_FileWrapper.__iter__",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The return annotation only."
+        },
+        {
+          "path": "src/werkzeug/wsgi.py",
+          "symbol": "_FileWrapper.__next__",
+          "change": "modified",
+          "expected": [],
+          "rationale": "An assignment expression for the same read and test."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "encode/starlette#3736",
+      "repository": "encode/starlette",
+      "pull_request": 3736,
+      "base": "a8ea0f86e4c9fd144a573f9e8802d3bb41f6075d",
+      "head": "0f08970e5cce0aec4fc1cea7447c262d741795eb",
+      "subject": "Include `functools.partial` endpoints in the generated schema (#3736)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "starlette/schemas.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "import functools."
+        },
+        {
+          "path": "starlette/schemas.py",
+          "symbol": "BaseSchemaGenerator.get_endpoints",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "A functools.partial endpoint is unwrapped to its function, so it is listed in the schema instead of being read as a class with method attributes."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "encode/starlette#3772",
+      "repository": "encode/starlette",
+      "pull_request": 3772,
+      "base": "1ce60e7157d5c7d1c4e48e1cfe2f5f255235a2cc",
+      "head": "3bc0e6190d13f280bea822bce957c2903043aa30",
+      "subject": "Use byte length for typed `memoryview` streaming chunks (#3772)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "starlette/responses.py",
+          "symbol": "StreamingResponse.stream_response",
+          "change": "modified",
+          "expected": [
+            "output_contract_change",
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "A memoryview chunk is sent cast to bytes, or copied when not contiguous, so a typed memoryview's body length counts bytes rather than elements."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "encode/starlette#3768",
+      "repository": "encode/starlette",
+      "pull_request": 3768,
+      "base": "2745bbc5afa2f8ce900d290bedca2bc5d3f3cfe8",
+      "head": "dc5a267571fb7acde15c2b0b0be7e3ed935bd9aa",
+      "subject": "Annotate `Response.media_type` as `str | None` (#3768)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "starlette/responses.py",
+          "symbol": "Response",
+          "change": "modified",
+          "expected": [],
+          "rationale": "media_type gains an annotation; its value is still None."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "encode/starlette#3728",
+      "repository": "encode/starlette",
+      "pull_request": 3728,
+      "base": "a85a5c36d7797f8a0816cc8a4de87a28938891e3",
+      "head": "8aa828ceaff764a2e57932fb42fdf105a47c4c83",
+      "subject": "Version 1.10.0 (#3728)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "starlette/__init__.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The release's version string."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "encode/starlette#3725",
+      "repository": "encode/starlette",
+      "pull_request": 3725,
+      "base": "6b8b6126b87333e584fabbf15a880628d540ac48",
+      "head": "a85a5c36d7797f8a0816cc8a4de87a28938891e3",
+      "subject": "Substitute URL path parameters in a single pass (#3725)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "starlette/routing.py",
+          "symbol": "replace_params",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "Placeholders are substituted in one pass over the path, so a value that itself looks like a placeholder is no longer substituted again."
+        },
+        {
+          "path": "starlette/routing.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "A new private pattern compiled for replace_params."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "encode/starlette#3599",
+      "repository": "encode/starlette",
+      "pull_request": 3599,
+      "base": "b973efd6156af397253815ecfdd11f37f2b5d1fd",
+      "head": "6b8b6126b87333e584fabbf15a880628d540ac48",
+      "subject": "Finalize URL-encoded form parsing at stream exhaustion (#3599)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "starlette/formparsers.py",
+          "symbol": "FormParser.parse",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "The parser is finalized once the stream ends, not only on an empty chunk, so a body without a trailing empty chunk keeps its last field."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "Textualize/rich#4079",
+      "repository": "Textualize/rich",
+      "pull_request": 4079,
+      "base": "19c67b9a3479841e9133bea94607c89ee931d3fc",
+      "head": "cf3b5a16f7a76b2e8c4921d3314021bb72a6c5c1",
+      "subject": "Merge pull request #4079 from Textualize/inline-table-code",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "rich/markdown.py",
+          "symbol": "TableDataElement.on_text",
+          "change": "modified",
+          "expected": [
+            "output_contract_change",
+            "side_effect_change"
+          ],
+          "rationale": "A Text, such as inline code, is appended as it is instead of being restyled with the cell's current style, which also no longer mutates the Text passed in."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "Textualize/rich#4077",
+      "repository": "Textualize/rich",
+      "pull_request": 4077,
+      "base": "58ac15120fe254886c10d6253667733c83604cb4",
+      "head": "494b795031782c694297d2db78bd04fb8c82f590",
+      "subject": "Merge pull request #4077 from Textualize/isattry",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "rich/file_proxy.py",
+          "symbol": "FileProxy.isatty",
+          "change": "added",
+          "expected": [],
+          "rationale": "The proxy now reports whether the file it wraps is a terminal."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "Textualize/rich#4076",
+      "repository": "Textualize/rich",
+      "pull_request": 4076,
+      "base": "9cb198944f8184df92217efc8b20d3fffa4b4fa0",
+      "head": "48293cde887c4f25a7bca022131b56495f370a88",
+      "subject": "Merge pull request #4076 from Textualize/ansi-newline",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "rich/ansi.py",
+          "symbol": "AnsiDecoder.decode",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "Lines are split at newlines only, not at the other separators splitlines knows, and text ending in a newline now yields a final empty line."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "Textualize/rich#4075",
+      "repository": "Textualize/rich",
+      "pull_request": 4075,
+      "base": "1fc7cb210ae52eb099df39818ddb9569e5b14c7b",
+      "head": "eccb5945ddb8487d655d2ab54f3443d072ef4247",
+      "subject": "Merge pull request #4075 from Textualize/empty-end",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "rich/console.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "An import moved."
+        },
+        {
+          "path": "rich/console.py",
+          "symbol": "Console.print",
+          "change": "modified",
+          "expected": [
+            "output_contract_change",
+            "side_effect_change",
+            "default_behavior_change"
+          ],
+          "rationale": "Printing no objects with an end other than a newline now writes only that end, where it wrote a new line."
+        },
+        {
+          "path": "rich/console.py",
+          "symbol": "Console.save_text",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The signature reflowed onto several lines."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "Textualize/rich#3941",
+      "repository": "Textualize/rich",
+      "pull_request": 3941,
+      "base": "c595fa95068dd2c5095d25446b2f0571bc0b3995",
+      "head": "31ce129a915bab47fa7ddc8e15af77480666fefe",
+      "subject": "Merge pull request #3941 from SudheerKovvuru/fix-save-html-typing",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "rich/console.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "PathLike imported for annotations."
+        },
+        {
+          "path": "rich/console.py",
+          "symbol": "Console.save_text",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The path annotation and docstring widen to PathLike."
+        },
+        {
+          "path": "rich/console.py",
+          "symbol": "Console.save_html",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The path annotation and docstring widen to PathLike."
+        },
+        {
+          "path": "rich/console.py",
+          "symbol": "Console.save_svg",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The path annotation and docstring widen to PathLike."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "Textualize/rich#3845",
+      "repository": "Textualize/rich",
+      "pull_request": 3845,
+      "base": "fc41075a3206d2a5fd846c6f41c4d2becab814fa",
+      "head": "9ac7e797cc731429603cdebd21c1746e5984c7b6",
+      "subject": "Merge pull request #3845 from akx/faster-ids",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "rich/style.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The imports and a new private id counter the changed methods draw from."
+        },
+        {
+          "path": "rich/style.py",
+          "symbol": "Style.__init__",
+          "change": "modified",
+          "expected": [
+            "state_transition_change",
+            "output_contract_change"
+          ],
+          "rationale": "A link id is the next number of a counter started at random instead of a random number, so ids no longer collide."
+        },
+        {
+          "path": "rich/style.py",
+          "symbol": "Style.from_meta",
+          "change": "modified",
+          "expected": [
+            "state_transition_change",
+            "output_contract_change"
+          ],
+          "rationale": "A link id is the next number of a counter started at random instead of a random number."
+        },
+        {
+          "path": "rich/style.py",
+          "symbol": "Style.without_color",
+          "change": "modified",
+          "expected": [
+            "state_transition_change",
+            "output_contract_change"
+          ],
+          "rationale": "A link id is the next number of a counter started at random instead of a random number."
+        },
+        {
+          "path": "rich/style.py",
+          "symbol": "Style.copy",
+          "change": "modified",
+          "expected": [
+            "state_transition_change",
+            "output_contract_change"
+          ],
+          "rationale": "A link id is the next number of a counter started at random instead of a random number."
+        },
+        {
+          "path": "rich/style.py",
+          "symbol": "Style.update_link",
+          "change": "modified",
+          "expected": [
+            "state_transition_change",
+            "output_contract_change"
+          ],
+          "rationale": "A link id is the next number of a counter started at random instead of a random number."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "marshmallow-code/marshmallow#3004",
+      "repository": "marshmallow-code/marshmallow",
+      "pull_request": 3004,
+      "base": "2d30a962a0a104f340e1c69d62b8bba0558027a0",
+      "head": "7dff08fcb7fb40d2772728bb8d8a76b5beff3200",
+      "subject": "Raise ValidationError (not ValueError) for NaN in TimeDelta (#3004)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/marshmallow/fields.py",
+          "symbol": "TimeDelta._deserialize",
+          "change": "modified",
+          "expected": [
+            "error_handling_change"
+          ],
+          "rationale": "A NaN value's ValueError is now caught and raised as the field's invalid ValidationError, where it escaped as a ValueError."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "marshmallow-code/marshmallow#3016",
+      "repository": "marshmallow-code/marshmallow",
+      "pull_request": 3016,
+      "base": "3207be31474530f7c0685dfbd7b4faca5b35fbf5",
+      "head": "902f99c4151d1f0c4c3b8e8dfbafc7b6a76aeaa6",
+      "subject": "Fix URL validator rejecting a fragment after an empty path (#3016)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/marshmallow/validate.py",
+          "symbol": "URL.RegexMemoizer._regex_generator",
+          "change": "modified",
+          "expected": [
+            "validation_change"
+          ],
+          "rationale": "A fragment may follow an empty path, so http://example.com#top is now accepted."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "marshmallow-code/marshmallow#2988",
+      "repository": "marshmallow-code/marshmallow",
+      "pull_request": 2988,
+      "base": "7bb19f0fdce323a8b216245bf01810e35ed42f95",
+      "head": "cea3d44f40683832b88b792b84f4a91be032f7ad",
+      "subject": "Simplify use of self.opts.index_errors in _deserialize (#2988)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/marshmallow/schema.py",
+          "symbol": "Schema._deserialize",
+          "change": "modified",
+          "expected": [],
+          "rationale": "index is already None when index_errors is off, so the unknown-field error gets the same index without the second test."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "marshmallow-code/marshmallow#2799",
+      "repository": "marshmallow-code/marshmallow",
+      "pull_request": 2799,
+      "base": "c847ad47a3f1235021bd2624b10c255a936ed107",
+      "head": "256f0aabbc18232219e33854999372cfe1643f52",
+      "subject": "Add pre/post_load parameters to Field (#2799)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/marshmallow/fields.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "A TypeVar for annotations."
+        },
+        {
+          "path": "src/marshmallow/fields.py",
+          "symbol": "_BaseFieldKwargs",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The TypedDict describing keyword arguments gains two keys: typing only."
+        },
+        {
+          "path": "src/marshmallow/fields.py",
+          "symbol": "Field",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The class docstring."
+        },
+        {
+          "path": "src/marshmallow/fields.py",
+          "symbol": "Field.__init__",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "state_transition_change"
+          ],
+          "rationale": "Accepts pre_load and post_load callables, normalized and stored as validate is, where they were rejected as unexpected keywords."
+        },
+        {
+          "path": "src/marshmallow/fields.py",
+          "symbol": "Field.deserialize",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "Applies the pre_load callables before deserializing and the post_load ones after validating, so a field with them returns the transformed value."
+        },
+        {
+          "path": "src/marshmallow/fields.py",
+          "symbol": "Field._normalize_processors",
+          "change": "added",
+          "expected": [],
+          "rationale": "The validate normalization, made reusable."
+        },
+        {
+          "path": "src/marshmallow/types.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "A TypeVar and two type aliases for annotations."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "marshmallow-code/marshmallow#2937",
+      "repository": "marshmallow-code/marshmallow",
+      "pull_request": 2937,
+      "base": "4acb783c73130f762aa5b0df6b65ff7685d5ff2c",
+      "head": "f07eadc87dfac25ed505d5cd9d186920f2682733",
+      "subject": "Fix validate.Email to accept IDNs (#2937)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/marshmallow/validate.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The unicode letter range becomes a private module constant."
+        },
+        {
+          "path": "src/marshmallow/validate.py",
+          "symbol": "URL.RegexMemoizer._regex_generator",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Reads the same range from the module constant instead of a local."
+        },
+        {
+          "path": "src/marshmallow/validate.py",
+          "symbol": "Email",
+          "change": "modified",
+          "expected": [
+            "validation_change"
+          ],
+          "rationale": "DOMAIN_REGEX accepts unicode letters, so an internationalized domain matches as written."
+        },
+        {
+          "path": "src/marshmallow/validate.py",
+          "symbol": "Email.__call__",
+          "change": "modified",
+          "expected": [
+            "validation_change"
+          ],
+          "rationale": "The fallback that retried a rejected domain in its IDNA form goes, so a domain only that retry accepted is now rejected."
+        }
+      ],
+      "reviewed_by": []
+    },
+    {
+      "id": "marshmallow-code/marshmallow#2935",
+      "repository": "marshmallow-code/marshmallow",
+      "pull_request": 2935,
+      "base": "3492fae7b31d310814ad16fcddad5c7717d54949",
+      "head": "4acb783c73130f762aa5b0df6b65ff7685d5ff2c",
+      "subject": "Fix Unreachable Warning (#2935)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/marshmallow/fields.py",
+          "symbol": "Nested.__init__",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The nested annotation now allows a callable returning a schema name: typing only."
+        },
+        {
+          "path": "src/marshmallow/fields.py",
+          "symbol": "Nested.schema",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "A callable nested value is called unless it is a schema class, where any class was left uncalled, so a non-schema class is now called."
         }
       ],
       "reviewed_by": []
