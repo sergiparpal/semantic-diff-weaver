@@ -897,8 +897,8 @@ The MVP is complete when all of the following are true:
 
 ## 24. Roadmap
 
-Status on 2026-11-02, at release 0.15.0. The phase labels are this plan's, not package versions: the
-package reached 0.15.0 with v0.1, v0.2, v0.3, and v0.4 done and parts of v1.0 shipped. It also ships
+Status on 2026-11-02, at release 0.16.0. The phase labels are this plan's, not package versions: the
+package reached 0.16.0 with v0.1, v0.2, v0.3, and v0.4 done and parts of v1.0 shipped. It also ships
 what the plan did not foresee, a standalone CLI and a Claude Code plugin over MCP, beside the Hermes
 plugin.
 
@@ -960,9 +960,10 @@ plugin.
 - Verified source-to-test mapping. *Open by design:* every candidate test is reported as
   unverified.
 - Evaluation corpus and public benchmark. *Done:* the 18-case corpus of `docs/evaluation.md`,
-  and `benchmark/cases.json`, 30 real pull requests from five public repositories with every Python
-  symbol they change labeled, which `scripts/run_benchmark.py` measures in `docs/benchmark.md`. One
-  annotator labeled it, so its labels await review.
+  and `benchmark/cases.json`, 60 real pull requests from ten public repositories with every Python
+  symbol they change labeled, half of them held out from the analyzer's changes, which
+  `scripts/run_benchmark.py` measures in `docs/benchmark.md`. One annotator labeled it, so its
+  labels await review.
 - Downstream integration with regression selection and autonomous test generation. *Partly:*
   `test_selection` and the `select` subcommand name the test files a change can affect, by the
   imports their tests follow, or say why the whole suite has to run; autonomous test generation
