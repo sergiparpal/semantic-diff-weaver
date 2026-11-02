@@ -1244,13 +1244,13 @@
         },
         {
           "path": "src/werkzeug/wsgi.py",
-          "symbol": "__getattr__",
+          "symbol": "<module>",
           "change": "modified",
           "expected": [
             "side_effect_change",
             "output_contract_change"
           ],
-          "rationale": "wsgi.wrap_file is now served by __getattr__ with a DeprecationWarning."
+          "rationale": "The module's __getattr__, defined under `if not TYPE_CHECKING`, now serves wsgi.wrap_file with a DeprecationWarning."
         }
       ],
       "reviewed_by": []
