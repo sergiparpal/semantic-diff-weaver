@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.15.0 - 2026-11-02
+
+Tests to run. Every analysis names the test files its change can affect, by what they import, or
+says why the whole suite has to run, and the new `select` subcommand prints them for a test runner,
+exiting 4 when the whole suite has to run; the Action gains the `run-all-tests` and `selected-tests`
+outputs. A changed file that is not Python runs the whole suite unless the new `selection.ignore`
+says no test reads it. With it, the roadmap's v1.0 regression selection is partly done. A minor
+release for schema 1.5, whose only addition is the analysis's `test_selection`; no finding, score,
+verdict, or obligation changes, every golden changes in `schema_version` and gains `test_selection`,
+and the decision is recorded in `docs/decisions.md`.
 
 - **Feature:** the tests a change can affect. Every analysis names, as the new `test_selection`,
   the test files its change can affect — those that import a changed file, directly or through the
