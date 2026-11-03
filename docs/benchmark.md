@@ -1,16 +1,22 @@
 # Public benchmark
 
 Measured 2026-11-02 in deterministic mode, by `scripts/run_benchmark.py`, against the labels of
-`benchmark/cases.json`: 60 pull requests merged into ten public Python libraries, with every
-Python symbol they change outside their tests labeled by one annotator before the analyzer's output
-on them was read, and every label then checked by a reviewer. `benchmark/README.md` says how the
-sample was drawn and what each label means.
+`benchmark/cases.json` as they then stood: 60 pull requests merged into ten public Python
+libraries, with every Python symbol they change outside their tests labeled by one annotator before
+the analyzer's output on them was read, and every label then checked by a reviewer.
+`benchmark/README.md` says how the sample was drawn and what each label means.
 
-The cases come in two splits of 30. The **development** cases, six pull requests each of
+The cases came in two splits of 30. The **development** cases, six pull requests each of
 `psf/requests`, `pallets/click`, `psf/black`, `encode/httpx`, and `python-attrs/attrs`, are the ones
-the analyzer is changed against. The **held-out** cases, six each of `pallets/flask`,
+the analyzer was changed against. The **held-out** cases, six each of `pallets/flask`,
 `pallets/werkzeug`, `encode/starlette`, `Textualize/rich`, and `marshmallow-code/marshmallow`, were
-labeled before the first such change and measure it on code it was not designed from.
+labeled before the first such change and measured it on code it was not designed from.
+
+The results below are that first round's, on those two splits. Since then the first held-out cases
+have joined development, and a second held-out split of 30 pull requests, from
+`encode/django-rest-framework`, `jd/tenacity`, `urllib3/urllib3`, `agronholm/anyio`, and
+`pypa/packaging`, has been labeled and reviewed before any further change; it has not been
+measured yet.
 
 Unlike the 18-case corpus of `docs/evaluation.md`, whose cases were written to exercise the
 taxonomy, these are changes as maintainers made them.

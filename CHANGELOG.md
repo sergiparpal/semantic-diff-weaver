@@ -12,6 +12,15 @@
   development measure moved; held out, 22 of the 61 findings naming a category are right where 16
   were, with 0.15.0 and 0.16.0 alike, and `docs/benchmark.md` records both measurements again. No
   analyzer behavior changes.
+- **Evaluation:** a second held-out split. Thirty pull requests from
+  `encode/django-rest-framework`, `jd/tenacity`, `urllib3/urllib3`, `agronholm/anyio`, and
+  `pypa/packaging`, drawn by `run_benchmark.py propose` without choosing them by hand, add 89 labels
+  to `benchmark/cases.json`, written before the analyzer's output on them was read and reviewed by
+  a person, who corrected 16. They name `retry_timeout_change`, which no label named before, and
+  become the held-out split, while the first held-out cases, measured for 0.16.0, join
+  development. `benchmark/README.md` adds that a function is labeled with the functions nested in
+  it and that every Python file outside the tests is labeled. Nothing is measured on the new split
+  yet. No analyzer behavior changes.
 
 ## 0.16.0 - 2026-11-02
 

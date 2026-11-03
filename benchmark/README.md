@@ -1,7 +1,7 @@
 # Labeled benchmark of real pull requests
 
-`cases.json` is a public benchmark for analyzers of behavioral change: 60 pull requests merged into
-ten public Python repositories, each pinned by two commits, with every Python symbol it changes
+`cases.json` is a public benchmark for analyzers of behavioral change: 90 pull requests merged into
+fifteen public Python repositories, each pinned by two commits, with every Python symbol it changes
 outside its tests labeled by the categories a reviewer expects of it, or by none when its behavior
 does not change. `scripts/run_benchmark.py` measures Semantic Diff Weaver against it, and
 `docs/benchmark.md` holds the results.
@@ -18,29 +18,33 @@ The latest pull requests merged into the default branch of each repository befor
 from where its pull request branched off. A pull request was taken when the analyzer's own count of
 the Python symbols it changes outside the tests is between 1 and 10 and none of its scope was left
 unread, and was never chosen by hand. `run_benchmark.py propose` reproduces the sample; it prints
-how many symbols and files each pull request changes and never a finding.
+how many symbols and files each pull request changes and never a finding. Ten repositories were
+sampled first, and five more later for a second held-out split.
 
 ## The splits
 
-Each case's `split` says what it is for. The 30 `development` cases, from `psf/requests`,
-`pallets/click`, `psf/black`, `encode/httpx`, and `python-attrs/attrs`, are the ones the analyzer is
-changed against: their disagreements are read to design a correction. The 30 `held_out` cases, from
-`pallets/flask`, `pallets/werkzeug`, `encode/starlette`, `Textualize/rich`, and
-`marshmallow-code/marshmallow`, were labeled and committed before the analyzer was first changed
-against the development ones, and measure a correction on code it was not designed from. Once a
-correction has been measured on them, a new held-out sample is labeled before the next one is
-designed.
+Each case's `split` says what it is for. The 60 `development` cases are the ones the analyzer is
+changed against: their disagreements are read to design a correction. They are the first sample's
+30 development cases, from `psf/requests`, `pallets/click`, `psf/black`, `encode/httpx`, and
+`python-attrs/attrs`, and its 30 held-out cases, from `pallets/flask`, `pallets/werkzeug`,
+`encode/starlette`, `Textualize/rich`, and `marshmallow-code/marshmallow`, which were labeled before
+the analyzer was first changed and joined development once that change had been measured on them.
+The 30 `held_out` cases, from `encode/django-rest-framework`, `jd/tenacity`, `urllib3/urllib3`,
+`agronholm/anyio`, and `pypa/packaging`, were labeled, reviewed, and committed before the
+analyzer's next change, and measure it on code it was not designed from. Once a correction has
+been measured on them, a new held-out sample is labeled before the next one is designed.
 
 ## The labels
 
 One annotator labeled every case from its diff and the files at its two commits, before reading
 the analyzer's output on it; the labels were committed before the first measurement. A reviewer
 then checked every label on a page that showed each symbol's diff and never the analyzer's
-findings, and corrected 26. Each label names a symbol as the analyzer does — `Class.method`,
-`function.nested` for a function defined directly in another's body, a class's own statements as
-`Class`, and a module's top-level statements as `<module>` — and says whether it was `modified`,
-`added`, or `removed`. A definition inside an `if` or a `try` belongs to the symbol around it, as
-werkzeug's module-level `__getattr__` under `if not t.TYPE_CHECKING:` belongs to `<module>`.
+findings, and corrected 26 of the first sample's 162 labels and 16 of the second's 89. Each label
+names a symbol as the analyzer does — `Class.method`, `function.nested` for a function defined
+directly in another's body, a class's own statements as `Class`, and a module's top-level
+statements as `<module>` — and says whether it was `modified`, `added`, or `removed`. A definition
+inside an `if` or a `try` belongs to the symbol around it, as werkzeug's module-level `__getattr__`
+under `if not t.TYPE_CHECKING:` belongs to `<module>`.
 
 - **A behavior change** lists every category of `docs/semantic-diff-weaver-spec.md` §7 a reviewer
   could fairly give it; a finding in any of them is right. `unknown_semantic_change` and
@@ -52,6 +56,11 @@ werkzeug's module-level `__getattr__` under `if not t.TYPE_CHECKING:` belongs to
   held as placeholder text, is an error-handling change.
 - **A change is judged on the Python versions both commits support.** A branch that only a version
   the head drops could run is no behavior change, as flask#6168's for Python 3.10 is.
+- **A function is labeled with its whole body**, the functions nested in it included, as the
+  analyzer reads it: when only `retry.wrap` changes, `retry` changes too and is labeled with what
+  its callers see, as werkzeug#3329's `run_wsgi` is with `run_wsgi.execute`.
+- **Every Python file outside the tests is labeled**, as the analyzer reads it: a benchmark, a
+  `noxfile.py`, or a typing example as much as the library's own code.
 - **An added symbol** with an empty list is not scored for its category: a new function is new
   behavior rather than a change to any.
 - **A removed symbol** lists what its callers lose, an output contract change when they could call
