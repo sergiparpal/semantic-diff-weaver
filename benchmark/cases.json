@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "annotation": "One annotator, Claude Opus 5.5, labeled every Python symbol each pull request changes outside its tests, from the diff and the files at its two commits, before reading the analyzer's output on it. The held_out cases were labeled before the analyzer was changed against the development ones. A reviewer, sergiparpal, then checked every label on a page that showed each symbol's diff and never the analyzer's findings, and corrected 26. reviewed_by names whoever checked a case's labels after the annotator.",
+  "annotation": "One annotator, Claude Opus 5.5, labeled every Python symbol each pull request changes outside its tests, from the diff and the files at its two commits, before reading the analyzer's output on it, and a reviewer, sergiparpal, then checked every label on a page that showed each symbol's diff and never the analyzer's findings, correcting 26 of the first 162 labels and 16 of the next 89. The first 60 cases came in two splits, the held_out ones labeled before the analyzer was changed against the development ones; once measured, those held_out cases joined development, and the 30 held_out cases of encode/django-rest-framework, jd/tenacity, urllib3/urllib3, agronholm/anyio, and pypa/packaging were labeled and reviewed before the analyzer's next change. reviewed_by names whoever checked a case's labels after the annotator.",
   "sampled_from": {
     "psf/requests": "3c7baaa05ab4aa49cc819ce3a819d260de19c157",
     "pallets/click": "2247b35ea1c47c727d7a06e51fa280e12a863ff6",
@@ -11,7 +11,12 @@
     "pallets/werkzeug": "2adaad1ab68312fa46efb07ff072b15b720e2444",
     "encode/starlette": "0f08970e5cce0aec4fc1cea7447c262d741795eb",
     "Textualize/rich": "9d8f9a372cc5916fd4781fec207ced7ddac2f08f",
-    "marshmallow-code/marshmallow": "70868ff4169b21e9cd108d942c2734342f912729"
+    "marshmallow-code/marshmallow": "70868ff4169b21e9cd108d942c2734342f912729",
+    "encode/django-rest-framework": "4acc64013b3ca101631efe5ebcacbb18960bbe37",
+    "jd/tenacity": "aac059c906170ee7b6ce1aa086a226f3aded5c99",
+    "urllib3/urllib3": "c5347bbd39203d68d7b0e3ffb83ced3e3b4b9109",
+    "agronholm/anyio": "b8eb6ef5a4d6f9c3d8408187fe14af199f9289d2",
+    "pypa/packaging": "ae4946b30f8ae5226e92500722e55618e91f9864"
   },
   "cases": [
     {
@@ -1036,7 +1041,7 @@
       "base": "d73fa1cdcbd8b1465c151db8924ba58b1dd14e35",
       "head": "7689f98403e2c0b0bc8d1031e60f8cff2620e86a",
       "subject": "drop support for Python 3.10 (#6168)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/flask/cli.py",
@@ -1078,7 +1083,7 @@
       "base": "3596b1ab61cea85edb8970e83ff61daa073facf8",
       "head": "89992954ec71b594b1b911f98977cdc8ad46a057",
       "subject": "add `app.query` route decorator (#6133)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/flask/sansio/scaffold.py",
@@ -1099,7 +1104,7 @@
       "base": "514fc6b3e8402e4c646d5284e97a4f0ab50a7c4b",
       "head": "7203feabf723edae0286ae5dc64fec8ac4c91735",
       "subject": "Fix `.partition(\":\")` usage on potential IPv6 addresses (#6096)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/flask/app.py",
@@ -1146,7 +1151,7 @@
       "base": "06ea505ce2b2042af26e96d35ebf159af7c0869d",
       "head": "9368fb3f3c52d74534d14c1bef03c79c103356cd",
       "subject": "autoescape selection uses case-insensitive comparison (#6013)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/flask/sansio/app.py",
@@ -1169,7 +1174,7 @@
       "base": "d3b78fd18a8d9e224cb9ef58a23cec9b1ffc9ce9",
       "head": "e82db2ca3a22c9614c1987392c9cfaa8c6ce99ad",
       "subject": "fix provide_automatic_options override (#5917)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/flask/sansio/app.py",
@@ -1194,7 +1199,7 @@
       "base": "9b74a90dd3c47f792734823e8793ac36f38bc4dd",
       "head": "c77a5203438fe772d41f6a47303ad3f57a4efe6d",
       "subject": "deprecate `should_ignore_error` (#5899)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/flask/app.py",
@@ -1242,7 +1247,7 @@
       "base": "ec95ee993a7975460c2e6468ebeccdd7c67386ba",
       "head": "4f03444db604edec0e818182fe6988b72d943a8e",
       "subject": "improve parsing performance (#3338)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/werkzeug/datastructures/accept.py",
@@ -1288,7 +1293,7 @@
       "base": "ac7d7dd8a4dc0755ada16f7105afd14f736da831",
       "head": "e49785c25326ae73269c4363331b9a788f702be2",
       "subject": "deprecate `wrap_file` (#3332)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/werkzeug/utils.py",
@@ -1358,7 +1363,7 @@
       "base": "92229dc4167511fd75055002acc49bd7e297ce81",
       "head": "5ab01003c364a41a5a49bbe03ecc8869f6c9ec6c",
       "subject": "remove colorama (#3331)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/werkzeug/_internal.py",
@@ -1430,7 +1435,7 @@
       "base": "456407ae4201661b14f726e1409db185418b6df7",
       "head": "b71ddc615fb5ac2248cb4e7df20d6eedd8f77b2b",
       "subject": "clean up on client disconnect (#3329)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/werkzeug/_internal.py",
@@ -1478,7 +1483,7 @@
       "base": "0819a2a9b262aceab39d19ef30f3824d6048daf4",
       "head": "3d27209c27b14cf2a2b0796767cb34f1a4c3e94e",
       "subject": "deprecate correcting location from iri (#3327)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/werkzeug/sansio/response.py",
@@ -1526,7 +1531,7 @@
       "base": "ed82ed5e8c37f34b04a5910d58200c40b866605f",
       "head": "ff60e6990185b878c795a19b164f4b8a4345f913",
       "subject": "increase `wrap_file` `buffer_size` (#3322)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/werkzeug/wsgi.py",
@@ -1627,7 +1632,7 @@
       "base": "a8ea0f86e4c9fd144a573f9e8802d3bb41f6075d",
       "head": "0f08970e5cce0aec4fc1cea7447c262d741795eb",
       "subject": "Include `functools.partial` endpoints in the generated schema (#3736)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "starlette/schemas.py",
@@ -1657,7 +1662,7 @@
       "base": "1ce60e7157d5c7d1c4e48e1cfe2f5f255235a2cc",
       "head": "3bc0e6190d13f280bea822bce957c2903043aa30",
       "subject": "Use byte length for typed `memoryview` streaming chunks (#3772)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "starlette/responses.py",
@@ -1682,7 +1687,7 @@
       "base": "2745bbc5afa2f8ce900d290bedca2bc5d3f3cfe8",
       "head": "dc5a267571fb7acde15c2b0b0be7e3ed935bd9aa",
       "subject": "Annotate `Response.media_type` as `str | None` (#3768)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "starlette/responses.py",
@@ -1703,7 +1708,7 @@
       "base": "a85a5c36d7797f8a0816cc8a4de87a28938891e3",
       "head": "8aa828ceaff764a2e57932fb42fdf105a47c4c83",
       "subject": "Version 1.10.0 (#3728)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "starlette/__init__.py",
@@ -1724,7 +1729,7 @@
       "base": "6b8b6126b87333e584fabbf15a880628d540ac48",
       "head": "a85a5c36d7797f8a0816cc8a4de87a28938891e3",
       "subject": "Substitute URL path parameters in a single pass (#3725)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "starlette/routing.py",
@@ -1757,7 +1762,7 @@
       "base": "b973efd6156af397253815ecfdd11f37f2b5d1fd",
       "head": "6b8b6126b87333e584fabbf15a880628d540ac48",
       "subject": "Finalize URL-encoded form parsing at stream exhaustion (#3599)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "starlette/formparsers.py",
@@ -1782,7 +1787,7 @@
       "base": "19c67b9a3479841e9133bea94607c89ee931d3fc",
       "head": "cf3b5a16f7a76b2e8c4921d3314021bb72a6c5c1",
       "subject": "Merge pull request #4079 from Textualize/inline-table-code",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "rich/markdown.py",
@@ -1806,7 +1811,7 @@
       "base": "58ac15120fe254886c10d6253667733c83604cb4",
       "head": "494b795031782c694297d2db78bd04fb8c82f590",
       "subject": "Merge pull request #4077 from Textualize/isattry",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "rich/file_proxy.py",
@@ -1827,7 +1832,7 @@
       "base": "9cb198944f8184df92217efc8b20d3fffa4b4fa0",
       "head": "48293cde887c4f25a7bca022131b56495f370a88",
       "subject": "Merge pull request #4076 from Textualize/ansi-newline",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "rich/ansi.py",
@@ -1850,7 +1855,7 @@
       "base": "1fc7cb210ae52eb099df39818ddb9569e5b14c7b",
       "head": "eccb5945ddb8487d655d2ab54f3443d072ef4247",
       "subject": "Merge pull request #4075 from Textualize/empty-end",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "rich/console.py",
@@ -1889,7 +1894,7 @@
       "base": "c595fa95068dd2c5095d25446b2f0571bc0b3995",
       "head": "31ce129a915bab47fa7ddc8e15af77480666fefe",
       "subject": "Merge pull request #3941 from SudheerKovvuru/fix-save-html-typing",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "rich/console.py",
@@ -1931,7 +1936,7 @@
       "base": "fc41075a3206d2a5fd846c6f41c4d2becab814fa",
       "head": "9ac7e797cc731429603cdebd21c1746e5984c7b6",
       "subject": "Merge pull request #3845 from akx/faster-ids",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "rich/style.py",
@@ -2005,7 +2010,7 @@
       "base": "2d30a962a0a104f340e1c69d62b8bba0558027a0",
       "head": "7dff08fcb7fb40d2772728bb8d8a76b5beff3200",
       "subject": "Raise ValidationError (not ValueError) for NaN in TimeDelta (#3004)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/marshmallow/fields.py",
@@ -2028,7 +2033,7 @@
       "base": "3207be31474530f7c0685dfbd7b4faca5b35fbf5",
       "head": "902f99c4151d1f0c4c3b8e8dfbafc7b6a76aeaa6",
       "subject": "Fix URL validator rejecting a fragment after an empty path (#3016)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/marshmallow/validate.py",
@@ -2052,7 +2057,7 @@
       "base": "7bb19f0fdce323a8b216245bf01810e35ed42f95",
       "head": "cea3d44f40683832b88b792b84f4a91be032f7ad",
       "subject": "Simplify use of self.opts.index_errors in _deserialize (#2988)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/marshmallow/schema.py",
@@ -2073,7 +2078,7 @@
       "base": "c847ad47a3f1235021bd2624b10c255a936ed107",
       "head": "256f0aabbc18232219e33854999372cfe1643f52",
       "subject": "Add pre/post_load parameters to Field (#2799)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/marshmallow/fields.py",
@@ -2144,7 +2149,7 @@
       "base": "4acb783c73130f762aa5b0df6b65ff7685d5ff2c",
       "head": "f07eadc87dfac25ed505d5cd9d186920f2682733",
       "subject": "Fix validate.Email to accept IDNs (#2937)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/marshmallow/validate.py",
@@ -2191,7 +2196,7 @@
       "base": "3492fae7b31d310814ad16fcddad5c7717d54949",
       "head": "4acb783c73130f762aa5b0df6b65ff7685d5ff2c",
       "subject": "Fix Unreachable Warning (#2935)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/marshmallow/fields.py",
@@ -2210,6 +2215,1202 @@
             "dependency_interaction_change"
           ],
           "rationale": "A callable nested value is called as a factory unless it is a schema class, where any class was left uncalled, so a non-schema class is now accepted as a factory and called for the schema."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ]
+    },
+    {
+      "id": "encode/django-rest-framework#10071",
+      "repository": "encode/django-rest-framework",
+      "pull_request": 10071,
+      "base": "1af5b55758ac514c492ed3a5fc1a6fb244cdb257",
+      "head": "6f6f44bca2e193509ea108914c9e52b102ec6642",
+      "subject": "Fix SearchFilter crash when search_fields uses the pk alias (#10071)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "rest_framework/filters.py",
+          "symbol": "SearchFilter.must_call_distinct",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "output_contract_change"
+          ],
+          "rationale": "A search field part named pk is resolved to the model's primary key field, so must_call_distinct answers for it where opts.get_field('pk') raised FieldDoesNotExist."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ]
+    },
+    {
+      "id": "encode/django-rest-framework#10067",
+      "repository": "encode/django-rest-framework",
+      "pull_request": 10067,
+      "base": "e140de794d11149a09c04a3ee7cc4815946148f8",
+      "head": "1af5b55758ac514c492ed3a5fc1a6fb244cdb257",
+      "subject": "Prepare release 3.18.3 (#10067)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "rest_framework/__init__.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The release's version string."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ]
+    },
+    {
+      "id": "encode/django-rest-framework#10066",
+      "repository": "encode/django-rest-framework",
+      "pull_request": 10066,
+      "base": "7195f7e4c51527054623ea55fc4491786acc91f8",
+      "head": "e140de794d11149a09c04a3ee7cc4815946148f8",
+      "subject": "Restore order_by_precedence from 3.18.1 (#10066)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "rest_framework/utils/mediatypes.py",
+          "symbol": "order_by_precedence",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "Buckets the media type strings it was given by precedence again, where it returned the _MediaType objects parsed from them."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ]
+    },
+    {
+      "id": "encode/django-rest-framework#10065",
+      "repository": "encode/django-rest-framework",
+      "pull_request": 10065,
+      "base": "af3fabfd517307fbc5d500fba1ab8f6e25f220b0",
+      "head": "69694a17d0b6ac14b4ea4d77916b73c68dc5a3e8",
+      "subject": "Prepare release 3.18.2 (#10065)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "rest_framework/__init__.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The release's version string."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ]
+    },
+    {
+      "id": "encode/django-rest-framework#10044",
+      "repository": "encode/django-rest-framework",
+      "pull_request": 10044,
+      "base": "ce3dcc77106d33b0ef73eaaacb791ad4d9b9b956",
+      "head": "7aa4ec6513469139768d530f3eecfaae3e513b73",
+      "subject": "Update pre-commit hooks (#10044)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "rest_framework/parsers.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "An import reformatted with parentheses: it loads what it loaded before."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ]
+    },
+    {
+      "id": "encode/django-rest-framework#10021",
+      "repository": "encode/django-rest-framework",
+      "pull_request": 10021,
+      "base": "018982819da29d18494904f1a44a7364cac17c6b",
+      "head": "ce3dcc77106d33b0ef73eaaacb791ad4d9b9b956",
+      "subject": "Fix UniqueConstraint validation with conditional fields (#9707) (#10021)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "rest_framework/serializers.py",
+          "symbol": "ModelSerializer.get_unique_together_constraints",
+          "change": "modified",
+          "expected": [
+            "boundary_change",
+            "validation_change",
+            "output_contract_change"
+          ],
+          "rationale": "Yields six values, the constraint object last, and takes a UniqueConstraint whose fields and condition fields together number more than one, so a single-field constraint conditioned on another field now counts."
+        },
+        {
+          "path": "rest_framework/serializers.py",
+          "symbol": "ModelSerializer.get_uniqueness_extra_kwargs",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "output_contract_change",
+            "default_behavior_change"
+          ],
+          "rationale": "Unpacks the new six values, and the fields of the single-field conditional constraints it now receives, condition fields included, get required, a default, or a hidden field."
+        },
+        {
+          "path": "rest_framework/serializers.py",
+          "symbol": "ModelSerializer.get_unique_together_validators",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "output_contract_change"
+          ],
+          "rationale": "Builds a validator for each constraint it is given, single-field conditional ones included, with that constraint's own message and code instead of those of whichever constraint shared its fields."
+        },
+        {
+          "path": "rest_framework/utils/field_mapping.py",
+          "symbol": "get_unique_validators",
+          "change": "modified",
+          "expected": [
+            "boundary_change",
+            "validation_change",
+            "output_contract_change"
+          ],
+          "rationale": "Yields a field's UniqueValidator only when the field and its condition's fields number exactly one, so a condition that references other fields gets none and the unique-together validator checks it instead."
+        },
+        {
+          "path": "rest_framework/validators.py",
+          "symbol": "UniqueTogetherValidator.__call__",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "default_behavior_change"
+          ],
+          "rationale": "An update that changes only a condition field is validated too, None in a condition field no longer skips the check, and an omitted field takes the instance's value or None instead of raising."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ]
+    },
+    {
+      "id": "jd/tenacity#741",
+      "repository": "jd/tenacity",
+      "pull_request": 741,
+      "base": "4a74682e0186b5f2d25906aa190cd639c705a958",
+      "head": "b6201eceedfc719e996dcbc3f6c17f21011fb236",
+      "subject": "fix: only treat None and 0 as \"no wait\" (#741)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "tenacity/__init__.py",
+          "symbol": "BaseRetrying.__init__",
+          "change": "modified",
+          "expected": [
+            "state_transition_change",
+            "default_behavior_change"
+          ],
+          "rationale": "Stores wait=None or 0 as wait_none(), so the wait attribute always holds a strategy, and keeps any other wait, a falsy callable included, as given."
+        },
+        {
+          "path": "tenacity/__init__.py",
+          "symbol": "BaseRetrying._run_wait",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "retry_timeout_change",
+            "default_behavior_change"
+          ],
+          "rationale": "Always calls the stored wait, so a falsy callable strategy now sets the sleep, and a falsy wait the constructor keeps, such as an empty string or list, raises TypeError where it meant no sleep."
+        },
+        {
+          "path": "tenacity/__init__.py",
+          "symbol": "_is_no_wait",
+          "change": "added",
+          "expected": [],
+          "rationale": "A new predicate: whether wait is None or equal to 0."
+        },
+        {
+          "path": "tenacity/asyncio/__init__.py",
+          "symbol": "AsyncRetrying._run_wait",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "retry_timeout_change",
+            "default_behavior_change"
+          ],
+          "rationale": "Always awaits the stored wait, so a falsy callable strategy now sets the sleep, and a falsy wait the constructor keeps, such as an empty string or list, raises TypeError where it meant no sleep."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ]
+    },
+    {
+      "id": "jd/tenacity#645",
+      "repository": "jd/tenacity",
+      "pull_request": 645,
+      "base": "949dcfa6c0a4f0109dbbd019ff58208a580d185b",
+      "head": "26f719dc73d3c5612b9c1b8d18a7883837790ad8",
+      "subject": "Respect enabled=False on the direct-call path (#645)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "tenacity/__init__.py",
+          "symbol": "Retrying.__call__",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "state_transition_change",
+            "retry_timeout_change",
+            "output_contract_change",
+            "side_effect_change"
+          ],
+          "rationale": "With enabled=False it returns the first call's result or exception, where the retry policy could return a later attempt's or raise RetryError, and skips begin(), the statistics, and the callbacks."
+        },
+        {
+          "path": "tenacity/asyncio/__init__.py",
+          "symbol": "AsyncRetrying.__call__",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "state_transition_change",
+            "retry_timeout_change",
+            "output_contract_change",
+            "side_effect_change"
+          ],
+          "rationale": "With enabled=False it returns the first call's result or exception, awaiting a coroutine function, where the retry policy could return a later attempt's or raise RetryError, and skips begin(), the statistics, and the callbacks."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ]
+    },
+    {
+      "id": "jd/tenacity#696",
+      "repository": "jd/tenacity",
+      "pull_request": 696,
+      "base": "389aab8b2688f7a1df41c2dd7797eeb18c8baff9",
+      "head": "949dcfa6c0a4f0109dbbd019ff58208a580d185b",
+      "subject": "fix: read the tornado global live instead of an import-time snapshot (#696)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "tenacity/__init__.py",
+          "symbol": "retry",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Its wrapper asks whether tornado is available each time it decorates, so with tenacity.tornado set to None after import it builds a plain Retrying instead of failing on tornado.gen."
+        },
+        {
+          "path": "tenacity/__init__.py",
+          "symbol": "retry.wrap",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Asks whether tornado is available when it runs, so with tenacity.tornado set to None after import it builds a plain Retrying instead of failing on tornado.gen."
+        },
+        {
+          "path": "tenacity/__init__.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The private _HAS_TORNADO bool gives way to _has_tornado(), which decides the TornadoRetrying import from the same value at import."
+        },
+        {
+          "path": "tenacity/__init__.py",
+          "symbol": "_has_tornado",
+          "change": "added",
+          "expected": [],
+          "rationale": "A new predicate reading the tornado global each time it is called."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ]
+    },
+    {
+      "id": "jd/tenacity#694",
+      "repository": "jd/tenacity",
+      "pull_request": 694,
+      "base": "a09999688c8d3bb3d4ca1716748009954cc7c4d0",
+      "head": "389aab8b2688f7a1df41c2dd7797eeb18c8baff9",
+      "subject": "fix: restore support for falsy wait values and callable + strategy (#694)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "tenacity/__init__.py",
+          "symbol": "BaseRetrying._run_wait",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "retry_timeout_change",
+            "default_behavior_change"
+          ],
+          "rationale": "A falsy wait, None, 0, or the sum of no strategies, again means no sleep before the next attempt instead of raising TypeError, and so does a falsy callable strategy."
+        },
+        {
+          "path": "tenacity/asyncio/__init__.py",
+          "symbol": "AsyncRetrying._run_wait",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "retry_timeout_change",
+            "default_behavior_change"
+          ],
+          "rationale": "A falsy wait, None, 0, or the sum of no strategies, again means no sleep before the next attempt instead of raising TypeError, and so does a falsy callable strategy."
+        },
+        {
+          "path": "tenacity/wait.py",
+          "symbol": "wait_base",
+          "change": "modified",
+          "expected": [],
+          "rationale": "A comment only."
+        },
+        {
+          "path": "tenacity/wait.py",
+          "symbol": "wait_base.__radd__",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "output_contract_change"
+          ],
+          "rationale": "A plain callable on the left of + now combines with the strategy instead of raising TypeError, 0 stays the identity sum() needs, and a float 0.0, the identity before, now builds a combination that fails when called."
+        },
+        {
+          "path": "tenacity/wait.py",
+          "symbol": "wait_combine.__init__",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The annotation only."
+        },
+        {
+          "path": "tenacity/wait.py",
+          "symbol": "wait_combine.__call__",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "output_contract_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Calls each strategy with the state positionally, so a callable whose parameter is not named retry_state no longer raises TypeError, and always returns a float."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ]
+    },
+    {
+      "id": "jd/tenacity#680",
+      "repository": "jd/tenacity",
+      "pull_request": 680,
+      "base": "e6ef84a1cebc01963106b1aecd598393054e0277",
+      "head": "d6690dc06a0beebef9d91018d31fe42db11c2640",
+      "subject": "refactor: declare BaseAction's REPR_FIELDS and NAME as ClassVar (#680)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "tenacity/__init__.py",
+          "symbol": "BaseAction",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Class variables annotated as ClassVar: typing only."
+        },
+        {
+          "path": "tenacity/__init__.py",
+          "symbol": "RetryAction",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Class variables annotated as ClassVar: typing only."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ]
+    },
+    {
+      "id": "jd/tenacity#679",
+      "repository": "jd/tenacity",
+      "pull_request": 679,
+      "base": "69b3fee7bd8ba900782da918b339f05b52272419",
+      "head": "e6ef84a1cebc01963106b1aecd598393054e0277",
+      "subject": "refactor: drop always-true truthiness checks and enable truthy-bool (#679)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "tenacity/__init__.py",
+          "symbol": "BaseRetrying._run_wait",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "retry_timeout_change",
+            "default_behavior_change"
+          ],
+          "rationale": "Always calls the wait strategy, so wait=None or 0 now raises TypeError where it meant no sleep, and a falsy callable strategy sets the sleep where it counted as none."
+        },
+        {
+          "path": "tenacity/__init__.py",
+          "symbol": "retry",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Its wrapper reads tornado's availability from a bool taken at import, so with tenacity.tornado set to None afterwards it fails on tornado.gen where it built a plain Retrying."
+        },
+        {
+          "path": "tenacity/__init__.py",
+          "symbol": "retry.wrap",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Reads tornado's availability from a bool taken at import, so with tenacity.tornado set to None afterwards it fails on tornado.gen where it built a plain Retrying."
+        },
+        {
+          "path": "tenacity/__init__.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Keeps tornado's availability in a private bool and imports TornadoRetrying on the same condition as before."
+        },
+        {
+          "path": "tenacity/asyncio/__init__.py",
+          "symbol": "AsyncRetrying._run_wait",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "retry_timeout_change",
+            "default_behavior_change"
+          ],
+          "rationale": "Always awaits the wait strategy, so wait=None or 0 now raises TypeError where it meant no sleep, and a falsy callable strategy sets the sleep where it counted as none."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ]
+    },
+    {
+      "id": "urllib3/urllib3#5347",
+      "repository": "urllib3/urllib3",
+      "pull_request": 5347,
+      "base": "5feb993421a48a508bc70c78e745337cc6415265",
+      "head": "2aa7e9c35234a90a1ce09b84dc7b706a6d604674",
+      "subject": "Keep the stored key in RecentlyUsedContainer lookups (#5347)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/urllib3/_collections.py",
+          "symbol": "RecentlyUsedContainer.__getitem__",
+          "change": "modified",
+          "expected": [
+            "state_transition_change"
+          ],
+          "rationale": "Moves the item to the end of the eviction order with move_to_end, so the container keeps its stored key instead of replacing it with the caller's equal key."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ]
+    },
+    {
+      "id": "urllib3/urllib3#5083",
+      "repository": "urllib3/urllib3",
+      "pull_request": 5083,
+      "base": "96449eb1ac8cfca8fb9605b8bbff7a5fe0081dd2",
+      "head": "5feb993421a48a508bc70c78e745337cc6415265",
+      "subject": "Tighten numeric validation of response framing (#5083)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/urllib3/response.py",
+          "symbol": "HTTPResponse._init_length",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "output_contract_change"
+          ],
+          "rationale": "A Content-Length value with a sign, an underscore, or a non-ASCII digit, which int() accepted, now falls back to an unknown length, even in a list such as '+1, 2' that raised InvalidHeader for unequal values."
+        },
+        {
+          "path": "src/urllib3/response.py",
+          "symbol": "HTTPResponse._update_chunk_length",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "state_transition_change",
+            "side_effect_change"
+          ],
+          "rationale": "A chunk size with a sign, a 0x prefix, an underscore, leading whitespace, or a non-ASCII digit, which int(line, 16) accepted, now closes the response and raises InvalidChunkLength."
+        },
+        {
+          "path": "src/urllib3/response.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Imports re and compiles the two private patterns the length checks use."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ]
+    },
+    {
+      "id": "urllib3/urllib3#5177",
+      "repository": "urllib3/urllib3",
+      "pull_request": 5177,
+      "base": "8883fd900057ee65f553586389ecd70269f05e04",
+      "head": "96449eb1ac8cfca8fb9605b8bbff7a5fe0081dd2",
+      "subject": "Replace stray CR/LF/NUL with SP and trim response header values (#5177)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/urllib3/connection.py",
+          "symbol": "_normalize_header_value",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "A bare CR or LF outside an obsolete fold and any NUL become spaces, and surrounding spaces and tabs are trimmed, so the header values it returns change."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ]
+    },
+    {
+      "id": "urllib3/urllib3#5314",
+      "repository": "urllib3/urllib3",
+      "pull_request": 5314,
+      "base": "d07367de9244fe44109aa2f04ae88240bece22b9",
+      "head": "8883fd900057ee65f553586389ecd70269f05e04",
+      "subject": "Speed up parse_url() by ~28% for common ASCII hosts and plain paths (#5314)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/urllib3/util/url.py",
+          "symbol": "_remove_path_dot_segments",
+          "change": "modified",
+          "expected": [],
+          "rationale": "A fast path returns a path without dot segments as the full pass returned it."
+        },
+        {
+          "path": "src/urllib3/util/url.py",
+          "symbol": "_normalize_host",
+          "change": "modified",
+          "expected": [],
+          "rationale": "A fast path lower-cases an ASCII host without percent-encoding, as encoding it label by label did."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ]
+    },
+    {
+      "id": "urllib3/urllib3#5329",
+      "repository": "urllib3/urllib3",
+      "pull_request": 5329,
+      "base": "5a2177893de299c9693b82ab11ec9e20169ba0bc",
+      "head": "257a7dfa161cad030f5cba99b24fca7672af1881",
+      "subject": "Correct the HTTPHeaderDict.add combine example (#5329)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/urllib3/_collections.py",
+          "symbol": "HTTPHeaderDict.add",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The docstring's example only."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ]
+    },
+    {
+      "id": "urllib3/urllib3#5330",
+      "repository": "urllib3/urllib3",
+      "pull_request": 5330,
+      "base": "c284372e2e11639b4554d50bf6d1a5b1750c0df0",
+      "head": "5a2177893de299c9693b82ab11ec9e20169ba0bc",
+      "subject": "Honor Retry-After on PoolManager redirects (#5330)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/urllib3/poolmanager.py",
+          "symbol": "PoolManager.urlopen",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "retry_timeout_change",
+            "default_behavior_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Before following a redirect it sleeps for the response's Retry-After, up to retry_after_max and whatever respect_retry_after_header says, raising InvalidHeader on a malformed one, and retries passed as None now continue the response's Retry."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ]
+    },
+    {
+      "id": "agronholm/anyio#1447",
+      "repository": "agronholm/anyio",
+      "pull_request": 1447,
+      "base": "838382c4db305969bc0a269e885068574179c477",
+      "head": "e833551a77bd82455b1753b50f6f92e7b0a7d456",
+      "subject": "Fixed groupby() splitting identical keys that don't compare equal to themselves (#1447)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/anyio/itertools.py",
+          "symbol": "groupby",
+          "change": "modified",
+          "expected": [
+            "output_contract_change",
+            "ordering_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Keys that are the same object, as a NaN, now stay in one group, and the group's key is compared with == against the next instead of the next with !=, so groups can split differently."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ]
+    },
+    {
+      "id": "agronholm/anyio#1443",
+      "repository": "agronholm/anyio",
+      "pull_request": 1443,
+      "base": "02ff4f85650413b1c4d12aeafa0a4f9290766393",
+      "head": "576892e9f1ffd5417dec3bebfe9d8c3cbf5d47dc",
+      "subject": "Fixed certain pending tasks not woken up by the closing of memory object streams (#1443)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/anyio/streams/memory.py",
+          "symbol": "MemoryObjectReceiveStream",
+          "change": "modified",
+          "expected": [
+            "state_transition_change",
+            "output_contract_change"
+          ],
+          "rationale": "A new private field, _waiters, holds the events of this stream's own pending receives, and as a dataclass field left in the repr it shows in the stream's repr."
+        },
+        {
+          "path": "src/anyio/streams/memory.py",
+          "symbol": "MemoryObjectReceiveStream.receive",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "state_transition_change"
+          ],
+          "rationale": "Records its pending receive on the stream, and when woken without an item because this stream was closed it raises ClosedResourceError instead of EndOfStream."
+        },
+        {
+          "path": "src/anyio/streams/memory.py",
+          "symbol": "MemoryObjectReceiveStream.close",
+          "change": "modified",
+          "expected": [
+            "state_transition_change",
+            "side_effect_change"
+          ],
+          "rationale": "Also wakes the tasks waiting in receive() on this stream and withdraws them from the shared state, where they stayed blocked."
+        },
+        {
+          "path": "src/anyio/streams/memory.py",
+          "symbol": "MemoryObjectSendStream",
+          "change": "modified",
+          "expected": [
+            "state_transition_change",
+            "output_contract_change"
+          ],
+          "rationale": "A new private field, _waiters, holds the events of this stream's own pending sends, and as a dataclass field left in the repr it shows in the stream's repr."
+        },
+        {
+          "path": "src/anyio/streams/memory.py",
+          "symbol": "MemoryObjectSendStream.send",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "state_transition_change"
+          ],
+          "rationale": "Records its pending send on the stream, and when this stream is closed before the item is delivered it raises ClosedResourceError."
+        },
+        {
+          "path": "src/anyio/streams/memory.py",
+          "symbol": "MemoryObjectSendStream.close",
+          "change": "modified",
+          "expected": [
+            "state_transition_change",
+            "side_effect_change"
+          ],
+          "rationale": "Also wakes the tasks waiting in send() on this stream and withdraws their undelivered items from the shared state, so no receiver gets them."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ]
+    },
+    {
+      "id": "agronholm/anyio#1358",
+      "repository": "agronholm/anyio",
+      "pull_request": 1358,
+      "base": "b7f8c6825cb4b222650a2c3b0cd58e73e681bb79",
+      "head": "cd21b36e95fb0606bd1c78771616a48d175dfb1b",
+      "subject": "Fixed `TypedAttributeSet` not collecting annotations from superclasses (#1358)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/anyio/_core/_typedattr.py",
+          "symbol": "TypedAttributeSet.__init_subclass__",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change"
+          ],
+          "rationale": "Collects the annotations of every class in the MRO, so a subclass whose public attributes are annotated in a superclass no longer raises TypeError."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ]
+    },
+    {
+      "id": "agronholm/anyio#1424",
+      "repository": "agronholm/anyio",
+      "pull_request": 1424,
+      "base": "633965bad02a857574b3dbad03d1ef9f35e9caa4",
+      "head": "6219807568bd7c32f2c08f923c7d93f95c836127",
+      "subject": "Restore TCP read backpressure after a cancelled receive (#1424)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/anyio/_backends/_asyncio.py",
+          "symbol": "SocketStream.receive",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "state_transition_change",
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Pauses the transport's reading again even when the wait for data is cancelled, where a cancelled receive left it reading without backpressure."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ]
+    },
+    {
+      "id": "agronholm/anyio#1410",
+      "repository": "agronholm/anyio",
+      "pull_request": 1410,
+      "base": "3f1ff43aa33a02bb2ab64c229cd4b59e80c76328",
+      "head": "633965bad02a857574b3dbad03d1ef9f35e9caa4",
+      "subject": "Fixed BlockingPortal completion racing with Future cancellation (#1410)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/anyio/from_thread.py",
+          "symbol": "BlockingPortal._call_func",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "state_transition_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Marks the future running with set_running_or_notify_cancel before setting its result or exception, so a cancellation from another thread between the check and the set no longer raises InvalidStateError."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ]
+    },
+    {
+      "id": "agronholm/anyio#1422",
+      "repository": "agronholm/anyio",
+      "pull_request": 1422,
+      "base": "ad0e2c09a51c995dc12de52d83139e55e8f7b057",
+      "head": "3f1ff43aa33a02bb2ab64c229cd4b59e80c76328",
+      "subject": "Fix short writes in UNIXSocketStream.send_fds() (#1422)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/anyio/_backends/_asyncio.py",
+          "symbol": "UNIXSocketStream.send_fds",
+          "change": "modified",
+          "expected": [
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Sends the rest of the message after a short write, with the descriptors on the first write only, where the bytes left unsent were dropped."
+        },
+        {
+          "path": "src/anyio/_backends/_trio.py",
+          "symbol": "UNIXSocketStream.send_fds",
+          "change": "modified",
+          "expected": [
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Sends the rest of the message after a short write, with the descriptors on the first write only, where the bytes left unsent were dropped."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ]
+    },
+    {
+      "id": "pypa/packaging#1473",
+      "repository": "pypa/packaging",
+      "pull_request": 1473,
+      "base": "b635dc5e60d6fb8020416c6bab9421964bfa342a",
+      "head": "78d8673da4d275bb7aee0126a5edc3cf90976af1",
+      "subject": "feat(ranges): answer containment and disjointness together (#1473)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/packaging/ranges.py",
+          "symbol": "VersionRange",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The class docstring."
+        },
+        {
+          "path": "src/packaging/ranges.py",
+          "symbol": "VersionRange._is_plain",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The docstring only."
+        },
+        {
+          "path": "src/packaging/ranges.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "__all__ now exports RangeRelation, which the module docstring's test setup imports."
+        },
+        {
+          "path": "src/packaging/ranges.py",
+          "symbol": "RangeRelation",
+          "change": "added",
+          "expected": [],
+          "rationale": "A new enum of how one range relates to another."
+        },
+        {
+          "path": "src/packaging/ranges.py",
+          "symbol": "RangeRelation.is_subset",
+          "change": "added",
+          "expected": [],
+          "rationale": "A new property: whether the relation makes self a subset."
+        },
+        {
+          "path": "src/packaging/ranges.py",
+          "symbol": "RangeRelation.is_disjoint",
+          "change": "added",
+          "expected": [],
+          "rationale": "A new property: whether the relation makes the two disjoint."
+        },
+        {
+          "path": "src/packaging/ranges.py",
+          "symbol": "RangeRelation.__repr__",
+          "change": "added",
+          "expected": [],
+          "rationale": "A new repr naming the enum and its member."
+        },
+        {
+          "path": "src/packaging/ranges.py",
+          "symbol": "_relate_bounds",
+          "change": "added",
+          "expected": [],
+          "rationale": "A new walk relating two interval lists in one pass."
+        },
+        {
+          "path": "src/packaging/ranges.py",
+          "symbol": "VersionRange.relation",
+          "change": "added",
+          "expected": [],
+          "rationale": "A new method answering subset and disjointness together."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ]
+    },
+    {
+      "id": "pypa/packaging#1471",
+      "repository": "pypa/packaging",
+      "pull_request": 1471,
+      "base": "01fc80c47251ca5fead213e588d15b5d4b83b824",
+      "head": "b635dc5e60d6fb8020416c6bab9421964bfa342a",
+      "subject": "perf(ranges): stop disjointness queries at the first overlap (#1471)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/packaging/_ranges.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "__all__ of the private range engine now lists ranges_are_disjoint."
+        },
+        {
+          "path": "src/packaging/_ranges.py",
+          "symbol": "ranges_are_disjoint",
+          "change": "added",
+          "expected": [],
+          "rationale": "A new test of whether two interval lists share a version, stopping at the first overlap."
+        },
+        {
+          "path": "src/packaging/ranges.py",
+          "symbol": "_union_ranges",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The docstring only."
+        },
+        {
+          "path": "src/packaging/ranges.py",
+          "symbol": "_complement_ranges",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The docstring only."
+        },
+        {
+          "path": "src/packaging/ranges.py",
+          "symbol": "_difference_ranges",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The docstring only."
+        },
+        {
+          "path": "src/packaging/ranges.py",
+          "symbol": "VersionRange.is_disjoint",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Plain ranges are tested with ranges_are_disjoint, which stops at the first overlap and answers as the empty intersection did."
+        },
+        {
+          "path": "src/packaging/ranges.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Imports ranges_are_disjoint, and a comment."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ]
+    },
+    {
+      "id": "pypa/packaging#1479",
+      "repository": "pypa/packaging",
+      "pull_request": 1479,
+      "base": "f124fb7f2a18e41a5593f4c5c47d63db6f49f0d1",
+      "head": "01fc80c47251ca5fead213e588d15b5d4b83b824",
+      "subject": "ci(downstream): bump pdm to 2.29.4 (#1479)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "noxfile.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [
+            "dependency_interaction_change"
+          ],
+          "rationale": "The downstream session now downloads and builds pdm 2.29.4 instead of 2.27.0."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ]
+    },
+    {
+      "id": "pypa/packaging#1372",
+      "repository": "pypa/packaging",
+      "pull_request": 1372,
+      "base": "c1d2a9d8f5ca7cc11b7d2e902ed5ee3e255e8560",
+      "head": "f124fb7f2a18e41a5593f4c5c47d63db6f49f0d1",
+      "subject": "perf(specifiers): cache a Specifier's canonical form (#1372)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "benchmarks/specifiers.py",
+          "symbol": "TimeSpecSuite.setup",
+          "change": "modified",
+          "expected": [
+            "state_transition_change"
+          ],
+          "rationale": "Also builds and hashes the warm specifiers, equal copies of them, and an empty SpecifierSet that the new benchmarks use."
+        },
+        {
+          "path": "benchmarks/specifiers.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Imports Specifier as well."
+        },
+        {
+          "path": "benchmarks/specifiers.py",
+          "symbol": "TimeSpecSuite.time_hash_specifier_warm",
+          "change": "added",
+          "expected": [],
+          "rationale": "A new benchmark."
+        },
+        {
+          "path": "benchmarks/specifiers.py",
+          "symbol": "TimeSpecSuite.time_eq_specifier_warm",
+          "change": "added",
+          "expected": [],
+          "rationale": "A new benchmark."
+        },
+        {
+          "path": "benchmarks/specifiers.py",
+          "symbol": "TimeSpecSuite.time_sort_and_dedup_warm",
+          "change": "added",
+          "expected": [],
+          "rationale": "A new benchmark."
+        },
+        {
+          "path": "src/packaging/specifiers.py",
+          "symbol": "Specifier",
+          "change": "modified",
+          "expected": [],
+          "rationale": "__slots__ gains the slot of the canonical-form cache."
+        },
+        {
+          "path": "src/packaging/specifiers.py",
+          "symbol": "Specifier.__init__",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Starts the canonical-form cache empty."
+        },
+        {
+          "path": "src/packaging/specifiers.py",
+          "symbol": "Specifier.__setstate__",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Empties the canonical-form cache when unpickling, as it does the other caches."
+        },
+        {
+          "path": "src/packaging/specifiers.py",
+          "symbol": "Specifier._canonical_spec",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Caches the canonical (operator, version) pair on first use, reusing the spec tuple when it is canonical; the pair it returns is the same."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ]
+    },
+    {
+      "id": "pypa/packaging#1460",
+      "repository": "pypa/packaging",
+      "pull_request": 1460,
+      "base": "ffced26d0a30557a0e181dbaca561a0432ddec53",
+      "head": "1a62a26afe0f4881593e31bed4f7753bd1c8fe27",
+      "subject": "perf(ranges): subtract version intervals directly (#1460)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "benchmarks/specifiers.py",
+          "symbol": "TimeSpecSuite.setup",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change"
+          ],
+          "rationale": "Accepts the parameters a parametrized benchmark passes to its setup, where such a call raised TypeError."
+        },
+        {
+          "path": "benchmarks/specifiers.py",
+          "symbol": "TimeSpecSuite.time_constructor_and_subset",
+          "change": "added",
+          "expected": [],
+          "rationale": "A new benchmark."
+        },
+        {
+          "path": "src/packaging/ranges.py",
+          "symbol": "VersionRange.difference",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Subtracts the bounds directly instead of intersecting with their complement, to the same intervals."
+        },
+        {
+          "path": "src/packaging/ranges.py",
+          "symbol": "VersionRange.is_subset",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Plain ranges are tested by subtracting directly, which answers as the empty intersection with the complement did."
+        },
+        {
+          "path": "src/packaging/ranges.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "A comment only."
+        },
+        {
+          "path": "src/packaging/ranges.py",
+          "symbol": "_difference_ranges",
+          "change": "added",
+          "expected": [],
+          "rationale": "A new direct subtraction of one interval list from another."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ]
+    },
+    {
+      "id": "pypa/packaging#1457",
+      "repository": "pypa/packaging",
+      "pull_request": 1457,
+      "base": "fc613377731e5211ab6e08e6fd6163f09ae67ce8",
+      "head": "ffced26d0a30557a0e181dbaca561a0432ddec53",
+      "subject": "feat(specifiers): add `__replace__` to Specifier and SpecifierSet (#1457)",
+      "split": "held_out",
+      "labels": [
+        {
+          "path": "src/packaging/specifiers.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Imports builtins and sys and defines the private _UNSET sentinel for __replace__."
+        },
+        {
+          "path": "src/packaging/specifiers.py",
+          "symbol": "Specifier.__replace__",
+          "change": "added",
+          "expected": [],
+          "rationale": "A new method returning the specifier with the given parts replaced, or itself when none changes."
+        },
+        {
+          "path": "src/packaging/specifiers.py",
+          "symbol": "SpecifierSet.__replace__",
+          "change": "added",
+          "expected": [],
+          "rationale": "A new method returning the set with the given parts replaced, or itself when none changes."
         }
       ],
       "reviewed_by": [
