@@ -12,14 +12,41 @@ the analyzer was changed against. The **held-out** cases, six each of `pallets/f
 `pallets/werkzeug`, `encode/starlette`, `Textualize/rich`, and `marshmallow-code/marshmallow`, were
 labeled before the first such change and measured it on code it was not designed from.
 
-The results below are that first round's, on those two splits. Since then the first held-out cases
-have joined development, and a second held-out split of 30 pull requests, from
-`encode/django-rest-framework`, `jd/tenacity`, `urllib3/urllib3`, `agronholm/anyio`, and
-`pypa/packaging`, has been labeled and reviewed before any further change; it has not been
-measured yet.
+Since then the first held-out cases have joined development, and a second held-out split of 30
+pull requests, from `encode/django-rest-framework`, `jd/tenacity`, `urllib3/urllib3`,
+`agronholm/anyio`, and `pypa/packaging`, has been labeled and reviewed before any further change.
+Its baseline comes first below; the first round's results follow it.
 
 Unlike the 18-case corpus of `docs/evaluation.md`, whose cases were written to exercise the
 taxonomy, these are changes as maintainers made them.
+
+## Baseline for the next correction
+
+Measured 2026-11-03 with Semantic Diff Weaver 0.16.0 on the splits as they now stand: the 60
+development cases, which are the first round's two splits together, and the 30 held-out cases of
+the second split, before any correction is designed from the development ones.
+
+| Measure | Development, 60 cases | Held-out, 30 cases |
+| --- | --- | --- |
+| Labeled symbols | 162 | 89 |
+| Behavior changes | 76 | 44 |
+| Unchanged symbols | 71 | 29 |
+| Findings on Python | 184 | 123 |
+| Precision, findings in an expected category | 32 of 171 (18.7%) | 16 of 107 (15.0%) |
+| Precision, findings naming a behavior category | 32 of 84 (38.1%) | 16 of 50 (32.0%) |
+| Recall, behavior changes given a finding | 76 of 76 | 44 of 44 |
+| Recall, behavior changes given one in an expected category | 30 of 76 (39.5%) | 16 of 44 (36.4%) |
+| Unchanged symbols given a finding | 28 of 71 (39.4%) | 18 of 29 (62.1%) |
+| Unchanged symbols given one naming a behavior category | 16 of 71 (22.5%) | 7 of 29 (24.1%) |
+
+The development column adds up the first round's two 0.16.0 columns below. Findings on an added or
+removed symbol without a category, 13 in development and 16 held out, are neither right nor wrong
+and are left out of precision. No finding fell on an unlabeled symbol, and the held-out split's
+only files with findings are Python.
+
+For the held-out split only these measures are recorded. Its findings by category and by case,
+and each disagreement, stay unread until a correction designed from the development cases is
+measured on it, so that nothing read from it can shape that correction.
 
 ## Results
 
@@ -195,10 +222,10 @@ are neither right nor wrong: attrs#1571's two findings are one on `__all__` and 
 ## What the benchmark is not
 
 A model labeled it and one person reviewed every label, so a label is one model's reading that one
-reviewer accepted or corrected. Sixty pull requests of at most ten changed symbols each, sampled
-from ten libraries' recent history, say nothing of large changes or of applications. The analyzer
-ran without a model, as the MCP server always runs it and the CLI does without a provider; an
-inference pass may name categories differently. A finding is matched to a label by the path and
+reviewer accepted or corrected. Ninety pull requests of at most ten changed symbols each, sampled
+from fifteen libraries' recent history, say nothing of large changes or of applications. The
+analyzer ran without a model, as the MCP server always runs it and the CLI does without a provider;
+an inference pass may name categories differently. A finding is matched to a label by the path and
 symbol of its first evidence, so two overloads of one name share a label.
 
 The held-out split measures a correction only while no correction is designed from it. A change to

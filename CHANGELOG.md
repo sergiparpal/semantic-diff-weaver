@@ -19,8 +19,11 @@
   a person, who corrected 16. They name `retry_timeout_change`, which no label named before, and
   become the held-out split, while the first held-out cases, measured for 0.16.0, join
   development. `benchmark/README.md` adds that a function is labeled with the functions nested in
-  it and that every Python file outside the tests is labeled. Nothing is measured on the new split
-  yet. No analyzer behavior changes.
+  it and that every Python file outside the tests is labeled. Measured with 0.16.0 as the baseline
+  for the next correction, every one of the new split's 44 behavior changes gets a finding, 16 in
+  an expected category, and 18 of its 29 unchanged symbols get one too; `docs/benchmark.md` records
+  only these measures for it, leaving its findings unread until a correction designed from
+  development is measured on it. No analyzer behavior changes.
 
 ## 0.16.0 - 2026-11-02
 
