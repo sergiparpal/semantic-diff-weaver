@@ -897,7 +897,7 @@ The MVP is complete when all of the following are true:
 
 ## 24. Roadmap
 
-Status on 2026-11-02, at release 0.16.0. The phase labels are this plan's, not package versions: the
+Status on 2026-11-04, at release 0.16.0. The phase labels are this plan's, not package versions: the
 package reached 0.16.0 with v0.1, v0.2, v0.3, and v0.4 done and parts of v1.0 shipped. It also ships
 what the plan did not foresee, a standalone CLI and a Claude Code plugin over MCP, beside the Hermes
 plugin.
@@ -960,10 +960,9 @@ plugin.
 - Verified source-to-test mapping. *Open by design:* every candidate test is reported as
   unverified.
 - Evaluation corpus and public benchmark. *Done:* the 18-case corpus of `docs/evaluation.md`,
-  and `benchmark/cases.json`, 60 real pull requests from ten public repositories with every Python
-  symbol they change labeled, half of them held out from the analyzer's changes, which
-  `scripts/run_benchmark.py` measures in `docs/benchmark.md`. One annotator labeled it, so its
-  labels await review.
+  and `benchmark/cases.json`, 90 real pull requests from fifteen public repositories with every
+  Python symbol they change labeled by a model and reviewed by a person, 30 of them held out from
+  the analyzer's next change, which `scripts/run_benchmark.py` measures in `docs/benchmark.md`.
 - Downstream integration with regression selection and autonomous test generation. *Partly:*
   `test_selection` and the `select` subcommand name the test files a change can affect, by the
   imports their tests follow, or say why the whole suite has to run; autonomous test generation
@@ -1005,7 +1004,7 @@ structural change
 
 ## 26. Open Design Questions
 
-Seven of the eight are answered by the shipped design, where shown, and the sixth in part.
+All eight are answered by the shipped design, where shown.
 
 1. Should the MVP infer repository purpose from README content, or require an explicit project
    summary? *Answered:* a bounded, redacted excerpt of the committed README
@@ -1022,11 +1021,11 @@ Seven of the eight are answered by the shipped design, where shown, and the sixt
    similarity matching that accepts at 0.82 and refuses near-ties within 0.03, moves between two
    files that both remain included (`ast_diff/match.py`).
 6. Which public repositories can form an evaluation corpus with human-labeled behavioral diffs?
-   *Partly:* ten public Python libraries, six merged pull requests each, sampled without
-   choosing them by hand and labeled symbol by symbol, half held out from the analyzer's changes
-   (`benchmark/cases.json`, measured in `docs/benchmark.md`). A model, Claude Opus 5.5, wrote the
-   labels, so the corpus is human-labeled only as far as a person has reviewed them, case by case
-   in `reviewed_by`.
+   *Answered:* fifteen public Python libraries, six merged pull requests each, sampled without
+   choosing them by hand and labeled symbol by symbol, 30 of them held out from the analyzer's next
+   change (`benchmark/cases.json`, measured in `docs/benchmark.md`). A model, Claude Opus 5.5,
+   wrote the labels and a person reviewed every one, correcting 42 of the 251, as `reviewed_by`
+   records case by case.
 7. Should deterministic findings be emitted when the LLM is unavailable? *Answered:* yes, by
    default: with `rules.deterministic_fallback` on, a run without a model, or whose every model
    call fails, reports the deterministic findings; turned off, it fails with `llm_unavailable`.
