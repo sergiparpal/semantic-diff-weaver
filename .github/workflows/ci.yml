@@ -114,20 +114,32 @@ jobs:
       # needs.*.result alone can pass a leg that never ran: GitHub reports a matrix job as a
       # success when one of its legs is cancelled because no runner took it, though the run
       # itself fails. So every leg of every required job is read from this run attempt, where
-      # a leg is named after its job, and each must have succeeded.
+      # a leg is named after its job, and each must have succeeded. needs holds this job until
+      # every leg has finished, yet the listing can lag a leg that just did, as it lagged a
+      # re-run leg that had passed two seconds before. A leg listed without a conclusion is
+      # read again, for up to a minute, before the gate decides; a leg with one is final.
       - name: Fail unless every leg of every required job succeeded
         env:
           GH_TOKEN: ${{ github.token }}
           NEEDS: ${{ toJSON(needs) }}
         run: |
-          legs=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs?per_page=100" --jq '
-            if .total_count > (.jobs | length) then error("the run has more jobs than one page lists") else . end
-            | .jobs as $jobs
-            | ($ENV.NEEDS | fromjson | keys[]) as $need
-            | [$jobs[] | select(.name == $need or (.name | startswith($need + " (")))]
-            | if length == 0 then error("no job of this run is named after \($need)") else .[] end
-            | "\(.conclusion // .status)\t\(.name)"')
-          echo "$legs"
+          for read in 1 2 3 4 5 6 7; do
+            legs=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs?per_page=100" --jq '
+              if .total_count > (.jobs | length) then error("the run has more jobs than one page lists") else . end
+              | .jobs as $jobs
+              | ($ENV.NEEDS | fromjson | keys[]) as $need
+              | [$jobs[] | select(.name == $need or (.name | startswith($need + " (")))]
+              | if length == 0 then error("no job of this run is named after \($need)") else .[] end
+              | "\(.conclusion // ("unfinished: " + .status))\t\(.name)"')
+            echo "$legs"
+            if ! printf '%s\n' "$legs" | grep -q '^unfinished: '; then
+              break
+            fi
+            if [ "$read" -lt 7 ]; then
+              echo "A leg is listed without a conclusion; reading the jobs again in 10 seconds."
+              sleep 10
+            fi
+          done
           if printf '%s\n' "$legs" | grep -qv $'^success\t'; then
             echo "A leg of a required job did not succeed."
             exit 1
