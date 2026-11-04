@@ -454,6 +454,109 @@ def only_imports_changed(path: str, old: SymbolSnapshot, new: SymbolSnapshot) ->
     return True
 
 
+def only_parameter_typing_changed(old: SymbolSnapshot, new: SymbolSnapshot) -> bool:
+    """Whether a callable differs only in its parameters' annotations, which nothing reads.
+
+    Callers pass the same arguments under the same name, the body is the same once its docstring
+    is set aside, the decorators, type parameters, return annotation, and type comment are the
+    same, nothing on either side reads the annotations (see `extract.annotations_unread`), and
+    each annotation that changed runs nothing on either side (see `extract.parameter_typing`). A
+    changed return annotation is a declared result, an output contract.
+    """
+    if not (
+        old.qualified_name == new.qualified_name
+        and old.parameters is not None
+        and old.parameters == new.parameters
+        and old.signature != new.signature
+        and old.fingerprint == new.fingerprint
+        and old.decorators == new.decorators
+        and old.typing_beyond_parameters == new.typing_beyond_parameters
+        and old.annotations_unread
+        and new.annotations_unread
+    ):
+        return False
+    before = {name: (digest, inert) for name, digest, inert in old.parameter_typing}
+    after = {name: (digest, inert) for name, digest, inert in new.parameter_typing}
+    unannotated = ("", True)
+    for name in before.keys() | after.keys():
+        old_digest, old_inert = before.get(name, unannotated)
+        new_digest, new_inert = after.get(name, unannotated)
+        if old_digest != new_digest and not (old_inert and new_inert):
+            return False
+    return True
+
+
+def only_typing_changed(old: SymbolSnapshot, new: SymbolSnapshot) -> bool:
+    """Whether a module's or a plain class's own code differs only in what a type checker reads.
+
+    Its statements are the same once annotations that run nothing are set aside, and a module's
+    type variables that only annotations read (see `extract.without_typing`). A type variable may
+    be added or redefined but not dropped, since another module may import it, and a renamed class
+    is renamed for whoever names it.
+    """
+    return (
+        old.qualified_name == new.qualified_name
+        and old.fingerprint != new.fingerprint
+        and old.signature == new.signature
+        and old.decorators == new.decorators
+        and old.fingerprint_without_typing is not None
+        and old.fingerprint_without_typing == new.fingerprint_without_typing
+        and old.type_variables <= new.type_variables
+    )
+
+
+def only_version_changed(old: SymbolSnapshot, new: SymbolSnapshot) -> bool:
+    """Whether a module's own code differs only in the text of its `__version__` string."""
+    return (
+        old.fingerprint != new.fingerprint
+        and old.fingerprint_without_version is not None
+        and old.fingerprint_without_version == new.fingerprint_without_version
+    )
+
+
+def _refactor_without_behavior(
+    path: str, old: SymbolSnapshot, new: SymbolSnapshot, hunk_id: str | None
+) -> StructuralDelta | None:
+    """The one delta of a symbol whose change only a type checker or a release reads, or None."""
+    if only_parameter_typing_changed(old, new):
+        return make_structural_delta(
+            path,
+            old,
+            new,
+            hunk_id,
+            "structural_refactor",
+            old.signature,
+            new.signature,
+            materiality=0.0,
+            parameter_annotations=True,
+        )
+    if only_typing_changed(old, new):
+        return make_structural_delta(
+            path,
+            old,
+            new,
+            hunk_id,
+            "structural_refactor",
+            old.qualified_name,
+            new.qualified_name,
+            materiality=0.0,
+            typing_only=True,
+        )
+    if only_version_changed(old, new):
+        return make_structural_delta(
+            path,
+            old,
+            new,
+            hunk_id,
+            "structural_refactor",
+            f"__version__ = {old.version!r}",
+            f"__version__ = {new.version!r}",
+            materiality=0.0,
+            version_only=True,
+        )
+    return None
+
+
 def _bindings(snapshot: SymbolSnapshot, other: SymbolSnapshot) -> str | None:
     """The imports of `snapshot` that bind a name `other` does not import, as `name = target`."""
     return (
@@ -579,6 +682,11 @@ def compare_symbol(
                 ambiguous_match=old.match_ambiguous,
             )
         ]
+    refactor = _refactor_without_behavior(path, old, new, hunk_id)
+    if refactor is not None:
+        if effective_old_path != effective_new_path:
+            refactor.metadata.update(old_path=effective_old_path, new_path=effective_new_path)
+        return [refactor]
     result: list[StructuralDelta] = []
     if old.signature != new.signature:
         result.append(

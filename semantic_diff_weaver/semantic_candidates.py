@@ -520,6 +520,35 @@ def _classify_refactor(
             ["Loading a module the code now imports has no effect the code relies on."],
             "SDW-RULE-REFACTOR-IMPORTS",
         )
+    if delta.metadata.get("parameter_annotations"):
+        return (
+            BehaviorCategory.REFACTOR,
+            "Only the type annotations of a callable's parameters appear to have changed.",
+            "Callers pass the same arguments to the same code; only the types it declares for "
+            "them differ, and neither a decorator nor its class reads those.",
+            0.82,
+            ["Nothing reads the callable's annotations at runtime through introspection."],
+            "SDW-RULE-REFACTOR-ANNOTATIONS",
+        )
+    if delta.metadata.get("typing_only"):
+        return (
+            BehaviorCategory.REFACTOR,
+            "Only annotations or type variables that a type checker reads appear to have changed.",
+            "The same statements run; only the declared types, or type variables that only "
+            "annotations use, differ.",
+            0.82,
+            ["Nothing reads the annotations at runtime through introspection."],
+            "SDW-RULE-REFACTOR-TYPING",
+        )
+    if delta.metadata.get("version_only"):
+        return (
+            BehaviorCategory.REFACTOR,
+            "Only the module's version string appears to have changed.",
+            "The module runs the same code; only the release its __version__ names differs.",
+            0.82,
+            ["No code compares or branches on the version string's value."],
+            "SDW-RULE-REFACTOR-VERSION",
+        )
     materiality = float(delta.metadata.get("materiality", 0.0))
     if materiality > rules.refactor_materiality_threshold:
         return (

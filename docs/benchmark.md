@@ -15,7 +15,8 @@ labeled before the first such change and measured it on code it was not designed
 Since then the first held-out cases have joined development, and a second held-out split of 30
 pull requests, from `encode/django-rest-framework`, `jd/tenacity`, `urllib3/urllib3`,
 `agronholm/anyio`, and `pypa/packaging`, has been labeled and reviewed before any further change.
-Its baseline comes first below; the first round's results follow it.
+Its baseline and the second round's correction, measured on it, come first below; the first
+round's results follow.
 
 Unlike the 18-case corpus of `docs/evaluation.md`, whose cases were written to exercise the
 taxonomy, these are changes as maintainers made them.
@@ -44,9 +45,34 @@ removed symbol without a category, 13 in development and 16 held out, are neithe
 and are left out of precision. No finding fell on an unlabeled symbol, and the held-out split's
 only files with findings are Python.
 
-For the held-out split only these measures are recorded. Its findings by category and by case,
-and each disagreement, stay unread until a correction designed from the development cases is
-measured on it, so that nothing read from it can shape that correction.
+For the held-out split only these measures were recorded. Its findings by category and by case,
+and each disagreement, stayed unread until the second round's correction, designed from the
+development cases, was measured on it, so that nothing read from it could shape that correction.
+
+## Second round
+
+Designed from the 60 development cases alone and measured 2026-11-04 on both splits, the second
+round reads what only a type checker reads as changing no behavior: a callable's parameter
+annotations, a module's or a plain class's annotations and type variables, and a module's version
+string (`docs/decisions.md`, 2026-11-04, typing and versions).
+
+| Measure | Development, 0.16.0 | Development, corrected | Held-out, 0.16.0 | Held-out, corrected |
+| --- | --- | --- | --- | --- |
+| Findings on Python | 184 | 172 | 123 | 119 |
+| Precision, findings in an expected category | 32 of 171 (18.7%) | 32 of 159 (20.1%) | 16 of 107 (15.0%) | 16 of 103 (15.5%) |
+| Precision, findings naming a behavior category | 32 of 84 (38.1%) | 32 of 78 (41.0%) | 16 of 50 (32.0%) | 16 of 50 (32.0%) |
+| Recall, behavior changes given a finding | 76 of 76 | 76 of 76 | 44 of 44 | 44 of 44 |
+| Recall, behavior changes given one in an expected category | 30 of 76 (39.5%) | 30 of 76 (39.5%) | 16 of 44 (36.4%) | 16 of 44 (36.4%) |
+| Unchanged symbols given a finding | 28 of 71 (39.4%) | 17 of 71 (23.9%) | 18 of 29 (62.1%) | 14 of 29 (48.3%) |
+| Unchanged symbols given one naming a behavior category | 16 of 71 (22.5%) | 10 of 71 (14.1%) | 7 of 29 (24.1%) | 7 of 29 (24.1%) |
+
+In development 11 unchanged symbols lost their finding: five callables whose parameter
+annotations alone widened, among them rich's three `save_*` methods; four classes or modules whose
+annotations or type variables alone changed, such as requests' `Request`; and the version strings
+of httpx and starlette. Held out, 4 did: encode/django-rest-framework's two releases, and the two
+classes whose annotations tenacity#680 marked `ClassVar`. No behavior change lost its finding or
+its category on either split. The held-out split has now been measured with a correction and its
+disagreements read, so the next correction waits for a new held-out sample.
 
 ## Results
 

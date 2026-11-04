@@ -179,10 +179,21 @@ def _signature_metadata(old: str, new: str) -> dict:
 @pytest.mark.parametrize(
     ("old", "new", "annotations_only"),
     [
-        pytest.param("def f(x: int) -> int:", "def f(x: str) -> int:", True, id="parameter"),
+        # A parameter's annotation changed alone is a refactor where nothing can read it
+        # (`test_changes_without_behavior.py`); a decorator that might keeps it a signature change.
+        pytest.param(
+            "@route\ndef f(x: int) -> int:", "@route\ndef f(x: str) -> int:", True, id="parameter"
+        ),
         pytest.param("def f(x) -> int:", "def f(x) -> str:", True, id="return"),
-        pytest.param("def f(*args: int):", "def f(*args: str):", True, id="varargs"),
-        pytest.param("def f(*, key: int = 1):", "def f(*, key: str = 1):", True, id="keyword"),
+        pytest.param(
+            "@route\ndef f(*args: int):", "@route\ndef f(*args: str):", True, id="varargs"
+        ),
+        pytest.param(
+            "@route\ndef f(*, key: int = 1):",
+            "@route\ndef f(*, key: str = 1):",
+            True,
+            id="keyword",
+        ),
         pytest.param(
             "def f(x):\n    # type: (int) -> str",
             "def f(x):\n    # type: (str) -> str",
