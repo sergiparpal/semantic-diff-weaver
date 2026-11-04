@@ -147,6 +147,68 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-11-04, typing and versions)
+
+The labeled benchmark's second round, designed from its 60 development cases alone: the first
+sample's two splits, both read before. Among their 38 findings on 28 unchanged symbols, the user
+chose three kinds to correct, each one the benchmark's labeling rules already call no behavior
+change, a type annotation or a version string, and kept one apart: a changed return annotation
+stays an `output_contract_change`, as the 2026-10-31 correction decided and the corpus's reviewed
+`return annotation signature` case expects, since a declared result is a contract its consumers
+see.
+
+- **Parameter annotations.** A callable whose parameters' annotations alone changed is a refactor,
+  under the new `SDW-RULE-REFACTOR-ANNOTATIONS`, when callers pass the same arguments, its body is
+  the same once its docstring is set aside, its type parameters, return annotation, and type
+  comment are the same, nothing reads its annotations, and each annotation that changed runs
+  nothing. Nothing reads them when every decorator is a builtin kind of method,
+  `abc.abstractmethod`, `functools.cached_property`, or typing's `overload`, `override`, or
+  `final`, and a method's class is plain, below. An annotation runs nothing when
+  `from __future__ import annotations` defers it, or when it is built only from constants,
+  builtin types, and names the file imports from a standard module of typing vocabulary,
+  subscripting only what takes a subscript; one that did not change runs as it ran. rich#3941
+  widened `path: str` to `Union[str, PathLike[str]]` on its three `save_*` methods, and
+  marshmallow#2935 and click#3781 widened one annotation each.
+- **Annotations and type variables.** A module's or a plain class's own statements are compared
+  with each annotated assignment that runs nothing read as the plain assignment it holds, one of
+  a bare name without a value as nothing, and a module's type variables that only annotations
+  read left out: the same statements are a refactor under the new `SDW-RULE-REFACTOR-TYPING`. A
+  class is plain when it is undecorated, takes no keyword such as `metaclass=`, is bound once, and
+  derives only from `object`, typing's `Generic`, or plain classes of its file that define no
+  `__init_subclass__`: a decorator, a metaclass, a base from elsewhere, or such a hook can turn
+  annotations into fields or read them. A type variable is a `TypeVar`, `ParamSpec`, or
+  `TypeVarTuple` from typing, named as it is bound, whose arguments run nothing, and that the file
+  binds nowhere else and reads only in annotations; one may be added or redefined, never
+  dropped, since another module may import it. starlette#3768 annotated `media_type`,
+  requests#7498 declared `hooks`, requests#7441 widened `headers`, and werkzeug#3329 defined a
+  `TypeVar`. marshmallow#2799's `TypeVar` stays a change, its bound reading the package's own
+  `types` module, and so do its `TypedDict` keys and its type aliases written without
+  `TypeAlias`, which code may read when it runs.
+- **Version strings.** A module whose own code differs only in the string literal it assigns
+  `__version__` is a refactor, under the new `SDW-RULE-REFACTOR-VERSION`, as the releases of
+  httpx#3445 and starlette#3728 are.
+
+All three have a materiality of 0 and, like every refactor, are hidden unless
+`rules.emit_low_risk_refactors` is set. `docs/security.md` records their safeguards, with
+adversarial regressions in `tests/security/test_hidden_changes.py`.
+
+| Measure | Development, before | Development, after | Held-out, before | Held-out, after |
+| --- | --- | --- | --- | --- |
+| Findings on Python | 184 | 172 | 123 | 119 |
+| Precision, findings in an expected category | 32 of 171 | 32 of 159 | 16 of 107 | 16 of 103 |
+| Precision, findings naming a behavior category | 32 of 84 | 32 of 78 | 16 of 50 | 16 of 50 |
+| Unchanged symbols given a finding | 28 of 71 | 17 of 71 | 18 of 29 | 14 of 29 |
+| Unchanged symbols given one naming a behavior category | 16 of 71 | 10 of 71 | 7 of 29 | 7 of 29 |
+
+Every behavior change of both splits still has a finding, and the same ones are in an expected
+category. In development 11 unchanged symbols lost their finding: the five parameter annotations,
+four class or module annotations and type variables, and the two versions. On the held-out split,
+the second sample of 30 pull requests, labeled and reviewed before this round, 4 did:
+encode/django-rest-framework's two releases, and the two classes whose annotations tenacity#680
+marked `ClassVar`. The held-out split was measured once after the correction, and its
+disagreements were then read, so the next correction needs a new held-out sample. None of the 20
+pull requests of `docs/real-pr-validation.md` changes, and the 18 corpus goldens are unchanged.
+
 ## Output-affecting corrections (2026-11-02, benchmark categories)
 
 The labeled benchmark's first measurement found 18 of its 34 unchanged symbols given a finding,

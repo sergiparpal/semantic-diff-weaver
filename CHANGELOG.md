@@ -24,6 +24,18 @@
   an expected category, and 18 of its 29 unchanged symbols get one too; `docs/benchmark.md` records
   only these measures for it, leaving its findings unread until a correction designed from
   development is measured on it. No analyzer behavior changes.
+- **Fix:** more of what only a type checker reads is no longer a change, in a second round
+  designed from the benchmark's 60 development cases. A callable whose parameters' annotations
+  alone changed is a refactor under the new `SDW-RULE-REFACTOR-ANNOTATIONS` when nothing it is
+  decorated with or defined in can read them and each changed one is deferred or evaluates only the
+  standard typing vocabulary; a changed return annotation stays an output contract change. A module
+  or a plain class whose annotations or type variables alone changed is one under the new
+  `SDW-RULE-REFACTOR-TYPING`, and a module whose `__version__` string alone changed under the new
+  `SDW-RULE-REFACTOR-VERSION`; like every refactor, all three are hidden by default. Unchanged
+  symbols given a finding fall from 28 to 17 of 71 in development and, measured once after the
+  correction, from 18 to 14 of 29 held out, and no behavior change loses its finding or its
+  category. The decision is recorded in `docs/decisions.md` and its safeguards in
+  `docs/security.md`; schema 1.5 and every golden are unchanged.
 
 ## 0.16.0 - 2026-11-02
 

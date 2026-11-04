@@ -87,6 +87,24 @@ class SymbolSnapshot:
     reads: frozenset[str] = frozenset()
     # A module's whole file: each name an import anywhere in it binds, to what those imports import.
     imported: dict[str, frozenset[str]] = field(default_factory=dict)
+    # A module's or a class's fingerprint without what only a type checker reads: annotations that
+    # run nothing, and a module's type variables (see `extract.without_typing`). None for any other
+    # symbol, or a class whose annotations may make fields, never read as typing alone.
+    fingerprint_without_typing: str | None = None
+    # A module's type variables that `fingerprint_without_typing` leaves out.
+    type_variables: frozenset[str] = frozenset()
+    # A module's fingerprint with the text of its `__version__` string blanked, and that text. None
+    # for any other symbol, or a module that sets no such string.
+    fingerprint_without_version: str | None = None
+    version: str | None = None
+    # A callable's typing beyond its parameters: type parameters, return annotation, type comment.
+    typing_beyond_parameters: str | None = None
+    # A callable's annotated parameters: each name, a digest of its annotation, and whether
+    # evaluating that annotation runs nothing (see `extract.parameter_typing`).
+    parameter_typing: tuple[tuple[str, str, bool], ...] = ()
+    # Whether nothing a callable is decorated with or defined in reads its annotations (see
+    # `extract.annotations_unread`).
+    annotations_unread: bool = False
 
     @property
     def signature_shape(self) -> str:

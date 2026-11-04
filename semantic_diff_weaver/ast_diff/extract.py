@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import ast
+import builtins
 import copy
 import hashlib
 from collections import Counter, defaultdict
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
+from dataclasses import dataclass, field
 
 from ..path_policy import redact_text
 from . import limits
@@ -408,6 +410,403 @@ def runtime_statements(body: list[ast.stmt], spellings: frozenset[str]) -> list[
     return statements
 
 
+# Beyond `TYPE_CHECKING` blocks, a type checker alone reads annotations whose evaluation runs none
+# of the project's code, and the type variables they use. Modules whose names such an annotation
+# may read, by import or as a module alias:
+SAFE_TYPING_MODULES = frozenset(
+    {
+        "abc",
+        "collections",
+        "collections.abc",
+        "datetime",
+        "decimal",
+        "functools",
+        "ipaddress",
+        "numbers",
+        "os",
+        "pathlib",
+        "re",
+        "types",
+        "typing",
+        "typing_extensions",
+        "uuid",
+    }
+)
+# What such an annotation may subscript: the builtin generics, what the typing modules and
+# `collections.abc` export, and the other generic classes of the standard library it reads.
+SUBSCRIPTABLE_BUILTINS = frozenset({"list", "dict", "set", "frozenset", "tuple", "type"})
+SUBSCRIPTABLE_MODULES = frozenset({"typing", "typing_extensions", "collections.abc"})
+SUBSCRIPTABLE_TARGETS = frozenset({"os.PathLike", "re.Pattern", "re.Match"})
+BUILTIN_TYPES = frozenset(
+    name for name in dir(builtins) if isinstance(getattr(builtins, name), type)
+)
+TYPE_VARIABLE_FACTORIES = frozenset({"TypeVar", "ParamSpec", "TypeVarTuple"})
+# Decorators that read no annotation: the builtin kinds of method, and the markers of abstract,
+# overloaded, overriding, final, and cached ones.
+INERT_DECORATORS = frozenset(
+    {
+        "builtins.property",
+        "builtins.staticmethod",
+        "builtins.classmethod",
+        "abc.abstractmethod",
+        "functools.cached_property",
+        *(
+            f"{module}.{name}"
+            for module in TYPING_MODULES
+            for name in ("overload", "override", "final")
+        ),
+    }
+)
+
+
+@dataclass(frozen=True)
+class TypingContext:
+    """What a file's annotations and type variables touch when its code runs (see
+    `typing_context`)."""
+
+    # Whether `from __future__ import annotations` keeps its annotations from being evaluated.
+    deferred: bool = False
+    # Each name that evaluates to the standard typing vocabulary, to what it is: a builtin type as
+    # `builtins.str`, an imported name as `typing.Union`, and a module alias as the module,
+    # `typing` for `import typing as t`.
+    names: Mapping[str, str] = field(default_factory=dict)
+    # The top-level classes whose annotations make no field and that no hook reads: undecorated,
+    # without keywords such as `metaclass=`, bound once, and derived only from `object`, typing's
+    # `Generic`, or plain classes of the file that define no `__init_subclass__`.
+    plain_classes: frozenset[str] = frozenset()
+    # The names the file binds once and reads only in annotations, or nowhere.
+    annotation_names: frozenset[str] = frozenset()
+
+
+def _binding_counts(tree: ast.AST) -> Counter[str]:
+    """How many times the file binds each name, anywhere and in any way."""
+    counts: Counter[str] = Counter()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and not isinstance(node.ctx, ast.Load):
+            counts[node.id] += 1
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            counts[node.name] += 1
+        elif isinstance(node, ast.arg):
+            counts[node.arg] += 1
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            for name, _ in _bound_by(node):
+                counts[name] += 1
+        elif isinstance(node, (ast.ExceptHandler, ast.MatchAs, ast.MatchStar)) and node.name:
+            counts[node.name] += 1
+        elif isinstance(node, ast.MatchMapping) and node.rest:
+            counts[node.rest] += 1
+    return counts
+
+
+def _typing_bindings(statement: ast.Import | ast.ImportFrom) -> list[tuple[str, str | None]]:
+    """Each name an import binds, with the safe typing module or name it binds it to, or None:
+    `import collections.abc` binds `collections`, `from collections import abc` binds the module
+    `collections.abc`, and `from typing import Union` binds `typing.Union`."""
+    if isinstance(statement, ast.Import):
+        bound = []
+        for alias in statement.names:
+            module = alias.name if alias.asname else alias.name.split(".", 1)[0]
+            name = alias.asname or alias.name.split(".", 1)[0]
+            bound.append((name, module if module in SAFE_TYPING_MODULES else None))
+        return bound
+    if statement.module == "__future__":
+        return []
+    safe = not statement.level and statement.module in SAFE_TYPING_MODULES
+    return [
+        (alias.asname or alias.name, f"{statement.module}.{alias.name}" if safe else None)
+        for alias in statement.names
+        if alias.name != "*"
+    ]
+
+
+def _annotation_nodes(tree: ast.AST) -> set[int]:
+    """The ids of the nodes inside an annotation: a parameter's, a return's, or a variable's."""
+    inside: set[int] = set()
+    for node in ast.walk(tree):
+        root: ast.AST | None = None
+        if isinstance(node, (ast.arg, ast.AnnAssign)):
+            root = node.annotation
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            root = node.returns
+        if root is not None:
+            inside.update(id(item) for item in ast.walk(root))
+    return inside
+
+
+def typing_context(tree: ast.Module, type_checking: frozenset[str]) -> TypingContext:
+    """What a file's annotations can read without running any of its project's code.
+
+    A name counts when the file binds it only by importing it, in code that runs, from a module of
+    `SAFE_TYPING_MODULES`, or binds it nowhere and it is a builtin type. None counts in a file
+    that star-imports another module, and no name the file sets as an attribute or names in a
+    string, as `setattr` or `globals()` would: either could make reading it run anything.
+    """
+    deferred = any(
+        isinstance(statement, ast.ImportFrom)
+        and statement.module == "__future__"
+        and any(alias.name == "annotations" for alias in statement.names)
+        for statement in tree.body
+    )
+    counts = _binding_counts(tree)
+    inside = _annotation_nodes(tree)
+    excluded: set[str] = set()
+    read: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and any(alias.name == "*" for alias in node.names):
+            if node.level or node.module not in SAFE_TYPING_MODULES:
+                return TypingContext(deferred=deferred)
+        elif isinstance(node, ast.Attribute) and not isinstance(node.ctx, ast.Load):
+            excluded.add(node.attr)
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            excluded.add(node.value)
+        elif (
+            isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and id(node) not in inside
+        ):
+            read.add(node.id)
+    imported: dict[str, list[str | None]] = defaultdict(list)
+    for statement in runtime_statements(tree.body, type_checking):
+        if isinstance(statement, (ast.Import, ast.ImportFrom)):
+            for name, target in _typing_bindings(statement):
+                imported[name].append(target)
+    names: dict[str, str] = {}
+    for name, targets in imported.items():
+        resolved = set(targets)
+        if (
+            len(resolved) == 1
+            and None not in resolved
+            and counts[name] == len(targets)
+            and name not in excluded
+        ):
+            names[name] = str(resolved.pop())
+    for name in BUILTIN_TYPES:
+        if not counts[name] and name not in excluded:
+            names[name] = f"builtins.{name}"
+    context = TypingContext(deferred=deferred, names=names)
+    return TypingContext(
+        deferred=deferred,
+        names=names,
+        plain_classes=_plain_classes(tree, counts, context),
+        annotation_names=frozenset(
+            name for name, count in counts.items() if count == 1 and name not in read
+        ),
+    )
+
+
+def _plain_classes(
+    tree: ast.Module, counts: Counter[str], context: TypingContext
+) -> frozenset[str]:
+    """The top-level classes whose annotations make no field and that no hook reads (see
+    `TypingContext.plain_classes`): a decorator, a keyword, a base from elsewhere, or a second
+    binding, as `Point = dataclass(Point)`, could each turn annotations into fields."""
+    plain: set[str] = set()
+    hooked: set[str] = set()
+    for statement in tree.body:
+        if not isinstance(statement, ast.ClassDef):
+            continue
+        if any(
+            isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and item.name == "__init_subclass__"
+            for item in statement.body
+        ):
+            hooked.add(statement.name)
+        if (
+            not statement.decorator_list
+            and not statement.keywords
+            and counts[statement.name] == 1
+            and all(_plain_base(base, plain - hooked, context) for base in statement.bases)
+        ):
+            plain.add(statement.name)
+    return frozenset(plain)
+
+
+def _plain_base(base: ast.expr, plain: set[str], context: TypingContext) -> bool:
+    if isinstance(base, ast.Name) and base.id in plain:
+        return True
+    if isinstance(base, ast.Subscript):
+        index = base.slice.elts if isinstance(base.slice, ast.Tuple) else [base.slice]
+        return (_resolve(base.value, context) or "") in {
+            f"{module}.Generic" for module in TYPING_MODULES
+        } and all(isinstance(item, ast.Name) for item in index)
+    return _resolve(base, context) == "builtins.object"
+
+
+def _resolve(node: ast.expr, context: TypingContext) -> str | None:
+    """What a name or attribute is in the standard typing vocabulary, or None (see
+    `TypingContext.names`)."""
+    if isinstance(node, ast.Name):
+        return context.names.get(node.id)
+    if isinstance(node, ast.Attribute):
+        base = _resolve(node.value, context)
+        if base in SAFE_TYPING_MODULES:
+            return f"{base}.{node.attr}"
+    return None
+
+
+def _subscriptable(target: str) -> bool:
+    module, _, name = target.rpartition(".")
+    return (
+        (module == "builtins" and name in SUBSCRIPTABLE_BUILTINS)
+        or (module in SUBSCRIPTABLE_MODULES and target not in SAFE_TYPING_MODULES)
+        or target in SUBSCRIPTABLE_TARGETS
+    )
+
+
+def runs_nothing(node: ast.expr, context: TypingContext) -> bool:
+    """Whether evaluating an annotation can run none of the project's code, and cannot fail: a
+    constant; a name or attribute that `context` resolves; a subscript of one that takes a
+    subscript, indexed by such annotations; and a `|` union of them and `None`."""
+    if isinstance(node, ast.Constant):
+        return True
+    if isinstance(node, (ast.Name, ast.Attribute)):
+        return _resolve(node, context) is not None
+    if isinstance(node, ast.Subscript):
+        target = _resolve(node.value, context)
+        return target is not None and _subscriptable(target) and runs_nothing(node.slice, context)
+    if isinstance(node, (ast.Tuple, ast.List)):
+        return all(runs_nothing(item, context) for item in node.elts)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr):
+        return all(
+            side.value is None if isinstance(side, ast.Constant) else runs_nothing(side, context)
+            for side in (node.left, node.right)
+        )
+    return False
+
+
+def _type_variable(statement: ast.stmt, context: TypingContext) -> str | None:
+    """The name a statement defines as a type variable that only annotations read, or None.
+
+    The statement is `NAME = TypeVar("NAME", ...)`, or a `ParamSpec` or `TypeVarTuple`, as one of
+    the typing modules defines it, with arguments that run nothing (see `runs_nothing`); and the
+    file binds NAME nowhere else and reads it only in annotations, or nowhere.
+    """
+    if not (
+        isinstance(statement, ast.Assign)
+        and len(statement.targets) == 1
+        and isinstance(statement.targets[0], ast.Name)
+        and isinstance(statement.value, ast.Call)
+    ):
+        return None
+    name, call = statement.targets[0].id, statement.value
+    module, _, factory = (_resolve(call.func, context) or "").rpartition(".")
+    if module not in TYPING_MODULES or factory not in TYPE_VARIABLE_FACTORIES:
+        return None
+    if not call.args or not isinstance(call.args[0], ast.Constant) or call.args[0].value != name:
+        return None
+    if any(keyword.arg is None for keyword in call.keywords):
+        return None
+    arguments = [*call.args[1:], *(keyword.value for keyword in call.keywords)]
+    if not all(runs_nothing(argument, context) for argument in arguments):
+        return None
+    return name if name in context.annotation_names else None
+
+
+def without_typing(
+    body: list[ast.stmt], context: TypingContext, *, module: bool
+) -> tuple[list[ast.stmt], frozenset[str]]:
+    """A module's or a plain class's own statements without what only a type checker reads, and
+    the type variables left out.
+
+    An annotated assignment runs as the plain assignment it holds, and one of a bare name without
+    a value runs nothing, when its annotation is deferred or runs nothing (see `runs_nothing`):
+    only the `__annotations__` a type checker reads differ. A module's type variables that only
+    annotations read are left out (see `_type_variable`).
+    """
+    kept: list[ast.stmt] = []
+    variables: set[str] = set()
+    for statement in body:
+        if isinstance(statement, ast.AnnAssign) and (
+            context.deferred or runs_nothing(statement.annotation, context)
+        ):
+            if statement.value is not None:
+                assign = ast.Assign(
+                    targets=[statement.target], value=statement.value, type_comment=None
+                )
+                kept.append(ast.copy_location(assign, statement))
+                continue
+            if statement.simple and isinstance(statement.target, ast.Name):
+                continue
+        elif module and (name := _type_variable(statement, context)) is not None:
+            variables.add(name)
+            continue
+        kept.append(statement)
+    return kept, frozenset(variables)
+
+
+def without_version(body: list[ast.stmt]) -> tuple[list[ast.stmt], str] | None:
+    """A module's own statements with the text of its `__version__` string blanked, and that text,
+    or None when none of them assigns `__version__` a string."""
+    value: ast.expr | None
+    for index, statement in enumerate(body):
+        if isinstance(statement, ast.Assign) and len(statement.targets) == 1:
+            target, value = statement.targets[0], statement.value
+        elif isinstance(statement, ast.AnnAssign):
+            target, value = statement.target, statement.value
+        else:
+            continue
+        if (
+            isinstance(target, ast.Name)
+            and target.id == "__version__"
+            and isinstance(value, ast.Constant)
+            and isinstance(value.value, str)
+        ):
+            blank = copy.copy(statement)
+            blank.value = ast.Constant(value="")
+            return [*body[:index], blank, *body[index + 1 :]], value.value
+    return None
+
+
+def typing_beyond_parameters(node: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
+    """A callable's typing other than its parameters' annotations: its type parameters, return
+    annotation, and type comment."""
+    returns = f" -> {unparse_redacted(node.returns, 300)}" if node.returns is not None else ""
+    comment = (
+        f" # type: {redact_text(node.type_comment, max_chars=300)}" if node.type_comment else ""
+    )
+    return f"{type_parameters(node)}{returns}{comment}"
+
+
+def annotations_unread(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+    qualified_name: str,
+    kind: str,
+    context: TypingContext,
+) -> bool:
+    """Whether nothing a callable is decorated with or defined in reads its annotations: each
+    decorator is one of `INERT_DECORATORS`, and a method's class is plain, so no class decorator,
+    metaclass, or hook reads them either."""
+    if kind in {"method", "async_method"} and (
+        qualified_name.rpartition(".")[0] not in context.plain_classes
+    ):
+        return False
+    return all((_resolve(item, context) or "") in INERT_DECORATORS for item in node.decorator_list)
+
+
+def parameter_typing(
+    node: ast.FunctionDef | ast.AsyncFunctionDef, context: TypingContext
+) -> tuple[tuple[str, str, bool], ...]:
+    """Each annotated parameter, a digest of its whole annotation, and whether evaluating that
+    annotation runs nothing: deferred, or an annotation `runs_nothing` accepts. An annotation
+    that did not change runs as it ran, so only a changed one needs to."""
+    arguments = node.args
+    return tuple(
+        (
+            item.arg,
+            hashlib.sha256(
+                ast.dump(item.annotation, include_attributes=False).encode("utf-8")
+            ).hexdigest(),
+            context.deferred or runs_nothing(item.annotation, context),
+        )
+        for item in (
+            *arguments.posonlyargs,
+            *arguments.args,
+            *arguments.kwonlyargs,
+            arguments.vararg,
+            arguments.kwarg,
+        )
+        if item is not None and item.annotation is not None
+    )
+
+
 def _bound_by(node: ast.Import | ast.ImportFrom) -> list[tuple[str, str]]:
     """Each name an import binds, with what it imports as written, a relative import's dots
     included: `import a.b` binds `a` and imports `a.b`, which it loads. A star import binds no
@@ -769,10 +1168,12 @@ def snapshot_symbol(
     kind: str,
     *,
     type_checking: frozenset[str] = frozenset(),
+    typing: TypingContext | None = None,
 ) -> SymbolSnapshot:
     """A symbol as the comparison reads it. A module's or a class's own statements are taken as
     they run: the code of an `if TYPE_CHECKING:` block, spelled as one of `type_checking`, is no
-    part of either."""
+    part of either. With its file's `typing` context, what else only a type checker reads is
+    fingerprinted apart (see `without_typing`, `parameter_typing`, and `annotations_unread`)."""
     if isinstance(node, (ast.Module, ast.ClassDef)):
         running = copy.copy(node)
         running.body = runtime_statements(node.body, type_checking)
@@ -785,18 +1186,32 @@ def snapshot_symbol(
     parameters: str | None = None
     imports: dict[str, tuple[str, ...]] = {}
     without_imports: str | None = None
+    without_typing_fingerprint: str | None = None
+    type_variables: frozenset[str] = frozenset()
+    version_fingerprint: str | None = None
+    version: str | None = None
+    beyond_parameters: str | None = None
+    annotated: tuple[tuple[str, str, bool], ...] = ()
+    unread = False
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
         signature = function_signature(node)
         parameters = function_parameters(node)
         defaults = default_map(node)
         decorators = tuple(decorator_name(item) for item in node.decorator_list)
         display = signature
+        beyond_parameters = typing_beyond_parameters(node)
+        if typing is not None:
+            annotated = parameter_typing(node, typing)
+            unread = annotations_unread(node, qualified_name, kind, typing)
     elif isinstance(node, ast.ClassDef):
         bases = ", ".join(unparse_redacted(item, 120) for item in node.bases)
         signature = f"{type_parameters(node)}bases({bases})"
         defaults = {}
         decorators = tuple(decorator_name(item) for item in node.decorator_list)
         display = class_display(node, decorators)
+        if typing is not None and qualified_name in typing.plain_classes:
+            kept, _ = without_typing(body, typing, module=False)
+            without_typing_fingerprint = body_fingerprint(kept)
     else:
         signature = "module"
         defaults = {}
@@ -804,6 +1219,12 @@ def snapshot_symbol(
         display = module_display(body)
         imports, others = top_level_imports(body)
         without_imports = body_fingerprint(others)
+        if typing is not None:
+            kept, type_variables = without_typing(body, typing, module=True)
+            without_typing_fingerprint = body_fingerprint(kept)
+        versioned = without_version(body)
+        if versioned is not None:
+            version_fingerprint, version = body_fingerprint(versioned[0]), versioned[1]
     return SymbolSnapshot(
         qualified_name=qualified_name,
         kind=kind,
@@ -829,6 +1250,13 @@ def snapshot_symbol(
         ),
         imports=imports,
         fingerprint_without_imports=without_imports,
+        fingerprint_without_typing=without_typing_fingerprint,
+        type_variables=type_variables,
+        fingerprint_without_version=version_fingerprint,
+        version=version,
+        typing_beyond_parameters=beyond_parameters,
+        parameter_typing=annotated,
+        annotations_unread=unread,
     )
 
 
@@ -891,10 +1319,11 @@ def extract_symbols(source: str, budget: AstBudget | None = None) -> list[Symbol
     symbols: list[SymbolSnapshot] = []
     # A file that never writes `TYPE_CHECKING` spells it no way, and is spared the walk.
     type_checking = type_checking_spellings(tree) if "TYPE_CHECKING" in source else frozenset()
+    typing = typing_context(tree, type_checking)
     for name, kind, node in _symbol_nodes(tree.body):
         if len(symbols) >= effective_budget.max_symbols_per_file:
             raise AstResourceLimit("symbol budget exceeded")
-        snapshot = snapshot_symbol(node, name, kind, type_checking=type_checking)
+        snapshot = snapshot_symbol(node, name, kind, type_checking=type_checking, typing=typing)
         if kind == "module":
             snapshot.start = 1
             snapshot.end = max(1, len(source.splitlines()))

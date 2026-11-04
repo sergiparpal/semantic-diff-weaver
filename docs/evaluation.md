@@ -162,7 +162,10 @@ held-out cases, labeled and reviewed before its next change, measure that change
 designed from. Their baseline, in deterministic mode with 0.16.0 on 2026-11-03: every one of the
 44 held-out behavior changes got a finding, 16 of them in an expected category, and 18 of the 29
 unchanged symbols got one too; 16 of the 107 scored findings, and 16 of the 50 that name a
-behavior category, are in an expected one. These are the numbers the corpus above does not give.
+behavior category, are in an expected one. The second round's correction, measured on them once it
+was designed, leaves 14 of those 29 symbols with a finding and 16 of 103 scored findings in an
+expected category, and every behavior change keeps its finding and its category. These are the
+numbers the corpus above does not give.
 
 `docs/real-pr-validation.md` records what the analyzer says on other real merged pull requests,
 produced by the opt-in `scripts/validate_real_prs.py` harness. Those are **observations on

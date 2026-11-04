@@ -36,7 +36,11 @@ set aside and its `else` kept, where the file binds `TYPE_CHECKING` to typing's 
 nothing in it can rebind the name. A module whose other statements are the same is a refactor
 when its imports changed in step with the code using them — each name it newly imports read in
 the file, each name it stops importing mentioned nowhere — and so is a body that differs only in
-the prose of the messages it raises. The
+the prose of the messages it raises. So is a callable whose parameters' annotations alone
+changed, where nothing it is decorated with or defined in can read them and each changed one is
+deferred or evaluates only the standard typing vocabulary; a module or a class without
+decorators, keywords, or bases from elsewhere whose annotations or type variables alone changed;
+and a module whose `__version__` string alone did. The
 `AstBudget` wall-clock deadline is checked between the parse, matching, and comparison phases and
 counts as spent once reached, so a coarse platform clock cannot let an exhausted budget read as
 live.

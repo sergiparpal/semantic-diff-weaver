@@ -1,4 +1,5 @@
-"""Changes that alter no code that runs: type-checking blocks, imports, and reworded messages.
+"""Changes that alter no code that runs: type-checking blocks, imports, reworded messages,
+annotations and type variables a type checker alone reads, and a release's version string.
 
 Each was a finding on the labeled benchmark's development cases while its label said that no
 behavior changed: `docs/benchmark.md` records the measurements.
@@ -16,7 +17,9 @@ from semantic_diff_weaver.ast_diff.extract import (
     file_names,
     fingerprint_without_messages,
     message_literals,
+    runs_nothing,
     type_checking_spellings,
+    typing_context,
 )
 from semantic_diff_weaver.ast_diff.types import StructuralDelta, SymbolSnapshot
 from semantic_diff_weaver.models import BehaviorCategory, RulesConfig
@@ -392,3 +395,337 @@ def test_a_snapshot_built_without_a_message_fingerprint_is_never_reworded() -> N
     assert is_reworded(old, new)
     old.fingerprint_without_messages = None
     assert not is_reworded(old, new)
+
+
+# What else only a type checker reads: parameter annotations, annotations of plain classes and
+# modules, and type variables; and a release's version string.
+
+TYPING_RULES = ("parameter_annotations", "typing_only", "version_only")
+
+
+def _typing_refactors(deltas: list[StructuralDelta]) -> list[str]:
+    return [key for item in deltas for key in TYPING_RULES if item.metadata.get(key)]
+
+
+@pytest.mark.parametrize(
+    "header",
+    [
+        pytest.param("from __future__ import annotations\n", id="deferred"),
+        pytest.param("from typing import Union\nfrom os import PathLike\n", id="standard-typing"),
+    ],
+)
+def test_a_parameter_annotation_alone_is_a_refactor(header: str) -> None:
+    """rich#3941 widened `path: str` to `Union[str, PathLike[str]]` on its `save_*` methods; the
+    unchanged annotation naming the project's own `Theme` runs as it ran."""
+    old = (
+        f"{header}\nclass Console:\n"
+        "    def save(self, path: str, theme: Theme = None) -> None:\n"
+        "        '''Write to path (str).'''\n        write(path, theme)\n"
+    )
+    new = old.replace("path: str", "path: Union[str, PathLike[str]]").replace(
+        "(str)", "(str or path-like)"
+    )
+    (delta,) = _compare(old, new, "Console.save")
+    assert delta.kind == "structural_refactor"
+    assert delta.metadata == {"materiality": 0.0, "parameter_annotations": True}
+    assert _rule(delta) == (BehaviorCategory.REFACTOR, "SDW-RULE-REFACTOR-ANNOTATIONS")
+
+
+def test_a_return_annotation_stays_an_output_contract() -> None:
+    """The corpus's reviewed `return annotation signature` case: a declared result is a contract
+    its consumers see."""
+    old = "def render(value: int) -> int:\n    return value\n"
+    (delta,) = _compare(old, old.replace("-> int", "-> str"), "render")
+    assert delta.kind == "signature_change"
+    assert _rule(delta) == (BehaviorCategory.OUTPUT_CONTRACT, "SDW-RULE-SIGNATURE-ANNOTATIONS")
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "name"),
+    [
+        pytest.param(
+            '@app.get("/items")\ndef read(limit: int):\n    return limit\n',
+            '@app.get("/items")\ndef read(limit: str):\n    return limit\n',
+            "read",
+            id="decorator-that-may-read-them",
+        ),
+        pytest.param(
+            "@dataclass\nclass Item:\n    def total(self, count: int):\n        return count\n",
+            "@dataclass\nclass Item:\n    def total(self, count: str):\n        return count\n",
+            "Item.total",
+            id="method-of-a-decorated-class",
+        ),
+        pytest.param(
+            "class Item(Model):\n    def total(self, count: int):\n        return count\n",
+            "class Item(Model):\n    def total(self, count: str):\n        return count\n",
+            "Item.total",
+            id="method-of-a-class-from-elsewhere",
+        ),
+        pytest.param(
+            "def read(limit: int):\n    return limit\n",
+            "def read(limit: make_type()):\n    return limit\n",
+            "read",
+            id="annotation-that-calls",
+        ),
+        pytest.param(
+            "from .boxes import Box\n\ndef read(limit: int):\n    return limit\n",
+            "from .boxes import Box\n\ndef read(limit: Box[int]):\n    return limit\n",
+            "read",
+            id="subscript-of-a-project-class",
+        ),
+        pytest.param(
+            "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    from typing import Sequence\n"
+            "\ndef read(limit: int):\n    return limit\n",
+            "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    from typing import Sequence\n"
+            "\ndef read(limit: Sequence[int]):\n    return limit\n",
+            "read",
+            id="name-imported-only-for-type-checking",
+        ),
+        pytest.param(
+            "def read(limit: int):\n    return limit\n",
+            "def read(limit: str):\n    return str(limit)\n",
+            "read",
+            id="body-changed-too",
+        ),
+    ],
+)
+def test_a_parameter_annotation_that_may_run_or_be_read_stays_a_change(
+    old: str, new: str, name: str
+) -> None:
+    assert not _typing_refactors(_compare(old, new, name))
+
+
+@pytest.mark.parametrize(
+    ("old_line", "new_line"),
+    [
+        pytest.param(
+            "    media_type = None\n", "    media_type: str | None = None\n", id="annotated-value"
+        ),
+        pytest.param(
+            "    charset = 'utf-8'\n",
+            "    charset = 'utf-8'\n    hooks: dict[str, list[int]]\n",
+            id="annotation-without-value",
+        ),
+        pytest.param(
+            "    headers: dict[str, str]\n", "    headers: Mapping[str, str]\n", id="widened"
+        ),
+    ],
+)
+def test_a_plain_class_whose_annotations_alone_changed_is_a_refactor(
+    old_line: str, new_line: str
+) -> None:
+    """starlette#3768 annotated `media_type`, requests#7498 declared `hooks` without a value, and
+    requests#7441 widened `headers` to `Mapping`: none of these runs differently."""
+    old = (
+        "from __future__ import annotations\nfrom collections.abc import Mapping\n\n"
+        "class Base:\n    pass\n\n"
+        f"class Response(Base):\n{old_line}    charset = 'utf-8'\n"
+    )
+    (delta,) = _compare(old, old.replace(old_line, new_line), "Response")
+    assert delta.metadata == {"materiality": 0.0, "typing_only": True}
+    assert _rule(delta) == (BehaviorCategory.REFACTOR, "SDW-RULE-REFACTOR-TYPING")
+
+
+@pytest.mark.parametrize(
+    "header",
+    [
+        pytest.param("@dataclass\nclass Response:\n", id="decorated"),
+        pytest.param("class Response(Model):\n", id="base-from-elsewhere"),
+        pytest.param("class Response(metaclass=Fields):\n", id="metaclass"),
+        pytest.param(
+            "class Base:\n    def __init_subclass__(cls):\n        cls.fields = cls.__annotations__\n"
+            "\nclass Response(Base):\n",
+            id="base-with-a-hook",
+        ),
+        pytest.param("class Response(Generic[T], Model):\n", id="generic-and-elsewhere"),
+    ],
+)
+def test_annotations_a_class_may_turn_into_fields_stay_a_change(header: str) -> None:
+    old = f"from __future__ import annotations\n\n{header}    limit: int = 3\n"
+    deltas = _compare(old, old.replace("limit: int", "limit: str"), "Response")
+    assert not _typing_refactors(deltas)
+
+
+def test_a_class_rebound_after_its_definition_is_not_plain() -> None:
+    """`Response = dataclass(Response)` turns its annotations into fields without a decorator."""
+    old = (
+        "from __future__ import annotations\n\nclass Response:\n    limit: int = 3\n\n"
+        "Response = dataclass(Response)\n"
+    )
+    deltas = _compare(old, old.replace("limit: int", "limit: str"), "Response")
+    assert not _typing_refactors(deltas)
+
+
+def test_an_evaluated_annotation_that_calls_stays_a_change() -> None:
+    old = "class Response:\n    limit: int = 3\n"
+    deltas = _compare(old, old.replace("limit: int", "limit: make_type()"), "Response")
+    assert not _typing_refactors(deltas)
+
+
+def test_a_module_annotation_alone_is_a_refactor() -> None:
+    old = "LIMIT = 3\n"
+    (delta,) = _compare(old, "LIMIT: int = 3\n")
+    assert delta.metadata == {"materiality": 0.0, "typing_only": True}
+
+
+@pytest.mark.parametrize(
+    "definition",
+    [
+        pytest.param("T = t.TypeVar('T')\n", id="module-alias"),
+        pytest.param("T = t.TypeVar('T', bound='Item', covariant=True)\n", id="arguments"),
+        pytest.param("T = t.ParamSpec('T')\n", id="param-spec"),
+    ],
+)
+def test_a_type_variable_only_annotations_read_is_a_refactor(definition: str) -> None:
+    """werkzeug#3329 defined a `TypeVar` for annotations."""
+    old = "from __future__ import annotations\nimport typing as t\n\nLIMIT = 3\n"
+    new = old.replace("LIMIT = 3\n", f"{definition}LIMIT = 3\n\ndef first(items: list[T]) -> T:\n")
+    new += "    return items[0]\n"
+    (delta,) = _compare(old, new)
+    assert delta.metadata == {"materiality": 0.0, "typing_only": True}
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        pytest.param(
+            "from typing import TypeVar\nT = TypeVar('T')\nLIMIT = 3\n",
+            "from typing import TypeVar\nLIMIT = 3\n",
+            id="dropped",
+        ),
+        pytest.param(
+            "from typing import TypeVar, Generic\nLIMIT = 3\n",
+            "from typing import TypeVar, Generic\nT = TypeVar('T')\nLIMIT = 3\n\n"
+            "class Box(Generic[T]):\n    pass\n",
+            id="read-when-a-class-is-defined",
+        ),
+        pytest.param(
+            "from .vars import TypeVar\nLIMIT = 3\n",
+            "from .vars import TypeVar\nT = TypeVar('T')\nLIMIT = 3\n",
+            id="factory-from-elsewhere",
+        ),
+        pytest.param(
+            "from typing import TypeVar\n\nclass Item:\n    pass\n\nLIMIT = 3\n",
+            "from typing import TypeVar\n\nclass Item:\n    pass\n\nT = TypeVar('T', bound=Item)\n"
+            "LIMIT = 3\n",
+            id="bound-to-project-code",
+        ),
+        pytest.param(
+            "from typing import TypeVar\nLIMIT = 3\n",
+            "from typing import TypeVar\nT = TypeVar('U')\nLIMIT = 3\n",
+            id="misnamed",
+        ),
+        pytest.param(
+            "from typing import TypeVar\nLIMIT = 3\n",
+            "from typing import TypeVar\nT = TypeVar('T', **options)\nLIMIT = 3\n",
+            id="unpacked-options",
+        ),
+    ],
+)
+def test_a_type_variable_that_may_run_or_be_missed_stays_a_change(old: str, new: str) -> None:
+    assert not _typing_refactors(_compare(old, new))
+
+
+def test_a_version_string_alone_is_a_refactor() -> None:
+    """httpx#3445 and starlette#3728 each released a version by changing `__version__` alone."""
+    old = '__title__ = "shop"\n__version__ = "0.28.0"\n'
+    (delta,) = _compare(old, old.replace("0.28.0", "0.28.1"))
+    assert delta.metadata == {"materiality": 0.0, "version_only": True}
+    assert (delta.old, delta.new) == ("__version__ = '0.28.0'", "__version__ = '0.28.1'")
+    assert _rule(delta) == (BehaviorCategory.REFACTOR, "SDW-RULE-REFACTOR-VERSION")
+    annotated = '__version__: str = "1.0"\n'
+    (delta,) = _compare(annotated, annotated.replace("1.0", "1.1"))
+    assert delta.metadata == {"materiality": 0.0, "version_only": True}
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        pytest.param(
+            '__title__ = "shop"\n__version__ = "1.0"\n',
+            '__title__ = "store"\n__version__ = "1.1"\n',
+            id="with-another-change",
+        ),
+        pytest.param(
+            "__version__ = read_version()\n", "__version__ = read_version('x')\n", id="computed"
+        ),
+    ],
+)
+def test_a_version_with_more_than_its_text_stays_a_change(old: str, new: str) -> None:
+    assert not _typing_refactors(_compare(old, new))
+
+
+@pytest.mark.parametrize(
+    ("annotation", "runs_nothing_expected"),
+    [
+        pytest.param("'Item'", True, id="forward-reference"),
+        pytest.param("str", True, id="builtin"),
+        pytest.param("str | None", True, id="union-with-none"),
+        pytest.param("int | str | None", True, id="nested-union"),
+        pytest.param("'Item' | None", False, id="union-of-a-string"),
+        pytest.param("list[int]", True, id="builtin-generic"),
+        pytest.param("len[int]", False, id="subscripted-function"),
+        pytest.param("t.Optional[t.Callable[[int], str]]", True, id="typing-alias"),
+        pytest.param("abc.Mapping[str, int]", True, id="collections-abc"),
+        pytest.param("os.PathLike[str]", True, id="path-like"),
+        pytest.param("os.getcwd[str]", False, id="subscripted-os-function"),
+        pytest.param("t.Optional.__args__", False, id="attribute-of-a-typing-name"),
+        pytest.param("Item", False, id="project-name"),
+        pytest.param("make_type()", False, id="call"),
+        pytest.param("Annotated[int, Marker()]", False, id="call-in-an-index"),
+    ],
+)
+def test_runs_nothing_reads_only_the_standard_typing_vocabulary(
+    annotation: str, runs_nothing_expected: bool
+) -> None:
+    source = (
+        "import os\nimport typing as t\nfrom collections import abc\n"
+        "from typing import Annotated\n\nclass Item:\n    pass\n"
+    )
+    tree = ast.parse(source)
+    context = typing_context(tree, frozenset())
+    expression = ast.parse(annotation, mode="eval").body
+    assert runs_nothing(expression, context) is runs_nothing_expected
+
+
+def test_a_typing_context_resolves_what_the_file_binds_once() -> None:
+    tree = ast.parse(
+        "import collections.abc\nimport typing as t\nfrom typing import Union\n"
+        "from . import local\nimport json\nstr = bytes\n"
+    )
+    context = typing_context(tree, frozenset())
+    assert context.names["collections"] == "collections"
+    assert context.names["t"] == "typing"
+    assert context.names["Union"] == "typing.Union"
+    assert context.names["int"] == "builtins.int"
+    assert {"local", "json", "str"}.isdisjoint(context.names)
+    assert not context.deferred
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "old_name", "new_name"),
+    [
+        pytest.param(
+            "def save(path: int):\n    return path\n",
+            "def store(path: str):\n    return path\n",
+            "save",
+            "store",
+            id="callable",
+        ),
+        pytest.param(
+            "from __future__ import annotations\n\nclass Order:\n    total: int = 0\n",
+            "from __future__ import annotations\n\nclass Invoice:\n    total: str = 0\n",
+            "Order",
+            "Invoice",
+            id="class",
+        ),
+    ],
+)
+def test_a_renamed_symbol_is_never_typing_alone(
+    old: str, new: str, old_name: str, new_name: str
+) -> None:
+    """Whoever names the symbol by its old name finds it gone, whatever its annotations say."""
+    deltas = compare_symbol(
+        "pkg/mod.py", _symbol(old, old_name), _symbol(new, new_name), (WIDE_HUNK,)
+    )
+    assert not _typing_refactors(deltas)

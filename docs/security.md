@@ -43,7 +43,15 @@ import.
   receives it as text, never through another call such as `eval` or `os.system`, and a body that
   differs anywhere else keeps every change. An import changes nothing only when each name it newly
   binds is read by the module's code and named nothing else there before; one nothing reads may run
-  anything when it loads. `tests/security/test_hidden_changes.py` holds the adversarial regressions.
+  anything when it loads. An annotation changes nothing only when evaluating it can run none of
+  the project's code, deferred by `from __future__ import annotations` or built only from
+  constants, builtin types, and names imported from a standard typing module, none of which the
+  file rebinds, sets as an attribute, names in a string, or could receive from a star import of
+  another module; and only when no decorator, class decorator, metaclass, base from elsewhere, or
+  `__init_subclass__` hook can read it. A type variable changes nothing only when typing defines
+  its factory, its arguments run nothing, and only annotations read it, and dropping one is
+  always a change. A version string changes nothing only as a literal.
+  `tests/security/test_hidden_changes.py` holds the adversarial regressions.
 - Candidate-test indexing is bounded by per-file size and aggregate file/byte ceilings; reaching an
   aggregate ceiling marks mapping incomplete instead of silently claiming a complete index.
 - Model input separates trusted instructions from delimited untrusted evidence. Output may reference
