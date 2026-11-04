@@ -34,7 +34,11 @@ jobs:
             python: "3.11"
           - os: windows-latest
             python: "3.14"
-          - os: macos-latest
+          # macOS on Intel, not macos-latest's arm64: GitHub leaves the arm64 pool short of
+          # runners, and a leg no runner takes fails ci-complete after 15 minutes in the queue,
+          # as in 8 of this leg's 19 attempts on 2026-11-04. The package is pure Python, so
+          # what this leg tests is macOS, not the processor.
+          - os: macos-26-intel
             python: "3.14"
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
