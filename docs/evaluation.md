@@ -154,13 +154,14 @@ describe only the bounded synthetic corpus and are not a claim about arbitrary r
 
 ## Real pull requests
 
-`docs/benchmark.md` measures the analyzer on 60 real pull requests from ten public repositories,
-against the labels of `benchmark/cases.json`, which one annotator wrote for every Python symbol
-they change before reading the analyzer's output. Half are a development split the analyzer is
-changed against, and half a held-out split labeled before it first was, which measures those
-changes on code they were not designed from. Held out, in deterministic mode on 2026-11-02, every
-one of the 43 behavior changes got a finding, 15 of them in an expected category, and 23 of the 39
-unchanged symbols got one too: 16 of the 114 scored findings, and 16 of the 61 that name a
+`docs/benchmark.md` measures the analyzer on 90 real pull requests from fifteen public
+repositories, against the labels of `benchmark/cases.json`: a model wrote one for every Python
+symbol they change before reading the analyzer's output, and a person reviewed all 251,
+correcting 42. The 60 development cases are the ones the analyzer is changed against, and the 30
+held-out cases, labeled and reviewed before its next change, measure that change on code it was not
+designed from. Their baseline, in deterministic mode with 0.16.0 on 2026-11-03: every one of the
+44 held-out behavior changes got a finding, 16 of them in an expected category, and 18 of the 29
+unchanged symbols got one too; 16 of the 107 scored findings, and 16 of the 50 that name a
 behavior category, are in an expected one. These are the numbers the corpus above does not give.
 
 `docs/real-pr-validation.md` records what the analyzer says on other real merged pull requests,
