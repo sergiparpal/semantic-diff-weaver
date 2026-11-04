@@ -702,6 +702,25 @@ def test_a_typing_context_resolves_what_the_file_binds_once() -> None:
     assert not context.deferred
 
 
+def test_a_typing_context_tells_annotations_from_code_at_any_depth() -> None:
+    """One walk reaches each annotation's parameter, function, or variable before the names in
+    it, so a name only annotations read is told from one code reads, however deep either is."""
+    tree = ast.parse(
+        "from typing import TypeVar\n"
+        "K = TypeVar('K')\nR = TypeVar('R')\nV = TypeVar('V')\nN = TypeVar('N')\n"
+        "C = TypeVar('C')\nB = TypeVar('B')\n\n"
+        "class Box:\n"
+        "    value: V\n\n"
+        "    def get(self, key: K) -> R:\n"
+        "        def inner(item: N) -> B:\n"
+        "            return B\n"
+        "        return C\n"
+    )
+    context = typing_context(tree, frozenset())
+    assert {"K", "R", "V", "N"} <= context.annotation_names
+    assert {"C", "B", "TypeVar"}.isdisjoint(context.annotation_names)
+
+
 @pytest.mark.parametrize(
     ("old", "new", "old_name", "new_name"),
     [

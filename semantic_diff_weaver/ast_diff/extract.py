@@ -478,24 +478,57 @@ class TypingContext:
     annotation_names: frozenset[str] = frozenset()
 
 
-def _binding_counts(tree: ast.AST) -> Counter[str]:
-    """How many times the file binds each name, anywhere and in any way."""
+def _bindings_and_reads(tree: ast.Module) -> tuple[Counter[str], set[str], set[str]] | None:
+    """In one walk of a file: how many times it binds each name, anywhere and in any way; the
+    names it reads outside annotations; and the names it sets as attributes or names in strings.
+    None when it star-imports a module outside `SAFE_TYPING_MODULES`.
+
+    The walk reaches a node before anything inside it, so a parameter's, a return's, or a
+    variable's annotation is known to be one before the walk reaches the names it reads.
+    """
     counts: Counter[str] = Counter()
+    inside: set[int] = set()
+    read: set[str] = set()
+    excluded: set[str] = set()
     for node in ast.walk(tree):
-        if isinstance(node, ast.Name) and not isinstance(node.ctx, ast.Load):
-            counts[node.id] += 1
-        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            counts[node.name] += 1
+        annotation: ast.expr | None = None
+        if isinstance(node, ast.Name):
+            if not isinstance(node.ctx, ast.Load):
+                counts[node.id] += 1
+            elif id(node) not in inside:
+                read.add(node.id)
+        elif isinstance(node, ast.Constant):
+            if isinstance(node.value, str):
+                excluded.add(node.value)
+        elif isinstance(node, ast.Attribute):
+            if not isinstance(node.ctx, ast.Load):
+                excluded.add(node.attr)
         elif isinstance(node, ast.arg):
             counts[node.arg] += 1
+            annotation = node.annotation
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            counts[node.name] += 1
+            annotation = node.returns
+        elif isinstance(node, ast.ClassDef):
+            counts[node.name] += 1
+        elif isinstance(node, ast.AnnAssign):
+            annotation = node.annotation
         elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            if (
+                isinstance(node, ast.ImportFrom)
+                and any(alias.name == "*" for alias in node.names)
+                and (node.level or node.module not in SAFE_TYPING_MODULES)
+            ):
+                return None
             for name, _ in _bound_by(node):
                 counts[name] += 1
         elif isinstance(node, (ast.ExceptHandler, ast.MatchAs, ast.MatchStar)) and node.name:
             counts[node.name] += 1
         elif isinstance(node, ast.MatchMapping) and node.rest:
             counts[node.rest] += 1
-    return counts
+        if annotation is not None:
+            inside.update(id(item) for item in ast.walk(annotation))
+    return counts, read, excluded
 
 
 def _typing_bindings(statement: ast.Import | ast.ImportFrom) -> list[tuple[str, str | None]]:
@@ -519,20 +552,6 @@ def _typing_bindings(statement: ast.Import | ast.ImportFrom) -> list[tuple[str, 
     ]
 
 
-def _annotation_nodes(tree: ast.AST) -> set[int]:
-    """The ids of the nodes inside an annotation: a parameter's, a return's, or a variable's."""
-    inside: set[int] = set()
-    for node in ast.walk(tree):
-        root: ast.AST | None = None
-        if isinstance(node, (ast.arg, ast.AnnAssign)):
-            root = node.annotation
-        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            root = node.returns
-        if root is not None:
-            inside.update(id(item) for item in ast.walk(root))
-    return inside
-
-
 def typing_context(tree: ast.Module, type_checking: frozenset[str]) -> TypingContext:
     """What a file's annotations can read without running any of its project's code.
 
@@ -547,22 +566,10 @@ def typing_context(tree: ast.Module, type_checking: frozenset[str]) -> TypingCon
         and any(alias.name == "annotations" for alias in statement.names)
         for statement in tree.body
     )
-    counts = _binding_counts(tree)
-    inside = _annotation_nodes(tree)
-    excluded: set[str] = set()
-    read: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and any(alias.name == "*" for alias in node.names):
-            if node.level or node.module not in SAFE_TYPING_MODULES:
-                return TypingContext(deferred=deferred)
-        elif isinstance(node, ast.Attribute) and not isinstance(node.ctx, ast.Load):
-            excluded.add(node.attr)
-        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
-            excluded.add(node.value)
-        elif (
-            isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and id(node) not in inside
-        ):
-            read.add(node.id)
+    walked = _bindings_and_reads(tree)
+    if walked is None:
+        return TypingContext(deferred=deferred)
+    counts, read, excluded = walked
     imported: dict[str, list[str | None]] = defaultdict(list)
     for statement in runtime_statements(tree.body, type_checking):
         if isinstance(statement, (ast.Import, ast.ImportFrom)):
