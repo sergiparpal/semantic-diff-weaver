@@ -51,12 +51,12 @@ development cases, was measured on it, so that nothing read from it could shape 
 
 ## Second round
 
-Designed from the 60 development cases alone and measured 2026-11-04 on both splits, the second
-round reads what only a type checker reads as changing no behavior: a callable's parameter
-annotations, a module's or a plain class's annotations and type variables, and a module's version
-string (`docs/decisions.md`, 2026-11-04, typing and versions).
+Designed from the 60 development cases alone, measured 2026-11-04 on both splits, and released in
+0.17.0, the second round reads what only a type checker reads as changing no behavior: a
+callable's parameter annotations, a module's or a plain class's annotations and type variables,
+and a module's version string (`docs/decisions.md`, 2026-11-04, typing and versions).
 
-| Measure | Development, 0.16.0 | Development, corrected | Held-out, 0.16.0 | Held-out, corrected |
+| Measure | Development, 0.16.0 | Development, 0.17.0 | Held-out, 0.16.0 | Held-out, 0.17.0 |
 | --- | --- | --- | --- | --- |
 | Findings on Python | 184 | 172 | 123 | 119 |
 | Precision, findings in an expected category | 32 of 171 (18.7%) | 32 of 159 (20.1%) | 16 of 107 (15.0%) | 16 of 103 (15.5%) |

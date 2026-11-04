@@ -897,8 +897,8 @@ The MVP is complete when all of the following are true:
 
 ## 24. Roadmap
 
-Status on 2026-11-04, at release 0.16.0. The phase labels are this plan's, not package versions: the
-package reached 0.16.0 with v0.1, v0.2, v0.3, and v0.4 done and parts of v1.0 shipped. It also ships
+Status on 2026-11-04, at release 0.17.0. The phase labels are this plan's, not package versions: the
+package reached 0.17.0 with v0.1, v0.2, v0.3, and v0.4 done and parts of v1.0 shipped. It also ships
 what the plan did not foresee, a standalone CLI and a Claude Code plugin over MCP, beside the Hermes
 plugin.
 

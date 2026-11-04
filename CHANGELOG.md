@@ -1,6 +1,18 @@
 # Changelog
 
-## Unreleased
+## 0.17.0 - 2026-11-04
+
+Fewer findings where nothing runs differently, measured on a fresh held-out split. A person reviewed
+the benchmark's 162 labels and corrected 26, and a second held-out split of 30 pull requests from
+five more repositories, labeled and reviewed before the analyzer changed, joins it. A second round
+of corrections, designed from the 60 development cases, reads more of what only a type checker
+reads as no change: a callable's parameter annotations alone, a module's or a plain class's
+annotations and type variables, and a module's version string. Held out, unchanged symbols given a
+finding fall from 18 to 14 of 29, and every behavior change keeps its finding and its category. A
+minor release for the three new refactor rules, `SDW-RULE-REFACTOR-ANNOTATIONS`,
+`SDW-RULE-REFACTOR-TYPING`, and `SDW-RULE-REFACTOR-VERSION`, all hidden by default like every
+refactor; schema 1.5 and every golden are unchanged, and the decision is recorded in
+`docs/decisions.md`.
 
 - **Evaluation:** a person reviewed every benchmark label. A reviewer checked the 162 labels of
   `benchmark/cases.json` on a page that showed each symbol's diff and never the analyzer's
