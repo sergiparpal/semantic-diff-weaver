@@ -2282,6 +2282,43 @@ additional omission reason.
   byte-identical and `docs/evaluation.md` carries its corpus figures forward. Schema version,
   taxonomy values, error codes, and evidence IDs are unchanged.
 
+## A call's output budget follows its batch (2026-11-06)
+
+Every structured call allowed 2,000 output tokens and 30 seconds, whatever its batch carried. The
+size of the reply was measured through Hermes v0.22.7 on the user's Raspberry Pi, with
+gpt-6.1-terra at medium reasoning:
+
+- A reply took about 200 tokens plus one per 21 input characters. Nearly all of it was the JSON
+  itself, about 4.7 characters per output token, not reasoning.
+- The 722-character batch took 246 tokens, and the 34,326-character batch took 1,801 tokens and 42
+  seconds.
+
+**The problem.** A reply reaches 2,000 tokens near 38,000 input characters, below the default
+`max_model_input_chars_per_call` of 48,000, and a reply cut off at its budget is not valid JSON.
+The call is then retried with the same budget, fails the same way, and its batch falls back to
+deterministic findings behind the generic "One structured LLM batch failed" warning. The measured
+batch had also run past 30 seconds. Hermes did not enforce that limit, but the Anthropic adapter
+hands it to the SDK, where the same reply would have timed out into the same fallback.
+
+**The fix.** `semantic_interpreter.call_budget` sizes both limits from the call's input:
+
+- **Output tokens:** 2,000 plus one per 6 input characters, capped at 8,192. The 2,000 is the old
+  budget, kept for what is not the reply, since some model families cannot turn thinking off and
+  it counts against `max_tokens`. One token per 6 characters is about three times the measured
+  share.
+- **Timeout:** 30 seconds plus one per 400 input characters, capped at 150. The default
+  48,000-character bound reaches the cap.
+
+8,192 tokens is the ceiling because every current model accepts it, and the Anthropic SDK takes it
+without streaming. Raising `max_model_input_chars_per_call` past the default therefore gives a call
+more evidence without more room to answer it.
+
+**What else changes.** A small batch's request grows by a few hundred tokens and seconds. The eight
+calls an analysis may make could spend 4 minutes against a hanging provider before; at the ceiling
+they can now spend 20. No output, schema, or golden changes, because the fake models of the test
+suites never read the budget. `tests/contract/test_llm_call.py` now reproduces the cut-off with a
+fake model whose reply grows at the measured rate.
+
 ## Anthropic request shaping is per model family (2026-07-26)
 
 The optional provider adapter shapes each request to what the named model accepts, matching model

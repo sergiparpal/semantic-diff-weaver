@@ -15,9 +15,10 @@ differently depending on which SDK release happens to be installed, so it is not
 all: models that still honor it sample at their default.
 
 *Thinking is turned off where the model allows it.* `max_tokens` caps thinking and response
-text together, and the interpreter's budget is deliberately small. With thinking on by default
-on current models, a 2000-token budget can be consumed before the JSON is emitted, truncating
-it. Turning thinking off keeps the caller's bound meaningful, and the response is
+text together, and the interpreter sizes it for the reply alone: 2,000 tokens plus a share
+that grows with the batch (`semantic_interpreter.call_budget`). With thinking on by default on
+current models, thinking can consume that budget before the JSON is emitted, truncating it.
+Turning thinking off keeps the caller's bound meaningful, and the response is
 schema-constrained anyway. Most families turn it off with `{"type": "disabled"}`; Claude Sonnet
 5.5 rejects that with HTTP 400 and takes `{"type": "between_tools"}`, which no other family
 accepts. On families whose thinking is always on, any value that turns it off is rejected with

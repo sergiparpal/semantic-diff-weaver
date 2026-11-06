@@ -22,6 +22,7 @@ from semantic_diff_weaver.semantic_interpreter import (
     _evidence_payload,
     _input_text,
     _payload_metrics,
+    call_budget,
     interpret_candidates,
 )
 
@@ -131,7 +132,67 @@ def test_call_shape_uses_active_host_model_without_overrides() -> None:
     assert call["schema_name"] == "semantic_diff_batch_v1"
     assert call["purpose"] == "semantic-diff-interpretation"
     assert "UNTRUSTED_SEMANTIC_DIFF_EVIDENCE" in call["input"][0]["text"]
+    assert (call["max_tokens"], call["timeout"]) == call_budget(len(call["input"][0]["text"]))
     assert result.suggestions
+
+
+def test_the_output_budget_and_timeout_grow_with_the_batch() -> None:
+    small = call_budget(700)
+    measured = call_budget(34_326)
+    bound = call_budget(WeaverConfig().rules.max_model_input_chars_per_call)
+    # Never below the fixed budget every call used to get.
+    assert small[0] >= 2000
+    assert small[1] >= 30
+    # The batch measured on gpt-6.1-terra wrote 1,801 tokens in 42 seconds: room for three times
+    # the reply, and twice the time.
+    assert measured[0] >= 3 * 1801
+    assert measured[1] >= 2 * 42
+    # Ceilings that every current model and SDK accept for a call without streaming.
+    assert bound == (8192, 150)
+    assert call_budget(1_000_000) == (8192, 150)
+    budgets = [call_budget(chars) for chars in range(0, 60_000, 500)]
+    assert budgets == sorted(budgets)
+
+
+class TruncatingLlm:
+    """A model whose reply grows with the evidence and is cut off past the caller's budget.
+
+    The reply's size is the one measured through Hermes on gpt-6.1-terra: about 200 tokens plus
+    one per 21 input characters. A reply cut off mid-JSON parses as no structured result.
+    """
+
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    def complete_structured(self, **kwargs: Any) -> Result:
+        self.calls.append(kwargs)
+        needed = 200 + len(kwargs["input"][0]["text"]) // 21
+        if kwargs["max_tokens"] < needed:
+            return Result("text", None)
+        return Result("json", {"behaviors": [], "obligations": []})
+
+
+def test_a_batch_near_the_input_bound_gets_room_for_its_whole_reply() -> None:
+    """At 2,000 tokens a batch this large was cut off, retried, and fell back without a word."""
+    items = [
+        candidate_variant(
+            id=f"ev-{index + 1:03d}",
+            symbol=f"allowed_{index}",
+            old="x" * 2600,
+            new="y" * 2600,
+        )
+        for index in range(8)
+    ]
+    llm = TruncatingLlm()
+
+    result = interpret_candidates(items, llm, WeaverConfig())
+
+    assert len(llm.calls) == 1
+    text = llm.calls[0]["input"][0]["text"]
+    assert 200 + len(text) // 21 > 2000
+    assert result.status.available is True
+    assert result.status.failures == 0
+    assert not result.warnings
 
 
 def test_pydantic_parsed_results_and_common_usage_aliases_are_accepted() -> None:
