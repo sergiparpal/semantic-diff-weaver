@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import socket
+import socketserver
 import threading
 import time
 from collections.abc import Iterator
@@ -62,6 +63,12 @@ class Stub:
 
 
 class _Server(ThreadingHTTPServer):
+    def server_bind(self) -> None:
+        """Bind without `HTTPServer`'s reverse lookup of its own address, which outlasted the test
+        timeout on a macOS runner."""
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = "127.0.0.1", self.server_address[1]
+
     def handle_error(self, request: Any, client_address: Any) -> None:
         """A client that gave up on a slow reply is expected here."""
 
