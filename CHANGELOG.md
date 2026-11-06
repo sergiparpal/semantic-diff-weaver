@@ -1,6 +1,17 @@
 # Changelog
 
-## Unreleased
+## 0.18.0 - 2026-11-06
+
+A Hermes skill that tells the agent when to use the tools. On Hermes 0.22.7 with gpt-6.1-terra,
+asked what a commit changes, the agent used the tools in 5 of 5 runs with the skill and in 3 of 5
+without it; in the other 2 it executed both revisions of the changed file instead. Three fixes
+follow what current models, Hermes releases, and Python 3.14 do: a model's reply to a large
+evidence batch is no longer cut off into deterministic fallback, the install documentation says
+what Hermes 0.22.7 and 0.23.0 do, and an analysis warns when coverage contexts name one test per
+line, as coverage.py records them by default on Python 3.14, while the documented recipe records
+every test that ran a line. CI tests the current Hermes release, built from its Git tag, and a
+weekly workflow opens an issue when a newer one is out. A minor release for the skill; schema 1.5
+and every golden are unchanged, and each decision is recorded in `docs/decisions.md`.
 
 - **Feature:** on Hermes, the plugin registers a skill, `semantic-diff-weaver:review`, that tells
   the agent when to use the two tools, and to answer from the committed source rather than by
