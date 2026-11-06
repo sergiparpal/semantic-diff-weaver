@@ -690,6 +690,57 @@ def test_a_data_file_says_which_test_ran_each_line(tmp_path: Path, arcs: bool) -
     assert coverage.contexts_incomplete is False
 
 
+COVERAGE_FIXTURES = Path(__file__).parents[1] / "fixtures" / "coverage"
+PARSE = "tests/test_money.py::test_parse_amount"
+TOTAL = "tests/test_money.py::test_total"
+
+
+@pytest.mark.parametrize(
+    ("core", "line_2", "one_test_per_line"),
+    [("sysmon", {PARSE}, True), ("ctrace", {PARSE, TOTAL}, False)],
+)
+def test_a_run_on_python_314_keeps_one_test_per_line_unless_it_traces(
+    core: str, line_2: set[str], one_test_per_line: bool
+) -> None:
+    """The data files of one run, recorded with each core: see tests/fixtures/coverage."""
+    coverage = load_coverage_data(COVERAGE_FIXTURES / f"python314-{core}.coverage", _config())
+    assert coverage.tests == (PARSE, TOTAL)
+    assert _executed(coverage, "src/shop/money.py", 2) == line_2
+    assert _executed(coverage, "src/shop/money.py", 8) == {TOTAL}
+    assert coverage.one_test_per_line() is one_test_per_line
+
+
+@pytest.mark.parametrize(
+    ("lines", "expected"),
+    [
+        ({"t.py::test_a|run": [1, 2], "t.py::test_b|run": [3]}, True),
+        ({"t.py::test_a|run": [1, 2], "t.py::test_b|run": [2, 3]}, False),
+        # A test's phases are one test, and the empty context names none.
+        ({"t.py::test_a|setup": [1], "t.py::test_a|run": [1, 2], "": [3]}, False),
+        ({"": [1, 2]}, False),
+    ],
+    ids=["disjoint", "shared", "one-test", "no-test"],
+)
+def test_one_test_per_line_takes_two_tests_and_no_line_they_share(
+    tmp_path: Path, lines: dict[str, list[int]], expected: bool
+) -> None:
+    path = _data_file(
+        tmp_path, {context: {"/ci/src/money.py": numbers} for context, numbers in lines.items()}
+    )
+    assert load_coverage_data(path, _config()).one_test_per_line() is expected
+
+
+def test_the_contexts_of_a_report_are_judged_alike(tmp_path: Path) -> None:
+    def report(line_2: list[str]) -> CoverageMap:
+        entry = {"executed_lines": [1, 2], "contexts": {"1": ["t.py::test_a|run"], "2": line_2}}
+        return _contexts_report(tmp_path, {"src/money.py": entry})
+
+    assert report(["t.py::test_b|run"]).one_test_per_line() is True
+    assert report(["t.py::test_a|run", "t.py::test_b|run"]).one_test_per_line() is False
+    lcov = load_coverage(_write(tmp_path, "lcov.info", LCOV), _config())
+    assert lcov.one_test_per_line() is False
+
+
 def test_numbits_are_read_as_coverage_py_writes_them() -> None:
     assert list(coverage_map._numbits(nums_to_numbits([1, 7, 8, 9, 64]))) == [1, 7, 8, 9, 64]
     # Bit zero of the first byte would be line 0, which is no line.

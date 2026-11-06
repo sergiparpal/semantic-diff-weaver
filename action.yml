@@ -39,8 +39,8 @@ inputs:
   coverage-data:
     description: >-
       Path to the .coverage data file of the same run, recorded with per-test contexts
-      (pytest --cov-context=test), to name the tests that ran each changed line. Needs
-      coverage-report beside it.
+      (pytest --cov-context=test, with COVERAGE_CORE=ctrace on Python 3.14 and later), to name
+      the tests that ran each changed line. Needs coverage-report beside it.
     required: false
     default: ""
   risk-profile:

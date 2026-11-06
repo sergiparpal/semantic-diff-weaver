@@ -471,7 +471,8 @@ def _executed_tests(
 
     Contexts that ran the changed lines, but none of whose tests is one the analysis found, are
     named in a warning, as unmatched files are: their test IDs and the repository's paths may
-    share no suffix.
+    share no suffix. So are contexts that give each line one test, as Python 3.14's default
+    coverage core records them, which may leave out tests that ran the change.
     """
     if coverage is None:
         return {}
@@ -485,6 +486,13 @@ def _executed_tests(
         state.warnings.append(
             "The coverage test contexts exceeded their bounds and were read in part; tests that "
             "executed the changed lines may be missing."
+        )
+    if source.one_test_per_line():
+        state.warnings.append(
+            "The coverage test contexts name several tests but no line that more than one of "
+            "them ran, as coverage.py's sys.monitoring core, its default on Python 3.14 and "
+            "later, records them; tests that executed the changed lines may be missing. Record "
+            "the run with COVERAGE_CORE=ctrace."
         )
     if not source.tests:
         return {}

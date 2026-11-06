@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -281,3 +282,62 @@ def test_a_line_the_data_file_saw_run_counts_when_the_report_misses_its_file(
     assert _candidates(_with_data(repo, base, head, report, data)) == {
         "test_loaded_by_name": [EXECUTED, "direct module or symbol import"]
     }
+
+
+FIXTURES = Path(__file__).parents[1] / "fixtures" / "coverage"
+# The project whose run tests/fixtures/coverage recorded, at the base and the head of its change.
+RECORDED = (
+    "def parse_amount(text):\n"
+    "    if {}:\n"
+    "        return 0\n"
+    "    return int(text)\n\n\n"
+    "def total(amounts):\n"
+    "    return sum(parse_amount(text) for text in amounts)\n"
+)
+RECORDED_TESTS = (
+    "from shop.money import parse_amount, total\n\n\n"
+    "def test_parse_amount():\n"
+    '    assert parse_amount("") == 0\n'
+    '    assert parse_amount("3") == 3\n\n\n'
+    "def test_total():\n"
+    '    assert total(["1", "2"]) == 3\n'
+)
+ONE_TEST_PER_LINE = (
+    "The coverage test contexts name several tests but no line that more than one of them ran, "
+    "as coverage.py's sys.monitoring core, its default on Python 3.14 and later, records them; "
+    "tests that executed the changed lines may be missing. Record the run with "
+    "COVERAGE_CORE=ctrace."
+)
+
+
+def _recorded_on_python_314(repo_factory, core: str) -> dict[str, Any]:
+    """The change whose head tests/fixtures/coverage recorded, analyzed with the data file the run
+    left with that core."""
+    files = {"src/shop/__init__.py": "", "tests/test_money.py": RECORDED_TESTS}
+    repo, base, head = repo_factory(
+        {**files, "src/shop/money.py": RECORDED.format("not text")},
+        {**files, "src/shop/money.py": RECORDED.format('not text or text == "-"')},
+    )
+    report = repo.parent / "coverage.json"
+    entry = {"executed_lines": [1, 2, 3, 4, 7, 8], "missing_lines": []}
+    report.write_text(json.dumps({"files": {"src/shop/money.py": entry}}), encoding="utf-8")
+    data = repo.parent / ".coverage"
+    shutil.copyfile(FIXTURES / f"python314-{core}.coverage", data)
+    return _with_data(repo, base, head, report, data)
+
+
+def _executed_by(envelope: dict[str, Any]) -> set[str]:
+    return {test for test, reasons in _candidates(envelope).items() if EXECUTED in reasons}
+
+
+def test_a_run_on_python_314_names_one_test_per_line_and_says_so(repo_factory) -> None:
+    """Its default core credits the changed line, which both tests ran, to the first alone."""
+    envelope = _recorded_on_python_314(repo_factory, "sysmon")
+    assert _executed_by(envelope) == {"test_parse_amount"}
+    assert ONE_TEST_PER_LINE in envelope["analysis"]["warnings"]
+
+
+def test_a_run_traced_on_python_314_names_every_test_that_ran_the_change(repo_factory) -> None:
+    envelope = _recorded_on_python_314(repo_factory, "ctrace")
+    assert _executed_by(envelope) == {"test_parse_amount", "test_total"}
+    assert ONE_TEST_PER_LINE not in envelope["analysis"]["warnings"]

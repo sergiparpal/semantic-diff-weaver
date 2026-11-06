@@ -243,6 +243,23 @@ class CoverageMap:
                     executed[self.tests[test]].add((path, line))
         return {test: frozenset(found) for test, found in executed.items()}
 
+    def one_test_per_line(self) -> bool:
+        """Whether the contexts name two tests or more but no line that more than one of them ran.
+
+        That is how coverage.py's `sys.monitoring` core, its default on Python 3.14 and later,
+        records the contexts pytest-cov switches from test to test: it stops watching a line once
+        the line has run, so each line keeps the first test that ran it. Nothing in the data says
+        which core recorded it, and a suite whose tests share no line looks the same, so this is a
+        sign of the core rather than proof of it.
+        """
+        seen: set[int] = set()
+        for entry in self.files.values():
+            for tests in entry.contexts.values():
+                if len(tests) > 1:
+                    return False
+                seen |= tests
+        return len(seen) > 1
+
 
 class ContextTests:
     """Which of an analysis's tests the context labels of a report name.
