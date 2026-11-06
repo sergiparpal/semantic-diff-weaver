@@ -49,6 +49,12 @@
   entry-point and directory discovery. `hermes-compatibility` keeps 0.14.0, the lowest supported
   release, and drops 0.19.0. `scripts/verify_hermes.py` names a Hermes built from source by its
   release, where it printed `0.0.0`.
+- **Tests:** a weekly `hermes-release` workflow notices new Hermes releases, which Dependabot cannot
+  see because they exist only as Git tags. It compares the release `hermes-current` tests with the
+  latest release of NousResearch/hermes-agent, and when CI is behind it opens one issue per release.
+  The issue says what to move together: the tag, the commit it points to, and the uv that the
+  release's installer pins. `scripts/check_hermes_release.py` runs the same comparison locally and
+  exits 1 when CI is behind. See `docs/decisions.md`, 2026-11-06.
 
 ## 0.17.0 - 2026-11-04
 

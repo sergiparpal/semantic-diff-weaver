@@ -1,0 +1,37 @@
+name: hermes-release
+
+# CI's `hermes-current` job tests the Hermes release `HERMES_TAG` names, built from its Git tag.
+# Releases after 0.19.0 are not on PyPI, so Dependabot never proposes one, and nothing else
+# notices them. This weekly check compares that tag with NousResearch/hermes-agent's latest
+# release and, when CI is behind, opens one issue per release saying what to move together:
+# `scripts/check_hermes_release.py`. As with `action-pins`, nothing merges through it; a failed
+# run means it could not compare, or could not open the issue.
+on:
+  schedule:
+    - cron: "30 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+# Not cancelling, as in `action-pins`: a dispatch must not kill the scheduled run, and two runs
+# at once could both find no issue and open two.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - run: python scripts/check_hermes_release.py --open-issue
+        env:
+          # Reads public release metadata and opens at most one issue, which `issues: write`
+          # allows. Actions sets GITHUB_REPOSITORY, which names where.
+          GITHUB_TOKEN: ${{ github.token }}
