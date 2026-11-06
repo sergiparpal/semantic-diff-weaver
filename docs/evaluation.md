@@ -36,10 +36,10 @@ finding had a linked obligation, and every candidate test remained explicitly un
 now emits no prediction outside its reviewed expected labels. The 2026-10-31 re-measurements for
 0.4.0, 0.4.1, 0.5.0, 0.6.0, and 0.6.1, and the 2026-11-01 ones for 0.6.2, 0.7.0, 0.8.0, 0.8.1,
 0.8.2, 0.9.0, 0.10.0, 0.11.0, 0.11.1, 0.12.0, and 0.13.0, and the 2026-11-02 ones for 0.14.0,
-0.15.0, and 0.16.0, and the 2026-11-04 one for 0.17.0, found the same figures. Of 0.4.1's
-corrections only the output-contract one reaches the corpus: the `return annotation signature`
-case is now worded as a change to typing alone, at 0.80 confidence instead of 0.879, and keeps
-its category, risk, and obligations. 0.5.0 gives every case a
+0.15.0, and 0.16.0, the 2026-11-04 one for 0.17.0, and the 2026-11-06 one for 0.18.0, found the
+same figures. Of 0.4.1's corrections only the output-contract one reaches the corpus: the `return
+annotation signature` case is now worded as a change to typing alone, at 0.80 confidence instead
+of 0.879, and keeps its category, risk, and obligations. 0.5.0 gives every case a
 verdict, 3 `pass`, 12 `warn`, and 3 `review_required`, and a `null` baseline, without changing a
 finding, risk, confidence, or obligation. 0.6.0 changes no golden: its baseline lives in the GitHub
 Action's comment. Nor do 0.6.1 and 0.6.2. The corpus's one dependency case changes a call on a
@@ -67,6 +67,8 @@ nothing, and a call into the package's own code as internal, and no golden chang
 a callable's parameter annotations alone, a module's or a plain class's annotations and type
 variables, and a module's version string as changing nothing, and no golden changes: the `return
 annotation signature` case changes a return annotation, which stays an output contract change.
+0.18.0 changes no golden: its new warning reads a coverage run's test contexts, which no case
+supplies, and nothing else it changes runs in a deterministic analysis.
 
 The previous measurement on this same corpus was 88.24% precision (15 of 17). The two surplus
 predictions were both `ordering_change` findings produced by comparing `statement_order` tuples for
@@ -89,14 +91,17 @@ a chain of calls on instances across a call graph at its module limit, a variabl
 read across a graph at its module limit, and a test selection following 999 test files through a
 chain of 999 modules at its file limit, with five-, two-, five-, and five-second ceilings for the
 first four, a one-second ceiling on grouping the fifth, and a five-second ceiling on the last. They
-completed in approximately 0.02, 0.43, 0.57, 0.78, 0.47, and 0.74 seconds in the 0.17.0 timing run,
-across six runs in which the third took 0.57 to 0.61 and the fourth 0.76 to 0.85. 0.16.0's code,
-timed beside it, took 0.02, 0.41, 0.53, 0.78, 0.47, and 0.74, the third 0.52 to 0.54: each of the
-full-service fixture's 80 extractions now also walks its file once more, for what its annotations
-can read. Before that walk took the place of three, the fixture took 0.61 beside 0.16.0's 0.53.
-0.16.0's own run, two days earlier, timed 0.02, 0.43, 0.55, 0.82, 0.53, and 0.80, the third 0.51
-to 0.63 and the fourth 0.76 to 0.93, beside 0.15.0's code at 0.02, 0.46, 0.51, 0.83, 0.49, and
-0.79, the third 0.47 to 0.52: each of the full-service fixture's 80 extractions then also walked
+completed in approximately 0.02, 0.45, 0.58, 0.81, 0.51, and 0.77 seconds in the 0.18.0 timing run,
+across six runs in which the third took 0.57 to 0.63 and the fourth 0.79 to 0.88. 0.17.0's code,
+timed beside it, took 0.03, 0.43, 0.58, 0.80, 0.49, and 0.75, the third 0.56 to 0.69 and the fourth
+0.78 to 0.84: 0.18.0 changes no code the fixtures run, and the two differ by at most 0.02 seconds,
+either way. 0.17.0's own run, two days earlier, timed 0.02, 0.43, 0.57, 0.78, 0.47, and 0.74, the
+third 0.57 to 0.61 and the fourth 0.76 to 0.85, beside 0.16.0's code at 0.02, 0.41, 0.53, 0.78,
+0.47, and 0.74, the third 0.52 to 0.54: each of the full-service fixture's 80 extractions then also
+walked its file once more, for what its annotations can read. Before that walk took the place of
+three, the fixture took 0.61 beside 0.16.0's 0.53. 0.16.0's own run, two days before that, timed
+0.02, 0.43, 0.55, 0.82, 0.53, and 0.80, the third 0.51 to 0.63 and the fourth 0.76 to 0.93,
+beside 0.15.0's code at 0.02, 0.46, 0.51, 0.83, 0.49, and 0.79, the third 0.47 to 0.52: each of the full-service fixture's 80 extractions then also walked
 its file once for the names it mentions, reads, and imports, and a module took a second
 fingerprint without its imports. Before those walks were folded into one, and the rarer ones kept
 to a file that writes `TYPE_CHECKING` or a body that raises, the fixture took 0.66 beside 0.15.0's
@@ -137,7 +142,7 @@ seconds for the last, and 0.5.0 timed 0.02, 0.42, 0.38, and 0.79 on code 0.6.0 l
 1.5 seconds for the mass-rename fixture then: the machine was slower at that hour, not the code, and
 that fixture is back at a fifth of its ceiling, as on 2026-07-26.
 
-The complete automated suite reports 98.08% overall branch-aware coverage across 1,753 passing tests
+The complete automated suite reports 98.09% overall branch-aware coverage across 1,822 passing tests
 and one skip, the real-Hermes discovery test, with at least 90% branch coverage in every critical
 module — the lowest is `path_policy.py` at 92.42%, followed by `semantic_interpreter.py` at 92.62%,
 `git_diff/` at 93.16%, and `config.py` at 94.74%. `cli.py`, `coverage_map.py`, and `baseline.py`,
