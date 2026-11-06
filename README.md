@@ -260,10 +260,13 @@ hermes plugins install sergiparpal/semantic-diff-weaver --enable
 ```
 
 Hermes clones this repository into its plugins directory, reads `plugin.yaml`, and registers two
-tools, `analyze_semantic_diff` and `generate_test_skeletons` — no hooks, commands, or overrides.
-Plugins are opt-in, so `--enable` is what saves you a separate
-`hermes plugins enable semantic-diff-weaver`. [`after-install.md`](after-install.md) walks through
-the first run.
+tools, `analyze_semantic_diff` and `generate_test_skeletons`, and a skill,
+`semantic-diff-weaver:review`, that tells the agent when to use them — no hooks, commands, or
+overrides. The skill is listed in the agent's system prompt: current Hermes releases hide a plugin's
+tools until the model looks for them, and without it, asked what a commit changes, the model read
+the diff and ran the code under review instead. Plugins are opt-in, so `--enable` is what saves you
+a separate `hermes plugins enable semantic-diff-weaver`. [`after-install.md`](after-install.md)
+walks through the first run.
 
 **Expect a `caution` verdict from the install-time scan.** Current Hermes releases (0.22.7 and
 0.23.0 are verified) scan every file of the clone before installing it, the test tree included, and
