@@ -29,3 +29,16 @@ def test_the_current_hermes_is_pinned_to_a_release_tag_and_its_commit() -> None:
 
     assert re.fullmatch(r"v\d+\.\d+\.\d+", environment["HERMES_TAG"])
     assert re.fullmatch(r"[0-9a-f]{40}", environment["HERMES_COMMIT"])
+
+
+def test_only_the_macos_leg_leaves_out_the_performance_ceilings() -> None:
+    """Every other leg still times them, so a complexity regression still fails CI."""
+    test = _jobs()["test"]
+    legs = test["strategy"]["matrix"]["include"]
+    left_out = [leg for leg in legs if leg.get("pytest-args")]
+
+    assert [leg["os"] for leg in left_out] == ["macos-26-intel"]
+    assert left_out[0]["pytest-args"] == '-m "not performance"'
+    assert sum(1 for leg in legs if not leg["os"].startswith("macos")) >= 2
+    pytest_step = next(step["run"] for step in test["steps"] if "pytest" in str(step.get("run")))
+    assert "${{ matrix.pytest-args }}" in pytest_step

@@ -79,6 +79,10 @@ genuine finding was lost. The expected labels were not widened to absorb the old
 went into the analyzer, consistent with the 2026-07-17 fixture-label review. See
 `docs/decisions.md`, "Output-affecting corrections (2026-07-25, statement ordering)".
 
+CI times the performance suite on its Ubuntu and Windows legs. The macOS leg leaves it out, since
+the speed of its Intel runner varies too much for wall-clock ceilings: its slowest attempts missed
+ceilings that every other leg met, in code the change being tested had not touched.
+
 The deterministic performance suite covers a 100-symbol AST fixture, a 500-symbol mass-rename
 matching fixture, a warmed full-service fixture with 40 files, 3,000 changed lines, and 100 symbols,
 a chain of calls on instances across a call graph at its module limit, a variable 4,990 functions
