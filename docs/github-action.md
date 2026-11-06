@@ -163,9 +163,10 @@ report generated in a different working directory shows up as a warning rather t
 coverage gap. See [configuration](configuration.md#coverage-grounding).
 
 To name the tests that ran each changed line as candidates, record the run with per-test contexts,
-`pytest --cov --cov-context=test --cov-report=json:coverage.json`, upload the `.coverage` data file
-beside the report — `upload-artifact` leaves hidden files out unless given `include-hidden-files:
-true` — and pass it as `coverage-data: .coverage`. See [which tests ran a
+`pytest --cov --cov-context=test --cov-report=json:coverage.json`, with `COVERAGE_CORE: ctrace` in
+the step's `env`, which Python 3.14 and later need. Upload the `.coverage` data file beside the
+report — `upload-artifact` leaves hidden files out unless given `include-hidden-files: true` — and
+pass it as `coverage-data: .coverage`. See [which tests ran a
 change](configuration.md#which-tests-ran-a-change).
 
 ## Comment behavior

@@ -30,6 +30,17 @@
   missing-dependency error give `hermes pm repair`, and `python -m pip install` for Hermes 0.19.0 and
   earlier, in place of `python -m pip install semantic-diff-weaver`: that package is not on PyPI.
   The fixtures stay as they are. See `docs/decisions.md`, 2026-11-06.
+- **Fix:** an analysis warns when a coverage data file names one test per line, and the documented
+  recipe records every test that ran a line. On Python 3.14 and later coverage.py measures with
+  `sys.monitoring` by default, and with pytest-cov's per-test contexts that core keeps each line for
+  the first test that ran it: a helper two tests call was credited to the first alone, so
+  `--coverage-data` named fewer tests than ran a change, silently. coverage.py 7.15.3 and later warn
+  in the test run's output, which the analysis never sees, and still record one test per line. The
+  recipe in the README, `docs/configuration.md`, `docs/github-action.md`, and the Action's
+  `coverage-data` input now sets `COVERAGE_CORE=ctrace`. Contexts that name two tests or more but no
+  line that more than one of them ran now add a warning, since nothing in the data file says which
+  core recorded it. The regression tests read two real data files of one run, recorded with each
+  core, in `tests/fixtures/coverage`. No schema change. See `docs/decisions.md`, 2026-11-06.
 - **Tests:** CI tests the current Hermes release, v0.23.0, which PyPI no longer carries. The new
   `hermes-current` job builds it from its Git tag, checked against the tag's commit, on Python 3.14
   with uv, as Hermes's own installer does. It installs the plugin with `hermes plugins install` and

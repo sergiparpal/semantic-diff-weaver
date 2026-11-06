@@ -424,6 +424,38 @@ subsets, 11 that select none, and 17 whole suites, for its YAML workflows and co
 `selection.ignore`, all but six of those 120 commits ran the whole suite, since each changed some
 file that is not Python. The longest selection took 1.7 seconds.
 
+## Contexts recorded on Python 3.14 (2026-11-06)
+
+A data file recorded on Python 3.14 named fewer tests than ran a change, and nothing said so. It was
+reproduced on CPython 3.14.6 with pytest-cov 7.1.0 and coverage.py 7.15.2, the version this
+repository locks, and 7.17.2, the newest, on a module whose helper two tests call:
+
+- With coverage.py's default core, the helper's lines name the first of the two tests alone. With
+  `COVERAGE_CORE=ctrace`, or `core = "ctrace"` under `[tool.coverage.run]`, they name both.
+- coverage.py 7.9.1 made its `sys.monitoring` core the default on Python 3.14 and later, and that
+  core stops watching a line once it has run. pytest-cov switches contexts through
+  `Coverage.switch_context`, which coverage.py does not count as dynamic contexts: it falls back to
+  the C tracer only for a `dynamic_context` set in its configuration (coveragepy#2200). Since 7.15.3
+  it prints a `no-sysmon-context` warning in the test run's output, and still records one test per
+  line.
+- The data file keeps no trace of its core: its `meta` table holds `version` and `has_arcs` alone.
+
+Two choices are deliberate:
+
+- **A warning, not a refusal.** Every test the data names did run its line, so its candidates
+  stand, and a small suite whose tests share no line, which the C tracer records the same way, would
+  be refused with nothing wrong. When the contexts name two tests or more and no line that more than
+  one of them ran, the analysis warns that tests that ran the change may be missing and names
+  `COVERAGE_CORE=ctrace`. The sign is read over every line the contexts name, not only the changed
+  ones, which a single test may well have run alone.
+- **The recipe names the core.** Each recipe, in the README, `docs/configuration.md`,
+  `docs/github-action.md`, and the Action's `coverage-data` input, sets `COVERAGE_CORE=ctrace`,
+  which changes nothing on Python 3.13 and earlier, where the C tracer is already the default.
+  coverage.py's own `dynamic_context = test_function` picks the C tracer by itself.
+
+`tests/fixtures/coverage` holds the data files of one run of that module, recorded with each core,
+and the regression tests read them as they are.
+
 ## Tests that ran a change (2026-11-02)
 
 The roadmap's v0.2 asked for composition with coverage history, and an ingested report said only

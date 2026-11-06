@@ -284,9 +284,20 @@ calls show. Record the contexts with pytest-cov, and pass the `.coverage` data f
 beside its report:
 
 ```bash
-python -m pytest --cov=src --cov-context=test --cov-report=json:coverage.json
+COVERAGE_CORE=ctrace python -m pytest --cov=src --cov-context=test --cov-report=json:coverage.json
 semantic-diff-weaver --base main --coverage coverage.json --coverage-data .coverage
 ```
+
+`COVERAGE_CORE=ctrace` matters on Python 3.14 and later, where coverage.py measures with
+`sys.monitoring` by default, from coverage.py 7.9.1 on. That core stops watching a line once it has
+run, and pytest-cov switches the context from test to test without coverage.py knowing it will, so
+each line keeps the first test that ran it: a helper that two tests call names the first alone, and
+a change to it names fewer tests than ran it. The variable keeps coverage.py's C tracer, which
+records every test, as `core = "ctrace"` under `[tool.coverage.run]` does from coverage.py 7.9.0.
+coverage.py 7.15.3 and later print a `no-sysmon-context` warning in the test run's output but still
+record one test per line, and nothing in the data file says which core recorded it. When the
+contexts name two tests or more but no line that more than one of them ran, the analysis says so in
+a warning, which a suite whose tests share no line gets too.
 
 The data file needs the report beside it: it says which test ran a line, never which lines did not
 run, which coverage.py computes from the source for the report, and named without one it is a
@@ -300,11 +311,12 @@ small project's contexts fit in a report, written with `show_contexts`:
 show_contexts = true
 ```
 
-coverage.py's own `dynamic_context = test_function` records contexts too. A pytest node ID names a
-test by its file and its names, `tests/test_money.py::TestRound::test_total`, without its phase or
-parameters, and the file is matched as the report's paths are, by the longest suffix it shares with
-a test's file; coverage.py's dotted name, `test_money.TestRound.test_total`, is matched by its
-longest dotted suffix. A label that the tests of two files match equally well names neither.
+coverage.py's own `dynamic_context = test_function` records contexts too, and always with the C
+tracer. A pytest node ID names a test by its file and its names,
+`tests/test_money.py::TestRound::test_total`, without its phase or parameters, and the file is
+matched as the report's paths are, by the longest suffix it shares with a test's file; coverage.py's
+dotted name, `test_money.TestRound.test_total`, is matched by its longest dotted suffix. A label
+that the tests of two files match equally well names neither.
 
 A test that executed every changed line the report measures of a finding scores 0.65, and one that
 executed some of them 0.55: either is a candidate on its own, and the score adds to the test's other

@@ -91,13 +91,17 @@ from the report is reported as **unknown, never uncovered**, so a path-prefix mi
 as a warning rather than as a fake coverage gap. See
 [configuration](docs/configuration.md#coverage-grounding).
 
-Record the run with per-test contexts, `pytest --cov --cov-context=test`, and pass the `.coverage`
-data file it leaves beside the report, and each test that ran a changed line is a candidate test for
-the change, whatever its name or imports say:
+Record the run with per-test contexts, `COVERAGE_CORE=ctrace pytest --cov --cov-context=test`, and
+pass the `.coverage` data file it leaves beside the report, and each test that ran a changed line is
+a candidate test for the change, whatever its name or imports say:
 
 ```bash
 semantic-diff-weaver --repo . --base main --coverage coverage.json --coverage-data .coverage
 ```
+
+Without `COVERAGE_CORE=ctrace`, coverage.py on Python 3.14 and later credits each line to the first
+test that ran it alone; see [which tests ran a
+change](docs/configuration.md#which-tests-ran-a-change).
 
 ### Test skeletons
 
