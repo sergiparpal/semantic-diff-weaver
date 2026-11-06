@@ -7,21 +7,26 @@
    hermes plugins list
    ```
 
-   The listing should show `semantic-diff-weaver` enabled, with one tool and no error. If it
-   does not, set `HERMES_PLUGINS_DEBUG=1` and read the Hermes plugin logs.
+   The listing should show `semantic-diff-weaver` enabled, and on a current Hermes
+   `hermes tools list` shows its `semantic_diff_weaver` toolset enabled too. If not, set
+   `HERMES_PLUGINS_DEBUG=1` and read the Hermes plugin logs.
 
-2. **Runtime dependencies.** Installing a plugin clones this repository; it does not build or
-   install it. Pydantic 2 and PyYAML 6 therefore have to be importable in the environment that
-   runs Hermes. If one is missing the plugin refuses to load and names it; the fix is a single
-   install into that same environment:
+2. **Runtime dependencies.** The plugin needs Pydantic 2 and PyYAML 6, and Git on `PATH`: the
+   analyzer reads committed objects through Git plumbing. Current Hermes releases (0.22.7 and
+   0.23.0 are verified) read the two from this repository's `pyproject.toml` and install them into
+   an environment of their own as the plugin is installed, once you consent; `--yes-deps` consents
+   without a prompt. If the plugin still names one as missing, let Hermes rebuild that
+   environment, then restart Hermes:
 
    ```bash
-   python -m pip install semantic-diff-weaver
+   hermes pm repair
    ```
 
-   That also registers the `hermes_agent.plugins` entry point, which is the other supported way
-   for Hermes to find the plugin. Git must be on `PATH` as well — the analyzer reads committed
-   objects through Git plumbing.
+   Hermes 0.19.0 and earlier install nothing: there the two have to be importable in the
+   environment that runs Hermes, and the plugin names the missing one with the
+   `python -m pip install` command for it. Installing the package from a checkout instead,
+   `python -m pip install .`, brings both and registers the `hermes_agent.plugins` entry point,
+   the other supported way for Hermes to find the plugin.
 
 3. **Authorize the repositories it may read.** A *model* chooses `repo_path` under Hermes, so the
    default authorized root is the Hermes process working directory and nothing else. To analyze

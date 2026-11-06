@@ -7,10 +7,44 @@ import inspect
 import os
 import shutil
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 PLUGIN_NAME = "semantic-diff-weaver"
 TOOL_NAMES = ("analyze_semantic_diff", "generate_test_skeletons")
+# The distribution version of a Hermes built from its Git tag. Releases after 0.19.0 exist only as
+# tags, and their pyproject.toml carries this placeholder rather than the release's version.
+SOURCE_BUILD_VERSION = "0.0.0"
+UNKNOWN_SOURCE_BUILD = "built from source, version unknown"
+
+
+def hermes_version_label(
+    installed: str | None = None, version_info: Callable[[], Any] | None = None
+) -> str:
+    """The Hermes release under test, named as Hermes names itself.
+
+    A release from PyPI carries its version in its metadata. One built from its Git tag carries the
+    placeholder there, and names itself from its install stamp or its checkout instead, as
+    `hermes --version` does. That is read only to label the result, so a failure to read it leaves
+    the label unknown rather than failing the check it labels.
+    """
+    if installed is None:
+        installed = importlib.metadata.version("hermes-agent")
+    if installed != SOURCE_BUILD_VERSION:
+        return installed
+    try:
+        if version_info is None:
+            from hermes_cli.version_info import get_version_info
+
+            version_info = get_version_info
+        info = version_info()
+        base, commit = str(info.base_version), info.commit
+    except Exception:
+        return UNKNOWN_SOURCE_BUILD
+    if base == "unknown":
+        return UNKNOWN_SOURCE_BUILD
+    return f"{base} (source checkout {str(commit)[:12]})" if commit else base
 
 
 def _require_parameters(callable_object: object, expected: set[str]) -> None:
@@ -37,7 +71,7 @@ def main() -> int:
 
     from semantic_diff_weaver.llm_client import LlmClient
 
-    version = importlib.metadata.version("hermes-agent")
+    version = hermes_version_label()
     _require_parameters(
         plugins.PluginContext.register_tool,
         {"name", "toolset", "schema", "handler", "description", "override"},

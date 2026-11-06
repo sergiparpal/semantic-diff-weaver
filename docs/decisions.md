@@ -58,6 +58,45 @@ validate registration without requiring Hermes or a live model.
   `tests/contract/test_llm_client_protocol.py` pins to the single call site. All three releases
   accept them.
 
+## Compatibility snapshot (2026-11-06)
+
+- PyPI's `hermes-agent` stops at 0.19.0 (2026-07-20). Later releases exist only as Git tags of
+  NousResearch/hermes-agent, v0.22.7 (2026-11-03) and v0.23.0 (2026-11-05) among them, and Hermes's
+  own installer installs from those. The CI matrix had kept testing 0.19.0 as the current release.
+- These releases declare their dependencies only for Python 3.14 and resolve them only through
+  their `uv.lock`. `pillow==13.0.0` conflicts with the `pillow==12.3.0` that `browser-harness==0.1.13`
+  pins, and only the lock's override settles it, so pip cannot install them. They also report
+  `0.0.0` as their distribution version, and name themselves from an install stamp or their checkout
+  instead.
+- 0.22.7 and 0.23.0 still accept every parameter the plugin passes to `PluginContext.register_tool`
+  and `PluginLlm.complete_structured`, which gains an optional `task`; `agent/plugin_llm.py` is
+  identical in the two. Entry-point and directory discovery pass, and so does the real-runtime test.
+- `hermes plugins install` changed. It scans every file of the clone (`tools/plugin_guard.py`,
+  `plugin-guard-v12`), then reads the plugin's Python dependencies from `pyproject.toml` and, with
+  the user's consent, installs them into an environment of its own. Hermes's base environment has
+  Pydantic but no PyYAML, so that step is what makes a clone install load. Once installed, the plugin
+  loads there with both tools, and analyzes with Pydantic 2.14.1 and PyYAML 6.0.3. 0.19.0 does
+  neither.
+- The scan's verdict for this plugin is `caution`: 115 findings, of which one is high. It is a
+  fixture of `tests/security/test_hidden_changes.py`, high even after the one-severity reduction for
+  lying in a test tree. A `caution` verdict on a plugin outside the Hermes catalog needs the user's
+  `y` in a terminal, or `--force` without one, and `--force` never accepts `dangerous`. A
+  `.skillignore` does not reach a plugin scan: tried, it changes nothing.
+- The fixtures keep their hostile strings. Hermes reduces findings in test trees precisely so that
+  plugins like this one stay installable without their authors obfuscating their own tests
+  (hermes-agent #89610). Rewriting them would weaken the adversarial regressions this repository
+  requires, and would hold only until the scanner's next pattern. Instead the README says what the
+  scan reports and how to accept it, and the new `hermes-current` job installs the plugin on the
+  current release the way a user does, with `scripts/verify_hermes_install.py`. The job fails on a
+  `dangerous` verdict, on a high or critical finding outside `tests/`, and on a plugin that does not
+  load with both tools. A listing in the Hermes catalog would let installs at its reviewed pin accept
+  `caution` without a prompt, at the cost of a reviewed pull request to NousResearch/hermes-agent
+  for every release; it is left for later.
+- `hermes-compatibility` keeps 0.14.0 from PyPI, the lowest supported release, and drops 0.19.0.
+  `hermes-current` covers the current release, v0.23.0, pinned to commit
+  `2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19` and built with uv 0.13.5, the version its installer
+  pins.
+
 ## Repository-clone plugin install (2026-07-30)
 
 `hermes plugins install sergiparpal/semantic-diff-weaver --enable` is the documented install path,
@@ -81,6 +120,9 @@ dependencies. Four consequences are deliberate:
 - The manifest declares `manifest_version: 1` and an explicit empty `provides_hooks`. `--enable`
   makes the plugin live at install time, so "one tool, no hooks" is worth stating in the file the
   installer reads rather than only in prose.
+
+Hermes 0.22.7 and 0.23.0 do install the dependencies, and scan the clone first; the bootstrap and
+the named-dependency error stay, for 0.19.0 and earlier. See the 2026-11-06 compatibility snapshot.
 
 ## Claude Code plugin over MCP (2026-10-05)
 

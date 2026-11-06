@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+- **Fix:** the Hermes install documentation says what current Hermes releases do. On 0.22.7 and
+  0.23.0, `hermes plugins install` scans the clone first. Its verdict for this plugin is `caution`,
+  because one hostile fixture in the security tests stays a high finding even after Hermes lowers
+  test-tree findings a level. A `caution` verdict needs `y` in a terminal, or `--force` without one.
+  Those releases also install Pydantic and PyYAML themselves from `pyproject.toml`, and
+  `--yes-deps` consents without a prompt. The README no longer calls the one-line install the whole
+  setup, and no longer says the plugin registers one tool. `after-install.md` and the
+  missing-dependency error give `hermes pm repair`, and `python -m pip install` for Hermes 0.19.0 and
+  earlier, in place of `python -m pip install semantic-diff-weaver`: that package is not on PyPI.
+  The fixtures stay as they are. See `docs/decisions.md`, 2026-11-06.
+- **Tests:** CI tests the current Hermes release, v0.23.0, which PyPI no longer carries. The new
+  `hermes-current` job builds it from its Git tag, checked against the tag's commit, on Python 3.14
+  with uv, as Hermes's own installer does. It installs the plugin with `hermes plugins install` and
+  fails on a `dangerous` verdict, on a high or critical finding outside `tests/`, or on a plugin that
+  does not load with both tools and analyze a change in Hermes's environment. It then runs
+  entry-point and directory discovery. `hermes-compatibility` keeps 0.14.0, the lowest supported
+  release, and drops 0.19.0. `scripts/verify_hermes.py` names a Hermes built from source by its
+  release, where it printed `0.0.0`.
+
 ## 0.17.0 - 2026-11-04
 
 Fewer findings where nothing runs differently, measured on a fresh held-out split. A person reviewed
