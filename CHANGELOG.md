@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Fix:** a model's reply to a large evidence batch is no longer cut off into deterministic
+  fallback. Every structured call allowed 2,000 output tokens and 30 seconds. Measured through
+  Hermes on gpt-6.1-terra, a reply needs about 200 tokens plus one per 21 input characters. A
+  batch past roughly 38,000 of the default 48,000 characters was therefore cut off, retried, and
+  sent to deterministic fallback behind the generic warning; the measured 34,326-character batch
+  also took 42 seconds. Each call now gets 2,000 tokens plus one per 6 input characters, up to
+  8,192, and 30 seconds plus one per 400 characters, up to 150. No output or schema change. See
+  `docs/decisions.md`, 2026-11-06.
 - **Fix:** the Hermes install documentation says what current Hermes releases do. On 0.22.7 and
   0.23.0, `hermes plugins install` scans the clone first. Its verdict for this plugin is `caution`,
   because one hostile fixture in the security tests stays a high finding even after Hermes lowers

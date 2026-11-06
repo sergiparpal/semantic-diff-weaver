@@ -26,6 +26,22 @@ from .semantic_candidates import SemanticCandidate, evidence_identity
 from .textutil import getattr_or_key
 
 MAX_LLM_RESPONSE_CHARS = 200_000
+# A call's output budget and timeout follow the evidence it carries, because the reply does.
+# Measured through Hermes on gpt-6.1-terra (2026-11-06), a reply took about 200 tokens plus one
+# per 21 input characters, nearly all of it the JSON itself: 1,801 tokens and 42 seconds for a
+# 34,326-character batch. A fixed 2,000 tokens is cut off, and a fixed 30 seconds runs out,
+# before the default 48,000-character bound, and either one sends the batch to deterministic
+# fallback behind the generic warning. The base keeps the old 2,000 for what is not the reply,
+# such as the thinking that some model families cannot turn off. On top of it each input
+# character buys about three times the measured share, up to 8,192 tokens, a maximum every
+# current model and SDK accepts without streaming. The timeout grows the same way, with the
+# 48,000-character bound reaching its 150-second ceiling.
+BASE_OUTPUT_TOKENS = 2000
+CHARS_PER_OUTPUT_TOKEN = 6
+MAX_OUTPUT_TOKENS = 8192
+BASE_TIMEOUT_SECONDS = 30
+CHARS_PER_TIMEOUT_SECOND = 400
+MAX_TIMEOUT_SECONDS = 150
 MAX_BEHAVIORS_PER_SYMBOL = 3
 MAX_OBLIGATIONS_PER_BEHAVIOR = 6
 LLM_CONFIDENCE_CAP_EXISTING = 0.98
@@ -353,20 +369,31 @@ def _accumulate_usage(current: LlmUsage | None, result: Any) -> LlmUsage | None:
     )
 
 
+def call_budget(input_chars: int) -> tuple[int, int]:
+    """The output-token cap and the timeout in seconds for a call carrying `input_chars`."""
+    max_tokens = min(MAX_OUTPUT_TOKENS, BASE_OUTPUT_TOKENS + input_chars // CHARS_PER_OUTPUT_TOKEN)
+    timeout = min(
+        MAX_TIMEOUT_SECONDS, BASE_TIMEOUT_SECONDS + input_chars // CHARS_PER_TIMEOUT_SECOND
+    )
+    return max_tokens, timeout
+
+
 def _call(llm: LlmClient, payload: str) -> Any:
+    text = _input_text(payload)
+    max_tokens, timeout = call_budget(len(text))
     return llm.complete_structured(
         instructions=INSTRUCTIONS,
         input=[
             {
                 "type": "text",
-                "text": _input_text(payload),
+                "text": text,
             }
         ],
         json_schema=LLM_RESPONSE_SCHEMA,
         schema_name=LLM_SCHEMA_NAME,
         temperature=0.1,
-        max_tokens=2000,
-        timeout=30,
+        max_tokens=max_tokens,
+        timeout=timeout,
         purpose="semantic-diff-interpretation",
     )
 

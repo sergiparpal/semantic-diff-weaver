@@ -91,6 +91,13 @@ different units: `max_llm_calls` omits whole evidence batches as `llm_batch_limi
 `model_input_symbol_limit`, and `max_evidence_chars_per_symbol` shortens a symbol's evidence as
 `model_evidence_limit`. Each lowers reported confidence and marks scope truncated.
 
+Each call's output budget and timeout follow what it carries, because the model's reply grows
+with its evidence. A call gets 2,000 output tokens plus one per 6 input characters, up to 8,192,
+and 30 seconds plus one per 400 input characters, up to 150. The default 48,000-character bound
+reaches both ceilings, so raising `max_model_input_chars_per_call` past it gives a call more
+evidence but no more room to answer it. A reply cut off at its budget is not valid JSON, and its
+batch falls back to deterministic findings.
+
 `privacy.redact_patterns` must remain `true` and `privacy.allow_network` must remain `false`.
 Configured excludes are additive with mandatory control, credential, key, token, cache, environment,
 and cloud-configuration exclusions. If a file/line budget is exceeded, configured critical paths are
