@@ -97,6 +97,29 @@ validate registration without requiring Hermes or a live model.
   `2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19` and built with uv 0.13.5, the version its installer
   pins.
 
+## A weekly check for new Hermes releases (2026-11-06)
+
+Until 2026-11-06, when v0.23.0 was current, CI tested 0.19.0 as the current release, because the
+releases after it exist only as Git tags: PyPI and Dependabot never saw them. `hermes-current` now
+pins one by its tag and commit, and the weekly `hermes-release` workflow runs
+`scripts/check_hermes_release.py --open-issue`, which compares that tag with the latest release of
+NousResearch/hermes-agent. Four choices are deliberate:
+
+- **An issue, not a failed run.** `action-pins` fails its run because what it finds breaks this
+  repository's own policy. A new Hermes release is work to do rather than a fault, so it opens an
+  issue, titled after the release, and opens it once while that issue is open. The issue says what
+  to move: the tag, the commit the tag points to when the issue was opened, and a link to the uv
+  that the release's `scripts/install.sh` pins. A failed run means the check could not compare, or
+  could not open the issue.
+- **Releases, compared as numbers.** `releases/latest` passes over drafts and prereleases, tags
+  compare as `vX.Y.Z` numbers, and a pin ahead of the latest release is no news.
+- **Nothing from upstream but its tag.** The release's tag must read `vX.Y.Z`, and the commit and
+  date must be well formed. The issue is built from those alone, so a release's name, notes, or
+  links never reach this repository's issues. Only this workflow may write issues, and it may do
+  nothing else.
+- **The uv pin is linked, not read.** The installer's format is Hermes's own and can change, so the
+  issue links the file at the new tag rather than parsing it.
+
 ## A Hermes skill tells the agent when to use the tools (2026-11-06)
 
 The whole agent was driven on the user's Raspberry Pi: Hermes v0.22.7 and gpt-6.1-terra at medium
