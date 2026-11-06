@@ -88,3 +88,30 @@ from it is installed or run. The script prints the measures, a table per categor
 and with `--disagreements` every finding not in an expected category and every behavior change
 missed. Findings on files that are not Python, such as an API schema, are counted apart, since only
 Python is labeled.
+
+## Measuring with a model
+
+```bash
+python scripts/run_benchmark.py llm --model MODEL --max-cost-usd 0.5 --scratch /tmp/sdw-benchmark
+```
+
+`llm` analyzes each development case twice, without a model and with `MODEL` behind an
+OpenAI-compatible endpoint: OpenRouter's by default, with its key in `OPENROUTER_API_KEY`, or the
+one `--base-url` names, with its key in the variable `--api-key-env` names. No held-out case is
+ever sent to a model. A case counts only if the model answered: it was called, no batch failed, and
+one finding at least is one it supported. The others are listed by why they did not count. The
+script prints each measure without the model and with it on the cases that count, then what the
+model did in all and per case, and saves a report, with each case's two analyses, under
+`model-runs/` in the scratch directory.
+
+The run sends each case's changed code to the endpoint. So it first checks that GitHub serves every
+repository as public, and it makes no call once the calls so far cost `--max-cost-usd`, as the
+endpoint reports it; `--usd-per-mtok INPUT OUTPUT` estimates the cost where an endpoint reports
+none. Give the key a credit limit as well. `--case` and `--limit` measure fewer cases.
+`--reasoning-effort` sets a reasoning model's effort, since its reasoning shares the reply's token
+budget, and `--no-temperature` leaves out the temperature some models reject.
+
+A model never changes a finding's category. It can support a finding or add one, and move a
+finding's confidence, and with it whether the finding is reported (`docs/decisions.md`,
+2026-11-06). The rest of what it changes is the wording of findings and obligations, which the saved
+analyses keep for reading.
