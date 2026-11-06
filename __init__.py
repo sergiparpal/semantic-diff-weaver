@@ -14,9 +14,11 @@ makes ``semantic_diff_weaver`` importable by its real name in both cases. Append
 inserting keeps a pip-installed copy authoritative when both exist, and the package's own modules
 keep importing each other relatively, so nothing about the installed path changes.
 
-A clone carries no environment with it either, so the runtime dependencies must already be
-importable where Hermes runs. A missing one is named here, with the command that fixes it, rather
-than surfacing as a bare ``ModuleNotFoundError`` from somewhere inside the import chain.
+A clone carries no environment with it either. A current Hermes reads the runtime dependencies
+from ``pyproject.toml`` and installs them into an environment of its own; 0.19.0 and earlier
+install nothing, so there they must already be importable where Hermes runs. Either way a missing
+one is named here, with the commands that fix it, rather than surfacing as a bare
+``ModuleNotFoundError`` from somewhere inside the import chain.
 """
 
 from __future__ import annotations
@@ -45,11 +47,10 @@ except ModuleNotFoundError as exc:
     if _requirement is None:
         raise
     raise ImportError(
-        f"semantic-diff-weaver needs {exc.name} in the environment that runs Hermes. Installing "
-        "this plugin clones the repository and never builds it, so its runtime dependencies are "
-        f"not installed with it. Run: python -m pip install '{_requirement}' (or python -m pip "
-        "install semantic-diff-weaver, which installs both and registers the entry point) into "
-        "that environment, then restart Hermes."
+        f"semantic-diff-weaver needs {exc.name} in the environment that runs Hermes. A Hermes "
+        "that installs plugin dependencies reads them from this plugin's pyproject.toml: run "
+        "hermes pm repair. Hermes 0.19.0 and earlier install none: run python -m pip install "
+        f"'{_requirement}' in that environment. Then restart Hermes."
     ) from exc
 
 __all__ = ["register"]

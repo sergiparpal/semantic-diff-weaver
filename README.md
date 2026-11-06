@@ -259,17 +259,37 @@ coverage report from a prior job are in [docs/github-action.md](docs/github-acti
 hermes plugins install sergiparpal/semantic-diff-weaver --enable
 ```
 
-That is the whole setup. Hermes clones this repository into its plugins directory, reads
-`plugin.yaml`, and registers the single `analyze_semantic_diff` tool — no hooks, commands, or
-overrides. Plugins are opt-in, so `--enable` is what saves you a separate
-`hermes plugins enable semantic-diff-weaver`; `hermes plugins list` should then show the plugin
-enabled, with one tool and no error. [`after-install.md`](after-install.md) walks through the
-first run.
+Hermes clones this repository into its plugins directory, reads `plugin.yaml`, and registers two
+tools, `analyze_semantic_diff` and `generate_test_skeletons` — no hooks, commands, or overrides.
+Plugins are opt-in, so `--enable` is what saves you a separate
+`hermes plugins enable semantic-diff-weaver`. [`after-install.md`](after-install.md) walks through
+the first run.
 
-Installing clones the repository, it does not build it, so the two runtime dependencies —
-Pydantic 2 and PyYAML 6 — have to be importable in the environment that runs Hermes, and Git has
-to be on `PATH`. A missing dependency is reported by name with the command that fixes it, rather
-than as a bare import failure.
+**Expect a `caution` verdict from the install-time scan.** Current Hermes releases (0.22.7 and
+0.23.0 are verified) scan every file of the clone before installing it, the test tree included, and
+lower each finding in a test tree by one severity, since test fixtures hold hostile strings on
+purpose. This plugin's security tests do: they prove that a hostile change cannot pass for one that
+changes no behavior, and one of their fixtures, in `tests/security/test_hidden_changes.py`, stays a
+high finding. A single high finding makes the verdict `caution`, which a plugin outside the Hermes
+catalog needs you to accept. In a terminal Hermes lists the findings and asks `Install anyway?`;
+answer `y` once you have read them. An install without a terminal — a script, SSH automation, a
+container — is refused instead, and `--force` is how it accepts the verdict: it accepts `caution`
+only, never `dangerous`. CI installs the plugin this way on the current Hermes release for every
+pull request, and fails if the verdict turns `dangerous` or a high finding appears outside
+`tests/`.
+
+The same releases install the two runtime dependencies, Pydantic 2 and PyYAML 6, which they read
+from `pyproject.toml`, into an environment of their own once you consent, and `--yes-deps` consents
+without a prompt. Unattended, the whole install is:
+
+```bash
+hermes plugins install sergiparpal/semantic-diff-weaver --enable --yes-deps --force
+```
+
+Hermes 0.19.0, the last release on PyPI, neither scans a plugin nor installs its dependencies, so
+there the two have to be importable in the environment that runs Hermes already. Either way Git has
+to be on `PATH`, and a missing dependency is reported by name with the command that fixes it,
+rather than as a bare import failure.
 
 ### Other install paths
 
@@ -475,10 +495,13 @@ python -m mypy
 python -m build
 python scripts/verify_wheel.py dist
 python scripts/verify_hermes.py  # with Hermes >=0.14.0 and the wheel installed
+python scripts/verify_hermes_install.py  # with a current Hermes's Python, before the wheel
 ```
 
 Tests use temporary Git repositories and fake Hermes contexts/models. They do not change the real
-Hermes home and do not require a paid or live LLM.
+Hermes home and do not require a paid or live LLM. The last two scripts use a real Hermes: the
+second installs the committed HEAD with `hermes plugins install` into a temporary Hermes home, as
+CI's `hermes-current` job does with the current release built from its Git tag.
 
 ## Limitations
 
