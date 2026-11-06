@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **Feature:** on Hermes, the plugin registers a skill, `semantic-diff-weaver:review`, that tells
+  the agent when to use the two tools, and to answer from the committed source rather than by
+  running the code under review. Current Hermes releases hide a plugin's tools until the model
+  looks for them. On Hermes 0.22.7 with gpt-6.1-terra, asked what a commit changes, the agent used
+  the tools in 3 of 5 runs without the skill; in the other 2 it executed both revisions of the
+  changed file to compare them. With the skill it used them in 5 of 5 and executed nothing. The
+  skill is listed in the system prompt, and each tool's description now names it. Every supported
+  Hermes release can register it, from 0.14.0 on; a host that refuses it gets the tools alone,
+  with plain descriptions. `scripts/verify_hermes.py` checks that the skill is registered, and
+  `scripts/verify_wheel.py` that the wheel ships it. See `docs/decisions.md`, 2026-11-06.
 - **Fix:** a model's reply to a large evidence batch is no longer cut off into deterministic
   fallback. Every structured call allowed 2,000 output tokens and 30 seconds. Measured through
   Hermes on gpt-6.1-terra, a reply needs about 200 tokens plus one per 21 input characters. A
