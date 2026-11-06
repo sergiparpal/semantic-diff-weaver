@@ -48,12 +48,14 @@
    belong to the standalone CLI and are not read on this path.
 
 5. **Use it:** ask the agent to review a change — *"analyze the diff between `main` and `HEAD` in
-   this repository and tell me what to test"*. It calls `analyze_semantic_diff`, which is advisory
-   and read-only: it never imports, executes, builds, installs, tests, or modifies the repository
-   it analyzes. Ask it to scaffold the obligations you approve, and `generate_test_skeletons`
-   returns a patch of failing tests for them, which it never applies. Its IDs are those of the
-   analysis without inference, so for an analysis your session's model took part in, save that
-   analysis's JSON and pass its path as `analysis_path`.
+   this repository and tell me what to test"*. The skill `semantic-diff-weaver:review` tells it when
+   to use the tools; if it answers without them, ask for the semantic-diff-weaver review by name. It
+   calls `analyze_semantic_diff`, which is advisory and read-only: it never imports, executes,
+   builds, installs, tests, or modifies the repository it analyzes. Ask it to scaffold the
+   obligations you approve, and `generate_test_skeletons` returns a patch of failing tests for them,
+   which it never applies. Its IDs are those of the analysis without inference, so for an analysis
+   your session's model took part in, save that analysis's JSON and pass its path as
+   `analysis_path`.
 
 Configuration is optional. `.hermes/semantic-diff-weaver.yaml` or `.semantic-diff-weaver.yaml` in
 the analyzed repository tunes paths, critical-path weights, and reporting thresholds — see

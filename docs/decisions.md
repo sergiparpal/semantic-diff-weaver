@@ -97,6 +97,50 @@ validate registration without requiring Hermes or a live model.
   `2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19` and built with uv 0.13.5, the version its installer
   pins.
 
+## A Hermes skill tells the agent when to use the tools (2026-11-06)
+
+The whole agent was driven on the user's Raspberry Pi: Hermes v0.22.7 and gpt-6.1-terra at medium
+reasoning, in a standalone profile with the plugin installed. The agent was asked, in Spanish, what
+the last commit of a two-commit repository changes in behavior and what to test. Current Hermes
+releases hide a plugin's tools until the model looks for them. Without a skill, the agent used the
+tools in 3 of 5 runs. In the other 2 it answered from `git diff`, after executing both revisions of
+the changed file with `exec` to compare them. Those answers were right, but reached by running the
+code under review, which this plugin exists not to do. Asked in its own vocabulary to scaffold
+obligation `to-001`, the agent did find `generate_test_skeletons`, called it with the right
+arguments, and showed the patch without applying it.
+
+The plugin now registers a skill, `semantic-diff-weaver:review`, from
+`semantic_diff_weaver/hermes_skill.md`:
+
+- **Where it is listed.** Hermes lists a plugin skill in the system prompt's skill index by its
+  description, which recent releases clip to 60 characters. The description, "What a commit or
+  branch changes, and what to test", is 49. In the runs without the skill, the agent did consult
+  that index, and loaded unrelated skills from it.
+- **The pointer.** Each tool's description, and a copy of its schema's, ends by naming the skill:
+  a model reads a tool's description before calling it, and the sibling plugin meal-manager needed
+  the same pointer. The shared schemas the MCP server serves are left untouched.
+- **What it says.** The skill carries the Claude Code skill's guidance to a Hermes agent:
+  - when to use the tools;
+  - how to pick the refs with read-only Git commands;
+  - not to run the code under review;
+  - `output_format: "markdown"`, for the brief alone;
+  - how to scaffold, including that `generate_test_skeletons` numbers obligations from an analysis
+    made without the model.
+- **Where it ships.** The skill ships inside the package, so a clone install and an entry-point
+  install register it alike. `scripts/verify_wheel.py` rejects a wheel without it.
+- **Which hosts get it.** `register_skill` has the same signature in every supported release from
+  0.14.0 on. A host that lacks it, or refuses the skill, gets the tools alone, with descriptions that
+  name no skill. `scripts/verify_hermes.py` asserts the registration on real Hermes 0.14.0, 0.22.7,
+  and 0.23.0.
+
+With the skill, the agent used the tools in 5 of 5 runs and executed the repository's code in none.
+In all five it loaded the skill first and then called `analyze_semantic_diff` with
+`output_format: "markdown"`. Each answer gave the risk, the obligations with their IDs, and the
+evidence IDs, and said that nothing was executed. Five runs on each side cannot measure a rate.
+What they show is the mechanism, the skill loaded first every time, and that no run with it
+executed the code. Each run costs 47,000 to 88,000 input tokens, most of them cached. The skill
+and the extra `tool_describe` add up to about 25,000.
+
 ## Repository-clone plugin install (2026-07-30)
 
 `hermes plugins install sergiparpal/semantic-diff-weaver --enable` is the documented install path,

@@ -32,6 +32,7 @@ METADATA = "Metadata-Version: 2.4\nName: semantic-diff-weaver\nLicense-Expressio
 def _wheel_members() -> dict[str, str]:
     return {
         "semantic_diff_weaver/__init__.py": "",
+        "semantic_diff_weaver/hermes_skill.md": "# Semantic diff review\n",
         f"{DIST_INFO}/METADATA": METADATA,
         f"{DIST_INFO}/entry_points.txt": ENTRY_POINTS,
         f"{DIST_INFO}/licenses/LICENSE": "MIT License\n",
@@ -142,6 +143,11 @@ def _replace_entry_points(text: str) -> dict[str, str]:
             {k: v for k, v in _wheel_members().items() if not k.endswith("LICENSE")},
             "wheel does not contain LICENSE",
             id="no-license-file",
+        ),
+        pytest.param(
+            {k: v for k, v in _wheel_members().items() if not k.endswith("hermes_skill.md")},
+            "wheel does not contain the Hermes review skill",
+            id="no-hermes-skill",
         ),
     ],
 )

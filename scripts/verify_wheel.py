@@ -26,6 +26,9 @@ from pathlib import Path
 FORBIDDEN_PARTS = frozenset({".claude", ".git", ".pytest_cache", "__pycache__", ".venv", "tests"})
 # (group, name, value, what the failure message calls it). Matched per group and by exact
 # value, so a line under the wrong group or a near-miss target does not count as declared.
+# Data files the package reads at run time: an installed Hermes plugin registers its skill from
+# the package directory, so a wheel without it loads but leaves the skill unregistered.
+REQUIRED_PACKAGE_FILES = (("semantic_diff_weaver/hermes_skill.md", "the Hermes review skill"),)
 REQUIRED_ENTRY_POINTS = (
     (
         "console_scripts",
@@ -113,6 +116,9 @@ def check_wheel(wheel: Path) -> None:
                 raise ArtifactError(f"wheel does not declare {label}")
         if not any(name.endswith(".dist-info/licenses/LICENSE") for name in names):
             raise ArtifactError("wheel does not contain LICENSE")
+        for path, label in REQUIRED_PACKAGE_FILES:
+            if path not in names:
+                raise ArtifactError(f"wheel does not contain {label}")
 
 
 def check_sdist(sdist: Path) -> None:

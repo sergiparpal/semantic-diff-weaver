@@ -13,6 +13,7 @@ from typing import Any
 
 PLUGIN_NAME = "semantic-diff-weaver"
 TOOL_NAMES = ("analyze_semantic_diff", "generate_test_skeletons")
+QUALIFIED_SKILL = f"{PLUGIN_NAME}:review"
 # The distribution version of a Hermes built from its Git tag. Releases after 0.19.0 exist only as
 # tags, and their pyproject.toml carries this placeholder rather than the release's version.
 SOURCE_BUILD_VERSION = "0.0.0"
@@ -63,6 +64,23 @@ def _assert_loaded(manager: object, source: str) -> None:
         raise AssertionError(f"{source} plugin did not load cleanly: {plugin!r}")
     if plugin["tools"] != len(TOOL_NAMES):
         raise AssertionError(f"{source} plugin did not register exactly {list(TOOL_NAMES)!r}")
+    _assert_skill(manager, source)
+
+
+def _assert_skill(manager: object, source: str) -> None:
+    """On a Hermes with plugin skills, the plugin registered its review skill as well."""
+    import hermes_cli.plugins as plugins
+
+    if not hasattr(plugins.PluginContext, "register_skill"):
+        return
+    # The manager's registry is internal, read here only, as every other Hermes detail is.
+    skills = getattr(manager, "_plugin_skills", None)
+    if not isinstance(skills, dict):
+        raise AssertionError("Hermes has register_skill but no skill registry this check can read")
+    if QUALIFIED_SKILL not in skills:
+        raise AssertionError(
+            f"{source} plugin did not register {QUALIFIED_SKILL}: {sorted(skills)}"
+        )
 
 
 def main() -> int:
