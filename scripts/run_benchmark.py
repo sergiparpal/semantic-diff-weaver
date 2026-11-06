@@ -23,8 +23,8 @@ blind to the analyzer.
 with one behind an OpenAI-compatible endpoint (`openai_compatible.py`, OpenRouter's by default),
 and compares the two. It sends repository code to that endpoint, so it refuses a repository GitHub
 does not serve as public, never runs a held-out case, and needs a spending cap. A case counts only
-if the model answered: it was called, no batch failed, and one finding at least is one it
-supported. The rest measure the deterministic fallback, and are listed apart.
+if the model answered: it was called, no batch failed, and the analysis kept one behavior at least
+of those the model named. The rest measure the deterministic fallback, and are listed apart.
 """
 
 from __future__ import annotations
@@ -48,7 +48,14 @@ from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPOSITORY_ROOT))
@@ -67,7 +74,7 @@ from scripts.validate_real_prs import (  # noqa: E402
     run_git,
 )
 from semantic_diff_weaver import __version__  # noqa: E402
-from semantic_diff_weaver.models import BehaviorCategory  # noqa: E402
+from semantic_diff_weaver.models import BehaviorCategory, LlmBatchResponse  # noqa: E402
 from semantic_diff_weaver.path_policy import ALLOWED_ROOTS_ENV  # noqa: E402
 from semantic_diff_weaver.semantic_interpreter import INPUT_PREFIX, INPUT_SUFFIX  # noqa: E402
 from semantic_diff_weaver.service import analyze as analyze_service  # noqa: E402
@@ -424,9 +431,10 @@ def measure(benchmark: Benchmark, scratch: Path) -> list[CaseScore]:
 GITHUB_REPOSITORIES = "https://api.github.com/repos/"
 UNKNOWN = BehaviorCategory.UNKNOWN.value
 # Whether a case's analysis with the model counts. Only a valid one does: the model was called, no
-# batch failed, and one finding at least is one it supported. Without a call there was nothing to
-# send it, and the rest measure the deterministic fallback.
-Validity = Literal["valid", "no_call", "failed", "unsupported", "not_run"]
+# batch failed, and the analysis kept one behavior at least of those the model named, as a finding
+# it supports or adds, reported or hidden. Without a call there was nothing to send the model; the
+# rest measure the deterministic fallback, or a model that said nothing the analysis kept.
+Validity = Literal["valid", "no_call", "failed", "nothing_kept", "not_run"]
 
 
 def public_repository(slug: str) -> bool:
@@ -450,14 +458,18 @@ def public_repository(slug: str) -> bool:
 class Replies:
     """What a model said, read from its replies before the analysis judged them."""
 
+    # Replies the response schema rejects, which the analysis discards whole.
+    invalid_replies: int = 0
     behaviors: int = 0
     obligations: int = 0
     # Behaviors the analysis discards, by the first of its rules each one breaks.
     repeated_reference: int = 0
     fabricated_reference: int = 0
     other_batch_reference: int = 0
-    # Behaviors kept although no deterministic finding on their evidence has their category, so
-    # the analysis makes each an unknown change.
+    # Behaviors it keeps, as the finding of theirs it supports or as a new one.
+    kept: int = 0
+    # Kept behaviors whose category no deterministic finding on their evidence has, so the analysis
+    # makes each an unknown change.
     unsupported_category: int = 0
     # Evidence IDs cited that the model was never shown during the analysis.
     fabricated_ids: int = 0
@@ -514,22 +526,22 @@ class RecordingClient:
         """Every reply's behaviors, judged as the analysis judges them, against all it showed."""
         replies = Replies()
         for hints, parsed in self._answers:
-            if not isinstance(parsed, dict):
+            if isinstance(parsed, BaseModel):
+                parsed = parsed.model_dump(mode="json")
+            try:
+                reply = LlmBatchResponse.model_validate(parsed)
+            except ValidationError:
+                replies.invalid_replies += 1
                 continue
-            obligations = parsed.get("obligations")
-            replies.obligations += len(obligations) if isinstance(obligations, list) else 0
-            behaviors = parsed.get("behaviors")
-            for behavior in behaviors if isinstance(behaviors, list) else ():
-                if isinstance(behavior, dict):
-                    replies.behaviors += 1
-                    self._judge(behavior, hints, replies)
+            replies.obligations += len(reply.obligations)
+            for behavior in reply.behaviors:
+                replies.behaviors += 1
+                self._judge(behavior.category.value, list(behavior.evidence_ids), hints, replies)
         return replies
 
-    def _judge(self, behavior: dict[str, Any], hints: dict[str, Any], replies: Replies) -> None:
-        cited = behavior.get("evidence_ids")
-        references = (
-            [item for item in cited if isinstance(item, str)] if isinstance(cited, list) else []
-        )
+    def _judge(
+        self, category: str, references: list[str], hints: dict[str, Any], replies: Replies
+    ) -> None:
         unseen = {item for item in references if item not in self.shown}
         replies.fabricated_ids += len(unseen)
         if len(set(references)) != len(references):
@@ -538,10 +550,10 @@ class RecordingClient:
             replies.fabricated_reference += 1
         elif not set(references) <= hints.keys():
             replies.other_batch_reference += 1
-        elif behavior.get("category") != UNKNOWN and behavior.get("category") not in {
-            hints[item] for item in references
-        }:
-            replies.unsupported_category += 1
+        else:
+            replies.kept += 1
+            if category != UNKNOWN and category not in {hints[item] for item in references}:
+                replies.unsupported_category += 1
 
 
 def unanchored(
@@ -610,14 +622,14 @@ def _analyze_case(repo: Path, case: Case, llm: Any) -> dict[str, Any]:
         )
 
 
-def validity_of(analysis: dict[str, Any]) -> Validity:
+def validity_of(analysis: dict[str, Any], replies: Replies) -> Validity:
     status = analysis["llm"]
     if not status["attempted"]:
         return "no_call"
     if not status["available"] or status["failures"]:
         return "failed"
-    if not any(item["origin"] == "llm_supported" for item in analysis["behavior_changes"]):
-        return "unsupported"
+    if not replies.kept:
+        return "nothing_kept"
     return "valid"
 
 
@@ -659,6 +671,7 @@ def measure_with_model(
         started = time.perf_counter()
         analysis = _analyze_case(repo, case, recorder)
         seconds = time.perf_counter() - started
+        replies = recorder.replies()
         calls = [
             call
             for call in list(getattr(model, "calls", ()))[before:]
@@ -667,12 +680,12 @@ def measure_with_model(
         runs.append(
             ModelCase(
                 case=case,
-                validity=validity_of(analysis),
+                validity=validity_of(analysis, replies),
                 deterministic=deterministic,
                 model=analysis,
                 seconds=seconds,
                 calls=calls,
-                replies=recorder.replies(),
+                replies=replies,
                 unanchored=unanchored(analysis, deterministic, recorder.shown),
             )
         )
@@ -752,13 +765,15 @@ def render_model(
         "| What the model did | Value |",
         "| --- | --- |",
         f"| Cases | {len(runs)}: {counts['valid']} valid, {counts['no_call']} with nothing to send "
-        f"the model, {counts['failed']} with a failed batch, {counts['unsupported']} with no "
-        f"finding the model supported, {counts['not_run']} not run for the cap |",
+        f"the model, {counts['failed']} with a failed batch, {counts['nothing_kept']} where the "
+        f"analysis kept nothing the model said, {counts['not_run']} not run for the cap |",
         f"| Findings the model supported, valid cases | {_rate(supported, reported)} |",
         f"| Findings only the run with the model has, valid cases | {added} |",
         f"| Findings only the run without it has, valid cases | {removed} |",
-        f"| Behaviors in the model's replies, every case | {replies.behaviors}, and "
-        f"{replies.obligations} obligations |",
+        f"| Replies the response schema rejects, every case | {replies.invalid_replies} |",
+        f"| Behaviors in the other replies | {replies.behaviors}, and {replies.obligations} "
+        "obligations |",
+        f"| Behaviors the analysis kept | {replies.kept} |",
         f"| Behaviors discarded for citing evidence never shown | {replies.fabricated_reference} |",
         f"| Evidence IDs cited that were never shown | {replies.fabricated_ids} |",
         "| Behaviors discarded for citing another batch's evidence | "
@@ -783,13 +798,13 @@ def render_model(
         "| Seconds per analysis with the model | "
         f"{_median_max([run.seconds for run in measured])} |",
         "",
-        "| Case | Counted | Calls | Findings without and with | Supported | Discarded | USD "
-        "| Seconds |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| Case | Counted | Calls | Findings without and with | Supported | Kept | Discarded "
+        "| USD | Seconds |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for run in runs:
         if run.validity == "not_run":
-            lines.append(f"| `{run.case.id}` | not_run | | | | | | |")
+            lines.append(f"| `{run.case.id}` | not_run | | | | | | | |")
             continue
         discarded = (
             run.replies.repeated_reference
@@ -799,7 +814,7 @@ def render_model(
         lines.append(
             f"| `{run.case.id}` | {run.validity} | {run.model['llm']['calls']} "
             f"| {len(run.deterministic['behavior_changes'])}, {len(run.model['behavior_changes'])} "
-            f"| {_supported(run.model)} | {discarded} "
+            f"| {_supported(run.model)} | {run.replies.kept} | {discarded} "
             f"| {sum(call.cost or 0.0 for call in run.calls):.4f} | {run.seconds:.1f} |"
         )
     return "\n".join(lines) + "\n"

@@ -97,12 +97,12 @@ python scripts/run_benchmark.py llm --model MODEL --max-cost-usd 0.5 --scratch /
 
 `llm` analyzes each development case twice, without a model and with `MODEL` behind an
 OpenAI-compatible endpoint: OpenRouter's by default, with its key in `OPENROUTER_API_KEY`, or the
-one `--base-url` names, with its key in the variable `--api-key-env` names. No held-out case is
-ever sent to a model. A case counts only if the model answered: it was called, no batch failed, and
-one finding at least is one it supported. The others are listed by why they did not count. The
-script prints each measure without the model and with it on the cases that count, then what the
-model did in all and per case, and saves a report, with each case's two analyses, under
-`model-runs/` in the scratch directory.
+one `--base-url` names, with its key in the variable `--api-key-env` names. No held-out case is ever
+sent to a model. A case counts only if the model answered: it was called, no batch failed, and the
+analysis kept one behavior at least of those the model named, even one the report hides as a
+refactor. The others are listed by why they did not count. The script prints each measure without
+the model and with it on the cases that count, then what the model did in all and per case, and
+saves a report, with each case's two analyses, under `model-runs/` in the scratch directory.
 
 The run sends each case's changed code to the endpoint. So it first checks that GitHub serves every
 repository as public, and it makes no call once the calls so far cost `--max-cost-usd`, as the

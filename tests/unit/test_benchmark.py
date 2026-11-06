@@ -342,7 +342,7 @@ def test_a_case_is_measured_without_a_model_and_with_one(tmp_path: Path) -> None
     [run] = run_benchmark.measure_with_model(benchmark, scratch, model, public=lambda slug: True)
     assert run.validity == "valid"
     assert run.replies == Replies(
-        behaviors=3, fabricated_reference=1, fabricated_ids=1, unsupported_category=1
+        behaviors=3, fabricated_reference=1, kept=2, unsupported_category=1, fabricated_ids=1
     )
     assert (run.unanchored, run.calls) == (0, model.calls)
     without = run_benchmark.findings_of(run.deterministic)
@@ -371,7 +371,8 @@ def test_a_case_is_measured_without_a_model_and_with_one(tmp_path: Path) -> None
         "| Evidence in the output the analysis did not extract | 0 |",
         "| Calls | 1: ok 1 |",
         "| Cost | 0.0010 USD of a 1 USD cap |",
-        f"| `owner/name#1` | valid | 1 | 1, 2 | 2 | 1 | 0.0010 | {run.seconds:.1f} |",
+        "| Behaviors the analysis kept | 2 |",
+        f"| `owner/name#1` | valid | 1 | 1, 2 | 2 | 2 | 1 | 0.0010 | {run.seconds:.1f} |",
     ):
         assert line in report
 
@@ -380,7 +381,7 @@ def test_a_case_is_measured_without_a_model_and_with_one(tmp_path: Path) -> None
     ("options", "head", "validity"),
     [
         ({"fail": True}, "Fix the bound (#1)", "failed"),
-        ({"silent": True}, "Fix the bound (#1)", "unsupported"),
+        ({"silent": True}, "Fix the bound (#1)", "nothing_kept"),
         ({}, "Test only (#2)", "no_call"),
     ],
 )
@@ -414,7 +415,7 @@ def test_the_cap_stops_the_measurement_before_the_next_case(tmp_path: Path) -> N
     assert len(model.calls) == 1
     report = run_benchmark.render_model(benchmark, runs, model="m", cap=0.005, spent=model.spent)
     assert "1 not run for the cap |" in report
-    assert "| `owner/name#3` | not_run | | | | | | |" in report
+    assert "| `owner/name#3` | not_run | | | | | | | |" in report
 
 
 def test_a_repository_not_served_as_public_is_never_read(
@@ -472,8 +473,16 @@ def test_a_reply_is_judged_by_the_analysis_s_rules_in_their_order() -> None:
 
     first = {"id": "ev-001", "path": "a.py", "symbol": "f", "kind": "comparison_change"}
     second = {"id": "ev-002", "path": "b.py", "symbol": "g", "kind": "call_added"}
+    obligation = {
+        "behavior_index": 0,
+        "type": "boundary",
+        "title": "One is now admitted",
+        "given": "x = 1",
+        "when": "f(x) is called",
+        "then": "it returns True",
+    }
     answers = [
-        {"behaviors": [_behavior("boundary_change", ["ev-001"])], "obligations": [{}]},
+        {"behaviors": [_behavior("boundary_change", ["ev-001"])], "obligations": [obligation]},
         {
             "behaviors": [
                 _behavior("side_effect_change", ["ev-002", "ev-002"]),
@@ -481,10 +490,11 @@ def test_a_reply_is_judged_by_the_analysis_s_rules_in_their_order() -> None:
                 _behavior("boundary_change", ["ev-001"]),
                 _behavior("output_contract_change", ["ev-002"]),
                 _behavior("unknown_semantic_change", ["ev-002"]),
-                "not a behavior",
             ],
-            "obligations": "none",
+            "obligations": [],
         },
+        # The analysis discards a reply off the schema whole.
+        {"behaviors": [_behavior("boundary_change", ["ev-404"]), "not a behavior"]},
     ]
 
     class Answering:
@@ -495,19 +505,22 @@ def test_a_reply_is_judged_by_the_analysis_s_rules_in_their_order() -> None:
     recorder.complete_structured(
         input=framed({"category_hint": "boundary_change", "evidence": [first]})
     )
-    recorder.complete_structured(
-        input=framed({"category_hint": "side_effect_change", "evidence": [second]})
-    )
+    for _ in range(2):
+        recorder.complete_structured(
+            input=framed({"category_hint": "side_effect_change", "evidence": [second]})
+        )
     assert recorder.shown == {
         "ev-001": {"path": "a.py", "symbol": "f", "kind": "comparison_change"},
         "ev-002": {"path": "b.py", "symbol": "g", "kind": "call_added"},
     }
     assert recorder.replies() == Replies(
+        invalid_replies=1,
         behaviors=6,
         obligations=1,
         repeated_reference=1,
         fabricated_reference=1,
         other_batch_reference=1,
+        kept=3,
         unsupported_category=1,
         fabricated_ids=1,
     )
