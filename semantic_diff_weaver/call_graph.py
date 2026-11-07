@@ -621,6 +621,10 @@ class CallGraph:
             self._callers[node] = _closure(node, self._calls())
         return self._callers[node]
 
+    def users(self, node: Node) -> frozenset[Node]:
+        """The symbols whose own code calls or names `node`, top-level code left out."""
+        return frozenset(self._calls().get(node, ()))
+
     def reading(self, path: str, variable: str) -> frozenset[Node]:
         """Every symbol from which code reading a module-level variable is reached through calls,
         that code included, in one walk however many symbols read it."""

@@ -44,6 +44,14 @@
   goldens change with the obligations, and two of the corpus's required obligation concepts, which
   named scenarios that no longer fit their change, were revised. See `docs/decisions.md`,
   2026-11-07.
+- **Feature:** a private symbol added or removed no longer has an obligation of its own when a
+  related finding speaks for it: it joins the obligation of the code calling an added one, of the
+  code that stopped calling a removed one, or of another symbol of its class, and an added one's
+  own obligation otherwise names its callers. A change no structural rule names quotes the lines
+  that changed, from the diff, instead of the category's fallback scenario, and a removed `raise`
+  says what the symbol still raises. Findings, schema, and evidence are unchanged; on the
+  benchmark's 60 development cases the obligations go from 135 to 124. See `docs/decisions.md`,
+  2026-11-07, private symbols and unnamed changes.
 
 ## 0.18.0 - 2026-11-06
 

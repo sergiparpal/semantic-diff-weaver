@@ -3,10 +3,18 @@
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping
 from typing import TYPE_CHECKING
 
-from .evidence_scenarios import Change, evidence_scenarios, primary_kind, weakly_anchored
+from .evidence_scenarios import (
+    LIFECYCLE_KINDS,
+    NO_CONTEXT,
+    Change,
+    Context,
+    evidence_scenarios,
+    primary_kind,
+    weakly_anchored,
+)
 from .models import (
     BehaviorChange,
     CandidateTest,
@@ -159,35 +167,65 @@ def _folded(
     quoting: Mapping[str, tuple[Scenario, ...]],
     weak: set[str],
     kinds: Mapping[str, str | None],
+    contexts: Mapping[str, Context],
     coverage_by_behavior: Mapping[str, CoverageStatus],
 ) -> dict[str, str]:
-    """Each weakly anchored behavior another on its symbol speaks for, to that other one.
+    """Each weakly anchored behavior another speaks for, to that other one.
 
-    A behavior whose scenario quotes a call that only computes a value, or an assignment, says
-    where to look but not what to assert; the first behavior of its symbol whose scenario does say
-    it stands for both. Without one, an assignment joins the symbol's call, whose scenario asks at
-    least for the symbol's outcome. Only behaviors whose coverage status agrees are linked, so the
-    obligation's status and candidates stay true of each, and a review question keeps its own.
+    A behavior whose scenario quotes a call that only computes a value, an assignment, or a
+    private symbol added or removed says where to look but not what to assert. The first behavior
+    of its symbol whose scenario does say it stands for both; else one of a related symbol, the
+    context's: the code calling an added private symbol, the code that stopped calling a removed
+    one, the other symbols of its class. Without one, an assignment joins the symbol's call, whose
+    scenario asks at least for the symbol's outcome, and a private symbol any behavior of a related
+    symbol. Only behaviors whose coverage status agrees are linked, so the obligation's status and
+    candidates stay true of each, and a review question keeps its own. An anchor that is linked in
+    turn hands the link on; behaviors that would link in a circle keep their own.
     """
-    anchors: dict[tuple[str, str], str] = {}
+    strong: dict[tuple[str, str], str] = {}
     calls: dict[tuple[str, str], str] = {}
+    first: dict[tuple[str, str], str] = {}
     for behavior in behaviors:
         if not quoting[behavior.id] or behavior.presentation is Presentation.REVIEW_QUESTION:
             continue
+        symbol = _symbol(behavior)
+        first.setdefault(symbol, behavior.id)
         if behavior.id not in weak:
-            anchors.setdefault(_symbol(behavior), behavior.id)
+            strong.setdefault(symbol, behavior.id)
         elif kinds[behavior.id] == "call_change":
-            calls.setdefault(_symbol(behavior), behavior.id)
+            calls.setdefault(symbol, behavior.id)
     folded: dict[str, str] = {}
     for behavior in behaviors:
         if behavior.id not in weak or behavior.presentation is Presentation.REVIEW_QUESTION:
             continue
-        anchor = anchors.get(_symbol(behavior))
-        if anchor is None and kinds[behavior.id] == "assignment_change":
-            anchor = calls.get(_symbol(behavior))
-        if anchor is not None and coverage_by_behavior[behavior.id] is coverage_by_behavior[anchor]:
+        symbol = _symbol(behavior)
+        related = contexts.get(behavior.id, NO_CONTEXT).related
+        candidates = [strong.get(symbol), *(strong.get(node) for node in related)]
+        if kinds[behavior.id] == "assignment_change":
+            candidates.append(calls.get(symbol))
+        if kinds[behavior.id] in LIFECYCLE_KINDS:
+            candidates.extend(first.get(node) for node in related)
+        anchor = next(
+            (
+                item
+                for item in candidates
+                if item is not None
+                and item != behavior.id
+                and coverage_by_behavior[item] is coverage_by_behavior[behavior.id]
+            ),
+            None,
+        )
+        if anchor is not None:
             folded[behavior.id] = anchor
-    return folded
+    resolved: dict[str, str] = {}
+    for behavior_id, anchor in folded.items():
+        seen = {behavior_id}
+        while anchor in folded and anchor not in seen:
+            seen.add(anchor)
+            anchor = folded[anchor]
+        if anchor not in folded:
+            resolved[behavior_id] = anchor
+    return resolved
 
 
 def generate_obligations(
@@ -198,14 +236,14 @@ def generate_obligations(
     llm_suggestions: list[SuggestedScenario] | None = None,
     coverage_states: dict[str, str] | None = None,
     changes: Mapping[str, Change] | None = None,
-    readers: Mapping[str, Sequence[str]] | None = None,
+    contexts: Mapping[str, Context] | None = None,
 ) -> tuple[list[TestObligation], int]:
     """Each behavior's scenarios, deduplicated, prioritized, and capped.
 
     A behavior's scenarios quote what its evidence changed, by `changes`, when a Python delta
-    describes it; any other takes its category's scenarios. `readers` names, by behavior ID, the
-    symbols reading a module-level variable it assigns. A behavior whose scenario would say little
-    is linked to a stronger one's obligation on the same symbol instead (see `_folded`).
+    describes it; any other takes its category's scenarios. `contexts` says, by behavior ID, what
+    the call graph and the other findings say around it. A behavior whose scenario would say
+    little is linked to a stronger one's obligation instead (see `_folded`).
     """
     generated: list[TestObligation] = []
     by_semantics: dict[tuple[str, str, str, CoverageStatus], TestObligation] = {}
@@ -215,19 +253,19 @@ def generate_obligations(
         coverage_by_behavior[behavior.id] = _coverage_status(
             candidate_tests.get(behavior.id, []), mapping_incomplete, grounded
         )
-    readers = readers or {}
+    contexts = contexts or {}
     quoting = {
-        behavior.id: evidence_scenarios(behavior, changes or {}, readers.get(behavior.id, ()))
+        behavior.id: evidence_scenarios(behavior, changes or {}, contexts.get(behavior.id))
         for behavior in behaviors
     }
     weak = {
         behavior.id
         for behavior in behaviors
         if quoting[behavior.id]
-        and weakly_anchored(behavior, changes or {}, readers.get(behavior.id, ()))
+        and weakly_anchored(behavior, changes or {}, contexts.get(behavior.id))
     }
     kinds = {behavior.id: primary_kind(behavior, changes or {}) for behavior in behaviors}
-    folded = _folded(behaviors, quoting, weak, kinds, coverage_by_behavior)
+    folded = _folded(behaviors, quoting, weak, kinds, contexts, coverage_by_behavior)
     # The obligation each behavior's first scenario became, for a folded behavior to join.
     first_obligation: dict[str, TestObligation] = {}
     for behavior in behaviors:

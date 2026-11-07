@@ -16,12 +16,16 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
+from typing import TYPE_CHECKING
 
 from .ast_diff import StructuralDelta
 from .models import BehaviorCategory, BehaviorChange, Evidence, ObligationType
 from .semantic_candidates import evidence_id, has_boundary_comparison
 from .taxonomy import CATEGORY_PROFILES, Scenario
 from .textutil import code_span
+
+if TYPE_CHECKING:
+    from .call_graph import CallGraph
 
 # How much of one fragment of evidence a scenario quotes, how many values of each side, and how
 # much of what two long versions of one value share it keeps around where they differ.
@@ -131,6 +135,7 @@ PYTHON_KINDS = frozenset(
         "symbol_added",
         "symbol_removed",
         "structural_refactor",
+        "unknown_structure",
         *ORDER_KINDS,
     }
 )
@@ -184,6 +189,7 @@ _GENERAL: tuple[str, ...] = (
     "symbol_added",
     "symbol_removed",
     "structural_refactor",
+    "unknown_structure",
 )
 # A kind without a place here would fail `_primary` on the first analysis that reached it.
 if set(_GENERAL) != PYTHON_KINDS:  # pragma: no cover - guards an edit, not a runtime input
@@ -259,6 +265,9 @@ def describe_change(delta: StructuralDelta) -> Change | None:
     if delta.kind == "comparison_change":
         removed = tuple(_without_operators(item) for item in removed)
         added = tuple(_without_operators(item) for item in added)
+    if delta.kind == "unknown_structure" and not (removed or added):
+        # Without the lines that changed there is nothing to quote: the category speaks.
+        return None
     defaults_changed = delta.kind == "signature_change" and metadata.get("default_changed")
     return Change(
         kind=delta.kind,
@@ -455,6 +464,8 @@ class _Finding:
     relevance: int
     # The symbols whose code reads a module-level variable a changed assignment writes.
     readers: tuple[str, ...] = ()
+    # The symbols whose code calls an added symbol.
+    callers: tuple[str, ...] = ()
 
     @property
     def runs(self) -> str:
@@ -789,6 +800,17 @@ def _lifecycle_scenario(found: _Finding) -> Scenario:
             "The cases its callers rely on are reviewed",
             "Their expected outcomes are documented and tested",
         )
+    if added and found.callers and is_private(found.evidence.symbol or ""):
+        # A private helper is tested through the code that calls it, whose input a test chooses.
+        callers = _quotes(found.callers, len(found.callers))
+        verb = "calls" if len(found.callers) == 1 else "call"
+        return found.scenario(
+            ObligationType.REGRESSION,
+            f"Exercise the new {found.subject} through {callers}",
+            f"{found.subject} is new: {shown}, and {callers} {verb} it",
+            f"{_quote(found.callers[0])} runs with input that reaches {found.subject}",
+            f"What {_quote(found.callers[0])} returns, raises, or leaves is asserted",
+        )
     if added:
         return found.scenario(
             ObligationType.POSITIVE,
@@ -807,6 +829,16 @@ def _lifecycle_scenario(found: _Finding) -> Scenario:
 
 
 def _error_scenario(found: _Finding) -> Scenario:
+    if found.change.kind == "raise_change" and found.change.removed_only and found.evidence.new:
+        # A symbol that still raises something else: "what it does instead of raising" misled a
+        # reviewer when the symbol went on raising a group of the same errors.
+        return found.scenario(
+            ObligationType.ERROR,
+            f"Exercise the changed failure trigger in {found.subject}",
+            f"{found.changed}; it still raises {_quote(found.evidence.new)}",
+            "An input reaches the path the removed raise was on",
+            "Which exception reaches the caller there, and what it carries, is asserted",
+        )
     if found.change.kind == "raise_change":
         return found.scenario(
             ObligationType.ERROR,
@@ -881,6 +913,33 @@ def _decorator_scenario(found: _Finding) -> Scenario:
     )
 
 
+def _unnamed_scenario(found: _Finding) -> Scenario:
+    """A change no structural rule names, told by the lines of the symbol's code that changed."""
+    change = found.change
+    if (change.removed_total, change.added_total) == (1, 1) and change.removed and change.added:
+        removed, added = _quote_pair(change.removed[0], change.added[0])
+    else:
+        added = _quotes(change.added, change.added_total)
+        removed = _quotes(change.removed, change.removed_total)
+    unnamed = f"{found.subject} changed in a way no rule names"
+    if change.added and change.removed:
+        given = f"{unnamed}: it now reads {added} where it read {removed}"
+    elif change.added:
+        given = f"{unnamed}: it now also reads {added}"
+    else:
+        given = f"{unnamed}: it no longer reads {removed}"
+    module = (found.evidence.symbol or "<module>") == "<module>"
+    return found.scenario(
+        ObligationType.REVIEW,
+        f"Clarify and characterize what the changed lines of {found.subject} do",
+        given,
+        found.runs if module else f"{found.runs} with input that reaches the changed lines",
+        "What the module defines or exposes is asserted"
+        if module
+        else "What it returns, raises, or leaves there is asserted",
+    )
+
+
 def _scenarios_of(found: _Finding) -> tuple[Scenario, ...]:
     kind, change = found.change.kind, found.change
     if kind == "signature_change":
@@ -931,6 +990,7 @@ def _scenarios_of(found: _Finding) -> tuple[Scenario, ...]:
         "decorator_change": _decorator_scenario,
         "symbol_added": _lifecycle_scenario,
         "symbol_removed": _lifecycle_scenario,
+        "unknown_structure": _unnamed_scenario,
         **dict.fromkeys(ORDER_KINDS, _order_scenario),
     }
     return (builders[kind](found),)
@@ -956,20 +1016,45 @@ def _primary(
     return min(described, key=rank)
 
 
+@dataclass(frozen=True)
+class Context:
+    """What the call graph and the other findings say around a finding, for its scenario."""
+
+    # The symbols whose code reads a module-level variable the finding assigns.
+    readers: tuple[str, ...] = ()
+    # The symbols whose code calls the symbol the finding adds.
+    callers: tuple[str, ...] = ()
+    # The findings' symbols, as (path, symbol), whose obligation speaks for this one when its
+    # own would say little: the code calling a private symbol it adds, the code that stopped
+    # calling one it removes, and the other symbols of its class.
+    related: tuple[tuple[str, str], ...] = ()
+
+
+NO_CONTEXT = Context()
+
+
+def is_private(symbol: str) -> bool:
+    """Whether a qualified name has a part only its own module uses: `_x`, not `__init__`."""
+    return any(
+        part.startswith("_") and not (part.startswith("__") and part.endswith("__"))
+        for part in symbol.split(".")
+    )
+
+
 def evidence_scenarios(
-    behavior: BehaviorChange, changes: Mapping[str, Change], readers: Sequence[str] = ()
+    behavior: BehaviorChange, changes: Mapping[str, Change], context: Context | None = None
 ) -> tuple[Scenario, ...]:
     """The scenarios a finding's evidence supports: none when no Python delta describes it.
 
     One scenario says what to run, what changed, and what to assert. A changed default has a
     second, for the former value passed explicitly, and a changed boundary one for either side.
-    `readers` names the symbols whose code reads a module-level variable the finding assigns.
     """
     picked = _primary(behavior, changes)
     if picked is None:
         return ()
     evidence, change = picked
     subject = _subject(evidence)
+    context = context or NO_CONTEXT
     found = _Finding(
         category=behavior.category,
         evidence=evidence,
@@ -977,7 +1062,8 @@ def evidence_scenarios(
         subject=subject,
         changed=_what_changed(subject, evidence, change) if change.kind in _VERBS else "",
         relevance=CATEGORY_PROFILES[behavior.category].scenarios[0].relevance,
-        readers=tuple(readers),
+        readers=context.readers,
+        callers=context.callers,
     )
     return _scenarios_of(found)
 
@@ -991,17 +1077,20 @@ def primary_kind(behavior: BehaviorChange, changes: Mapping[str, Change]) -> str
 WEAK_CALL_CATEGORIES = frozenset(
     {BehaviorCategory.DEPENDENCY_INTERACTION, BehaviorCategory.UNKNOWN}
 )
+LIFECYCLE_KINDS = frozenset({"symbol_added", "symbol_removed"})
 
 
 def weakly_anchored(
-    behavior: BehaviorChange, changes: Mapping[str, Change], readers: Sequence[str] = ()
+    behavior: BehaviorChange, changes: Mapping[str, Change], context: Context | None = None
 ) -> bool:
     """Whether the finding's scenario names nothing a test could check beyond its symbol's result.
 
     A call that only computes a value, an assignment in a function, and a module-level one whose
     readers are unknown say where to look but not what to assert: the second blind review judged
-    all six of the last two kinds noise. Another finding's scenario on the same symbol speaks for
-    the symbol better, and `generate_obligations` links the finding to it instead.
+    all six of the last two kinds noise. So, in the third, did a private symbol added or removed:
+    only its own module uses it, and what to assert is what its callers do. Another finding's
+    scenario, on the same symbol or a related one, speaks better, and `generate_obligations`
+    links the finding to it instead.
     """
     picked = _primary(behavior, changes)
     if picked is None:
@@ -1014,7 +1103,86 @@ def weakly_anchored(
         )
     if change.kind == "assignment_change":
         module = (evidence.symbol or "<module>") == "<module>"
+        readers = (context or NO_CONTEXT).readers
         return behavior.category is not BehaviorCategory.STATE_TRANSITION and not (
             module and change.assigned_names and readers
         )
-    return False
+    return change.kind in LIFECYCLE_KINDS and is_private(evidence.symbol or "")
+
+
+def _node(behavior: BehaviorChange) -> tuple[str, str]:
+    first = behavior.evidence[0]
+    return first.path, first.symbol or "<module>"
+
+
+def _callee(call: str) -> str:
+    """A call's last name, as `extract` records it: `close` for `self.handler.close()`."""
+    return call.split("(", 1)[0].rpartition(".")[2]
+
+
+def _readers_of(
+    behavior: BehaviorChange, changes: Mapping[str, Change], graph: CallGraph
+) -> tuple[str, ...]:
+    """The symbols whose code reads a module-level variable the finding's assignments write.
+
+    The call graph knows them, in the variable's module and in the modules importing it that it
+    indexes. Naming them tells a test what to call: top-level code runs as its module is
+    imported, which tests nothing.
+    """
+    variables: set[tuple[str, str]] = set()
+    for item in behavior.evidence:
+        change = changes.get(item.id)
+        if change is not None and change.kind == "assignment_change":
+            if (item.symbol or "<module>") == "<module>":
+                variables.update((item.path, name) for name in change.assigned_names)
+    nodes = {node for variable in variables for node in graph.readers(*variable)}
+    here = {path for path, _ in variables}
+    ordered = sorted(nodes, key=lambda node: (node[0] not in here, node[0], node[1]))
+    return tuple(dict.fromkeys(qualified for _, qualified in ordered))
+
+
+def contexts_of(
+    behaviors: Sequence[BehaviorChange], changes: Mapping[str, Change], graph: CallGraph | None
+) -> dict[str, Context]:
+    """By finding ID, what the call graph and the other findings say around each finding."""
+    nodes = {behavior.id: _node(behavior) for behavior in behaviors}
+    found: dict[str, Context] = {}
+    for behavior in behaviors:
+        path, symbol = nodes[behavior.id]
+        kind = primary_kind(behavior, changes)
+        readers = _readers_of(behavior, changes, graph) if graph is not None else ()
+        callers: tuple[str, ...] = ()
+        related: list[tuple[str, str]] = []
+        if kind == "symbol_added" and graph is not None:
+            users = sorted(graph.users((path, symbol)), key=lambda node: (node[0] != path, node))
+            callers = tuple(dict.fromkeys(qualified for _, qualified in users))
+            related.extend(users)
+        if kind == "symbol_removed":
+            owner, _, name = symbol.rpartition(".")
+            # A removed constructor was called by its class's name.
+            name = owner.rpartition(".")[2] if name == "__init__" and owner else name
+            for other in behaviors:
+                if other is behavior or nodes[other.id][0] != path:
+                    continue
+                if any(
+                    _callee(call) == name
+                    for item in other.evidence
+                    if (change := changes.get(item.id)) is not None and change.kind == "call_change"
+                    for call in change.removed
+                ):
+                    related.append(nodes[other.id])
+        if kind in LIFECYCLE_KINDS and is_private(symbol):
+            owner = symbol.rpartition(".")[0]
+            if owner:
+                related.extend(
+                    sorted(
+                        node
+                        for node in set(nodes.values())
+                        if node[0] == path
+                        and node != (path, symbol)
+                        and (node[1] == owner or node[1].startswith(f"{owner}."))
+                    )
+                )
+        if readers or callers or related:
+            found[behavior.id] = Context(readers, callers, tuple(dict.fromkeys(related)))
+    return found

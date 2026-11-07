@@ -68,3 +68,35 @@ def test_an_assignment_inside_a_function_has_no_readers_to_name(repo_factory) ->
     )
     (obligation,) = obligations
     assert obligation["title"] == "Assert what `scale` computes from its changed assignment"
+
+
+def test_a_new_private_helper_joins_the_obligation_of_the_code_calling_it(repo_factory) -> None:
+    old = "def label(name):\n    if name:\n        return name\n    return ''\n"
+    new = (
+        "def _clean(name):\n    return name.strip()\n\n\n"
+        "def label(name):\n    if _clean(name):\n        return name\n    return ''\n"
+    )
+    test = "from label import label\n\n\ndef test_label():\n    assert label('a')\n"
+    obligations = _obligations(
+        repo_factory, {"label.py": old, "tests/test_label.py": test}, {"label.py": new}
+    )
+    titles = [item["title"] for item in obligations]
+    assert "Exercise both outcomes of the changed condition in `label`" in titles
+    assert not any("_clean" in title for title in titles)
+    (linked,) = [item for item in obligations if item["title"].startswith("Exercise both outcomes")]
+    assert len(linked["behavior_change_ids"]) == 2
+
+
+def test_a_removed_private_class_joins_the_code_that_stopped_calling_it(repo_factory) -> None:
+    old = (
+        "class _Handler:\n    def __init__(self, stream):\n        self.stream = stream\n\n\n"
+        "def log(stream, message):\n    _Handler(stream)\n    stream.write(message)\n"
+    )
+    new = "def log(stream, message):\n    stream.write(message)\n"
+    test = "from log import log\n\n\ndef test_log():\n    assert log is not None\n"
+    obligations = _obligations(
+        repo_factory, {"log.py": old, "tests/test_log.py": test}, {"log.py": new}
+    )
+    titles = [item["title"] for item in obligations]
+    assert not any("removed `_Handler" in title for title in titles)
+    assert any("`log`" in title for title in titles)

@@ -12,9 +12,12 @@ from semantic_diff_weaver.evidence_scenarios import (
     MAX_QUOTE_CHARS,
     SECOND_SCENARIO_RELEVANCE_DROP,
     Change,
+    Context,
     changes_by_evidence,
+    contexts_of,
     describe_change,
     evidence_scenarios,
+    is_private,
     leaves_the_process,
     weakly_anchored,
 )
@@ -902,7 +905,7 @@ def test_a_finding_is_weakly_anchored_when_it_names_nothing_to_assert(
     weak: bool,
 ) -> None:
     behavior = _manual(category, change.kind, symbol=symbol)
-    assert weakly_anchored(behavior, {"ev-001": change}, readers) is weak
+    assert weakly_anchored(behavior, {"ev-001": change}, Context(readers=readers)) is weak
     assert weakly_anchored(behavior, {}) is False
 
 
@@ -916,11 +919,13 @@ def test_a_module_variable_with_known_readers_names_what_to_call() -> None:
         assigned_names=("ROOTS",),
     )
     behavior = _manual(BehaviorCategory.UNKNOWN, "assignment_change", symbol="<module>")
-    (one,) = evidence_scenarios(behavior, {"ev-001": change}, ("select",))
+    (one,) = evidence_scenarios(behavior, {"ev-001": change}, Context(readers=("select",)))
     assert one.title == "Clarify and characterize what `select` does with the changed `ROOTS`"
     assert one.given.endswith(", which `select` reads")
     assert one.when == "`select` is called with input the changed value decides"
-    (two,) = evidence_scenarios(behavior, {"ev-001": change}, ("select", "Index.build"))
+    (two,) = evidence_scenarios(
+        behavior, {"ev-001": change}, Context(readers=("select", "Index.build"))
+    )
     assert two.title == (
         "Clarify and characterize what `select` and `Index.build` do with the changed `ROOTS`"
     )
@@ -1030,3 +1035,241 @@ def test_without_a_stronger_finding_an_assignment_joins_its_symbol_s_call() -> N
     assert [(item.title, item.behavior_change_ids) for item in obligations] == [
         ("Assert the outcome of `f` that depends on its changed call", ["bc-001", "bc-002"])
     ]
+
+
+@pytest.mark.parametrize(
+    ("symbol", "change", "given", "when"),
+    [
+        (
+            "f",
+            Change(
+                kind="unknown_structure",
+                removed=("del x[0]",),
+                added=("del x[1]",),
+                removed_total=1,
+                added_total=1,
+            ),
+            "`f` changed in a way no rule names: it now reads `del x[1]` where it read `del x[0]`",
+            "`f` runs with input that reaches the changed lines",
+        ),
+        (
+            "f",
+            Change(kind="unknown_structure", added=("yield item",), added_total=1),
+            "`f` changed in a way no rule names: it now also reads `yield item`",
+            "`f` runs with input that reaches the changed lines",
+        ),
+        (
+            "<module>",
+            Change(kind="unknown_structure", removed=('"FunctionAuth",',), removed_total=1),
+            "The top-level code of `m.py` changed in a way no rule names: it no longer reads "
+            '`"FunctionAuth",`',
+            "The top-level code of `m.py` runs as the module is imported",
+        ),
+    ],
+)
+def test_a_change_no_rule_names_quotes_its_changed_lines(
+    symbol: str, change: Change, given: str, when: str
+) -> None:
+    (scenario,) = evidence_scenarios(
+        _manual(BehaviorCategory.UNKNOWN, "unknown_structure", symbol=symbol), {"ev-001": change}
+    )
+    assert scenario.title.startswith("Clarify and characterize what the changed lines of ")
+    assert scenario.given == given
+    assert scenario.when == when
+
+
+def test_a_change_no_rule_names_without_its_lines_keeps_its_category_s_scenario() -> None:
+    delta = StructuralDelta(
+        path="m.py",
+        symbol="f",
+        kind="unknown_structure",
+        old="body changed",
+        new="body changed",
+        old_lines=None,
+        new_lines=None,
+        hunk_id=None,
+    )
+    assert describe_change(delta) is None
+
+
+def test_a_removed_raise_beside_another_names_the_one_left() -> None:
+    change = Change(kind="raise_change", removed=("self.errors[0]",), removed_total=1)
+    behavior = _manual(BehaviorCategory.ERROR_HANDLING, "raise_change").model_copy(
+        update={
+            "evidence": [
+                Evidence(
+                    id="ev-001",
+                    path="m.py",
+                    symbol="f",
+                    kind="raise_change",
+                    old="self.errors[0]; BaseExceptionGroup(message, self.errors)",
+                    new="BaseExceptionGroup(message, self.errors)",
+                )
+            ]
+        }
+    )
+    (scenario,) = evidence_scenarios(behavior, {"ev-001": change})
+    assert scenario.given == (
+        "`f` no longer raises `self.errors[0]`; it still raises "
+        "`BaseExceptionGroup(message, self.errors)`"
+    )
+    assert scenario.then == (
+        "Which exception reaches the caller there, and what it carries, is asserted"
+    )
+
+
+def test_a_new_private_helper_is_exercised_through_its_callers() -> None:
+    change = Change(kind="symbol_added")
+    behavior = _manual(BehaviorCategory.UNKNOWN, "symbol_added", symbol="_resolve")
+    (scenario,) = evidence_scenarios(behavior, {"ev-001": change}, Context(callers=("pager",)))
+    assert scenario.title == "Exercise the new `_resolve` through `pager`"
+    assert scenario.given == "`_resolve` is new: `b; a`, and `pager` calls it"
+    assert scenario.when == "`pager` runs with input that reaches `_resolve`"
+    # A public one is still characterized on its own, whoever calls it.
+    public = _manual(BehaviorCategory.UNKNOWN, "symbol_added", symbol="resolve")
+    (own,) = evidence_scenarios(public, {"ev-001": change}, Context(callers=("pager",)))
+    assert own.title == "Characterize the new `resolve`"
+
+
+@pytest.mark.parametrize(
+    ("symbol", "private"),
+    [
+        ("_x", True),
+        ("Cls._helper", True),
+        ("_Cls.__init__", True),
+        ("Cls.__init__", False),
+        ("Cls.method", False),
+        ("<module>", False),
+    ],
+)
+def test_a_name_is_private_when_one_of_its_parts_is(symbol: str, private: bool) -> None:
+    assert is_private(symbol) is private
+
+
+@pytest.mark.parametrize(
+    ("kind", "symbol", "weak"),
+    [
+        ("symbol_added", "_helper", True),
+        ("symbol_removed", "_Old.__init__", True),
+        ("symbol_added", "helper", False),
+        ("symbol_removed", "Old", False),
+    ],
+)
+def test_a_private_symbol_added_or_removed_is_weakly_anchored(
+    kind: str, symbol: str, weak: bool
+) -> None:
+    behavior = _manual(BehaviorCategory.UNKNOWN, kind, symbol=symbol)
+    assert weakly_anchored(behavior, {"ev-001": Change(kind=kind)}) is weak
+
+
+class _Graph:
+    """What `contexts_of` asks of a call graph."""
+
+    def __init__(self, readers=None, users=None) -> None:
+        self._readers = readers or {}
+        self._users = users or {}
+
+    def readers(self, path: str, variable: str):
+        return frozenset(self._readers.get((path, variable), ()))
+
+    def users(self, node):
+        return frozenset(self._users.get(node, ()))
+
+
+def test_the_context_of_a_finding_names_its_readers_callers_and_related_symbols() -> None:
+    assignment = _evidence_behavior(
+        1, BehaviorCategory.UNKNOWN, "assignment_change", symbol="<module>"
+    )
+    helper = _evidence_behavior(2, BehaviorCategory.UNKNOWN, "symbol_added", symbol="_Box._fill")
+    caller = _evidence_behavior(3, BehaviorCategory.UNKNOWN, "condition_change", symbol="Box.open")
+    removed = _evidence_behavior(
+        4, BehaviorCategory.UNKNOWN, "symbol_removed", symbol="_Handler.__init__"
+    )
+    stopped = _evidence_behavior(
+        5, BehaviorCategory.DEPENDENCY_INTERACTION, "call_change", symbol="log"
+    )
+    sibling = _evidence_behavior(
+        6, BehaviorCategory.UNKNOWN, "condition_change", symbol="_Box.size"
+    )
+    changes = {
+        "ev-001": Change(kind="assignment_change", assigned_names=("ROOTS",)),
+        "ev-002": Change(kind="symbol_added"),
+        "ev-003": Change(kind="condition_change", added=("ok",), added_total=1),
+        "ev-004": Change(kind="symbol_removed"),
+        "ev-005": Change(kind="call_change", removed=("_Handler(stream)",), removed_total=1),
+        "ev-006": Change(kind="condition_change", added=("full",), added_total=1),
+    }
+    graph = _Graph(
+        readers={("m.py", "ROOTS"): {("m.py", "select"), ("other.py", "pick")}},
+        users={("m.py", "_Box._fill"): {("m.py", "Box.open")}},
+    )
+    contexts = contexts_of(
+        [assignment, helper, caller, removed, stopped, sibling],
+        changes,
+        graph,  # type: ignore[arg-type]
+    )
+    assert contexts["bc-001"].readers == ("select", "pick")
+    assert contexts["bc-002"].callers == ("Box.open",)
+    # Its caller first, then the other symbols of its class.
+    assert contexts["bc-002"].related == (("m.py", "Box.open"), ("m.py", "_Box.size"))
+    # A removed constructor's class was called by its name: `log` stopped calling it.
+    assert contexts["bc-004"].related == (("m.py", "log"),)
+    assert "bc-003" not in contexts
+    # Without a call graph, nothing is known to call it.
+    assert contexts_of([helper], changes, None) == {}
+
+
+def test_a_private_helper_joins_the_obligation_of_the_code_that_calls_it() -> None:
+    helper = _evidence_behavior(1, BehaviorCategory.UNKNOWN, "symbol_added", symbol="_fill")
+    caller = _evidence_behavior(2, BehaviorCategory.UNKNOWN, "condition_change", symbol="open")
+    changes = {
+        "ev-001": Change(kind="symbol_added"),
+        "ev-002": Change(kind="condition_change", added=("ok",), added_total=1),
+    }
+    contexts = {"bc-001": Context(callers=("open",), related=(("m.py", "open"),))}
+    obligations, _ = generate_obligations(
+        [helper, caller], {}, False, WeaverConfig().rules, changes=changes, contexts=contexts
+    )
+    assert [(item.title, item.behavior_change_ids) for item in obligations] == [
+        ("Exercise both outcomes of the changed condition in `open`", ["bc-001", "bc-002"])
+    ]
+
+
+def test_a_private_helper_with_only_weak_relatives_joins_any_of_their_obligations() -> None:
+    helper = _evidence_behavior(1, BehaviorCategory.UNKNOWN, "symbol_added", symbol="_fill")
+    caller = _evidence_behavior(
+        2, BehaviorCategory.DEPENDENCY_INTERACTION, "call_change", symbol="open"
+    )
+    changes = {
+        "ev-001": Change(kind="symbol_added"),
+        "ev-002": Change(kind="call_change", added=("_fill(box)",), added_total=1),
+    }
+    contexts = {"bc-001": Context(related=(("m.py", "open"),))}
+    obligations, _ = generate_obligations(
+        [helper, caller], {}, False, WeaverConfig().rules, changes=changes, contexts=contexts
+    )
+    assert [item.behavior_change_ids for item in obligations] == [["bc-001", "bc-002"]]
+
+
+def test_links_are_followed_to_the_end_and_a_circle_keeps_its_own() -> None:
+    first = _evidence_behavior(1, BehaviorCategory.UNKNOWN, "symbol_removed", symbol="_A")
+    second = _evidence_behavior(2, BehaviorCategory.UNKNOWN, "symbol_removed", symbol="_B")
+    changes = {"ev-001": Change(kind="symbol_removed"), "ev-002": Change(kind="symbol_removed")}
+    circle = {
+        "bc-001": Context(related=(("m.py", "_B"),)),
+        "bc-002": Context(related=(("m.py", "_A"),)),
+    }
+    obligations, _ = generate_obligations(
+        [first, second], {}, False, WeaverConfig().rules, changes=changes, contexts=circle
+    )
+    assert sorted(item.behavior_change_ids for item in obligations) == [["bc-001"], ["bc-002"]]
+    third = _evidence_behavior(3, BehaviorCategory.UNKNOWN, "condition_change", symbol="c")
+    changes["ev-003"] = Change(kind="condition_change", added=("ok",), added_total=1)
+    chain = {
+        "bc-001": Context(related=(("m.py", "_B"),)),
+        "bc-002": Context(related=(("m.py", "c"),)),
+    }
+    obligations, _ = generate_obligations(
+        [first, second, third], {}, False, WeaverConfig().rules, changes=changes, contexts=chain
+    )
+    assert [item.behavior_change_ids for item in obligations] == [["bc-001", "bc-002", "bc-003"]]
