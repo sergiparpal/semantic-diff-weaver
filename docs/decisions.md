@@ -2381,6 +2381,50 @@ additional omission reason.
   byte-identical and `docs/evaluation.md` carries its corpus figures forward. Schema version,
   taxonomy values, error codes, and evidence IDs are unchanged.
 
+## Measuring the inference layer with a model (2026-11-06)
+
+`scripts/run_benchmark.py llm` analyzes each development case of the benchmark twice, without a
+model and with one behind an OpenAI-compatible endpoint, and compares the two. The inference layer
+cannot change a finding's category. It can support a finding, which marks it `llm_supported` and
+raises its confidence, or add one, whose category is unknown or one that a deterministic finding on
+the same evidence already has; its assumptions can also lower a confidence. So the measurement does
+not look for better categories. It counts what the model adds, how it moves confidence and
+precision, what it cites without having been shown it, and what each case costs and how long it
+takes. Five choices are deliberate:
+
+- **A case counts only if the model answered.** The model was called, no batch failed, and the
+  analysis kept one behavior at least of those the model named, as a finding it supports or adds,
+  reported or not. A failed batch falls back to the deterministic findings, and a model that said
+  nothing the analysis kept reads the same, so counting either would credit the model with the
+  fallback. The cases that do not count are listed by why. The testing plan first asked for a
+  reported `llm_supported` finding instead. A rehearsal on the 60 development cases, with a model
+  that supports every finding it is shown, found 12 cases whose every finding is a refactor the
+  report hides. That rule would have left out each of them whenever the model rightly added
+  nothing, and let one in only when it added noise.
+- **The replies are read before the analysis judges them.** The reconciliation discards a behavior
+  that cites evidence the model was never shown, so the output cannot show it. The measurement
+  counts such behaviors from the replies, by the analysis's own rules in their order. It checks the
+  output too: each evidence record of a finding must be one the analysis extracted.
+- **Development cases only, and public code only.** No held-out case is ever sent to a model. Every
+  repository must be one GitHub serves as public to a request without credentials, checked before
+  any of it is read, because its changed code goes to the endpoint.
+- **A spending cap is required.** No call is made once the calls so far cost the cap, as the
+  provider reports it (OpenRouter always does) or as estimated from tokens at the prices given. A
+  reply of unknown cost stops every later call, since the cap can no longer be kept. A credit limit
+  on the key itself stays the hard bound.
+- **The client stays out of the package.** `scripts/openai_compatible.py` exists to measure models;
+  the package's providers remain the host's model under Hermes and the Anthropic adapter. It sends
+  the interpreter's schema as `json_schema` without strict mode, which rejects optional properties,
+  and asks OpenRouter to route only to providers that honor every parameter sent. It refuses
+  redirects, since urllib would carry the key to the new location, and sends `reasoning` only when
+  asked, because reasoning shares the reply's token budget.
+
+Each run saves its report, per case and per call, with each case's two analyses, in the scratch
+directory, so the model's wording can be read later. Results enter `docs/benchmark.md` by hand, with
+the model, the date, and what the run cost. The rehearsal also ran the measurement end to end, the
+60 cases in 78 seconds without a cent spent: its run without a model reproduced the published
+development figures of 0.17.0, and no evidence in the output went unanchored.
+
 ## A call's output budget follows its batch (2026-11-06)
 
 Every structured call allowed 2,000 output tokens and 30 seconds, whatever its batch carried. The

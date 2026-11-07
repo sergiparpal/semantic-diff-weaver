@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- **Evaluation:** `scripts/run_benchmark.py llm` measures the inference layer with a real model. It
+  analyzes each development case of the benchmark without a model and with one behind an
+  OpenAI-compatible endpoint, OpenRouter's by default, through `scripts/openai_compatible.py`, which
+  stays out of the package. A case counts only if the model answered: it was called, no batch
+  failed, and the analysis kept one behavior at least of those it named. The report gives each
+  measure both ways, with the mean confidence of right and wrong findings, and then what the model
+  did: the findings it supported or added, the behaviors the analysis discarded for citing evidence
+  it was never shown, the categories made unknown, and the calls, tokens, cost, and seconds. It
+  needs a spending cap, never runs a held-out case, and sends nothing from a repository GitHub does
+  not serve as public. No package change. See `docs/decisions.md`, 2026-11-06.
+
 ## 0.18.0 - 2026-11-06
 
 A Hermes skill that tells the agent when to use the tools. On Hermes 0.22.7 with gpt-6.1-terra,

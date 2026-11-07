@@ -250,8 +250,9 @@ are neither right nor wrong: attrs#1571's two findings are one on `__all__` and 
 A model labeled it and one person reviewed every label, so a label is one model's reading that one
 reviewer accepted or corrected. Ninety pull requests of at most ten changed symbols each, sampled
 from fifteen libraries' recent history, say nothing of large changes or of applications. The
-analyzer ran without a model, as the MCP server always runs it and the CLI does without a provider;
-an inference pass may name categories differently. A finding is matched to a label by the path and
+analyzer ran without a model, as the MCP server always runs it and the CLI does without a provider.
+A model never changes a finding's category, but it can add findings and move their confidence, and
+`run_benchmark.py llm` measures what that does. A finding is matched to a label by the path and
 symbol of its first evidence, so two overloads of one name share a label.
 
 The held-out split measures a correction only while no correction is designed from it. A change to
