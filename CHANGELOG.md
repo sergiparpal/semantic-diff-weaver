@@ -5,13 +5,23 @@
 - **Evaluation:** `scripts/run_benchmark.py llm` measures the inference layer with a real model. It
   analyzes each development case of the benchmark without a model and with one behind an
   OpenAI-compatible endpoint, OpenRouter's by default, through `scripts/openai_compatible.py`, which
-  stays out of the package. A case counts only if the model answered: it was called, no batch
-  failed, and the analysis kept one behavior at least of those it named. The report gives each
-  measure both ways, with the mean confidence of right and wrong findings, and then what the model
-  did: the findings it supported or added, the behaviors the analysis discarded for citing evidence
-  it was never shown, the categories made unknown, and the calls, tokens, cost, and seconds. It
-  needs a spending cap, never runs a held-out case, and sends nothing from a repository GitHub does
-  not serve as public. No package change. See `docs/decisions.md`, 2026-11-06.
+  stays out of the package. A case counts only if the model answered: it was called, and no batch
+  failed. The report gives each measure both ways, with the mean confidence of right and wrong
+  findings, and then what the model did: the findings it supported or added, the behaviors the
+  analysis discarded for citing evidence it was never shown, the categories made unknown, and the
+  calls, tokens, cost, and seconds. It needs a spending cap, never runs a held-out case, and sends
+  nothing from a repository GitHub does not serve as public. No package change. See
+  `docs/decisions.md`, 2026-11-06.
+- **Fix:** with a model, a change the model names on a refactor's evidence no longer reaches the
+  report. The reconciliation made such a claim an unknown change and reported it in place of the
+  refactor it contradicted, which the report hides. A refactor's evidence is now set aside from a
+  model's finding of a change, and a finding that cites nothing else is discarded with its
+  obligations. On the benchmark's development cases, replaying one run's replies with and without
+  the change, unchanged symbols given a finding fall from 19 to 17 of 71, as without a model.
+  Deterministic output, schema, and goldens are unchanged. See `docs/decisions.md`, 2026-11-07.
+- **Evaluation:** `run_benchmark.py llm` saves every call's reply, and `--replay` analyzes a
+  recorded run's cases again with those replies, calling no model, so that two versions of the
+  analysis are compared on identical replies. Two live runs of one model differ too much for that.
 
 ## 0.18.0 - 2026-11-06
 

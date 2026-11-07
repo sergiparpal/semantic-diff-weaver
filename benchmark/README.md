@@ -98,11 +98,12 @@ python scripts/run_benchmark.py llm --model MODEL --max-cost-usd 0.5 --scratch /
 `llm` analyzes each development case twice, without a model and with `MODEL` behind an
 OpenAI-compatible endpoint: OpenRouter's by default, with its key in `OPENROUTER_API_KEY`, or the
 one `--base-url` names, with its key in the variable `--api-key-env` names. No held-out case is ever
-sent to a model. A case counts only if the model answered: it was called, no batch failed, and the
-analysis kept one behavior at least of those the model named, even one the report hides as a
-refactor. The others are listed by why they did not count. The script prints each measure without
-the model and with it on the cases that count, then what the model did in all and per case, and
-saves a report, with each case's two analyses, under `model-runs/` in the scratch directory.
+sent to a model. A case counts only if the model answered: it was called, and no batch failed. A
+case where the analysis kept nothing the model said still counts, since its output is what the
+answer left, and the report says how many there were. The others are listed by why they did not
+count. The script prints each measure without the model and with it on the cases that count, then
+what the model did in all and per case, and saves a report, with each case's two analyses and every
+call's reply, under `model-runs/` in the scratch directory.
 
 The run sends each case's changed code to the endpoint. So it first checks that GitHub serves every
 repository as public, and it makes no call once the calls so far cost `--max-cost-usd`, as the
@@ -115,3 +116,17 @@ A model never changes a finding's category. It can support a finding or add one,
 finding's confidence, and with it whether the finding is reported (`docs/decisions.md`,
 2026-11-06). The rest of what it changes is the wording of findings and obligations, which the saved
 analyses keep for reading.
+
+A model does not answer the same way twice, so two runs of one model differ, and a change to the
+analysis cannot be measured by comparing them. Measure it on the same replies instead:
+
+```bash
+python scripts/run_benchmark.py llm --replay RUN_DIR --scratch /tmp/sdw-benchmark
+```
+
+`--replay` takes a run's directory under `model-runs/` and analyzes the cases it measured again,
+answering each call with the reply that run got for the same request, and calls no model, so it
+needs neither a key nor a cap. A request the recorded run never made fails its batch, and the case
+then does not count. Replaying a run from another checkout of the analyzer compares the two versions
+on identical replies.
+

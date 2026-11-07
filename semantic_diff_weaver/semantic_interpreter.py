@@ -465,12 +465,34 @@ def _accept_behavior(
         )
         return None
     evidence = [registry[evidence_id] for evidence_id in behavior.evidence_ids]
+    if behavior.category is not BehaviorCategory.REFACTOR:
+        # The structural rules found no behavior change in a refactor's evidence, a finding the
+        # report hides, so that evidence cannot carry a model's claim of one. A finding anchored
+        # on it was reported in the refactor's place, and in the first measurements with a model
+        # each such finding on a labeled symbol was on one whose behavior does not change
+        # (docs/decisions.md, 2026-11-07). The refactor's evidence is set aside, and a finding
+        # citing nothing else is discarded.
+        changing = [
+            item
+            for item in evidence
+            if batch_categories.get(item.id) is not BehaviorCategory.REFACTOR
+        ]
+        if not changing:
+            warnings.append(
+                "Discarded an LLM finding that contradicts a finding of no behavior change on the "
+                "same evidence."
+            )
+            return None
+        if len(changing) < len(evidence):
+            warnings.append("Set aside evidence of no behavior change from an LLM finding.")
+            evidence = changing
+    evidence_ids = {item.id for item in evidence}
+    supported_categories = {batch_categories.get(item.id) for item in evidence}
     symbol_key = "|".join(sorted({f"{item.path}:{item.symbol or '<module>'}" for item in evidence}))
     if behavior_counts[symbol_key] >= MAX_BEHAVIORS_PER_SYMBOL:
         warnings.append("Discarded an LLM finding above the per-symbol behavior cap.")
         return None
     behavior_counts[symbol_key] += 1
-    supported_categories = {batch_categories.get(item.id) for item in evidence}
     category = behavior.category
     if category not in supported_categories and category is not BehaviorCategory.UNKNOWN:
         category = BehaviorCategory.UNKNOWN
@@ -480,8 +502,7 @@ def _accept_behavior(
         (
             index
             for index, item in enumerate(candidates)
-            if item.category is category
-            and {ev.id for ev in item.evidence} == set(behavior.evidence_ids)
+            if item.category is category and {ev.id for ev in item.evidence} == evidence_ids
         ),
         None,
     )

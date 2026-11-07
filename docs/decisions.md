@@ -256,6 +256,31 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-11-07, a model's claims on refactors)
+
+With a model, the reconciliation keeps a model's category only where a deterministic finding on the
+same evidence has it, and otherwise makes the model's finding an unknown change. Where that evidence
+was a refactor's, a finding the report hides, the unknown change was reported in its place: the
+model overruled the structural rules that found no behavior change. On the benchmark's development
+cases, gpt-oss-120b did so on rich#3941's `Console.save_html`, whose parameter annotations alone
+widened, and on marshmallow#2935's `Nested.__init__`, both labeled unchanged. One time it cited the
+refactor's evidence together with that of `Nested.schema`, whose change is real, and the finding
+took the symbol of the first evidence it cited, the refactor's.
+
+A refactor's evidence now cannot carry a model's claim of a change. A behavior naming a change sets
+that evidence aside and is judged on the rest; one that cites nothing else is discarded, with its
+obligations. A model may still support a refactor. Deterministic output, schema, and goldens are
+unchanged.
+
+It was measured on identical replies, since two live runs of one model differ: of 81 to 87 calls,
+0, 4, and 6 replies were rejected by the schema in the first three runs. A third live run of the 60
+development cases recorded its 87 replies, and `--replay` analyzed them again with this code and
+with 0.18.0's (1c402a4). Without the correction the model added 5 findings, and unchanged symbols
+given a finding rose from 17 to 19 of 71; with it, it added 1, an unknown change beside
+click#3764's real one, and they stayed at 17, as without a model. The 4 findings it removed are the
+two above and two on httpx#3651's unlabeled `StreamClosed` and `URL`, and it added none. The replay
+with this code reproduced the live run's findings in all 60 cases.
+
 ## Output-affecting corrections (2026-11-04, typing and versions)
 
 The labeled benchmark's second round, designed from its 60 development cases alone: the first
@@ -2392,15 +2417,15 @@ not look for better categories. It counts what the model adds, how it moves conf
 precision, what it cites without having been shown it, and what each case costs and how long it
 takes. Five choices are deliberate:
 
-- **A case counts only if the model answered.** The model was called, no batch failed, and the
-  analysis kept one behavior at least of those the model named, as a finding it supports or adds,
-  reported or not. A failed batch falls back to the deterministic findings, and a model that said
-  nothing the analysis kept reads the same, so counting either would credit the model with the
-  fallback. The cases that do not count are listed by why. The testing plan first asked for a
-  reported `llm_supported` finding instead. A rehearsal on the 60 development cases, with a model
-  that supports every finding it is shown, found 12 cases whose every finding is a refactor the
-  report hides. That rule would have left out each of them whenever the model rightly added
-  nothing, and let one in only when it added noise.
+- **A case counts only if the model answered.** The model was called, and no batch failed. A
+  failed batch falls back to the deterministic findings, so counting it would credit the model
+  with the fallback; the cases that do not count are listed by why. A case where the analysis kept
+  nothing the model said still counts, since its output is what the model's answer left, and the
+  report counts such cases apart. The testing plan first asked for a reported `llm_supported`
+  finding as well, and a later draft for one kept behavior. Both left out exactly the cases where
+  the model rightly added nothing. A rehearsal on the 60 development cases found 12 whose every
+  finding is a refactor the report hides; in a live run, 10 cases had nothing kept, 2 of them
+  because the analysis discarded the model's claims of a change on a refactor (2026-11-07).
 - **The replies are read before the analysis judges them.** The reconciliation discards a behavior
   that cites evidence the model was never shown, so the output cannot show it. The measurement
   counts such behaviors from the replies, by the analysis's own rules in their order. It checks the
