@@ -20,7 +20,7 @@ from scripts.mutate_select import (
     mutant_timeout,
     mutation_sites,
     nodeid_file,
-    scrubbed_environment,
+    run_environment,
     summarize,
 )
 
@@ -122,7 +122,7 @@ def test_a_mutant_s_tests_may_take_a_multiple_of_their_base_time_within_bounds()
     assert mutant_timeout(["tests/test_c.py"], took, cap=600) == 600
 
 
-def test_the_analyzed_tests_never_see_a_credential() -> None:
+def test_the_analyzed_tests_never_see_a_credential_nor_write_bytecode() -> None:
     environ = {
         "PATH": "/bin",
         "HOME": "/home/x",
@@ -131,7 +131,12 @@ def test_the_analyzed_tests_never_see_a_credential() -> None:
         "aws_secret_access_key": "s",
         "SSH_AUTH_SOCK": "/run/agent",
     }
-    assert scrubbed_environment(environ) == {"PATH": "/bin", "HOME": "/home/x"}
+    assert run_environment(environ, Path("/work/no-bytecode")) == {
+        "PATH": "/bin",
+        "HOME": "/home/x",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONPYCACHEPREFIX": str(Path("/work/no-bytecode")),
+    }
 
 
 def test_a_run_skips_the_mutants_already_measured_on_its_base(tmp_path: Path) -> None:

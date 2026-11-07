@@ -178,9 +178,17 @@ def has_escaped(killed_by: Sequence[str], missed: Sequence[str]) -> bool:
     return bool(killed_by) and set(killed_by) <= set(missed)
 
 
-def scrubbed_environment(environ: Mapping[str, str]) -> dict[str, str]:
-    """The environment the analyzed tests run in: this one without its credentials."""
-    return {name: value for name, value in environ.items() if not SECRET_NAME_RE.search(name)}
+def run_environment(environ: Mapping[str, str], pycache: Path) -> dict[str, str]:
+    """The environment the analyzed tests run in: this one without its credentials, and without
+    bytecode caches.
+
+    A cache is valid while its source keeps its size and the second it was written in, which a
+    mutant as long as the code it replaces, written in that second, does: the code would run in its
+    place, and the base in the mutant's. So nothing writes a cache, and `pycache`, which stays empty,
+    replaces every `__pycache__` of the tree, including those a test's own processes may write.
+    """
+    kept = {name: value for name, value in environ.items() if not SECRET_NAME_RE.search(name)}
+    return {**kept, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONPYCACHEPREFIX": str(pycache)}
 
 
 def contexts_by_line(coverage_file: Path, root: Path) -> dict[str, dict[int, set[str]]]:
@@ -484,7 +492,7 @@ def _measure(arguments: argparse.Namespace, repo: Path, work: Path) -> int:
     git(clone, "config", "commit.gpgsign", "false")
     out = Path(arguments.out).resolve()
     done = measured_keys(out, repo.name, base)
-    env = scrubbed_environment(os.environ)
+    env = run_environment(os.environ, work / "no-bytecode")
     test_roots = arguments.test_root
     scripts = arguments.runner == "script"
     if scripts:

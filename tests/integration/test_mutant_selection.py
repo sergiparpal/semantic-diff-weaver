@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import py_compile
 import sys
 import time
 from pathlib import Path
@@ -12,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from scripts import mutate_select
-from scripts.mutate_select import main, run_bounded, summarize
+from scripts.mutate_select import main, run_bounded, run_environment, run_tests, summarize
 
 # Each run clones, records coverage, and runs `select` and the tests once a mutant: a few dozen
 # child processes, which a Windows runner starts slowly.
@@ -168,6 +169,45 @@ def test_mutants_of_a_script_suite_run_each_test_file_as_a_script(
     assert record["killed_by"] == ["test_unit.py"]
     assert record["selected"] == ["test_unit.py"]
     assert record["missed"] == []
+
+
+def test_a_mutant_never_runs_from_bytecode_compiled_before_it(tmp_path: Path, monkeypatch) -> None:
+    # A bytecode cache is valid while its source keeps its size and the second it was written in,
+    # which a mutant as long as the code it replaces, written within that second, does. CI's
+    # runners write caches, where a developer's shell may not.
+    monkeypatch.delenv("PYTHONDONTWRITEBYTECODE", raising=False)
+    monkeypatch.delenv("PYTHONPYCACHEPREFIX", raising=False)
+    source = tmp_path / "mod.py"
+    (tmp_path / "test_mod.py").write_text(
+        "from mod import f\n\n\ndef test_f():\n    assert f() == 1\n", encoding="utf-8"
+    )
+    env = run_environment(os.environ, tmp_path / "no-bytecode")
+
+    def write(value: int, *, keeping: os.stat_result | None = None) -> None:
+        source.write_text(f"def f():\n    return {value}\n", encoding="utf-8")
+        if keeping is not None:
+            os.utime(source, ns=(keeping.st_atime_ns, keeping.st_mtime_ns))
+
+    def failures() -> set[str]:
+        return run_tests(tmp_path, sys.executable, ["test_mod.py"], timeout=60, env=env)[1]
+
+    write(1)
+    written = source.stat()
+    assert failures() == set()
+    # No run writes a cache that a later one would read.
+    write(2, keeping=written)
+    assert failures() == {"test_mod.py::test_f"}
+    # Nor is a cache in the tree read, as a test's own process may write with its own environment.
+    write(1, keeping=written)
+    cache = tmp_path / "__pycache__" / f"mod.{sys.implementation.cache_tag}.pyc"
+    py_compile.compile(
+        str(source),
+        cfile=str(cache),
+        doraise=True,
+        invalidation_mode=py_compile.PycInvalidationMode.TIMESTAMP,
+    )
+    write(3, keeping=written)
+    assert failures() == {"test_mod.py::test_f"}
 
 
 @pytest.mark.skipif(os.name != "posix", reason="a process session is POSIX's")

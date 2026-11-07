@@ -591,7 +591,7 @@ changes one token of a repository's product code, `<` to `<=`, `and` to `or`, `T
 or a whole number to the next, in a throwaway commit of a scratch clone. `select` names the test
 files for that commit, and the test files that ran the mutated line at the base run against it. A
 test that fails caught the mutant; one in a file `select` left out is a miss, and a mutant that only
-such tests caught escaped, since running the selection alone would have passed it. Six choices are
+such tests caught escaped, since running the selection alone would have passed it. Seven choices are
 deliberate:
 
 - **A test file's process is its context.** Each test file runs once a base under coverage, in a
@@ -615,6 +615,12 @@ deliberate:
 - **A mutant may loop.** Its tests may take five times what they took at the base, and a minute at
   least, before they count as timed out, and on POSIX a timeout kills every process they started,
   not the test runner alone, which would leave a looping process a test started running.
+- **No bytecode cache.** A cache is valid while its source keeps its size and the second it was
+  written in, which a mutant as long as the code it replaces, `5` for `6` or `-` for `+`, written
+  within that second, does: the code then ran in the mutant's place, and the base in the mutant's
+  when a miss was confirmed. CI's runners, which write caches, found it on the first push, where a
+  shell that sets `PYTHONDONTWRITEBYTECODE` never could. The tests run with that variable, and with
+  `PYTHONPYCACHEPREFIX` naming an empty directory, so that no cache in the tree is read either.
 - **Outside the package, without credentials.** The script runs the analyzed repository's tests,
   which the package never does, with the interpreter `--python` names, and leaves out of their
   environment every variable whose name holds `KEY`, `TOKEN`, `SECRET`, `PASSWORD`, `CREDENTIAL`, or
