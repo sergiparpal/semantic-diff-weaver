@@ -52,6 +52,14 @@
   says what the symbol still raises. Findings, schema, and evidence are unchanged; on the
   benchmark's 60 development cases the obligations go from 135 to 124. See `docs/decisions.md`,
   2026-11-07, private symbols and unnamed changes.
+- **Evaluation:** `scripts/mutate_select.py` measures `select` against mutants. Each changes one
+  token of a repository's product code in a throwaway commit of a scratch clone, and the test files
+  that ran its line at the base, by a coverage run of each in a process of its own, run against it.
+  A test that catches it in a file `select` left out is a miss, confirmed by running the test again
+  without the mutant. Mutants accumulate in a JSONL file that its `summary` subcommand reads, and a
+  run with a fixed seed goes on where the last stopped, for a nightly job. It runs the analyzed
+  repository's tests, so it stays out of the package, and keeps the environment's credentials from
+  them. No package change. See `docs/decisions.md`, 2026-11-07.
 
 ## 0.18.0 - 2026-11-06
 
