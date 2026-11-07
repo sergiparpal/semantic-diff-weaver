@@ -331,7 +331,8 @@ only on an object named like a client). Any other changed call asks for the outc
 it feeds, rather than the call itself. A module-level variable's obligation names the code that
 reads it, which the call graph knows. A weakly anchored finding joins a stronger one's obligation
 on its symbol. A third review, drawn the same way with another seed from a replay through this
-code, measures the result against the same criterion.
+code, met the criterion: 9 of 20 deterministic obligations useful, 9 noise, and 2 unsure, against
+6 of 20 of the model's (`docs/benchmark.md`, "The obligations, reviewed again").
 
 ## Output-affecting corrections (2026-11-07, a model's claims on refactors)
 

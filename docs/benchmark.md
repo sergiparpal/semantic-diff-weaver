@@ -173,23 +173,37 @@ one run of one model, whose next run proposes other obligations.
 
 A correction since writes a Python finding's obligations from its evidence (`docs/decisions.md`,
 2026-11-07, obligations from evidence), and was measured as the first review was, with its
-criterion fixed beforehand: at least 6 of 20 deterministic obligations useful. The second review
-drew 40 obligations with another seed from a replay of the later run's replies through the
-correction's first version.
+criterion fixed beforehand: at least 6 of 20 deterministic obligations useful. Each review drew 40
+obligations with a seed of its own from a replay of the later run's replies, through the
+correction's first version for the second review and through its iteration for the third.
 
-| Obligations | Drawn from | Cases | Useful | Noise | Unsure |
-| --- | --- | --- | --- | --- | --- |
-| The model's | 182 | 14 | 12 | 8 | 0 |
-| Deterministic, quoting their evidence | 176 | 15 | 3 | 16 | 1 |
+| Review | Obligations | Drawn from | Cases | Useful | Noise | Unsure |
+| --- | --- | --- | --- | --- | --- | --- |
+| Second | The model's | 182 | 14 | 12 | 8 | 0 |
+| Second | Deterministic, first version | 176 | 15 | 3 | 16 | 1 |
+| Third | The model's | 183 | 16 | 6 | 13 | 1 |
+| Third | Deterministic, iterated | 135 | 15 | 9 | 9 | 2 |
 
-It missed the criterion. Three against none of the first review is no difference 20 a side can
-tell from chance (two-sided Fisher p = 0.23), and neither is the model's 12 against its 6 (p =
-0.11), which shows how far one round differs from the next. A spy on a changed call was useful once
-in six, on black#5645's HTTP request, and pinned the code's writing the other five times, on `next`,
-`isinstance`, `str.lower`, `environ.get`, or a file's `close`. Obligations on an assignment, or on
-"the code that reads" a module-level name, were noise all six times: they said where to look, but
-not what to call or assert. The correction was iterated once on exactly those, as its decision
-records, and is measured again by a third review.
+**The first version missed the criterion.** Three against none of the first review is no
+difference 20 a side can tell from chance (two-sided Fisher p = 0.23). A spy on a changed call was
+useful once in six, on black#5645's HTTP request, and pinned the code's writing the other five
+times, on `next`, `isinstance`, `str.lower`, `environ.get`, or a file's `close`. Obligations on an
+assignment, or on "the code that reads" a module-level name, were noise all six times: they said
+where to look, but not what to call or assert. The correction was iterated once on exactly those,
+as its decision records.
+
+**The iteration met it.** Nine of 20 against none of the templates is a difference a two-sided
+Fisher test puts at p = 0.001, and against the first version's 3 at p = 0.08. Changed conditions
+were useful all four times they were drawn, and so were the one spy on a call out of the process,
+the one call's outcome, the one `with` block, and the one side effect. The noise was in added and
+removed private symbols, whose obligation names no input; in the category's fallback scenarios;
+in a removed `raise` whose symbol still raises a group of errors; and in a private function's
+former signature.
+
+**One round is wide.** The model's share went from 6 to 12 to 6 of 20 across the three reviews, and
+the deterministic 9 of 20 lies between 26% and 66% at 95%. One reviewer judged all 120 obligations,
+on the development cases the correction was designed from, so obligations of other cases would be
+what confirms it.
 
 ## Results
 

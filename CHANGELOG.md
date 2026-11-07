@@ -39,9 +39,11 @@
   whose scenario would say little joins a stronger finding's obligation on its symbol. Findings,
   schema, and evidence are unchanged, and an API schema's or a configuration file's finding keeps
   its category's scenarios. Quotes are code spans that the Markdown keeps as code. On the
-  benchmark's 60 development cases the obligations go from 186 to 135. The goldens change with the
-  obligations, and two of the corpus's required obligation concepts, which named scenarios that no
-  longer fit their change, were revised. See `docs/decisions.md`, 2026-11-07.
+  benchmark's 60 development cases the obligations go from 186 to 135, and a blind review judged 9
+  of 20 of them useful, above the 6 fixed beforehand, where the templates had none of 20. The
+  goldens change with the obligations, and two of the corpus's required obligation concepts, which
+  named scenarios that no longer fit their change, were revised. See `docs/decisions.md`,
+  2026-11-07.
 
 ## 0.18.0 - 2026-11-06
 
