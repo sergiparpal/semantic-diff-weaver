@@ -2755,6 +2755,18 @@ Idempotency is keyed on a hidden `<!-- semantic-diff-weaver:v1 -->` marker as th
 first line, not on comment authorship or position. A re-run edits. The marker is versioned so a
 future format change can migrate rather than collide.
 
+### The brief also goes to the job summary (2026-11-07)
+
+The fork section of `docs/github-action.md` said the step summary still showed the result when
+the comment could not be posted, and nothing wrote one. A field test that reviews each push to a
+repository's `main`, where there is no pull request to comment on, found it: its workflow had to
+write the summary itself. The action now writes the brief to the job summary on every run, before
+the comment step, so that a run whose comment fails still has it. It is not an input: a summary
+costs a run nothing and a reader finds it on the run's page. GitHub keeps 1 MiB of it a step, and
+the comment's truncation, at a section boundary with a notice, cuts a longer brief to a quarter of
+that in characters, which no UTF-8 text can take past 1 MiB. A summary that cannot be written is a
+warning, since the analysis, its outputs, and the comment do not depend on it.
+
 ### The action is composite, not Docker
 
 No image to publish or keep patched, faster cold start, and the dependency surface stays

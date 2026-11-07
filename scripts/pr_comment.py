@@ -59,6 +59,8 @@ REPOSITORY_RE = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$")
 
 # GitHub rejects a comment body above 65,536 characters.
 MAX_COMMENT_CHARS = 65_536
+# What a truncated comment's notice says it reached.
+COMMENT_LIMIT = "This comment reached GitHub's 65,536-character limit."
 # Room for the marker, the truncation notice, and a safety margin.
 TRUNCATION_BUDGET = 1_200
 
@@ -119,8 +121,8 @@ def decode_digest(encoded: str) -> Any:
         raise CommentError("the recorded baseline is not readable") from exc
 
 
-def truncate(body: str, limit: int = MAX_COMMENT_CHARS) -> str:
-    """Cut at a section boundary and say plainly what was dropped.
+def truncate(body: str, limit: int = MAX_COMMENT_CHARS, *, reached: str = COMMENT_LIMIT) -> str:
+    """Cut at a section boundary and say plainly what was dropped, after saying what `reached`.
 
     Truncating mid-sentence would leave a finding that reads as complete but is not. Cutting
     at a heading keeps every retained section whole, and the notice reports the counts so a
@@ -147,7 +149,7 @@ def truncate(body: str, limit: int = MAX_COMMENT_CHARS) -> str:
     dropped_findings = sum(1 for line in lines[len(kept) :] if line.startswith("- **"))
     notice = (
         "\n"
-        "> **Output truncated.** This comment reached GitHub's 65,536-character limit. "
+        f"> **Output truncated.** {reached} "
         f"{dropped_lines} further line(s) were dropped, including {dropped_findings} "
         "finding(s) or obligation(s). Run the analysis locally or read the workflow log for "
         "the complete brief."
