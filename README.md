@@ -231,8 +231,8 @@ An external `--risk-profile` must resolve below an authorized root, so pass its 
 
 ## GitHub Action
 
-Post the brief as a single pull-request comment. The action wraps the CLI and contains no
-analysis logic of its own.
+Post the brief as a single pull-request comment, and write it to every run's job summary. The
+action wraps the CLI and contains no analysis logic of its own.
 
 ```yaml
 name: pr-review

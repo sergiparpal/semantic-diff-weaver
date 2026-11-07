@@ -1,8 +1,8 @@
 name: Semantic Diff Weaver
 description: >-
   Analyze the behavioral meaning of a pull request's committed diff and post evidence-backed,
-  risk-ranked test obligations as a single pull-request comment. Read-only: never executes,
-  imports, builds, installs, or modifies the analyzed repository.
+  risk-ranked test obligations as a single pull-request comment and in the job summary.
+  Read-only: never executes, imports, builds, installs, or modifies the analyzed repository.
 author: Semantic Diff Weaver contributors
 
 branding:
@@ -223,6 +223,19 @@ runs:
         selected="$(python -c 'import json,sys; print(" ".join(item["path"] for item in json.load(open(sys.argv[1]))["analysis"]["test_selection"]["tests"]))' "${envelope}" 2>/dev/null || true)"
         echo "selected-tests=${selected}" >> "${GITHUB_OUTPUT}"
         echo "SDW_EXIT=${status}" >> "${GITHUB_ENV}"
+
+    # Before the comment, so that a run that cannot comment, as a fork's pull request cannot,
+    # still shows the brief.
+    - name: Write the brief to the job summary
+      id: summary
+      if: ${{ steps.analyze.outputs.analysis != '' }}
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        ENVELOPE: ${{ steps.analyze.outputs.analysis }}
+      run: |
+        set -uo pipefail
+        python "${ACTION_PATH}/scripts/job_summary.py" --envelope "${ENVELOPE}"
 
     - name: Upsert the pull-request comment
       if: ${{ inputs.comment == 'true' && github.event.pull_request.number }}

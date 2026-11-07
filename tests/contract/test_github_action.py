@@ -375,3 +375,36 @@ def test_the_previous_comment_s_digest_is_read_into_the_git_directory(tmp_path: 
     recorded = Path(outputs["path"])
     assert recorded == (repo / ".git" / "semantic-diff-weaver-baseline.json").resolve()
     assert json.loads(recorded.read_text(encoding="utf-8"))["analysis_id"] == "sdw_earlier"
+
+
+def test_the_brief_goes_to_the_job_summary_before_any_comment(tmp_path: Path) -> None:
+    """Every run's page shows the brief, a push's or a fork's pull request's included, whose
+    comment cannot be posted: the summary is written first, from the analysis alone."""
+    action = yaml.safe_load((REPOSITORY_ROOT / "action.yml").read_text(encoding="utf-8"))
+    steps = action["runs"]["steps"]
+    names = [item.get("id") or item["name"] for item in steps]
+    assert names.index("analyze") < names.index("summary")
+    assert names.index("summary") < names.index("Upsert the pull-request comment")
+    (step,) = [item for item in steps if item.get("id") == "summary"]
+    assert step["if"] == "${{ steps.analyze.outputs.analysis != '' }}"
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _python_on(bin_dir)
+    envelope = tmp_path / "envelope.json"
+    envelope.write_text(
+        json.dumps({"success": True, "analysis": {}, "markdown": "## Brief\n\nNothing changed.\n"}),
+        encoding="utf-8",
+    )
+    summary = tmp_path / "summary.md"
+
+    _run_step(
+        "summary",
+        tmp_path,
+        tmp_path,
+        ACTION_PATH=str(REPOSITORY_ROOT),
+        ENVELOPE=str(envelope),
+        GITHUB_STEP_SUMMARY=str(summary),
+        PATH=f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+    )
+
+    assert summary.read_text(encoding="utf-8") == "## Brief\n\nNothing changed.\n"

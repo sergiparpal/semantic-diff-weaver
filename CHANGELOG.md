@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- **Fix:** the GitHub Action writes the brief to the job summary on every run, before it comments.
+  `docs/github-action.md` said a fork's pull request still showed the result in the step summary,
+  but nothing wrote one, so a run that could not comment showed nothing. A run on a push, with
+  `base-ref` set and no pull request to comment on, now shows its brief there too. A brief past
+  what GitHub keeps of a step's summary, 1 MiB, is cut at a section boundary, as the comment is,
+  and a summary that cannot be written is a warning, never a failed step. See
+  `docs/decisions.md`, 2026-11-07, the brief in the job summary.
+
 ## 0.19.0 - 2026-11-07
 
 Test obligations written from what a finding's evidence changed. A Python finding's obligation

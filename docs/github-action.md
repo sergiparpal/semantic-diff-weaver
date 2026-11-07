@@ -1,8 +1,8 @@
 # GitHub Action
 
 The action is a thin wrapper around the standalone CLI. It contains no analysis logic: it sets
-up Python, installs this package, runs `semantic-diff-weaver --format both`, and upserts the
-resulting brief as a single pull-request comment.
+up Python, installs this package, runs `semantic-diff-weaver --format both`, writes the resulting
+brief to the job summary, and upserts it as a single pull-request comment.
 
 It is a **composite** action rather than a Docker one — nothing to publish to a registry, a
 faster cold start, and the dependency surface stays readable in `action.yml` instead of inside
@@ -217,11 +217,20 @@ are constrained to their documented shapes first: `owner/repo` against
 already ruled out shell injection; this stops a value containing `/` or `..` from retargeting the
 request at a different endpoint.
 
+## Job summary
+
+Every run also writes the brief to its job summary, the page of the workflow run itself, before
+it comments. A run that cannot comment still shows it there: a push, which has no pull request,
+with `base-ref` set, and a fork's pull request, whose token is read-only. GitHub keeps 1 MiB of
+summary a step, so a longer brief is cut at a section boundary, as the comment is, with a notice
+of what was dropped. The summary is a convenience: one that cannot be written is a warning in the
+log, never a failed step.
+
 ## Fork pull requests
 
 By default, a workflow triggered by `pull_request` from a fork receives a **read-only**
-`GITHUB_TOKEN`, regardless of the `permissions` block. The analysis still runs and the step
-summary still shows the result, but the comment step cannot post and the job fails at that
+`GITHUB_TOKEN`, regardless of the `permissions` block. The analysis still runs and the job
+summary still shows the brief, but the comment step cannot post and the job fails at that
 step.
 
 This is a deliberate GitHub protection, and this action does not work around it — the usual
