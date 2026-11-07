@@ -583,6 +583,59 @@ subsets, 11 that select none, and 17 whole suites, for its YAML workflows and co
 `selection.ignore`, all but six of those 120 commits ran the whole suite, since each changed some
 file that is not Python. The longest selection took 1.7 seconds.
 
+## The selection measured against mutants (2026-11-07)
+
+The selection promises that a test it leaves out is one the change cannot reach, and nothing but
+its own reasoning checked that. `scripts/mutate_select.py` puts the promise to faults. A mutant
+changes one token of a repository's product code, `<` to `<=`, `and` to `or`, `True` to `False`,
+or a whole number to the next, in a throwaway commit of a scratch clone. `select` names the test
+files for that commit, and the test files that ran the mutated line at the base run against it. A
+test that fails caught the mutant; one in a file `select` left out is a miss, and a mutant that only
+such tests caught escaped, since running the selection alone would have passed it. Seven choices are
+deliberate:
+
+- **A test file's process is its context.** Each test file runs once a base under coverage, in a
+  process of its own whose context is the file's path, and coverage's `patch = subprocess`, new in
+  7.10, gives the Python processes it starts the same context. What a module runs as a test file
+  imports it, and a package a test starts with `python -m`, then count as what the file ran, and a
+  mutant runs only the files that ran its line, since no other can change its result. Per-test
+  contexts, with pytest-cov, were tried first: they leave out what a module runs at import, which
+  collection runs before any test, and coverage writes its data as each test ends, through
+  `sqlite3.connect`, which a test of this repository replaces for its own purpose, so every later
+  test errored.
+- **What coverage cannot see is not measured.** A test that reads the code as text, or starts
+  Python without passing its environment on, may catch a mutant on a line it never ran, and a mutant
+  on a line no test file ran runs no test. Running the whole suite for every mutant would see them,
+  at the cost of the suite each time.
+- **A miss is confirmed without its mutant.** A test that caught a mutant in a file `select` left
+  out runs again on the base, and one that fails there too is recorded as flaky, not as a miss.
+- **Runs continue one sequence.** The seed and the base fix the order of the mutants, and a run
+  skips those its JSONL file already holds for its base, so nightly runs on an unchanged base
+  measure new mutants instead of the same ones again.
+- **A mutant may loop.** Its tests may take five times what they took at the base, and a minute at
+  least, before they count as timed out, and on POSIX a timeout kills every process they started,
+  not the test runner alone, which would leave a looping process a test started running.
+- **No bytecode cache.** A cache is valid while its source keeps its size and the second it was
+  written in, which a mutant as long as the code it replaces, `5` for `6` or `-` for `+`, written
+  within that second, does: the code then ran in the mutant's place, and the base in the mutant's
+  when a miss was confirmed. CI's runners, which write caches, found it on the first push, where a
+  shell that sets `PYTHONDONTWRITEBYTECODE` never could. The tests run with that variable, and with
+  `PYTHONPYCACHEPREFIX` naming an empty directory, so that no cache in the tree is read either.
+- **Outside the package, without credentials.** The script runs the analyzed repository's tests,
+  which the package never does, with the interpreter `--python` names, and leaves out of their
+  environment every variable whose name holds `KEY`, `TOKEN`, `SECRET`, `PASSWORD`, `CREDENTIAL`, or
+  `AUTH`. The tests must not need the network. Its `script` runner runs a suite of plain scripts, as
+  meal-manager's, each file one test.
+
+On 2026-11-07, 41 mutants of four repositories gave no miss. distiller's 12, at 3012a73, were all
+caught; `select` chose 6 to 15 of its 17 test files for them, 62% on average, where 1 to 8 had run
+the mutated line. Of claim-ledger's 15, at ba57b6e, 10 were caught, one looped until it timed out,
+and no test caught 4; `select` chose 13 to 20 of its 21 test files, 80% on average. This
+repository's 6 and meal-manager's 8 could show no miss: `select` chose all 92 test files here for
+every mutant, since `tests/conftest.py` imports the package, whose `__init__.py` imports nearly all
+of it, and both of meal-manager's 2. A miss can show only where the selection leaves a test out.
+The coverage run of each base took 22 seconds on distiller, 16 on claim-ledger, and 117 here.
+
 ## Contexts recorded on Python 3.14 (2026-11-06)
 
 A data file recorded on Python 3.14 named fewer tests than ran a change, and nothing said so. It was

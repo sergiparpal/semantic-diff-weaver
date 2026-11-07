@@ -192,3 +192,14 @@ ones.
 produced by the opt-in `scripts/validate_real_prs.py` harness. Those are **observations on
 unlabeled data, not precision measurements**, and real-PR cases are not added to the goldens.
 
+
+## Test selection against mutants
+
+`scripts/mutate_select.py` measures `select`, which names the test files a change can affect,
+against faults it plants one at a time in a repository's product code: a test that catches one in a
+file `select` left out is a miss. It runs the analyzed repository's tests, so it stays out of the
+package, and appends each mutant to a JSONL file that its `summary` subcommand reads. On
+2026-11-07, 41 mutants of four repositories gave no miss. For distiller's 12, `select` chose 62% of
+its test files on average, and for claim-ledger's 15, 80%. This repository's 6 and meal-manager's 8
+could show none, since `select` chose all their test files for every mutant. See
+`docs/decisions.md`, 2026-11-07.
