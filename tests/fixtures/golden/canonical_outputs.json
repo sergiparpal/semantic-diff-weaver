@@ -215,7 +215,7 @@
         "medium": 0
       },
       "risk_score": 62,
-      "test_obligations": 2,
+      "test_obligations": 1,
       "verdict": "review_required"
     },
     "test_obligations": [
@@ -226,30 +226,14 @@
         "candidate_existing_tests": [],
         "confidence": 0.726,
         "coverage_status": "no_candidate_found",
-        "given": "A principal does not satisfy the inferred authorization guard",
+        "given": "`allowed` now tests `user.is_owner` where it tested `user.is_admin`",
         "id": "to-001",
         "origin": "deterministic_fallback",
         "priority": 73,
-        "then": "Access is denied without the protected side effect",
-        "title": "Verify a denied principal",
+        "then": "The allowed one gets its outcome, and the denied one is refused without the protected side effect",
+        "title": "Verify an allowed and a denied principal at the changed guard of `allowed`",
         "type": "negative",
-        "when": "The changed operation is attempted"
-      },
-      {
-        "behavior_change_ids": [
-          "bc-001"
-        ],
-        "candidate_existing_tests": [],
-        "confidence": 0.726,
-        "coverage_status": "no_candidate_found",
-        "given": "A principal satisfies the inferred authorization guard",
-        "id": "to-002",
-        "origin": "deterministic_fallback",
-        "priority": 73,
-        "then": "The authorized outcome remains available",
-        "title": "Verify an allowed principal",
-        "type": "positive",
-        "when": "The changed operation is attempted"
+        "when": "A principal that satisfies the guard, and one that does not, attempt the operation"
       }
     ],
     "test_selection": {
@@ -351,7 +335,7 @@
         "medium": 1
       },
       "risk_score": 50,
-      "test_obligations": 2,
+      "test_obligations": 1,
       "verdict": "warn"
     },
     "test_obligations": [
@@ -362,30 +346,14 @@
         "candidate_existing_tests": [],
         "confidence": 0.811,
         "coverage_status": "no_candidate_found",
-        "given": "More than one changed condition can apply",
+        "given": "`run` now calls `second(); first()` in that order, where it called `first(); second()`",
         "id": "to-001",
         "origin": "deterministic_fallback",
         "priority": 67,
-        "then": "The intended precedence determines the observable outcome",
-        "title": "Exercise competing conditions",
-        "type": "regression",
-        "when": "The changed sequence runs"
-      },
-      {
-        "behavior_change_ids": [
-          "bc-001"
-        ],
-        "candidate_existing_tests": [],
-        "confidence": 0.811,
-        "coverage_status": "no_candidate_found",
-        "given": "Multiple affected calls are observable",
-        "id": "to-002",
-        "origin": "deterministic_fallback",
-        "priority": 67,
-        "then": "The calls occur in the intended order",
-        "title": "Verify sequence-sensitive interactions",
+        "then": "The calls occur in the new order, and the outcome that depends on it is asserted",
+        "title": "Verify the sequence of the reordered calls in `run`",
         "type": "interaction",
-        "when": "The operation executes"
+        "when": "`run` runs with the callees observed"
       }
     ],
     "test_selection": {
@@ -487,7 +455,7 @@
         "medium": 1
       },
       "risk_score": 53,
-      "test_obligations": 3,
+      "test_obligations": 2,
       "verdict": "warn"
     },
     "test_obligations": [
@@ -498,14 +466,14 @@
         "candidate_existing_tests": [],
         "confidence": 0.897,
         "coverage_status": "no_candidate_found",
-        "given": "The affected argument is omitted",
+        "given": "`limit` is omitted, so its new default `3` applies where `2` did",
         "id": "to-001",
         "origin": "deterministic_fallback",
         "priority": 69,
-        "then": "The new default-driven observable result is asserted",
-        "title": "Verify omitted-input behavior",
+        "then": "The result is the one the default `3` gives, not `2`",
+        "title": "Verify omitted-input behavior of `run` without `limit`",
         "type": "regression",
-        "when": "The callable is invoked"
+        "when": "`run` is called"
       },
       {
         "behavior_change_ids": [
@@ -514,30 +482,14 @@
         "candidate_existing_tests": [],
         "confidence": 0.897,
         "coverage_status": "no_candidate_found",
-        "given": "The new default value is supplied explicitly",
+        "given": "`limit` is passed explicitly as `2`, what callers got by omitting it",
         "id": "to-002",
         "origin": "deterministic_fallback",
-        "priority": 69,
-        "then": "Its explicit-value behavior matches the intended new contract",
-        "title": "Verify the new value explicitly",
+        "priority": 67,
+        "then": "The result is the one `2` gave before the change",
+        "title": "Verify `run` with `limit` passed as the former default `2`",
         "type": "positive",
-        "when": "The callable is invoked"
-      },
-      {
-        "behavior_change_ids": [
-          "bc-001"
-        ],
-        "candidate_existing_tests": [],
-        "confidence": 0.897,
-        "coverage_status": "no_candidate_found",
-        "given": "The former default value is supplied explicitly",
-        "id": "to-003",
-        "origin": "deterministic_fallback",
-        "priority": 69,
-        "then": "Its explicit-value behavior is asserted independently of the default",
-        "title": "Verify the old value explicitly",
-        "type": "positive",
-        "when": "The callable is invoked"
+        "when": "`run` is called"
       }
     ],
     "test_selection": {
@@ -641,7 +593,7 @@
         "medium": 1
       },
       "risk_score": 54,
-      "test_obligations": 3,
+      "test_obligations": 1,
       "verdict": "warn"
     },
     "test_obligations": [
@@ -652,46 +604,14 @@
         "candidate_existing_tests": [],
         "confidence": 0.714,
         "coverage_status": "no_candidate_found",
-        "given": "The dependency returns an unexpected but representable response",
+        "given": "`fetch` now calls `client.fetch(x, strict=True)` where it called `client.fetch(x)`",
         "id": "to-001",
         "origin": "deterministic_fallback",
         "priority": 68,
-        "then": "The operation fails or degrades safely",
-        "title": "Handle an unexpected dependency response",
+        "then": "The arguments it passes, and what it does with the result, match the intended change",
+        "title": "Assert the arguments of the changed call in `fetch`",
         "type": "interaction",
-        "when": "The changed interaction runs"
-      },
-      {
-        "behavior_change_ids": [
-          "bc-001"
-        ],
-        "candidate_existing_tests": [],
-        "confidence": 0.714,
-        "coverage_status": "no_candidate_found",
-        "given": "The dependency returns or raises a known failure",
-        "id": "to-002",
-        "origin": "deterministic_fallback",
-        "priority": 68,
-        "then": "The visible failure or fallback is asserted",
-        "title": "Handle dependency failure",
-        "type": "error",
-        "when": "The changed interaction runs"
-      },
-      {
-        "behavior_change_ids": [
-          "bc-001"
-        ],
-        "candidate_existing_tests": [],
-        "confidence": 0.714,
-        "coverage_status": "no_candidate_found",
-        "given": "The dependency returns a successful response",
-        "id": "to-003",
-        "origin": "deterministic_fallback",
-        "priority": 68,
-        "then": "The success response is consumed as intended",
-        "title": "Handle dependency success",
-        "type": "interaction",
-        "when": "The changed interaction runs"
+        "when": "`fetch` runs, with the call observed through a stub or a spy"
       }
     ],
     "test_selection": {
@@ -793,7 +713,7 @@
         "medium": 1
       },
       "risk_score": 55,
-      "test_obligations": 2,
+      "test_obligations": 1,
       "verdict": "warn"
     },
     "test_obligations": [
@@ -804,30 +724,14 @@
         "candidate_existing_tests": [],
         "confidence": 0.888,
         "coverage_status": "no_candidate_found",
-        "given": "The dependency or operation reaches the changed failure path",
+        "given": "`run` now raises `TypeError()` where it raised `ValueError()`",
         "id": "to-001",
         "origin": "deterministic_fallback",
         "priority": 70,
-        "then": "The visible error type or fallback matches the intended contract",
-        "title": "Exercise the changed failure trigger",
+        "then": "The exception's type, and its message where callers read it, are asserted",
+        "title": "Exercise the changed failure trigger in `run`",
         "type": "error",
-        "when": "The affected symbol runs"
-      },
-      {
-        "behavior_change_ids": [
-          "bc-001"
-        ],
-        "candidate_existing_tests": [],
-        "confidence": 0.888,
-        "coverage_status": "no_candidate_found",
-        "given": "The changed exception is raised",
-        "id": "to-002",
-        "origin": "deterministic_fallback",
-        "priority": 70,
-        "then": "The error is propagated, wrapped, or recovered exactly as intended",
-        "title": "Verify recovery or propagation",
-        "type": "error",
-        "when": "The surrounding handler executes"
+        "when": "An input reaches that path"
       }
     ],
     "test_selection": {
@@ -929,7 +833,7 @@
         "medium": 1
       },
       "risk_score": 52,
-      "test_obligations": 3,
+      "test_obligations": 2,
       "verdict": "warn"
     },
     "test_obligations": [
@@ -940,14 +844,14 @@
         "candidate_existing_tests": [],
         "confidence": 0.897,
         "coverage_status": "no_candidate_found",
-        "given": "An input immediately above the changed boundary",
+        "given": "`allowed` now compares `x <= 5` where it compared `x < 5`; an input sits exactly at that boundary",
         "id": "to-001",
         "origin": "deterministic_fallback",
         "priority": 68,
-        "then": "The above-boundary outcome remains explicitly asserted",
-        "title": "Exercise just above the changed boundary",
+        "then": "The outcome at the boundary, which the change may have flipped, is asserted",
+        "title": "Exercise the exact changed boundary in `allowed`",
         "type": "boundary",
-        "when": "The changed operation is invoked"
+        "when": "`allowed` runs"
       },
       {
         "behavior_change_ids": [
@@ -956,30 +860,14 @@
         "candidate_existing_tests": [],
         "confidence": 0.897,
         "coverage_status": "no_candidate_found",
-        "given": "An input immediately below the changed boundary",
+        "given": "`allowed` now compares `x <= 5` where it compared `x < 5`; inputs sit just below and just above that boundary",
         "id": "to-002",
         "origin": "deterministic_fallback",
-        "priority": 68,
-        "then": "The below-boundary outcome remains explicitly asserted",
-        "title": "Exercise just below the changed boundary",
+        "priority": 66,
+        "then": "The outcome on each side is asserted",
+        "title": "Exercise either side of the changed boundary in `allowed`",
         "type": "boundary",
-        "when": "The changed operation is invoked"
-      },
-      {
-        "behavior_change_ids": [
-          "bc-001"
-        ],
-        "candidate_existing_tests": [],
-        "confidence": 0.897,
-        "coverage_status": "no_candidate_found",
-        "given": "An input exactly at the changed boundary",
-        "id": "to-003",
-        "origin": "deterministic_fallback",
-        "priority": 68,
-        "then": "The newly inferred inclusive or exclusive outcome is observed",
-        "title": "Exercise the exact changed boundary",
-        "type": "boundary",
-        "when": "The changed operation is invoked"
+        "when": "`allowed` runs with each"
       }
     ],
     "test_selection": {
@@ -1119,7 +1007,7 @@
       "behavior_changes": 2,
       "changed_files": 2,
       "changed_symbols": 2,
-      "overall_confidence": 0.803,
+      "overall_confidence": 0.771,
       "overall_risk": "medium",
       "risk_counts": {
         "critical": 0,
@@ -1128,7 +1016,7 @@
         "medium": 2
       },
       "risk_score": 52,
-      "test_obligations": 4,
+      "test_obligations": 3,
       "verdict": "warn"
     },
     "test_obligations": [
@@ -1139,14 +1027,14 @@
         "candidate_existing_tests": [],
         "confidence": 0.897,
         "coverage_status": "no_candidate_found",
-        "given": "An input immediately above the changed boundary",
+        "given": "`f` now compares `x <= 2` where it compared `x < 2`; an input sits exactly at that boundary",
         "id": "to-001",
         "origin": "deterministic_fallback",
         "priority": 68,
-        "then": "The above-boundary outcome remains explicitly asserted",
-        "title": "Exercise just above the changed boundary",
+        "then": "The outcome at the boundary, which the change may have flipped, is asserted",
+        "title": "Exercise the exact changed boundary in `f`",
         "type": "boundary",
-        "when": "The changed operation is invoked"
+        "when": "`f` runs"
       },
       {
         "behavior_change_ids": [
@@ -1155,30 +1043,14 @@
         "candidate_existing_tests": [],
         "confidence": 0.897,
         "coverage_status": "no_candidate_found",
-        "given": "An input immediately below the changed boundary",
+        "given": "`f` now compares `x <= 2` where it compared `x < 2`; inputs sit just below and just above that boundary",
         "id": "to-002",
         "origin": "deterministic_fallback",
-        "priority": 68,
-        "then": "The below-boundary outcome remains explicitly asserted",
-        "title": "Exercise just below the changed boundary",
+        "priority": 66,
+        "then": "The outcome on each side is asserted",
+        "title": "Exercise either side of the changed boundary in `f`",
         "type": "boundary",
-        "when": "The changed operation is invoked"
-      },
-      {
-        "behavior_change_ids": [
-          "bc-002"
-        ],
-        "candidate_existing_tests": [],
-        "confidence": 0.897,
-        "coverage_status": "no_candidate_found",
-        "given": "An input exactly at the changed boundary",
-        "id": "to-003",
-        "origin": "deterministic_fallback",
-        "priority": 68,
-        "then": "The newly inferred inclusive or exclusive outcome is observed",
-        "title": "Exercise the exact changed boundary",
-        "type": "boundary",
-        "when": "The changed operation is invoked"
+        "when": "`f` runs with each"
       },
       {
         "behavior_change_ids": [
@@ -1188,7 +1060,7 @@
         "confidence": 0.52,
         "coverage_status": "no_candidate_found",
         "given": "The missing runtime or business contract is identified",
-        "id": "to-004",
+        "id": "to-003",
         "origin": "deterministic_fallback",
         "priority": 60,
         "then": "Expected observable outcomes are documented and tested",
@@ -1311,14 +1183,14 @@
         "candidate_existing_tests": [],
         "confidence": 0.68,
         "coverage_status": "no_candidate_found",
-        "given": "The missing runtime or business contract is identified",
+        "given": "The top-level code of `src/case.py` now assigns `ROOTS = ('core', 'tools', 'reports')` where it assigned `ROOTS = ('core', 'tools')`",
         "id": "to-001",
         "origin": "deterministic_fallback",
         "priority": 60,
-        "then": "Expected observable outcomes are documented and tested",
-        "title": "Clarify and characterize the changed contract",
+        "then": "Its outcome with the new value is asserted",
+        "title": "Clarify and characterize the code that reads `ROOTS`",
         "type": "review",
-        "when": "The changed cases are reviewed"
+        "when": "Code that reads the new value runs"
       }
     ],
     "test_selection": {
@@ -1556,7 +1428,7 @@
         "medium": 1
       },
       "risk_score": 54,
-      "test_obligations": 2,
+      "test_obligations": 1,
       "verdict": "warn"
     },
     "test_obligations": [
@@ -1567,30 +1439,14 @@
         "candidate_existing_tests": [],
         "confidence": 0.879,
         "coverage_status": "no_candidate_found",
-        "given": "A representative successful input",
+        "given": "`result` now returns `{'new': 1}` where it returned `{'old': 1}`",
         "id": "to-001",
         "origin": "deterministic_fallback",
         "priority": 69,
-        "then": "The value, status, fields, and container shape match the intended contract",
-        "title": "Assert the consumer-visible contract",
+        "then": "The returned value, its type, fields, and shape included, is asserted exactly",
+        "title": "Assert the consumer-visible contract of what `result` returns",
         "type": "regression",
-        "when": "The changed callable returns"
-      },
-      {
-        "behavior_change_ids": [
-          "bc-001"
-        ],
-        "candidate_existing_tests": [],
-        "confidence": 0.879,
-        "coverage_status": "no_candidate_found",
-        "given": "A consumer expects the former signature or output",
-        "id": "to-002",
-        "origin": "deterministic_fallback",
-        "priority": 69,
-        "then": "Compatibility or the intended failure is explicit",
-        "title": "Check former contract behavior",
-        "type": "negative",
-        "when": "It uses the changed callable"
+        "when": "`result` is called with input that reaches the changed return"
       }
     ],
     "test_selection": {
@@ -1698,7 +1554,7 @@
         "medium": 0
       },
       "risk_score": 74,
-      "test_obligations": 3,
+      "test_obligations": 2,
       "verdict": "review_required"
     },
     "test_obligations": [
@@ -1709,14 +1565,14 @@
         "candidate_existing_tests": [],
         "confidence": 0.777,
         "coverage_status": "no_candidate_found",
-        "given": "An input immediately above the changed boundary",
+        "given": "`critical` now compares `x <= 1` where it compared `x < 1`; an input sits exactly at that boundary",
         "id": "to-001",
         "origin": "deterministic_fallback",
         "priority": 81,
-        "then": "The above-boundary outcome remains explicitly asserted",
-        "title": "Exercise just above the changed boundary",
+        "then": "The outcome at the boundary, which the change may have flipped, is asserted",
+        "title": "Exercise the exact changed boundary in `critical`",
         "type": "boundary",
-        "when": "The changed operation is invoked"
+        "when": "`critical` runs"
       },
       {
         "behavior_change_ids": [
@@ -1725,30 +1581,14 @@
         "candidate_existing_tests": [],
         "confidence": 0.777,
         "coverage_status": "no_candidate_found",
-        "given": "An input immediately below the changed boundary",
+        "given": "`critical` now compares `x <= 1` where it compared `x < 1`; inputs sit just below and just above that boundary",
         "id": "to-002",
         "origin": "deterministic_fallback",
-        "priority": 81,
-        "then": "The below-boundary outcome remains explicitly asserted",
-        "title": "Exercise just below the changed boundary",
+        "priority": 79,
+        "then": "The outcome on each side is asserted",
+        "title": "Exercise either side of the changed boundary in `critical`",
         "type": "boundary",
-        "when": "The changed operation is invoked"
-      },
-      {
-        "behavior_change_ids": [
-          "bc-001"
-        ],
-        "candidate_existing_tests": [],
-        "confidence": 0.777,
-        "coverage_status": "no_candidate_found",
-        "given": "An input exactly at the changed boundary",
-        "id": "to-003",
-        "origin": "deterministic_fallback",
-        "priority": 81,
-        "then": "The newly inferred inclusive or exclusive outcome is observed",
-        "title": "Exercise the exact changed boundary",
-        "type": "boundary",
-        "when": "The changed operation is invoked"
+        "when": "`critical` runs with each"
       }
     ],
     "test_selection": {
@@ -1888,7 +1728,7 @@
         "medium": 1
       },
       "risk_score": 56,
-      "test_obligations": 3,
+      "test_obligations": 2,
       "verdict": "warn"
     },
     "test_obligations": [
@@ -1899,14 +1739,14 @@
         "candidate_existing_tests": [],
         "confidence": 0.865,
         "coverage_status": "no_candidate_found",
-        "given": "Failures continue through the configured boundary",
+        "given": "`retry` now compares `attempts <= 3` where it compared `attempts < 3`; an input sits exactly at that boundary",
         "id": "to-001",
         "origin": "deterministic_fallback",
         "priority": 70,
-        "then": "Termination and the visible error occur at the intended point",
-        "title": "Exercise the exact retry or timeout limit",
+        "then": "The outcome at the boundary, which the change may have flipped, is asserted",
+        "title": "Exercise the exact retry or timeout limit of `retry`",
         "type": "boundary",
-        "when": "The changed policy reaches the exact limit"
+        "when": "`retry` runs"
       },
       {
         "behavior_change_ids": [
@@ -1915,30 +1755,14 @@
         "candidate_existing_tests": [],
         "confidence": 0.865,
         "coverage_status": "no_candidate_found",
-        "given": "A dependency fails recoverably and then succeeds before the limit",
+        "given": "`retry` now compares `attempts <= 3` where it compared `attempts < 3`; inputs sit just below and just above that boundary",
         "id": "to-002",
         "origin": "deterministic_fallback",
-        "priority": 70,
-        "then": "The operation succeeds with the expected attempt count",
-        "title": "Recover before the exact retry limit",
-        "type": "interaction",
-        "when": "The changed retry policy runs"
-      },
-      {
-        "behavior_change_ids": [
-          "bc-001"
-        ],
-        "candidate_existing_tests": [],
-        "confidence": 0.865,
-        "coverage_status": "no_candidate_found",
-        "given": "A dependency returns a terminal failure",
-        "id": "to-003",
-        "origin": "deterministic_fallback",
-        "priority": 70,
-        "then": "No unsupported additional attempt is made",
-        "title": "Stop on a terminal failure",
-        "type": "error",
-        "when": "The changed retry policy evaluates it"
+        "priority": 68,
+        "then": "The outcome on each side is asserted",
+        "title": "Exercise either side of the changed boundary in `retry`",
+        "type": "boundary",
+        "when": "`retry` runs with each"
       }
     ],
     "test_selection": {
@@ -2042,7 +1866,7 @@
         "medium": 1
       },
       "risk_score": 57,
-      "test_obligations": 2,
+      "test_obligations": 1,
       "verdict": "warn"
     },
     "test_obligations": [
@@ -2053,30 +1877,14 @@
         "candidate_existing_tests": [],
         "confidence": 0.8,
         "coverage_status": "no_candidate_found",
-        "given": "A representative successful input",
+        "given": "The declared types of `render` changed from `(value: int) -> int` to `(value: int) -> str`, while callers pass the same arguments",
         "id": "to-001",
         "origin": "deterministic_fallback",
         "priority": 71,
-        "then": "The value, status, fields, and container shape match the intended contract",
-        "title": "Assert the consumer-visible contract",
-        "type": "regression",
-        "when": "The changed callable returns"
-      },
-      {
-        "behavior_change_ids": [
-          "bc-001"
-        ],
-        "candidate_existing_tests": [],
-        "confidence": 0.8,
-        "coverage_status": "no_candidate_found",
-        "given": "A consumer expects the former signature or output",
-        "id": "to-002",
-        "origin": "deterministic_fallback",
-        "priority": 71,
-        "then": "Compatibility or the intended failure is explicit",
-        "title": "Check former contract behavior",
-        "type": "negative",
-        "when": "It uses the changed callable"
+        "then": "Callers, and whatever reads the annotations, accept the new declared contract",
+        "title": "Check the consumer-visible contract of the annotations of `render`",
+        "type": "review",
+        "when": "A type checker, or code that reads annotations at runtime, reads the new signature"
       }
     ],
     "test_selection": {
@@ -2180,7 +1988,7 @@
         "medium": 0
       },
       "risk_score": 62,
-      "test_obligations": 3,
+      "test_obligations": 1,
       "verdict": "review_required"
     },
     "test_obligations": [
@@ -2191,46 +1999,14 @@
         "candidate_existing_tests": [],
         "confidence": 0.726,
         "coverage_status": "no_candidate_found",
-        "given": "The operation may be repeated or partially fail",
+        "given": "`finish` now also calls `notify(user)`",
         "id": "to-001",
         "origin": "deterministic_fallback",
         "priority": 73,
-        "then": "Side-effect order and duplication match the intended contract",
-        "title": "Verify ordering and idempotency",
+        "then": "The write, event, warning, or notification happens exactly as intended, and not when it should not",
+        "title": "Verify the side-effect occurrence of the changed call in `finish`",
         "type": "interaction",
-        "when": "It is invoked more than once"
-      },
-      {
-        "behavior_change_ids": [
-          "bc-001"
-        ],
-        "candidate_existing_tests": [],
-        "confidence": 0.726,
-        "coverage_status": "no_candidate_found",
-        "given": "The conditions for the inferred side effect are not met",
-        "id": "to-002",
-        "origin": "deterministic_fallback",
-        "priority": 73,
-        "then": "No external side effect occurs",
-        "title": "Verify side-effect absence",
-        "type": "negative",
-        "when": "The changed operation runs"
-      },
-      {
-        "behavior_change_ids": [
-          "bc-001"
-        ],
-        "candidate_existing_tests": [],
-        "confidence": 0.726,
-        "coverage_status": "no_candidate_found",
-        "given": "The conditions for the inferred side effect are met",
-        "id": "to-003",
-        "origin": "deterministic_fallback",
-        "priority": 73,
-        "then": "The external write, event, or notification occurs exactly as intended",
-        "title": "Verify side-effect occurrence",
-        "type": "interaction",
-        "when": "The changed operation runs"
+        "when": "`finish` runs with the external effect observed"
       }
     ],
     "test_selection": {
@@ -2401,7 +2177,7 @@
         "medium": 1
       },
       "risk_score": 57,
-      "test_obligations": 3,
+      "test_obligations": 1,
       "verdict": "warn"
     },
     "test_obligations": [
@@ -2412,46 +2188,14 @@
         "candidate_existing_tests": [],
         "confidence": 0.861,
         "coverage_status": "no_candidate_found",
-        "given": "An entity is in a state that should not permit the transition",
+        "given": "`move` now assigns `state = 'new'` where it assigned `state = 'old'`",
         "id": "to-001",
         "origin": "deterministic_fallback",
         "priority": 71,
-        "then": "State remains valid and rejection is observable",
-        "title": "Reject an invalid transition",
-        "type": "negative",
-        "when": "The changed operation runs"
-      },
-      {
-        "behavior_change_ids": [
-          "bc-001"
-        ],
-        "candidate_existing_tests": [],
-        "confidence": 0.861,
-        "coverage_status": "no_candidate_found",
-        "given": "The transition has already occurred",
-        "id": "to-002",
-        "origin": "deterministic_fallback",
-        "priority": 71,
-        "then": "Repeated execution has the intended stable outcome",
-        "title": "Repeat the transition",
+        "then": "The resulting state is asserted, and a repeated call keeps it stable",
+        "title": "Verify the allowed transition `move` now makes",
         "type": "state",
-        "when": "The operation is requested again"
-      },
-      {
-        "behavior_change_ids": [
-          "bc-001"
-        ],
-        "candidate_existing_tests": [],
-        "confidence": 0.861,
-        "coverage_status": "no_candidate_found",
-        "given": "An entity is in a state that should permit the transition",
-        "id": "to-003",
-        "origin": "deterministic_fallback",
-        "priority": 71,
-        "then": "The expected next state is observable",
-        "title": "Verify the allowed transition",
-        "type": "state",
-        "when": "The changed operation runs"
+        "when": "`move` runs from a state that permits the transition"
       }
     ],
     "test_selection": {

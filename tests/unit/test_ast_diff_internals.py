@@ -323,3 +323,64 @@ def test_a_snapshot_without_assignment_targets_names_no_variable() -> None:
     (delta,) = compare_symbol("m.py", replace(old, assigned=()), new, (WIDE_HUNK,))
     assert delta.kind == "assignment_change"
     assert delta.metadata["assigned_names"] == []
+
+
+def _deltas(old: str, new: str) -> dict[str, StructuralDelta]:
+    deltas = analyze_ast(
+        [
+            SourceRevisionPair(
+                path="m.py",
+                old_path="m.py",
+                new_path="m.py",
+                hunks=(WIDE_HUNK,),
+                old_text=old,
+                new_text=new,
+            )
+        ]
+    ).deltas
+    return {item.kind: item for item in deltas}
+
+
+def test_a_delta_records_which_values_it_changed_on_each_side() -> None:
+    """The display text shows every value; the metadata says which ones changed."""
+    deltas = _deltas(
+        "def f(x):\n    if x.a:\n        g(1)\n    if x.b:\n        h()\n",
+        "def f(x):\n    if x.a:\n        g(2)\n    if x.c:\n        h()\n",
+    )
+    condition = deltas["condition_change"].metadata
+    assert (condition["removed"], condition["added"]) == (["x.b"], ["x.c"])
+    assert (condition["removed_total"], condition["added_total"]) == (1, 1)
+    call = deltas["call_change"].metadata
+    assert (call["removed"], call["added"]) == (["g(1)"], ["g(2)"])
+
+
+def test_the_values_a_delta_records_are_bounded_and_redacted() -> None:
+    old = "".join(f"    call_{index}()\n" for index in range(limits.MAX_CHANGED_VALUES + 3))
+    secret = "ghp_" + "a" * 36
+    deltas = _deltas(
+        f"def f():\n{old}    connect(token='x')\n",
+        f"def f():\n    connect(token='{secret}')\n",
+    )
+    metadata = deltas["call_change"].metadata
+    assert len(metadata["removed"]) == limits.MAX_CHANGED_VALUES
+    assert metadata["removed_total"] == limits.MAX_CHANGED_VALUES + 4
+    assert metadata["added"] == ["connect(token=[REDACTED])"]
+    assert all(len(item) <= limits.MAX_CHANGED_VALUE_CHARS for item in metadata["removed"])
+
+
+def test_a_decorator_delta_records_the_decorators_it_changed() -> None:
+    deltas = _deltas("@a\n@b\ndef f():\n    pass\n", "@a\n@c\ndef f():\n    pass\n")
+    metadata = deltas["decorator_change"].metadata
+    assert (metadata["removed"], metadata["added"]) == (["b"], ["c"])
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "kind"),
+    [
+        ("def f(x):\n    return x < 1\n", "def f(x):\n    return x <= 1\n", "function"),
+        ("class C:\n    a = 1\n", "class C:\n    a = 2\n", "class"),
+        ("A = 1\n", "A = 2\n", "module"),
+    ],
+)
+def test_a_delta_names_the_kind_of_its_symbol(old: str, new: str, kind: str) -> None:
+    assert {item.symbol_kind for item in _deltas(old, new).values()} == {kind}

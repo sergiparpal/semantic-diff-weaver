@@ -45,6 +45,10 @@ MAX_PROBE_CHARS_PER_FEATURE = 500
 MAX_PROBE_CHARS_PER_SIDE = 3_000
 # A delta's `old` and `new` display texts are each cut to this length.
 MAX_DELTA_TEXT_CHARS = 1_500
+# How many of the values a delta changed it records on each side, beside how many there were, and
+# how much of each. Its test obligations quote them (see `evidence_scenarios`).
+MAX_CHANGED_VALUES = 4
+MAX_CHANGED_VALUE_CHARS = 200
 # How much of an added or removed class or module its display text names.
 MAX_DISPLAY_CLASS_FIELDS = 20
 MAX_DISPLAY_MODULE_STATEMENTS = 5

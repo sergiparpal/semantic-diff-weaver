@@ -12,6 +12,8 @@ from ..path_policy import redact_text
 from ..source import SourceHunk
 from .limits import (
     FEATURE_DELTA_KINDS,
+    MAX_CHANGED_VALUE_CHARS,
+    MAX_CHANGED_VALUES,
     MAX_DELTA_TEXT_CHARS,
     MAX_PROBE_CHARS_PER_SIDE,
 )
@@ -167,6 +169,7 @@ def make_structural_delta(
         hunk_id=hunk_id,
         metadata=metadata,
         probe=probe,
+        symbol_kind=new.kind if new is not None else old.kind if old is not None else None,
     )
 
 
@@ -188,10 +191,40 @@ def suppress_redundant_deltas(deltas: list[StructuralDelta]) -> list[StructuralD
     return result
 
 
+def _changed_sides(
+    old_values: Iterable[str], new_values: Iterable[str]
+) -> tuple[list[str], list[str]]:
+    """The values the old side holds more times than the new one, and those the new side does."""
+    old_side, new_side = Counter(old_values), Counter(new_values)
+    return list((old_side - new_side).elements()), list((new_side - old_side).elements())
+
+
 def _changed_values(old: SymbolSnapshot, new: SymbolSnapshot, feature: str) -> list[str]:
     """The values of `feature` that one side holds more times than the other, from both sides."""
-    old_side, new_side = (Counter(feature_texts(snapshot, feature)) for snapshot in (old, new))
-    return list(((old_side - new_side) + (new_side - old_side)).elements())
+    removed, added = _changed_sides(feature_texts(old, feature), feature_texts(new, feature))
+    return [*removed, *added]
+
+
+def changed_value_metadata(removed: Sequence[str], added: Sequence[str]) -> dict[str, Any]:
+    """Which of the values a delta shows it changed, for its metadata.
+
+    The display texts join every value of each side, and stop at `MAX_DELTA_TEXT_CHARS`, so they
+    cannot say which values differ. The obligations of the finding quote these instead: the
+    condition a branch now tests, the call whose arguments changed. Each value is redacted again,
+    as the display text is.
+    """
+    return {
+        "removed": [
+            redact_text(value, max_chars=MAX_CHANGED_VALUE_CHARS)
+            for value in removed[:MAX_CHANGED_VALUES]
+        ],
+        "added": [
+            redact_text(value, max_chars=MAX_CHANGED_VALUE_CHARS)
+            for value in added[:MAX_CHANGED_VALUES]
+        ],
+        "removed_total": len(removed),
+        "added_total": len(added),
+    }
 
 
 def _maybe_drop_return_when_comparison_explained(
@@ -308,7 +341,8 @@ def _append_call_delta(
     if old_names == new_names:
         return
     kind = "call_order_change" if sorted(old_names) == sorted(new_names) else "call_change"
-    changed = sorted({item.split("(", 1)[0] for item in _changed_values(old, new, "calls")})
+    removed, added = _changed_sides(old_names, new_names)
+    changed = sorted({item.split("(", 1)[0] for item in (*removed, *added)})
     result.append(
         make_structural_delta(
             path,
@@ -325,6 +359,7 @@ def _append_call_delta(
             # it from a dependency by this alone.
             internal_calls=bool(changed)
             and all(is_internal_call(name, own_calls, first_party) for name in changed),
+            **changed_value_metadata(removed, added),
         )
     )
 
@@ -380,11 +415,9 @@ def _append_feature_deltas(
             if feature == "conditions" and sorted(old_values) == sorted(new_values)
             else kind
         )
-        metadata = (
-            {"assigned_names": _changed_assignment_targets(old, new)}
-            if feature == "assignments"
-            else {}
-        )
+        metadata = changed_value_metadata(*_changed_sides(old_values, new_values))
+        if feature == "assignments":
+            metadata["assigned_names"] = _changed_assignment_targets(old, new)
         result.append(
             make_structural_delta(
                 path,
@@ -716,6 +749,7 @@ def compare_symbol(
                 "decorator_change",
                 ", ".join(old.decorators),
                 ", ".join(new.decorators),
+                **changed_value_metadata(*_changed_sides(old.decorators, new.decorators)),
             )
         )
     reworded = is_reworded(old, new)

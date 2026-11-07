@@ -13,7 +13,7 @@ from pydantic import ValidationError
 
 from .ast_diff import AstAnalysis, StructuralDelta, analyze_ast
 from .baseline import Baseline, compare_with_baseline, load_baseline
-from .call_graph import build_call_graph
+from .call_graph import CallGraph, build_call_graph
 from .change_groups import group_changes
 from .config import load_config
 from .coverage_map import (
@@ -24,6 +24,7 @@ from .coverage_map import (
     summarize,
 )
 from .errors import ErrorCode, WeaverError
+from .evidence_scenarios import Change, changes_by_evidence
 from .git_diff import (
     ChangedFile,
     DiffCollection,
@@ -598,6 +599,34 @@ def _materialize_behaviors(
     return behaviors, tests_by_behavior, coverage_states
 
 
+def _readers(
+    behaviors: list[BehaviorChange], changes: Mapping[str, Change], graph: CallGraph | None
+) -> dict[str, tuple[str, ...]]:
+    """By finding ID, the symbols whose code reads a module-level variable it assigns.
+
+    The call graph knows them, in the variable's module and in the modules importing it that it
+    indexes. A finding's obligation names them, so a test knows what to call: a module's
+    top-level code runs as it is imported, which tests nothing.
+    """
+    if graph is None:
+        return {}
+    found: dict[str, tuple[str, ...]] = {}
+    for behavior in behaviors:
+        variables: set[tuple[str, str]] = set()
+        for item in behavior.evidence:
+            change = changes.get(item.id)
+            if change is None or change.kind != "assignment_change":
+                continue
+            if (item.symbol or "<module>") == "<module>":
+                variables.update((item.path, name) for name in change.assigned_names)
+        nodes = {node for variable in variables for node in graph.readers(*variable)}
+        here = {path for path, _ in variables}
+        ordered = sorted(nodes, key=lambda node: (node[0] not in here, node[0], node[1]))
+        if ordered:
+            found[behavior.id] = tuple(dict.fromkeys(qualified for _, qualified in ordered))
+    return found
+
+
 def _summary_metrics(
     behaviors: list[BehaviorChange],
     obligations: list[TestObligation],
@@ -904,6 +933,7 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
         coverage=coverage,
         changed_lines=changed_lines,
     )
+    changes = changes_by_evidence(deltas)
     obligations, omitted_obligations = generate_obligations(
         behaviors,
         tests_by_behavior,
@@ -911,6 +941,8 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
         config.rules,
         interpreted.suggestions,
         coverage_states,
+        changes,
+        _readers(behaviors, changes, call_graph),
     )
     coverage_summary = _coverage_summary(coverage, reportable, state, changed_lines)
     if omitted_obligations:
