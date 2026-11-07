@@ -1,6 +1,17 @@
 # Changelog
 
-## Unreleased
+## 0.19.0 - 2026-11-07
+
+Test obligations written from what a finding's evidence changed. A Python finding's obligation
+names the symbol to run, quotes what changed before and after, and says what to assert by the kind
+of change, where it repeated its category's fixed scenarios: a blind review on the benchmark's
+development cases judged 9 of 20 of them useful, and none of 20 of the scenarios. An added or
+removed private symbol joins a related finding's obligation, and a change no structural rule names
+quotes the lines that changed. With a model, a change claimed on a refactor's evidence no longer
+reaches the report. `scripts/run_benchmark.py llm` measures the inference layer with a real model,
+and `scripts/mutate_select.py` measures the test selection against mutants. A minor release for the
+obligations; findings, schema 1.5, and evidence are unchanged, the goldens change with the
+obligations, and each decision is recorded in `docs/decisions.md`.
 
 - **Evaluation:** `scripts/run_benchmark.py llm` measures the inference layer with a real model. It
   analyzes each development case of the benchmark without a model and with one behind an
