@@ -110,6 +110,14 @@ def evidence_identity(evidence: Sequence[Evidence]) -> tuple[str, str]:
     return first.path, first.symbol or "<module>"
 
 
+def evidence_id(position: int) -> str:
+    """The ID of the evidence built from the delta at `position`, counted from 1 in their order.
+
+    Every later stage keeps it, so what else is known of a delta can be found by it.
+    """
+    return f"ev-{position:03d}"
+
+
 def _contains(text: str, terms: tuple[str, ...]) -> bool:
     camel_split = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", text)
     tokens = set(re.findall(r"[a-z0-9]+", camel_split.casefold()))
@@ -178,7 +186,7 @@ def _classify_comparison(
 ) -> Classification | None:
     if delta.kind != "comparison_change":
         return None
-    if not _has_boundary_comparison(delta):
+    if not has_boundary_comparison(delta):
         # `is None`, `in STARS`, and `method == 'GET'` have no below or above to test. They are
         # read the way a condition comparing no boundary is, so they share a category with the
         # condition that holds them, when it changed too, and join its finding.
@@ -334,7 +342,7 @@ def _classify_loop(
     )
 
 
-def _has_boundary_comparison(delta: StructuralDelta) -> bool:
+def has_boundary_comparison(delta: StructuralDelta) -> bool:
     """Whether a value the delta changed compares a boundary: an ordering, or an equality with a
     number or a length.
 
@@ -387,7 +395,7 @@ def _classify_condition(
 ) -> Classification | None:
     if delta.kind != "condition_change":
         return None
-    if _has_boundary_comparison(delta):
+    if has_boundary_comparison(delta):
         category = (
             BehaviorCategory.RETRY_TIMEOUT
             if _contains(combined, RETRY_TERMS)
@@ -1209,7 +1217,7 @@ def build_candidates(
     for index, delta in enumerate(deltas, start=1):
         category, summary, impact, baseline, assumptions, rule_id = classify_delta(delta, rules)
         evidence = Evidence(
-            id=f"ev-{index:03d}",
+            id=evidence_id(index),
             path=delta.path,
             symbol=delta.symbol,
             old_lines=delta.old_lines,

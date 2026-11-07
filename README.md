@@ -73,9 +73,11 @@ analysis.
 **Without a model provider the CLI runs in deterministic mode.** It reports structural findings,
 their taxonomy classification, risk, and obligations, all sourced from the AST comparison alone.
 What it does not add is the inference layer: findings are marked `deterministic_fallback` rather
-than `llm_supported`, descriptions are drawn from the built-in per-category templates instead of
-being written against the specific diff, and no review questions are raised beyond those the
-deterministic rules produce. See [the provider section](#model-provider) to enable inference.
+than `llm_supported`, their descriptions are drawn from the built-in per-category templates
+instead of being written against the specific diff, each obligation quotes what its finding's
+evidence changed but proposes no input the code does not show, and no review questions are raised
+beyond those the deterministic rules produce. See [the provider section](#model-provider) to
+enable inference.
 
 ### Grounding coverage
 

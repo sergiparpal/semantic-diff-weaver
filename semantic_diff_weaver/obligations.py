@@ -1,11 +1,12 @@
-"""Deterministic test-obligation templates, priority, deduplication, and caps."""
+"""Deterministic test obligations: their scenarios, priority, deduplication, and caps."""
 
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from typing import TYPE_CHECKING
 
+from .evidence_scenarios import Change, evidence_scenarios
 from .models import (
     BehaviorChange,
     CandidateTest,
@@ -155,7 +156,13 @@ def generate_obligations(
     rules: RulesConfig,
     llm_suggestions: list[SuggestedScenario] | None = None,
     coverage_states: dict[str, str] | None = None,
+    changes: Mapping[str, Change] | None = None,
 ) -> tuple[list[TestObligation], int]:
+    """Each behavior's scenarios, deduplicated, prioritized, and capped.
+
+    A behavior's scenarios quote what its evidence changed, by `changes`, when a Python delta
+    describes it; any other takes its category's scenarios.
+    """
     generated: list[TestObligation] = []
     by_semantics: dict[tuple[str, str, str, CoverageStatus], TestObligation] = {}
     coverage_by_behavior: dict[str, CoverageStatus] = {}
@@ -165,7 +172,10 @@ def generate_obligations(
         coverage = _coverage_status(candidates, mapping_incomplete, grounded)
         coverage_by_behavior[behavior.id] = coverage
         gap = TEST_GAP_WITH_CANDIDATES if candidates else TEST_GAP_WITHOUT_CANDIDATES
-        scenarios: tuple[Scenario, ...] = CATEGORY_PROFILES[behavior.category].scenarios
+        scenarios: tuple[Scenario, ...] = (
+            evidence_scenarios(behavior, changes or {})
+            or CATEGORY_PROFILES[behavior.category].scenarios
+        )
         behavior_evidence_ids = {item.id for item in behavior.evidence}
         supported_suggestions = [
             Scenario(
@@ -194,10 +204,11 @@ def generate_obligations(
                 *scenarios[: max(0, rules.max_obligations_per_behavior - 1)],
             )
         for scenario in scenarios:
-            # The templates name no symbol, so without the coverage status in the key every
-            # behavior of a category shared one obligation, and a behavior with no test showed
-            # another's candidates under `candidate_exists_unverified`. Merging only behaviors
-            # whose status agrees keeps an obligation's status and candidates true of each one.
+            # A category's scenarios name no symbol, so without the coverage status in the key
+            # every behavior of a category shared one obligation, and a behavior with no test
+            # showed another's candidates under `candidate_exists_unverified`. Merging only
+            # behaviors whose status agrees keeps an obligation's status and candidates true of
+            # each one. A scenario that quotes its evidence merges only with the same quotes.
             key = (
                 canonical_phrase(scenario.given),
                 canonical_phrase(scenario.when),

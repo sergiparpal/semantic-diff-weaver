@@ -28,6 +28,18 @@
   removes, and its support told right findings from wrong ones only weakly. A reviewer judged 6 of
   20 of the obligations it adds useful, and none of 20 deterministic ones, the taxonomy's fixed
   scenarios. Documentation only.
+- **Feature:** a Python finding's test obligations quote what its evidence changed. Each names the
+  symbol to run, what changed, quoted before and after, and what to assert by the kind of change:
+  the arguments of a changed call, both outcomes of a changed condition, the boundary of a changed
+  comparison and either side of it, the omitted argument of a changed default and the former value
+  passed explicitly, the exception a changed `raise` or handler concerns, the value a changed
+  `return` gives. A finding has one obligation, or two for a changed default or boundary, where its
+  category gave two or three, and its findings, schema, and evidence are unchanged; an API schema's
+  or a configuration file's finding keeps its category's scenarios. Quotes are code spans that the
+  Markdown keeps as code. On the benchmark's 60 development cases the obligations go from 186 to
+  176. The goldens change with the obligations, and two of the corpus's required obligation
+  concepts, which named scenarios that no longer fit their change, were revised. See
+  `docs/decisions.md`, 2026-11-07.
 
 ## 0.18.0 - 2026-11-06
 

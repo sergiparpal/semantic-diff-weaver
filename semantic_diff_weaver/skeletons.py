@@ -57,7 +57,7 @@ from .path_policy import (
     is_test_support_path,
 )
 from .test_mapper import CAMEL_BOUNDARY_RE, WORD_SPLIT_RE, _as_module, _mirrored, defines_tests
-from .textutil import read_bounded_text
+from .textutil import read_bounded_text, split_code_spans
 
 # The obligations one request may approve: as many as an analysis reports by default.
 MAX_SKELETONS = 100
@@ -69,6 +69,8 @@ MAX_CANDIDATES = 25
 MAX_LISTED_BEHAVIORS = 10
 MAX_LISTED_CANDIDATES = 5
 MAX_TEST_NAME_CHARS = 64
+# Words a title can end on once the code it quotes is left out of a test's name.
+DANGLING_WORDS = frozenset({"at", "by", "in", "of", "the", "through", "with", "without"})
 COMMENT_WIDTH = 88
 REGULAR_FILE_MODES = frozenset({"100644", "100755"})
 # The paths a patch names as they are. Git quotes any other in its headers, a format with no
@@ -590,11 +592,23 @@ def _comments(indent: str, obligation: _Obligation, behaviors: tuple[_Behavior, 
     return lines
 
 
+def _title_words(title: str) -> list[str]:
+    """The words of a title's prose, without the code it quotes and a dangling last preposition.
+
+    A title quoting its symbol, "Assert the arguments of the changed call in `wrap_file`", names
+    the symbol the test name already starts with.
+    """
+    words = _words(" ".join(part for part, code in split_code_spans(title) if not code))
+    while words and words[-1] in DANGLING_WORDS:
+        words.pop()
+    return words
+
+
 def _test_name(obligation: _Obligation, behavior: _Behavior, taken: set[str]) -> str:
     symbol = _symbol(behavior)
     words = [] if symbol == "<module>" else _words(".".join(symbol.split(".")[-2:]))
     name = "test"
-    for word in [*words, *_words(obligation.title)]:
+    for word in [*words, *_title_words(obligation.title)]:
         if len(name) + 1 + len(word) > MAX_TEST_NAME_CHARS:
             break
         name = f"{name}_{word}"

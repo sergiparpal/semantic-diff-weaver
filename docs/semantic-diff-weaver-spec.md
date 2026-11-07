@@ -907,7 +907,8 @@ plugin.
 - Python AST adapter. *Done:* `ast_diff/`.
 - Local Git diff. *Done:* `git_diff/`.
 - Behavioral change taxonomy. *Done:* `taxonomy.py`, §7.
-- Test obligations. *Done:* `obligations.py`.
+- Test obligations. *Done:* `obligations.py`; since 2026-11-07 a Python finding's quote its
+  evidence, by `evidence_scenarios.py`.
 - Candidate test mapping. *Done:* `test_mapper.py` with `call_graph.py`; every candidate stays
   unverified.
 - JSON and Markdown reports. *Done:* `renderer.py`.

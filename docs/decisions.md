@@ -256,6 +256,56 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-11-07, obligations from evidence)
+
+A blind review of 40 test obligations on the benchmark's development cases (`docs/benchmark.md`,
+"With a model") judged none of 20 deterministic ones worth writing as proposed, against 6 of 20
+that a model added. The deterministic ones were the fixed scenarios `taxonomy.py` keeps for each
+category, which name no symbol and no value: "Handle dependency success" read the same for every
+changed call, and nearly every note of the reviewer named a test the diff supported instead.
+
+- **A Python finding's obligations quote its evidence.** `evidence_scenarios.py` writes each from
+  the delta that best says what the finding is about, its own symbol's first: the symbol to run,
+  what changed, quoted before and after, and what to assert by the kind of change. That is the
+  arguments of a changed call, through a stub or a spy; both outcomes of a changed condition; the
+  boundary of a changed comparison and either side of it; the omitted argument of a changed default
+  and the former value passed explicitly; the exception a changed `raise` or handler concerns; the
+  value a changed `return` gives. What was removed has its own wording, since a removed condition
+  has no two outcomes left. The category still words a scenario where it names what to test, an
+  allowed and a denied principal, newly accepted and rejected input, the exact retry limit, or a
+  side effect's occurrence, and still sets risk and priority. Nothing is quoted that the evidence
+  does not hold, so no input is invented: proposing one remains the model's part.
+- **One obligation per finding,** and two for a changed default or boundary, where a category gave
+  two or three. The second follows the first, its relevance 10 lower: 5 lowered the priority by
+  exactly 1, which rounding half to even could undo. On the 60 development cases there are 176
+  obligations where there were 186, and the findings are the same in all 60.
+- **The values a delta changed travel with it.** `ast_diff` records them on each side, at most 4
+  of each with how many there were, each redacted again and cut to 200 characters, and the kind of
+  the delta's symbol, since the display text joins every value and stops at 1,500 characters.
+  `service.py` hands them to the obligations by evidence ID, which no later stage renumbers. The
+  schema is unchanged; the obligations' text is not.
+- **A quote stays code.** Each fragment is a code span cut to 120 characters, and two long
+  versions of one value are cut around where they differ, so a long `__all__` that gained a name
+  no longer reads the same on both sides. The renderer keeps code spans as code and escapes the
+  prose around them, so repository text reaches the report, the brief, and a pull-request comment
+  only inside spans, and a skeleton's test name takes the title's prose alone.
+- **Unchanged where no Python delta describes the finding.** An API schema's or a configuration
+  file's finding, and a change the parser could not read or name, keep their category's scenarios.
+
+The corpus goldens change with the obligations, and with them the summary's overall confidence
+where a finding's number of obligations changed, since it weighs each finding by its obligations:
+the mixed parseable and unparseable case goes from 0.803 to 0.771. The verdict does not depend on
+it. Two of the corpus's required obligation concepts named scenarios that no longer fit their
+change, and were revised. The dependency-arguments case asked for a "dependency failure" where
+its change passes a new argument and no failure path changed; it now asks for the "arguments of
+the changed call". The call-ordering case asked for "competing conditions" where two calls swap
+and no condition does; it now asks for the "sequence of the reordered calls". The other concepts
+still appear, at the start of titles that now name the symbol.
+
+Whether the new obligations are useful is measured as the old ones were, by a second blind review
+whose criterion was fixed before it: at least 6 of 20 deterministic obligations useful, the model's
+result in the first.
+
 ## Output-affecting corrections (2026-11-07, a model's claims on refactors)
 
 With a model, the reconciliation keeps a model's category only where a deterministic finding on the

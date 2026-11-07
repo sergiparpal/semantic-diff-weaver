@@ -177,6 +177,9 @@ class StructuralDelta:
     metadata: dict[str, Any] = field(default_factory=dict)
     # What the category rules read; None means "read the `old` and `new` display text instead".
     probe: CategoryProbe | None = None
+    # As extraction labels the symbol, `function`, `class`, `module`, and so on: what a test does
+    # to reach it. None for a delta of no Python symbol.
+    symbol_kind: str | None = None
 
 
 @dataclass

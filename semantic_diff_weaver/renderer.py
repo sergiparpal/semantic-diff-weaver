@@ -17,6 +17,7 @@ from .models import (
     OutputFormat,
     Presentation,
 )
+from .textutil import code_span, split_code_spans
 
 BIDI_CONTROLS = frozenset(
     {
@@ -106,19 +107,18 @@ def _code(text: str) -> str:
     """`text` as a code span, shown as it is but for its control characters, made visible.
 
     Markdown reads no escape inside a code span, so `parse\\_amount` would show its backslash.
-    A span ends only at a run of backticks as long as the one it opened with, so it opens with
-    one longer than any it holds; and with a space inside each end when its text starts or ends
-    with a backtick, or with a space at both, since the span drops one space at each end.
     """
-    shown = _visible_controls(text)
-    fence = "`" * (max((len(run) for run in re.findall(r"`+", shown)), default=0) + 1)
-    if (
-        shown[:1] == "`"
-        or shown[-1:] == "`"
-        or (shown[:1] == " " and shown[-1:] == " " and shown.strip())
-    ):
-        shown = f" {shown} "
-    return f"{fence}{shown}{fence}"
+    return code_span(_visible_controls(text))
+
+
+def _inline(text: str) -> str:
+    """Text whose code spans stay code, and whose prose is escaped.
+
+    An obligation quotes its evidence as code spans. Rendered as one, a repository's text reads
+    as code, never as a link, a mention, or Markdown of its own; the prose around it is escaped
+    as any other text is.
+    """
+    return "".join(_code(part) if code else _escape(part) for part, code in split_code_spans(text))
 
 
 def _reason_items(counts: list[tuple[str, int]], phrases: dict[str, str]) -> str:
@@ -400,11 +400,11 @@ def render_markdown(result: AnalysisResult, *, excerpt_chars: int | None = None)
         covers = ", ".join(f"`{item}`" for item in obligation.behavior_change_ids)
         lines.extend(
             [
-                f"- [ ] **P{obligation.priority} — {_escape(obligation.title)}** "
+                f"- [ ] **P{obligation.priority} — {_inline(obligation.title)}** "
                 f"(`{obligation.id}`; covers {covers})",
-                f"  - Given: {_escape(obligation.given)}",
-                f"  - When: {_escape(obligation.when)}",
-                f"  - Then: {_escape(obligation.then)}",
+                f"  - Given: {_inline(obligation.given)}",
+                f"  - When: {_inline(obligation.when)}",
+                f"  - Then: {_inline(obligation.then)}",
             ]
         )
         if obligation.candidate_existing_tests:

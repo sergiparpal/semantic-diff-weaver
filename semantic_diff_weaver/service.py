@@ -24,6 +24,7 @@ from .coverage_map import (
     summarize,
 )
 from .errors import ErrorCode, WeaverError
+from .evidence_scenarios import changes_by_evidence
 from .git_diff import (
     ChangedFile,
     DiffCollection,
@@ -911,6 +912,7 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
         config.rules,
         interpreted.suggestions,
         coverage_states,
+        changes_by_evidence(deltas),
     )
     coverage_summary = _coverage_summary(coverage, reportable, state, changed_lines)
     if omitted_obligations:

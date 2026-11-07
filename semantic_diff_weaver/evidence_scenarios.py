@@ -1,0 +1,850 @@
+"""Test-obligation scenarios written from a Python finding's own evidence.
+
+The scenarios `taxonomy.py` keeps for each category name no symbol and no value, so they read the
+same in every case. A blind review of 20 on the benchmark's development cases judged none worth
+writing as proposed (`docs/benchmark.md`, "With a model"), while the evidence held what a test
+needed: the default that changed, the call whose arguments did, the condition a branch now tests.
+A finding's scenario quotes its evidence instead: what to run, what changed, and what to assert.
+The category's scenarios remain for a finding no Python delta describes, such as one on an API
+schema or a configuration file, or a change the parser could not read.
+
+Only what the evidence holds is quoted, already redacted and bounded, each fragment as a code
+span. The renderer keeps it one, so a repository's text never becomes Markdown of its own.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+
+from .ast_diff import StructuralDelta
+from .models import BehaviorCategory, BehaviorChange, Evidence, ObligationType
+from .semantic_candidates import evidence_id, has_boundary_comparison
+from .taxonomy import CATEGORY_PROFILES, Scenario
+from .textutil import code_span
+
+# How much of one fragment of evidence a scenario quotes, how many values of each side, and how
+# much of what two long versions of one value share it keeps around where they differ.
+MAX_QUOTE_CHARS = 120
+MAX_QUOTED_VALUES = 2
+SHARED_CONTEXT_CHARS = 30
+# A second scenario of one finding, the former default passed explicitly or either side of a
+# boundary, follows the first. Relevance weighs a fifth of a priority, so a drop of 10 lowers it by
+# 2: a drop of 5 lowered it by exactly 1, which rounding half to even could undo, and the title
+# then ordered the two.
+SECOND_SCENARIO_RELEVANCE_DROP = 10
+
+ORDER_KINDS = frozenset({"call_order_change", "condition_order_change", "statement_order_change"})
+# The kinds of the deltas `ast_diff` makes of Python code. A parse it could not complete, or a body
+# that changed in no way it can name, describes no change a scenario could quote.
+PYTHON_KINDS = frozenset(
+    {
+        "signature_change",
+        "decorator_change",
+        "comparison_change",
+        "condition_change",
+        "raise_change",
+        "exception_handler_change",
+        "return_change",
+        "assignment_change",
+        "loop_change",
+        "context_manager_change",
+        "call_change",
+        "symbol_added",
+        "symbol_removed",
+        "structural_refactor",
+        *ORDER_KINDS,
+    }
+)
+
+# The kinds of evidence that best say what a finding of each category is about, first to last.
+# Any other kind follows, in the order of `_GENERAL`.
+_PREFERRED: dict[BehaviorCategory, tuple[str, ...]] = {
+    BehaviorCategory.DEFAULT_BEHAVIOR: ("signature_change",),
+    BehaviorCategory.BOUNDARY: ("comparison_change", "condition_change"),
+    BehaviorCategory.RETRY_TIMEOUT: (
+        "comparison_change",
+        "condition_change",
+        "loop_change",
+        "call_change",
+    ),
+    BehaviorCategory.ERROR_HANDLING: ("raise_change", "exception_handler_change"),
+    BehaviorCategory.OUTPUT_CONTRACT: ("return_change", "signature_change"),
+    BehaviorCategory.STATE_TRANSITION: ("assignment_change",),
+    BehaviorCategory.AUTHORIZATION: (
+        "condition_change",
+        "comparison_change",
+        "call_change",
+        "decorator_change",
+    ),
+    BehaviorCategory.VALIDATION: ("condition_change", "comparison_change", "call_change"),
+    BehaviorCategory.SIDE_EFFECT: ("call_change",),
+    BehaviorCategory.DEPENDENCY_INTERACTION: ("call_change",),
+    BehaviorCategory.ORDERING: (
+        "condition_order_change",
+        "call_order_change",
+        "statement_order_change",
+    ),
+    BehaviorCategory.REFACTOR: ("structural_refactor",),
+}
+# A branch says most about what to test, then what a symbol produces, then what it calls.
+_GENERAL: tuple[str, ...] = (
+    "condition_change",
+    "comparison_change",
+    "loop_change",
+    "return_change",
+    "raise_change",
+    "exception_handler_change",
+    "call_change",
+    "context_manager_change",
+    "assignment_change",
+    "signature_change",
+    "decorator_change",
+    "condition_order_change",
+    "call_order_change",
+    "statement_order_change",
+    "symbol_added",
+    "symbol_removed",
+    "structural_refactor",
+)
+# A kind without a place here would fail `_primary` on the first analysis that reached it.
+if set(_GENERAL) != PYTHON_KINDS:  # pragma: no cover - guards an edit, not a runtime input
+    raise RuntimeError(f"Kinds out of step: {sorted(set(_GENERAL) ^ PYTHON_KINDS)}")
+
+
+@dataclass(frozen=True)
+class Change:
+    """What one Python delta changed, as the scenarios of its evidence quote it."""
+
+    kind: str
+    # The values it changed on each side, at most `MAX_CHANGED_VALUES` of each, and how many.
+    removed: tuple[str, ...] = ()
+    added: tuple[str, ...] = ()
+    removed_total: int = 0
+    added_total: int = 0
+    # Each parameter whose default changed: its name, and its default before and after, if any.
+    defaults: tuple[tuple[str, str | None, str | None], ...] = ()
+    # Whether only the signature's annotations changed, so callers pass what they passed.
+    annotations_only: bool = False
+    # Whether a changed comparison or condition compares a boundary.
+    boundary: bool = False
+    # Whether every call that changed reaches the project's own code.
+    internal: bool = False
+    # Whether an added or removed symbol had a near-equal match it could not choose between.
+    ambiguous: bool = False
+    # The variables a changed assignment writes to.
+    assigned_names: tuple[str, ...] = ()
+    # As extraction labels the symbol: `function`, `method`, `class`, `module`, and so on.
+    symbol_kind: str | None = None
+
+    @property
+    def removed_only(self) -> bool:
+        return bool(self.removed) and not self.added
+
+
+def _strings(value: object) -> tuple[str, ...]:
+    if not isinstance(value, (list, tuple)):
+        return ()
+    return tuple(item for item in value if isinstance(item, str) and item)
+
+
+def _count(value: object, at_least: int) -> int:
+    if isinstance(value, int) and not isinstance(value, bool):
+        return max(value, at_least)
+    return at_least
+
+
+def _without_operators(comparison: str) -> str:
+    """A comparison as code shows it: `extract` records `x < 5` as `x < 5 [Lt]`."""
+    text, separator, operators = comparison.rpartition(" [")
+    return text if separator and operators.endswith("]") else comparison
+
+
+def _defaults(delta: StructuralDelta) -> tuple[tuple[str, str | None, str | None], ...]:
+    before, after = delta.metadata.get("old_defaults"), delta.metadata.get("new_defaults")
+    if not isinstance(before, dict) or not isinstance(after, dict):
+        return ()
+    names = [*before, *(name for name in after if name not in before)]
+    return tuple(
+        (name, before.get(name), after.get(name))
+        for name in names
+        if isinstance(name, str) and before.get(name) != after.get(name)
+    )
+
+
+def describe_change(delta: StructuralDelta) -> Change | None:
+    """What a Python delta changed, or None for a delta of another kind."""
+    if delta.kind not in PYTHON_KINDS:
+        return None
+    metadata = delta.metadata
+    removed, added = _strings(metadata.get("removed")), _strings(metadata.get("added"))
+    if delta.kind == "comparison_change":
+        removed = tuple(_without_operators(item) for item in removed)
+        added = tuple(_without_operators(item) for item in added)
+    defaults_changed = delta.kind == "signature_change" and metadata.get("default_changed")
+    return Change(
+        kind=delta.kind,
+        removed=removed,
+        added=added,
+        removed_total=_count(metadata.get("removed_total"), len(removed)),
+        added_total=_count(metadata.get("added_total"), len(added)),
+        defaults=_defaults(delta) if defaults_changed else (),
+        annotations_only=bool(metadata.get("annotations_only")),
+        boundary=delta.kind in {"comparison_change", "condition_change"}
+        and has_boundary_comparison(delta),
+        internal=bool(metadata.get("internal_calls")),
+        ambiguous=bool(metadata.get("ambiguous_match")),
+        assigned_names=_strings(metadata.get("assigned_names")),
+        symbol_kind=delta.symbol_kind,
+    )
+
+
+def changes_by_evidence(deltas: Sequence[StructuralDelta]) -> dict[str, Change]:
+    """What each Python delta changed, by the ID of the evidence `build_candidates` makes of it."""
+    return {
+        evidence_id(position): change
+        for position, delta in enumerate(deltas, start=1)
+        if (change := describe_change(delta)) is not None
+    }
+
+
+def _flat(text: str | None) -> str:
+    return " ".join((text or "").split())
+
+
+def _quote(text: str | None) -> str:
+    """A fragment of evidence as a code span, its whitespace collapsed and its length bounded."""
+    shown = _flat(text)
+    if len(shown) > MAX_QUOTE_CHARS:
+        shown = shown[: MAX_QUOTE_CHARS - 1].rstrip() + "…"
+    return code_span(shown or "∅")
+
+
+def _quote_pair(before: str, after: str) -> tuple[str, str]:
+    """Two versions of one value, each cut around where they differ when either is too long.
+
+    Cut at the end alone, a long `__all__` that gained a name read the same on both sides.
+    """
+    old, new = _flat(before), _flat(after)
+    if max(len(old), len(new)) <= MAX_QUOTE_CHARS:
+        return _quote(old), _quote(new)
+    shortest = min(len(old), len(new))
+    prefix = 0
+    while prefix < shortest and old[prefix] == new[prefix]:
+        prefix += 1
+    suffix = 0
+    while suffix < shortest - prefix and old[-1 - suffix] == new[-1 - suffix]:
+        suffix += 1
+    start = max(0, prefix - SHARED_CONTEXT_CHARS)
+    kept_suffix = max(0, suffix - SHARED_CONTEXT_CHARS)
+
+    def around(text: str) -> str:
+        end = len(text) - kept_suffix
+        return f"{'…' if start else ''}{text[start:end]}{'…' if kept_suffix else ''}"
+
+    return _quote(around(old)), _quote(around(new))
+
+
+def _series(items: Sequence[str]) -> str:
+    if len(items) <= 2:
+        return " and ".join(items)
+    return f"{', '.join(items[:-1])}, and {items[-1]}"
+
+
+def _quotes(values: Sequence[str], total: int) -> str:
+    """Up to `MAX_QUOTED_VALUES` distinct values, and how many more there are."""
+    distinct = list(dict.fromkeys(values))
+    shown = [_quote(value) for value in distinct[:MAX_QUOTED_VALUES]]
+    more = max(0, total - len(values)) + len(distinct) - len(shown)
+    if more > 0:
+        shown.append(f"{more} more")
+    return _series(shown)
+
+
+def _subject(evidence: Evidence) -> str:
+    symbol = evidence.symbol or "<module>"
+    if symbol == "<module>":
+        return f"the top-level code of {_quote(evidence.path)}"
+    if symbol.startswith("<"):
+        return _quote(evidence.path)
+    return _quote(symbol)
+
+
+def _sentence(text: str) -> str:
+    return text[:1].upper() + text[1:]
+
+
+def _runs(subject: str, evidence: Evidence, change: Change) -> str:
+    """How a test reaches the code of the symbol: a class's body runs as code uses the class."""
+    if (evidence.symbol or "<module>") == "<module>":
+        return f"{subject} runs as the module is imported"
+    if change.symbol_kind == "class":
+        return f"Code that uses {subject} runs"
+    return f"{subject} runs"
+
+
+def _called(subject: str, evidence: Evidence) -> str:
+    symbol = evidence.symbol or ""
+    owner, _, name = symbol.rpartition(".")
+    if name == "__init__" and owner:
+        return f"{_quote(owner)} is instantiated"
+    return f"{subject} is called"
+
+
+@dataclass(frozen=True)
+class _Verb:
+    """How a scenario says what a symbol does now, what it did, and what it holds."""
+
+    now: str
+    before: str
+    noun: str
+
+
+_VERBS = {
+    "comparison_change": _Verb("compares", "compared", "comparisons"),
+    "condition_change": _Verb("tests", "tested", "conditions"),
+    "raise_change": _Verb("raises", "raised", "raised exceptions"),
+    "exception_handler_change": _Verb("handles", "handled", "exception handlers"),
+    "return_change": _Verb("returns", "returned", "returned values"),
+    "assignment_change": _Verb("assigns", "assigned", "assignments"),
+    "loop_change": _Verb("runs the loop", "ran the loop", "loops"),
+    "context_manager_change": _Verb("enters", "entered", "with blocks"),
+    "call_change": _Verb("calls", "called", "calls"),
+    "decorator_change": _Verb("is decorated with", "was decorated with", "decorators"),
+}
+
+
+def _what_changed(subject: str, evidence: Evidence, change: Change) -> str:
+    """`subject` now does what the change added, where it did what the change removed."""
+    verb = _VERBS[change.kind]
+    if (change.removed_total, change.added_total) == (1, 1) and change.removed and change.added:
+        removed, added = _quote_pair(change.removed[0], change.added[0])
+    else:
+        added = _quotes(change.added, change.added_total)
+        removed = _quotes(change.removed, change.removed_total)
+    if change.kind == "decorator_change":
+        if change.added and change.removed:
+            return f"{subject} is now decorated with {added} where it was decorated with {removed}"
+        if change.added:
+            return f"{subject} is now also decorated with {added}"
+        if change.removed:
+            return f"{subject} is no longer decorated with {removed}"
+    elif change.added and change.removed:
+        return f"{subject} now {verb.now} {added} where it {verb.before} {removed}"
+    elif change.added:
+        return f"{subject} now also {verb.now} {added}"
+    elif change.removed:
+        return f"{subject} no longer {verb.now} {removed}"
+    # The same values in another order, or a delta that recorded none.
+    return f"{subject} changed its {verb.noun}, now {_quote(evidence.new)}"
+
+
+def _scenario(
+    kind: ObligationType, title: str, given: str, when: str, then: str, relevance: int
+) -> Scenario:
+    return Scenario(
+        kind, _sentence(title), _sentence(given), _sentence(when), _sentence(then), relevance
+    )
+
+
+@dataclass(frozen=True)
+class _Finding:
+    """What every scenario of one finding draws on."""
+
+    category: BehaviorCategory
+    evidence: Evidence
+    change: Change
+    subject: str
+    # What changed, as `_what_changed` says it, for the kinds it can say.
+    changed: str
+    relevance: int
+
+    @property
+    def runs(self) -> str:
+        return _runs(self.subject, self.evidence, self.change)
+
+    @property
+    def called(self) -> str:
+        return _called(self.subject, self.evidence)
+
+    def scenario(
+        self,
+        kind: ObligationType,
+        title: str,
+        given: str,
+        when: str,
+        then: str,
+        *,
+        second: bool = False,
+    ) -> Scenario:
+        drop = SECOND_SCENARIO_RELEVANCE_DROP if second else 0
+        return _scenario(kind, title, given, when, then, max(0, self.relevance - drop))
+
+
+def _default_scenarios(found: _Finding) -> tuple[Scenario, ...]:
+    name, before, after = found.change.defaults[0]
+    parameter, subject = _quote(name), found.subject
+    others = len(found.change.defaults) - 1
+    also = f"; {others} more parameter default(s) changed too" if others else ""
+    if before is not None and after is not None:
+        old, new = _quote_pair(before, after)
+        given = f"{parameter} is omitted, so its new default {new} applies where {old} did"
+        then = f"The result is the one the default {new} gives, not {old}"
+    elif after is not None:
+        given = f"{parameter} is omitted, which its new default {_quote(after)} allows"
+        then = f"The result is the one the default {_quote(after)} gives"
+    else:
+        given = f"{parameter} is omitted, which its former default {_quote(before)} allowed"
+        then = f"The call now fails explicitly where it applied {_quote(before)}"
+    omitted = found.scenario(
+        ObligationType.REGRESSION,
+        f"Verify omitted-input behavior of {subject} without {parameter}",
+        given + also,
+        found.called,
+        then,
+    )
+    if before is None:
+        return (omitted,)
+    explicit = found.scenario(
+        ObligationType.POSITIVE,
+        f"Verify {subject} with {parameter} passed as the former default {_quote(before)}",
+        f"{parameter} is passed explicitly as {_quote(before)}, what callers got by omitting it",
+        found.called,
+        f"The result is the one {_quote(before)} gave before the change",
+        second=True,
+    )
+    return (omitted, explicit)
+
+
+def _signature_scenario(found: _Finding) -> Scenario:
+    old, new = _quote_pair(found.evidence.old or "", found.evidence.new or "")
+    if found.change.annotations_only:
+        return found.scenario(
+            ObligationType.REVIEW,
+            f"Check the consumer-visible contract of the annotations of {found.subject}",
+            f"The declared types of {found.subject} changed from {old} to {new}, while callers "
+            "pass the same arguments",
+            "A type checker, or code that reads annotations at runtime, reads the new signature",
+            "Callers, and whatever reads the annotations, accept the new declared contract",
+        )
+    return found.scenario(
+        ObligationType.NEGATIVE,
+        f"Check former contract behavior of {found.subject}",
+        f"A caller calls {found.subject} as its former signature {old} allowed; it is now {new}",
+        "That call runs",
+        "It still works, or fails with an explicit error",
+    )
+
+
+def _boundary_scenarios(found: _Finding) -> tuple[Scenario, ...]:
+    retry = found.category is BehaviorCategory.RETRY_TIMEOUT
+    exact = (
+        f"Exercise the exact retry or timeout limit of {found.subject}"
+        if retry
+        else f"Exercise the exact changed boundary in {found.subject}"
+    )
+    if found.change.removed_only:
+        return (
+            found.scenario(
+                ObligationType.BOUNDARY,
+                exact,
+                f"{found.changed}; inputs sit on each side of that former boundary",
+                f"{found.runs} with each",
+                "Each gets the outcome intended now that nothing tells them apart, which is "
+                "asserted",
+            ),
+        )
+    return (
+        found.scenario(
+            ObligationType.BOUNDARY,
+            exact,
+            f"{found.changed}; an input sits exactly at that boundary",
+            found.runs,
+            "The outcome at the boundary, which the change may have flipped, is asserted",
+        ),
+        found.scenario(
+            ObligationType.BOUNDARY,
+            f"Exercise either side of the changed boundary in {found.subject}",
+            f"{found.changed}; inputs sit just below and just above that boundary",
+            f"{found.runs} with each",
+            "The outcome on each side is asserted",
+            second=True,
+        ),
+    )
+
+
+def _condition_scenario(found: _Finding) -> Scenario:
+    gone = found.change.removed_only
+    satisfy = "satisfied the removed condition" if gone else "satisfies the condition"
+    outcome = (
+        "Each gets the outcome intended now that the condition is gone, which is asserted"
+        if gone
+        else None
+    )
+    if found.category is BehaviorCategory.AUTHORIZATION:
+        return found.scenario(
+            ObligationType.NEGATIVE,
+            f"Verify an allowed and a denied principal at the changed guard of {found.subject}",
+            found.changed,
+            f"A principal that {satisfy.replace('condition', 'guard')}, and one that does not, "
+            "attempt the operation",
+            outcome
+            or "The allowed one gets its outcome, and the denied one is refused without the "
+            "protected side effect",
+        )
+    if found.category is BehaviorCategory.VALIDATION:
+        return found.scenario(
+            ObligationType.NEGATIVE,
+            "Verify newly accepted and newly rejected input at the changed validation of "
+            f"{found.subject}",
+            found.changed,
+            f"An input that {satisfy}, and one that does not, are validated",
+            outcome or "The first is accepted and the second rejected observably",
+        )
+    if found.category is BehaviorCategory.RETRY_TIMEOUT:
+        return found.scenario(
+            ObligationType.BOUNDARY,
+            f"Exercise the exact retry or timeout limit of the changed predicate of "
+            f"{found.subject}",
+            found.changed,
+            "A failure the predicate now judges differently occurs, again and again",
+            "The number of attempts, and when they stop, are asserted",
+        )
+    if gone:
+        return found.scenario(
+            ObligationType.REGRESSION,
+            f"Exercise the cases the removed condition told apart in {found.subject}",
+            found.changed,
+            f"{found.runs} once with input that made the condition true and once with input "
+            "that made it false",
+            "Each gets the outcome intended now that the condition is gone, which is asserted",
+        )
+    return found.scenario(
+        ObligationType.REGRESSION,
+        f"Exercise both outcomes of the changed condition in {found.subject}",
+        found.changed,
+        f"{found.runs} once with input that makes the condition true and once with input that "
+        "makes it false",
+        "The outcome of each branch is asserted",
+    )
+
+
+def _call_scenario(found: _Finding) -> Scenario:
+    observed = f"{found.runs}, with the call observed through a stub or a spy"
+    if found.category is BehaviorCategory.SIDE_EFFECT:
+        return found.scenario(
+            ObligationType.INTERACTION,
+            f"Verify the side-effect occurrence of the changed call in {found.subject}",
+            found.changed,
+            f"{found.runs} with the external effect observed",
+            "The write, event, warning, or notification happens exactly as intended, and not "
+            "when it should not",
+        )
+    if found.category is BehaviorCategory.AUTHORIZATION:
+        return found.scenario(
+            ObligationType.NEGATIVE,
+            f"Verify an allowed and a denied principal through the changed call in {found.subject}",
+            found.changed,
+            "A principal the call authorizes, and one it does not, attempt the operation",
+            "The allowed one gets its outcome, and the denied one is refused without the "
+            "protected side effect",
+        )
+    if found.category is BehaviorCategory.VALIDATION:
+        return found.scenario(
+            ObligationType.NEGATIVE,
+            f"Verify newly accepted and newly rejected input through the changed call in "
+            f"{found.subject}",
+            found.changed,
+            "An input the validator accepts, and one it rejects, pass through it",
+            "The first is accepted and the second rejected observably",
+        )
+    if found.category is BehaviorCategory.RETRY_TIMEOUT:
+        return found.scenario(
+            ObligationType.INTERACTION,
+            f"Exercise the exact retry or timeout limit through the changed call in "
+            f"{found.subject}",
+            found.changed,
+            "The callee fails until the limit is reached",
+            "The attempts, the waits, and the final outcome are asserted",
+        )
+    if found.change.removed_only:
+        return found.scenario(
+            ObligationType.INTERACTION,
+            f"Assert what {found.subject} does without its former call",
+            found.changed,
+            observed,
+            "The call no longer happens, and what takes its place is asserted",
+        )
+    if found.change.internal:
+        return found.scenario(
+            ObligationType.REGRESSION,
+            f"Assert what {found.subject} produces through its changed call",
+            f"{found.changed}, its own project's code",
+            found.runs,
+            "The value it returns, or the state it leaves, is asserted",
+        )
+    return found.scenario(
+        ObligationType.INTERACTION,
+        f"Assert the arguments of the changed call in {found.subject}",
+        found.changed,
+        observed,
+        "The arguments it passes, and what it does with the result, match the intended change",
+    )
+
+
+def _assignment_scenario(found: _Finding) -> Scenario:
+    if found.category is BehaviorCategory.STATE_TRANSITION:
+        return found.scenario(
+            ObligationType.STATE,
+            f"Verify the allowed transition {found.subject} now makes",
+            found.changed,
+            f"{found.runs} from a state that permits the transition",
+            "The resulting state is asserted, and a repeated call keeps it stable",
+        )
+    module = (found.evidence.symbol or "<module>") == "<module>"
+    if (module or found.change.symbol_kind == "class") and found.change.assigned_names:
+        names = _quotes(found.change.assigned_names, len(found.change.assigned_names))
+        return found.scenario(
+            ObligationType.REVIEW,
+            f"Clarify and characterize the code that reads {names}",
+            found.changed,
+            "Code that reads the new value runs",
+            "Its outcome with the new value is asserted",
+        )
+    return found.scenario(
+        ObligationType.REGRESSION,
+        f"Assert what {found.subject} computes from its changed assignment",
+        found.changed,
+        found.runs,
+        "The value it computes from the assignment, as returned or stored, is asserted",
+    )
+
+
+def _order_scenario(found: _Finding) -> Scenario:
+    before, after = _quote_pair(found.evidence.old or "", found.evidence.new or "")
+    if found.change.kind == "condition_order_change":
+        return found.scenario(
+            ObligationType.REGRESSION,
+            f"Exercise competing conditions in {found.subject}",
+            f"{found.subject} now tests {after} in that order, where it tested {before}",
+            "An input satisfies more than one of them",
+            "The condition that now comes first decides the outcome, and that is asserted",
+        )
+    if found.change.kind == "call_order_change":
+        return found.scenario(
+            ObligationType.INTERACTION,
+            f"Verify the sequence of the reordered calls in {found.subject}",
+            f"{found.subject} now calls {after} in that order, where it called {before}",
+            f"{found.runs} with the callees observed",
+            "The calls occur in the new order, and the outcome that depends on it is asserted",
+        )
+    return found.scenario(
+        ObligationType.REGRESSION,
+        f"Verify the outcome of the reordered statements in {found.subject}",
+        f"{found.subject} now runs {after} in that order, where it ran {before}",
+        found.runs,
+        "The outcome that depends on the order is asserted",
+    )
+
+
+def _lifecycle_scenario(found: _Finding) -> Scenario:
+    added = found.change.kind == "symbol_added"
+    shown = _quote(found.evidence.new if added else found.evidence.old)
+    if found.change.ambiguous:
+        return found.scenario(
+            ObligationType.REVIEW,
+            f"Clarify and characterize the contract of {found.subject}",
+            f"{found.subject} was {'added' if added else 'removed'} without a reliable match to "
+            f"another symbol: {shown}",
+            "The cases its callers rely on are reviewed",
+            "Their expected outcomes are documented and tested",
+        )
+    if added:
+        return found.scenario(
+            ObligationType.POSITIVE,
+            f"Characterize the new {found.subject}",
+            f"{found.subject} is new: {shown}",
+            f"{found.called} with a representative input",
+            "Its result is asserted as its intended contract",
+        )
+    return found.scenario(
+        ObligationType.NEGATIVE,
+        f"Check what still depends on the removed {found.subject}",
+        f"{found.subject} was removed: {shown}",
+        "Code that called or imported it runs",
+        "Nothing still depends on it, or its failure is the intended one",
+    )
+
+
+def _error_scenario(found: _Finding) -> Scenario:
+    if found.change.kind == "raise_change":
+        return found.scenario(
+            ObligationType.ERROR,
+            f"Exercise the changed failure trigger in {found.subject}",
+            found.changed,
+            "An input reaches that path",
+            "What it does instead of raising is asserted"
+            if found.change.removed_only
+            else "The exception's type, and its message where callers read it, are asserted",
+        )
+    if found.change.removed_only:
+        return found.scenario(
+            ObligationType.ERROR,
+            f"Verify what propagates now that {found.subject} no longer handles the exception",
+            found.changed,
+            "The code it guarded raises that exception",
+            "What happens without the handler, the exception propagating or no longer arising, "
+            "is asserted",
+        )
+    return found.scenario(
+        ObligationType.ERROR,
+        f"Verify recovery or propagation through the changed handler of {found.subject}",
+        found.changed,
+        "The code it guards raises that exception",
+        "The error is recovered, wrapped, or propagated as intended, and that is asserted",
+    )
+
+
+def _loop_scenario(found: _Finding) -> Scenario:
+    if found.category is BehaviorCategory.RETRY_TIMEOUT:
+        return found.scenario(
+            ObligationType.BOUNDARY,
+            f"Exercise the exact retry or timeout limit of the changed loop in {found.subject}",
+            found.changed,
+            "The loop runs up to its stop condition",
+            "The number of iterations, and the outcome at the limit, are asserted",
+        )
+    if found.change.removed_only:
+        return found.scenario(
+            ObligationType.REGRESSION,
+            f"Assert what {found.subject} does without its former loop",
+            found.changed,
+            f"{found.runs} over no item, one item, and several",
+            "The outcome of each is asserted",
+        )
+    return found.scenario(
+        ObligationType.REGRESSION,
+        f"Exercise the changed loop in {found.subject} with no item, one, and several",
+        found.changed,
+        f"{found.runs} over no item, one item, and several",
+        "The outcome of each is asserted",
+    )
+
+
+def _decorator_scenario(found: _Finding) -> Scenario:
+    if found.category is BehaviorCategory.AUTHORIZATION:
+        return found.scenario(
+            ObligationType.NEGATIVE,
+            f"Verify an allowed and a denied principal at the changed decorators of "
+            f"{found.subject}",
+            found.changed,
+            "A principal they admit, and one they do not, call it",
+            "The allowed one gets its outcome, and the denied one is refused without the "
+            "protected side effect",
+        )
+    return found.scenario(
+        ObligationType.REGRESSION,
+        f"Assert what the changed decorators of {found.subject} add",
+        found.changed,
+        f"{found.called} through its decorators",
+        "The behavior they add, such as access, caching, or registration, is asserted",
+    )
+
+
+def _scenarios_of(found: _Finding) -> tuple[Scenario, ...]:
+    kind, change = found.change.kind, found.change
+    if kind == "signature_change":
+        return _default_scenarios(found) if change.defaults else (_signature_scenario(found),)
+    if kind in {"comparison_change", "condition_change"}:
+        if change.boundary and found.category in {
+            BehaviorCategory.BOUNDARY,
+            BehaviorCategory.RETRY_TIMEOUT,
+        }:
+            return _boundary_scenarios(found)
+        return (_condition_scenario(found),)
+    if kind == "structural_refactor":
+        return (
+            found.scenario(
+                ObligationType.REGRESSION,
+                f"Preserve characterized behavior of {found.subject}",
+                f"Representative inputs that reached {found.subject} before the change",
+                "The refactored code runs",
+                "The outcomes match those before the change",
+            ),
+        )
+    if kind == "return_change":
+        return (
+            found.scenario(
+                ObligationType.REGRESSION,
+                f"Assert the consumer-visible contract of what {found.subject} returns",
+                found.changed,
+                f"{found.called} with input that reaches the changed return",
+                "The returned value, its type, fields, and shape included, is asserted exactly",
+            ),
+        )
+    if kind == "context_manager_change":
+        return (
+            found.scenario(
+                ObligationType.REGRESSION,
+                f"Assert what {found.subject} acquires and releases in its changed with block",
+                found.changed,
+                f"{found.runs} once normally and once with the block raising",
+                "What it acquires is released both times, and the outcome is asserted",
+            ),
+        )
+    builders = {
+        "call_change": _call_scenario,
+        "assignment_change": _assignment_scenario,
+        "raise_change": _error_scenario,
+        "exception_handler_change": _error_scenario,
+        "loop_change": _loop_scenario,
+        "decorator_change": _decorator_scenario,
+        "symbol_added": _lifecycle_scenario,
+        "symbol_removed": _lifecycle_scenario,
+        **dict.fromkeys(ORDER_KINDS, _order_scenario),
+    }
+    return (builders[kind](found),)
+
+
+def _primary(
+    behavior: BehaviorChange, changes: Mapping[str, Change]
+) -> tuple[Evidence, Change] | None:
+    """The evidence that best says what the finding is about, with what its delta changed.
+
+    Evidence on the finding's own symbol comes first, then the kinds its category is about.
+    """
+    described = [(item, changes[item.id]) for item in behavior.evidence if item.id in changes]
+    if not described:
+        return None
+    own = (behavior.evidence[0].path, behavior.evidence[0].symbol)
+    order = (*_PREFERRED.get(behavior.category, ()), *_GENERAL)
+
+    def rank(pair: tuple[Evidence, Change]) -> tuple[bool, int]:
+        item, change = pair
+        return (item.path, item.symbol) != own, order.index(change.kind)
+
+    return min(described, key=rank)
+
+
+def evidence_scenarios(
+    behavior: BehaviorChange, changes: Mapping[str, Change]
+) -> tuple[Scenario, ...]:
+    """The scenarios a finding's evidence supports: none when no Python delta describes it.
+
+    One scenario says what to run, what changed, and what to assert. A changed default has a
+    second, for the former value passed explicitly, and a changed boundary one for either side.
+    """
+    picked = _primary(behavior, changes)
+    if picked is None:
+        return ()
+    evidence, change = picked
+    subject = _subject(evidence)
+    found = _Finding(
+        category=behavior.category,
+        evidence=evidence,
+        change=change,
+        subject=subject,
+        changed=_what_changed(subject, evidence, change) if change.kind in _VERBS else "",
+        relevance=CATEGORY_PROFILES[behavior.category].scenarios[0].relevance,
+    )
+    return _scenarios_of(found)
