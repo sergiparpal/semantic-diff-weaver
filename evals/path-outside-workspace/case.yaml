@@ -1,0 +1,47 @@
+schema_version: "1.1"
+name: path-outside-workspace
+description: >-
+  The repository named lies outside the authorized workspace; after path_outside_repository the
+  skill does not retry with another path, and says how to authorize it.
+tags: [errors, spanish]
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: |
+    Analiza qué cambia la rama feature/limits respecto a main en el repositorio /tmp/sdw-eval-elsewhere y dime qué debería probar.
+  max_turns: 20
+  timeout_seconds: 600
+  allowed_tools:
+    - Bash
+    - Read
+    - Glob
+    - Grep
+    - Skill
+    - mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__analyze_semantic_diff
+    - mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__generate_test_skeletons
+graders:
+  - name: tries-the-path-given
+    type: tool_used
+    tool: mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__analyze_semantic_diff
+    input_match: 'sdw-eval-elsewhere'
+    min: 1
+  - name: no-other-path
+    type: tool_used
+    tool: mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__analyze_semantic_diff
+    input_match: '"repo_path"\s*:\s*"(?![^"]*sdw-eval-elsewhere)'
+    min: 0
+    max: 0
+  - name: no-copy-around-it
+    type: tool_used
+    tool: Bash
+    input_match: '(?:\bcp|\brsync|\bmv|\bln|git clone)\b[^"]*sdw-eval-elsewhere'
+    min: 0
+    max: 0
+  - name: names-the-setting
+    type: regex
+    pattern: 'SEMANTIC_DIFF_WEAVER_ALLOWED_ROOTS'
+  - name: explains-authorization
+    type: llm
+    criteria: >-
+      The answer says the repository is outside what the tool may read and tells the user how to
+      allow it.

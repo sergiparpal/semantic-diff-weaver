@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: diverged-main
+description: >-
+  Local main and origin/main have each a commit the other lacks; the skill asks which one the
+  branch merges into instead of choosing.
+tags: [refs]
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: |
+    What does this branch change in behavior, and what should I test before merging it?
+  max_turns: 20
+  timeout_seconds: 600
+  allowed_tools:
+    - Bash
+    - Read
+    - Glob
+    - Grep
+    - Skill
+    - mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__analyze_semantic_diff
+    - mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__generate_test_skeletons
+graders:
+  - name: names-both-tips
+    type: regex
+    # Local main (c003811) and origin/main (10a58b8): the answer shows the user both.
+    pattern: '^(?=[\s\S]*c003811)(?=[\s\S]*10a58b8)'
+  - name: asks-which-base
+    type: llm
+    criteria: >-
+      The answer asks the user which of main and origin/main this branch should be compared with,
+      or will merge into.
+  - name: no-unapproved-skeletons
+    type: tool_used
+    tool: mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__generate_test_skeletons
+    min: 0
+    max: 0

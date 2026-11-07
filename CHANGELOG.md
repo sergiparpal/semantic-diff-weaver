@@ -9,6 +9,23 @@
   what GitHub keeps of a step's summary, 1 MiB, is cut at a section boundary, as the comment is,
   and a summary that cannot be written is a warning, never a failed step. See
   `docs/decisions.md`, 2026-11-07, the brief in the job summary.
+- **Fix:** the Claude Code skill loads when the user asks what their own change does. Asked "What
+  does my change do, and what should I test?" beside an uncommitted edit, Claude did not load it,
+  and answered from `git diff` after running the test suite: the description named "a diff,
+  branch, or pull request" and "what to test before merging". It now names "their change, a
+  commit, a diff, a branch, or a pull request" and "what to test", also when some edits are not
+  committed yet, and the Hermes skill's first paragraph says the same. Found by the eval suite
+  below. See `docs/decisions.md`, 2026-11-07, the Claude Code skill measured.
+- **Tests:** `evals/` is the Claude Code skill's suite for `claude plugin eval`, nine cases. Each
+  builds a repository with `evals/fixture.sh`, asks what a user would, and grades the tool calls'
+  arguments and the answer, with the plugin's real server. The cases check that the skill loads in
+  Spanish and in English, and that it takes `origin/main` over a stale local `main`. It must ask
+  when the two have diverged, say that uncommitted edits are left out, and present candidate tests
+  as unverified. It must scaffold nothing until the user names obligations, retry no other path
+  after `path_outside_repository`, and split a diff past the file limit with `include`, never
+  `exclude`. On 2026-11-07 every case passed all three of its runs with the plugin and none
+  without it, for 9.51 USD with the rerun of one case. `AGENTS.md` gives the command, which takes
+  a cost ceiling.
 
 ## 0.19.0 - 2026-11-07
 

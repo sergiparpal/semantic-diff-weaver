@@ -1,0 +1,43 @@
+schema_version: "1.1"
+name: stale-local-main
+description: >-
+  Local main lags behind origin/main, which already merged a change to pkg/report.py; the base
+  is origin/main, so that change is not counted as the branch's own.
+tags: [refs]
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: |
+    What does this branch change in behavior, and what should I test before merging it?
+  max_turns: 20
+  timeout_seconds: 600
+  allowed_tools:
+    - Bash
+    - Read
+    - Glob
+    - Grep
+    - Skill
+    - mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__analyze_semantic_diff
+    - mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__generate_test_skeletons
+graders:
+  - name: analyzes-from-origin-main
+    # origin/main, or its merge base with HEAD, which is origin/main itself (10a58b8).
+    type: tool_used
+    tool: mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__analyze_semantic_diff
+    input_match: '"base_ref"\s*:\s*"(?:origin/main|refs/remotes/origin/main|10a58b8[0-9a-f]*)"'
+    min: 1
+  - name: never-from-stale-main
+    # Local main (97b748c) would read the merged report.py change as the branch's own.
+    type: tool_used
+    tool: mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__analyze_semantic_diff
+    input_match: '"base_ref"\s*:\s*"(?:main|refs/heads/main|97b748c[0-9a-f]*)"'
+    min: 0
+    max: 0
+  - name: names-the-base
+    type: regex
+    pattern: 'origin/main'
+  - name: no-unapproved-skeletons
+    type: tool_used
+    tool: mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__generate_test_skeletons
+    min: 0
+    max: 0

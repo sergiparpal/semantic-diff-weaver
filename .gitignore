@@ -20,3 +20,5 @@ build/
 .agents/
 .codex/
 canon/
+# What `claude plugin eval` writes for each run of the skill's eval suite.
+evals/results/

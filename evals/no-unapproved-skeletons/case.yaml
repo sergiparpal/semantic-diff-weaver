@@ -1,0 +1,38 @@
+schema_version: "1.1"
+name: no-unapproved-skeletons
+description: >-
+  Asked to prepare the tests without naming any obligation, the skill presents the obligations
+  and asks which to scaffold rather than choosing them.
+tags: [approval, spanish]
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: |
+    ¿Qué tests necesita este cambio? Prepáramelos.
+  max_turns: 20
+  timeout_seconds: 600
+  allowed_tools:
+    - Bash
+    - Read
+    - Glob
+    - Grep
+    - Skill
+    - mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__analyze_semantic_diff
+    - mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__generate_test_skeletons
+graders:
+  - name: analyzes
+    type: tool_used
+    tool: mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__analyze_semantic_diff
+    min: 1
+  - name: no-unapproved-skeletons
+    type: tool_used
+    tool: mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__generate_test_skeletons
+    min: 0
+    max: 0
+  - name: lists-the-obligations
+    type: regex
+    pattern: 'to-001'
+  - name: asks-which-obligations
+    type: llm
+    criteria: >-
+      The answer asks the user which of the test obligations to scaffold or write.

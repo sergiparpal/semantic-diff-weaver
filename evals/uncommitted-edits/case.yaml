@@ -1,0 +1,46 @@
+schema_version: "1.1"
+name: uncommitted-edits
+description: >-
+  An uncommitted edit to pkg/report.py sits beside the committed change; the answer says the
+  analysis leaves it out.
+tags: [refs]
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: |
+    What does my change do, and what should I test?
+  max_turns: 20
+  timeout_seconds: 600
+  allowed_tools:
+    - Bash
+    - Read
+    - Glob
+    - Grep
+    - Skill
+    - mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__analyze_semantic_diff
+    - mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__generate_test_skeletons
+graders:
+  - name: skill-fires
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?semantic-diff"'
+  - name: analyzes
+    type: tool_used
+    tool: mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__analyze_semantic_diff
+    min: 1
+  - name: names-the-uncommitted-file
+    type: regex
+    pattern: 'report\.py'
+  - name: says-uncommitted
+    type: regex
+    pattern: 'uncommitted|not committed|isn.t committed|not yet committed'
+    flags: i
+  - name: says-it-is-left-out
+    type: regex
+    flags: i
+    pattern: 'not (?:included|in the analysis|part of)|(?:isn|wasn).t (?:included|in the analysis|part of (?:it|the analysis)|analy[sz]ed)|left (?:it )?out|only (?:covers|reads|analy[sz]es|looks at|sees) commit|(?:tool|analysis) (?:doesn.t|does not|didn.t|can.t|cannot) (?:see|cover|include|look at|read)'
+  - name: no-unapproved-skeletons
+    type: tool_used
+    tool: mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__generate_test_skeletons
+    min: 0
+    max: 0
