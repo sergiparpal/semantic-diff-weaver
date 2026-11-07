@@ -15,8 +15,8 @@ labeled before the first such change and measured it on code it was not designed
 Since then the first held-out cases have joined development, and a second held-out split of 30
 pull requests, from `encode/django-rest-framework`, `jd/tenacity`, `urllib3/urllib3`,
 `agronholm/anyio`, and `pypa/packaging`, has been labeled and reviewed before any further change.
-Its baseline and the second round's correction, measured on it, come first below; the first
-round's results follow.
+Its baseline and the second round's correction, measured on it, come first below, then a
+measurement of the development cases with a model; the first round's results follow.
 
 Unlike the 18-case corpus of `docs/evaluation.md`, whose cases were written to exercise the
 taxonomy, these are changes as maintainers made them.
@@ -73,6 +73,101 @@ of httpx and starlette. Held out, 4 did: encode/django-rest-framework's two rele
 classes whose annotations tenacity#680 marked `ClassVar`. No behavior change lost its finding or
 its category on either split. The held-out split has now been measured with a correction and its
 disagreements read, so the next correction waits for a new held-out sample.
+
+## With a model
+
+Measured 2026-11-07 by `run_benchmark.py llm` with Semantic Diff Weaver 0.18.0 on the 60
+development cases, with `openai/gpt-oss-120b` through OpenRouter at the interpreter's temperature
+of 0.1 and low reasoning effort. No held-out case is ever sent to a model. The model answered every
+batch of every case, so all 60 count. Its 81 calls cost 0.0236 USD, and an analysis with it took
+4.4 seconds at the median and 11.3 at most.
+
+| Measure | Development, without a model | Development, with gpt-oss-120b |
+| --- | --- | --- |
+| Findings on Python | 172 | 174 |
+| Precision, findings in an expected category | 32 of 159 (20.1%) | 32 of 161 (19.9%) |
+| Precision, findings naming a behavior category | 32 of 78 (41.0%) | 32 of 78 (41.0%) |
+| Recall, behavior changes given a finding | 76 of 76 | 76 of 76 |
+| Recall, behavior changes given one in an expected category | 30 of 76 (39.5%) | 30 of 76 (39.5%) |
+| Unchanged symbols given a finding | 17 of 71 (23.9%) | 19 of 71 (26.8%) |
+| Unchanged symbols given one naming a behavior category | 10 of 71 (14.1%) | 10 of 71 (14.1%) |
+| Mean confidence, findings in an expected category | 0.80 over 32 | 0.80 over 32 |
+| Mean confidence, findings in another category | 0.69 over 101 | 0.69 over 101 |
+| Mean confidence, findings on an unchanged symbol | 0.71 over 26 | 0.71 over 28 |
+| Test obligations | 186 | 407 |
+
+**The model left the findings as they were, but for two wrong ones.** It cannot change a finding's
+category (`docs/decisions.md`, 2026-11-06), and the two findings it added were unknown changes on
+symbols labeled unchanged, rich#3941's `Console.save_html` and marshmallow#2935's `Nested.__init__`,
+where the structural rules had found a refactor. Its support tells right findings from wrong ones
+only weakly: it supported 23 of the 32 in an expected category and 74 of the 129 others, a
+difference a two-sided Fisher test puts at p = 0.16, and the confidence it moved averages out,
+leaving each outcome's mean where it was. No reply cited evidence the model was not shown; four
+behaviors named a category their evidence did not support, and the analysis made them unknown
+changes.
+
+**A correction since keeps a model's claims of a change off a refactor's evidence**
+(`docs/decisions.md`, 2026-11-07). Replaying a later run's replies through the analysis before the
+correction and after it, the correction removes those two findings and two on symbols no label
+covers, and leaves unchanged symbols given a finding at 17 of 71, as without a model. The replay
+also shows how far two runs of one model differ: through the analysis before the correction, the
+later run's replies added 192 obligations and five findings where the first run's added 221 and
+two, and 6 of its 87 replies failed the response schema, each answered when retried, where none of
+the first run's 81 did.
+
+**What the model adds is test obligations.** Of the 407 with the model, 221 are its own; the run
+without it has the other 186.
+
+### The obligations, reviewed blind
+
+A reviewer judged 40 of them on a page that showed each obligation's text with its pull request, its
+symbols, and the hunks of the diff its evidence covers, but neither the run it came from nor the
+existing tests the analysis named for it: 20 drawn at random from the model's 221 and 20 from the
+deterministic 186, at most two from one case. An obligation was useful if the reviewer would write
+that test or one much like it, noise if it was generic, repeated, or beside the change, and unsure
+if the page did not show enough to decide, and each verdict came with a note saying why.
+
+| Obligations | Drawn from | Cases | Useful | Noise | Unsure |
+| --- | --- | --- | --- | --- | --- |
+| The model's | 221 | 18 | 6 | 13 | 1 |
+| Deterministic | 186 | 15 | 0 | 20 | 0 |
+
+Six of 20 against none of 20 is a difference a two-sided Fisher test puts at p = 0.02. With 20 a
+side, 95% Wilson intervals put the model's useful share between 14.5% and 51.9%, and the
+deterministic one below 16.1%.
+
+**The deterministic obligations are templates that name nothing to test.** They are the fixed
+scenarios `taxonomy.py` keeps for each category and read the same in every case: "Handle dependency
+success" is given "the dependency returns a successful response", when "the changed interaction
+runs", then "the success response is consumed as intended". Thirteen of the 20 were the three
+scenarios of a dependency interaction, a category wrong in 32 of its 43 findings in development, but
+the nine that belong to a finding in an expected category were noise too. Nearly every note names a
+test the diff does support instead, such as that `[::1]:8080` splits into the host `::1` and the
+port 8080 for flask#6096, and some scenarios do not fit their change: a dependency failure where no
+dependency fails, or the "value, status, fields, and container shape" of a function that returns
+text.
+
+**The model's useful obligations name the behavior a test should pin**: for starlette#3736, that an
+endpoint wrapped in `functools.partial` is resolved and listed in the schema; for click#3777, that
+the temporary file is removed when the pager fails; for click#3769, that a finished progress bar
+writes its end once. None of the six belongs to a finding in an expected category. Three are on
+symbols labeled unchanged, rewrites whose kept behavior is still worth a test, such as requests'
+`_encode_files`, and three on findings in another category. All 20 of the model's that were drawn
+belong to findings the run without it also reports, so the model added tests to findings, not
+findings.
+
+**Most of the model's noise states no check.** Five of its 13 ask for documentation, three of them
+for documentation already written; one asks to investigate a contract the diff documents, and one
+calls the contract unknown. Two misread the diff, taking a context line for the change, or
+overloads for a change of spacing. Four propose a check that would miss the change or add nothing:
+callers matching an error message by substring, a generator expression that need not reach the new
+branch, a `None` the signature does not allow, and a count of a list's elements that another of its
+obligations already covers. The one unsure is a call whose definition the page's diff did not show.
+
+The review has limits of its own. One person judged all 40, and the page hid each obligation's run
+but not its wording, which for a deterministic obligation is the same wherever it appears. Drawing
+at most two from a case weighs the cases with many obligations less than the pool does. And it is
+one run of one model, whose next run proposes other obligations.
 
 ## Results
 
@@ -249,11 +344,11 @@ are neither right nor wrong: attrs#1571's two findings are one on `__all__` and 
 
 A model labeled it and one person reviewed every label, so a label is one model's reading that one
 reviewer accepted or corrected. Ninety pull requests of at most ten changed symbols each, sampled
-from fifteen libraries' recent history, say nothing of large changes or of applications. The
-analyzer ran without a model, as the MCP server always runs it and the CLI does without a provider.
-A model never changes a finding's category, but it can add findings and move their confidence, and
-`run_benchmark.py llm` measures what that does. A finding is matched to a label by the path and
-symbol of its first evidence, so two overloads of one name share a label.
+from fifteen libraries' recent history, say nothing of large changes or of applications. Outside
+"With a model" the analyzer ran without one, as the MCP server always runs it and the CLI does
+without a provider; that section measures one run of one model on the development cases, and one
+reviewer's reading of 40 test obligations. A finding is matched to a label by the path and symbol
+of its first evidence, so two overloads of one name share a label.
 
 The held-out split measures a correction only while no correction is designed from it. A change to
 the analyzer's categories is made against the development cases, measured on both splits, and

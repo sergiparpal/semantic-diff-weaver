@@ -22,6 +22,12 @@
 - **Evaluation:** `run_benchmark.py llm` saves every call's reply, and `--replay` analyzes a
   recorded run's cases again with those replies, calling no model, so that two versions of the
   analysis are compared on identical replies. Two live runs of one model differ too much for that.
+- **Evaluation:** `docs/benchmark.md` records a first measurement with a model,
+  `openai/gpt-oss-120b` on the 60 development cases for 0.0236 USD, and a blind review of its test
+  obligations. The model left the findings as they were but for two wrong ones, which the fix above
+  removes, and its support told right findings from wrong ones only weakly. A reviewer judged 6 of
+  20 of the obligations it adds useful, and none of 20 deterministic ones, the taxonomy's fixed
+  scenarios. Documentation only.
 
 ## 0.18.0 - 2026-11-06
 

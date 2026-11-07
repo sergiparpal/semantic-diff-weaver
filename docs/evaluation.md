@@ -183,7 +183,10 @@ unchanged symbols got one too; 16 of the 107 scored findings, and 16 of the 50 t
 behavior category, are in an expected one. The second round's correction, released in 0.17.0
 and measured on them once it was designed, leaves 14 of those 29 symbols with a finding and 16 of
 103 scored findings in an expected category, and every behavior change keeps its finding and its
-category. These are the numbers the corpus above does not give.
+category. These are the numbers the corpus above does not give. With a model, `openai/gpt-oss-120b`
+on the development cases, the findings stayed as they were but for two wrong ones, and a blind
+review judged 6 of 20 of the test obligations the model adds useful, and none of 20 deterministic
+ones.
 
 `docs/real-pr-validation.md` records what the analyzer says on other real merged pull requests,
 produced by the opt-in `scripts/validate_real_prs.py` harness. Those are **observations on
