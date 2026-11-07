@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from semantic_diff_weaver.models import BehaviorCategory, WeaverConfig
+from dataclasses import replace
+
+import pytest
+
+from semantic_diff_weaver.models import BehaviorCategory, Origin, WeaverConfig
+from semantic_diff_weaver.semantic_candidates import SemanticCandidate
 from semantic_diff_weaver.semantic_interpreter import interpret_candidates
 from tests.contract.test_llm_call import (
     FakeLlm,
@@ -25,6 +30,53 @@ def test_unsupported_category_is_downgraded() -> None:
     result = interpret_candidates([candidate()], FakeLlm([Result("json", payload)]), WeaverConfig())
     assert any(item.category is BehaviorCategory.UNKNOWN for item in result.candidates)
     assert any("Downgraded" in item for item in result.warnings)
+
+
+def _refactor() -> SemanticCandidate:
+    return replace(candidate(), category=BehaviorCategory.REFACTOR)
+
+
+@pytest.mark.parametrize("category", ["boundary_change", "unknown_semantic_change"])
+def test_a_finding_that_contradicts_a_refactor_is_discarded_with_its_obligation(
+    category: str,
+) -> None:
+    payload = valid_payload()
+    payload["behaviors"][0]["category"] = category
+    result = interpret_candidates([_refactor()], FakeLlm([Result("json", payload)]), WeaverConfig())
+    # The refactor stays as the structural rules found it, and nothing takes its place.
+    assert [(item.category, item.origin) for item in result.candidates] == [
+        (BehaviorCategory.REFACTOR, Origin.DETERMINISTIC)
+    ]
+    assert result.suggestions == []
+    assert any("contradicts a finding of no behavior change" in item for item in result.warnings)
+    assert result.status.available and result.status.failures == 0
+
+
+def test_a_model_may_still_support_a_refactor() -> None:
+    payload = valid_payload()
+    payload["behaviors"][0]["category"] = "refactor_likely_no_behavior_change"
+    result = interpret_candidates([_refactor()], FakeLlm([Result("json", payload)]), WeaverConfig())
+    assert [(item.category, item.origin) for item in result.candidates] == [
+        (BehaviorCategory.REFACTOR, Origin.LLM_SUPPORTED)
+    ]
+
+
+def test_a_refactor_s_evidence_is_set_aside_from_a_finding_that_also_cites_a_change() -> None:
+    # Two symbols of one file share a model call: a refactor, and a boundary change beside it.
+    changed = candidate_variant(id="ev-002", symbol="limit")
+    payload = valid_payload()
+    payload["behaviors"][0]["evidence_ids"] = ["ev-001", "ev-002"]
+    result = interpret_candidates(
+        [_refactor(), changed], FakeLlm([Result("json", payload)]), WeaverConfig()
+    )
+    assert any("Set aside evidence of no behavior change" in item for item in result.warnings)
+    # The model's change rests on the changed symbol's evidence alone, so it supports that
+    # finding instead of anchoring a new one on the refactor's symbol.
+    assert {(item.symbol, item.category, item.origin) for item in result.candidates} == {
+        ("allowed", BehaviorCategory.REFACTOR, Origin.DETERMINISTIC),
+        ("limit", BehaviorCategory.BOUNDARY, Origin.LLM_SUPPORTED),
+    }
+    assert [item.evidence_ids for item in result.suggestions] == [("ev-002",)]
 
 
 def test_unknown_taxonomy_fails_local_validation_and_preserves_deterministic() -> None:

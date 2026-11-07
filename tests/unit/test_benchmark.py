@@ -381,7 +381,6 @@ def test_a_case_is_measured_without_a_model_and_with_one(tmp_path: Path) -> None
     ("options", "head", "validity"),
     [
         ({"fail": True}, "Fix the bound (#1)", "failed"),
-        ({"silent": True}, "Fix the bound (#1)", "nothing_kept"),
         ({}, "Test only (#2)", "no_call"),
     ],
 )
@@ -400,6 +399,19 @@ def test_a_case_counts_only_if_the_model_answered(
     report = run_benchmark.render_model(benchmark, [run], model="m", cap=1.0, spent=model.spent)
     assert "| Measure, on the 0 valid cases | Without a model | With m |" in report
     assert "| Cases | 0 | 0 |" in report
+
+
+def test_a_model_that_answers_with_nothing_kept_still_counts(tmp_path: Path) -> None:
+    scratch = tmp_path / "scratch"
+    _, shas = _repository(scratch)
+    benchmark = Benchmark.model_validate(_benchmark(_bound_case(shas)))
+    model = ScriptedModel(silent=True)
+    [run] = run_benchmark.measure_with_model(benchmark, scratch, model, public=lambda slug: True)
+    # Its output is what the model's answer left: the findings without it.
+    assert (run.validity, run.replies.kept) == ("valid", 0)
+    assert run_benchmark.findings_of(run.model) == run_benchmark.findings_of(run.deterministic)
+    report = run_benchmark.render_model(benchmark, [run], model="m", cap=1.0, spent=model.spent)
+    assert "| Valid cases where the analysis kept nothing the model said | 1 |" in report
 
 
 def test_the_cap_stops_the_measurement_before_the_next_case(tmp_path: Path) -> None:
@@ -473,6 +485,7 @@ def test_a_reply_is_judged_by_the_analysis_s_rules_in_their_order() -> None:
 
     first = {"id": "ev-001", "path": "a.py", "symbol": "f", "kind": "comparison_change"}
     second = {"id": "ev-002", "path": "b.py", "symbol": "g", "kind": "call_added"}
+    third = {"id": "ev-003", "path": "c.py", "symbol": "h", "kind": "annotation_change"}
     obligation = {
         "behavior_index": 0,
         "type": "boundary",
@@ -495,6 +508,12 @@ def test_a_reply_is_judged_by_the_analysis_s_rules_in_their_order() -> None:
         },
         # The analysis discards a reply off the schema whole.
         {"behaviors": [_behavior("boundary_change", ["ev-404"]), "not a behavior"]},
+        {
+            "behaviors": [
+                _behavior("unknown_semantic_change", ["ev-003"]),
+                _behavior("refactor_likely_no_behavior_change", ["ev-003"]),
+            ]
+        },
     ]
 
     class Answering:
@@ -509,18 +528,23 @@ def test_a_reply_is_judged_by_the_analysis_s_rules_in_their_order() -> None:
         recorder.complete_structured(
             input=framed({"category_hint": "side_effect_change", "evidence": [second]})
         )
+    recorder.complete_structured(
+        input=framed({"category_hint": "refactor_likely_no_behavior_change", "evidence": [third]})
+    )
     assert recorder.shown == {
         "ev-001": {"path": "a.py", "symbol": "f", "kind": "comparison_change"},
         "ev-002": {"path": "b.py", "symbol": "g", "kind": "call_added"},
+        "ev-003": {"path": "c.py", "symbol": "h", "kind": "annotation_change"},
     }
     assert recorder.replies() == Replies(
         invalid_replies=1,
-        behaviors=6,
+        behaviors=8,
         obligations=1,
         repeated_reference=1,
         fabricated_reference=1,
         other_batch_reference=1,
-        kept=3,
+        contradicted_refactor=1,
+        kept=4,
         unsupported_category=1,
         fabricated_ids=1,
     )
@@ -594,7 +618,26 @@ def test_the_command_measures_the_development_cases_and_saves_a_report(
     assert sorted(item.name for item in path.parent.iterdir()) == [
         "owner-name-1.with-model.json",
         "owner-name-1.without-model.json",
+        "replies.jsonl",
         "report.json",
+    ]
+    # The recorded replies answer the same calls again, calling no model.
+    monkeypatch.setattr(
+        run_benchmark.OpenAICompatibleClient,
+        "from_environment",
+        lambda **options: pytest.fail("a replay calls no model"),
+    )
+    replay = ["llm", "--replay", str(path.parent), *arguments[5:]]
+    assert run_benchmark.main(replay) == 0
+    out, err = capsys.readouterr()
+    assert (
+        "| Measure, on the 1 valid cases | Without a model | With vendor/model, replayed |" in out
+    )
+    assert "| Cost | none: the replies were replayed |" in out
+    assert "Replayed 1 recorded replies; 0 requests had none recorded." in out
+    replayed = json.loads(Path(err.strip().splitlines()[-1].removeprefix("report: ")).read_text())
+    assert [case["findings"] for case in replayed["cases"]] == [
+        case["findings"] for case in report["cases"]
     ]
 
 
@@ -606,7 +649,7 @@ def test_the_command_refuses_a_held_out_case_and_needs_a_cap_a_key_and_public_co
     for refused, message in (
         (["--max-cost-usd", "1", "--case", "owner/name#3"], "never measured with a model"),
         (["--max-cost-usd", "1", "--case", "owner/name#9"], "no such case"),
-        ([], "--max-cost-usd"),
+        ([], "--max-cost-usd are required, unless --replay"),
         (["--max-cost-usd", "0"], "must be more than 0"),
         (["--max-cost-usd", "1", "--limit", "0"], "positive whole number"),
     ):
@@ -623,3 +666,76 @@ def test_the_command_refuses_a_held_out_case_and_needs_a_cap_a_key_and_public_co
     monkeypatch.setattr(run_benchmark, "public_repository", lambda slug: False)
     assert run_benchmark.main([*base, "--max-cost-usd", "1"]) == 1
     assert "not a public repository" in capsys.readouterr().err
+    assert run_benchmark.main([*base, "--replay", str(tmp_path / "nothing")]) == 2
+    assert "holds no recorded run with its replies" in capsys.readouterr().err
+
+
+def test_a_replay_answers_each_request_as_the_recorded_run_did() -> None:
+    first = {"digest": "a", "content_type": "json", "parsed": {"behaviors": [], "obligations": []}}
+    entries = [
+        {"digest": "x", "failure": "schema"},
+        {"digest": "x", "failure": "timeout"},
+        {"digest": "x", "failure": "provider"},
+        first,
+    ]
+    replay = run_benchmark.ReplayClient(entries)
+    request = {"instructions": "i", "input": [], "schema_name": "s", "json_schema": {}}
+    digest = run_benchmark.request_digest(request)
+    replay._replies[digest] = replay._replies.pop("x")
+    for error in (ValueError, TimeoutError, ProviderUnavailable):
+        with pytest.raises(error):
+            replay.complete_structured(**request)
+    # A request the recorded run never made fails, as the analysis's batch then does.
+    with pytest.raises(ProviderUnavailable, match="no recorded reply"):
+        replay.complete_structured(**request)
+    assert (replay.served, replay.missing) == (3, 1)
+    assert run_benchmark.request_digest({**request, "instructions": "j"}) != digest
+
+
+def test_a_measured_case_replays_to_the_same_analysis(tmp_path: Path) -> None:
+    scratch = tmp_path / "scratch"
+    _, shas = _repository(scratch)
+    benchmark = Benchmark.model_validate(_benchmark(_bound_case(shas)))
+    model = ScriptedModel(adds=lambda shown: [_behavior("side_effect_change", shown[:1])])
+    [live] = run_benchmark.measure_with_model(benchmark, scratch, model, public=lambda slug: True)
+    assert [entry.keys() for entry in live.recorded] == [{"digest", "content_type", "parsed"}]
+    replay = run_benchmark.ReplayClient(live.recorded)
+    [again] = run_benchmark.measure_with_model(benchmark, scratch, replay, public=lambda slug: True)
+    assert again.model["behavior_changes"] == live.model["behavior_changes"]
+    assert again.model["test_obligations"] == live.model["test_obligations"]
+    assert (again.replies, again.validity) == (live.replies, "valid")
+    # With nothing recorded, the batch fails and the case does not count.
+    [empty] = run_benchmark.measure_with_model(
+        benchmark, scratch, run_benchmark.ReplayClient([]), public=lambda slug: True
+    )
+    assert empty.validity == "failed"
+    assert empty.recorded == [{"digest": live.recorded[0]["digest"], "failure": "provider"}]
+
+
+def test_a_refactor_s_evidence_is_set_aside_and_the_per_symbol_cap_kept() -> None:
+    refactor = {"id": "ev-001", "path": "a.py", "symbol": "f", "kind": "structural_refactor"}
+    change = {"id": "ev-002", "path": "a.py", "symbol": "g", "kind": "comparison_change"}
+    groups = [
+        {"category_hint": "refactor_likely_no_behavior_change", "evidence": [refactor]},
+        {"category_hint": "boundary_change", "evidence": [change]},
+    ]
+    document = json.dumps({"evidence_groups": groups})
+    reply = {
+        "behaviors": [_behavior("output_contract_change", ["ev-001", "ev-002"])]
+        + [_behavior("boundary_change", ["ev-002"])] * 3,
+        "obligations": [],
+    }
+
+    class Answering:
+        def complete_structured(self, **request: Any) -> dict[str, object]:
+            return {"content_type": "json", "parsed": reply}
+
+    recorder = run_benchmark.RecordingClient(Answering())
+    recorder.complete_structured(
+        input=[{"type": "text", "text": f"{INPUT_PREFIX}{document}{INPUT_SUFFIX}"}]
+    )
+    # The first rests on g's evidence alone, in a category g's finding lacks; three behaviors on
+    # g reach the cap, so the last is discarded.
+    assert recorder.replies() == Replies(
+        behaviors=4, kept=3, set_aside_refactor=1, unsupported_category=1, over_cap=1
+    )

@@ -23,13 +23,14 @@ blind to the analyzer.
 with one behind an OpenAI-compatible endpoint (`openai_compatible.py`, OpenRouter's by default),
 and compares the two. It sends repository code to that endpoint, so it refuses a repository GitHub
 does not serve as public, never runs a held-out case, and needs a spending cap. A case counts only
-if the model answered: it was called, no batch failed, and the analysis kept one behavior at least
-of those the model named. The rest measure the deterministic fallback, and are listed apart.
+if the model answered: it was called, and no batch failed. The rest measure the deterministic
+fallback, and are listed apart.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -39,7 +40,7 @@ import sys
 import tempfile
 import time
 import urllib.request
-from collections import Counter
+from collections import Counter, defaultdict, deque
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field, is_dataclass
@@ -66,6 +67,8 @@ from scripts.openai_compatible import (  # noqa: E402
     REASONING_EFFORTS,
     CallRecord,
     OpenAICompatibleClient,
+    ProviderUnavailable,
+    StructuredResult,
 )
 from scripts.validate_real_prs import (  # noqa: E402
     PULL_REQUEST_SUBJECT,
@@ -76,7 +79,11 @@ from scripts.validate_real_prs import (  # noqa: E402
 from semantic_diff_weaver import __version__  # noqa: E402
 from semantic_diff_weaver.models import BehaviorCategory, LlmBatchResponse  # noqa: E402
 from semantic_diff_weaver.path_policy import ALLOWED_ROOTS_ENV  # noqa: E402
-from semantic_diff_weaver.semantic_interpreter import INPUT_PREFIX, INPUT_SUFFIX  # noqa: E402
+from semantic_diff_weaver.semantic_interpreter import (  # noqa: E402
+    INPUT_PREFIX,
+    INPUT_SUFFIX,
+    MAX_BEHAVIORS_PER_SYMBOL,
+)
 from semantic_diff_weaver.service import analyze as analyze_service  # noqa: E402
 
 CASES = REPOSITORY_ROOT / "benchmark" / "cases.json"
@@ -430,11 +437,12 @@ def measure(benchmark: Benchmark, scratch: Path) -> list[CaseScore]:
 
 GITHUB_REPOSITORIES = "https://api.github.com/repos/"
 UNKNOWN = BehaviorCategory.UNKNOWN.value
-# Whether a case's analysis with the model counts. Only a valid one does: the model was called, no
-# batch failed, and the analysis kept one behavior at least of those the model named, as a finding
-# it supports or adds, reported or hidden. Without a call there was nothing to send the model; the
-# rest measure the deterministic fallback, or a model that said nothing the analysis kept.
-Validity = Literal["valid", "no_call", "failed", "nothing_kept", "not_run"]
+REFACTOR = BehaviorCategory.REFACTOR.value
+# Whether a case's analysis with the model counts. Only a valid one does: the model was called and
+# answered every batch. Without a call there was nothing to send the model, and a failed batch
+# measures the deterministic fallback. A valid case where the analysis kept nothing the model said
+# still counts: its output is what the model's answer left.
+Validity = Literal["valid", "no_call", "failed", "not_run"]
 
 
 def public_repository(slug: str) -> bool:
@@ -466,8 +474,14 @@ class Replies:
     repeated_reference: int = 0
     fabricated_reference: int = 0
     other_batch_reference: int = 0
+    # Behaviors that name a change where the only findings on their evidence are refactors.
+    contradicted_refactor: int = 0
+    # Behaviors past the per-symbol cap of one reply.
+    over_cap: int = 0
     # Behaviors it keeps, as the finding of theirs it supports or as a new one.
     kept: int = 0
+    # Kept behaviors naming a change whose refactor evidence the analysis set aside.
+    set_aside_refactor: int = 0
     # Kept behaviors whose category no deterministic finding on their evidence has, so the analysis
     # makes each an unknown change.
     unsupported_category: int = 0
@@ -499,6 +513,21 @@ def _evidence_groups(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return groups
 
 
+def request_digest(request: dict[str, Any]) -> str:
+    """What a call asked, so that a replay answers the same call with the same reply."""
+    material = {
+        key: request.get(key) for key in ("instructions", "input", "schema_name", "json_schema")
+    }
+    encoded = json.dumps(material, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _failure_kind(error: Exception) -> str:
+    if isinstance(error, TimeoutError):
+        return "timeout"
+    return "schema" if isinstance(error, ValueError) else "provider"
+
+
 class RecordingClient:
     """Hands each call to a model, and keeps what the model was shown and what it answered."""
 
@@ -508,6 +537,9 @@ class RecordingClient:
         self.shown: dict[str, dict[str, Any]] = {}
         # Per answered call, the category hint of each evidence ID it showed, and the reply.
         self._answers: list[tuple[dict[str, Any], Any]] = []
+        # Every call in order, as a replay needs it: the request's digest, and the reply or how
+        # the call failed.
+        self.recorded: list[dict[str, Any]] = []
 
     def complete_structured(self, **request: Any) -> Any:
         hints: dict[str, Any] = {}
@@ -518,8 +550,19 @@ class RecordingClient:
                     self.shown[evidence["id"]] = {
                         key: evidence[key] for key in ("path", "symbol", "kind") if key in evidence
                     }
-        result = self.model.complete_structured(**request)
-        self._answers.append((hints, _value(result, "parsed")))
+        digest = request_digest(request)
+        try:
+            result = self.model.complete_structured(**request)
+        except Exception as error:
+            self.recorded.append({"digest": digest, "failure": _failure_kind(error)})
+            raise
+        parsed = _value(result, "parsed")
+        if isinstance(parsed, BaseModel):
+            parsed = parsed.model_dump(mode="json")
+        self.recorded.append(
+            {"digest": digest, "content_type": _value(result, "content_type"), "parsed": parsed}
+        )
+        self._answers.append((hints, parsed))
         return result
 
     def replies(self) -> Replies:
@@ -534,26 +577,89 @@ class RecordingClient:
                 replies.invalid_replies += 1
                 continue
             replies.obligations += len(reply.obligations)
+            counts: Counter[str] = Counter()
             for behavior in reply.behaviors:
                 replies.behaviors += 1
-                self._judge(behavior.category.value, list(behavior.evidence_ids), hints, replies)
+                self._judge(
+                    behavior.category.value, list(behavior.evidence_ids), hints, counts, replies
+                )
         return replies
 
     def _judge(
-        self, category: str, references: list[str], hints: dict[str, Any], replies: Replies
+        self,
+        category: str,
+        references: list[str],
+        hints: dict[str, Any],
+        counts: Counter[str],
+        replies: Replies,
     ) -> None:
         unseen = {item for item in references if item not in self.shown}
         replies.fabricated_ids += len(unseen)
         if len(set(references)) != len(references):
             replies.repeated_reference += 1
-        elif unseen:
+            return
+        if unseen:
             replies.fabricated_reference += 1
-        elif not set(references) <= hints.keys():
+            return
+        if not set(references) <= hints.keys():
             replies.other_batch_reference += 1
-        else:
-            replies.kept += 1
-            if category != UNKNOWN and category not in {hints[item] for item in references}:
-                replies.unsupported_category += 1
+            return
+        set_aside = False
+        if category != REFACTOR:
+            changing = [item for item in references if hints[item] != REFACTOR]
+            if not changing:
+                replies.contradicted_refactor += 1
+                return
+            set_aside = len(changing) < len(references)
+            references = changing
+        symbol = "|".join(
+            sorted(
+                f"{self.shown[item].get('path')}:{self.shown[item].get('symbol') or '<module>'}"
+                for item in set(references)
+            )
+        )
+        if counts[symbol] >= MAX_BEHAVIORS_PER_SYMBOL:
+            replies.over_cap += 1
+            return
+        counts[symbol] += 1
+        replies.kept += 1
+        replies.set_aside_refactor += set_aside
+        if category != UNKNOWN and category not in {hints[item] for item in references}:
+            replies.unsupported_category += 1
+
+
+class ReplayClient:
+    """Answers each call with the reply a recorded run got for the same request, in order.
+
+    A request the run never made, because the analysis now asks something else, fails its
+    batch, which the case's validity then shows.
+    """
+
+    def __init__(self, recorded: list[dict[str, Any]]) -> None:
+        self._replies: defaultdict[str, deque[dict[str, Any]]] = defaultdict(deque)
+        for entry in recorded:
+            self._replies[str(entry.get("digest"))].append(entry)
+        self.calls: list[CallRecord] = []
+        self.served = 0
+        self.missing = 0
+
+    def complete_structured(self, **request: Any) -> StructuredResult:
+        queue = self._replies.get(request_digest(request))
+        if not queue:
+            self.missing += 1
+            raise ProviderUnavailable("no recorded reply for this request")
+        entry = queue.popleft()
+        self.served += 1
+        failure = entry.get("failure")
+        if failure == "timeout":
+            raise TimeoutError("the recorded call timed out")
+        if failure == "schema":
+            raise ValueError("the recorded reply was not usable")
+        if failure is not None:
+            raise ProviderUnavailable("the recorded call failed")
+        return StructuredResult(
+            content_type=str(entry.get("content_type")), parsed=entry.get("parsed")
+        )
 
 
 def unanchored(
@@ -593,6 +699,7 @@ class ModelCase:
     calls: list[CallRecord] = field(default_factory=list)
     replies: Replies = field(default_factory=Replies)
     unanchored: int = 0
+    recorded: list[dict[str, Any]] = field(default_factory=list)
 
 
 @contextmanager
@@ -622,14 +729,12 @@ def _analyze_case(repo: Path, case: Case, llm: Any) -> dict[str, Any]:
         )
 
 
-def validity_of(analysis: dict[str, Any], replies: Replies) -> Validity:
+def validity_of(analysis: dict[str, Any]) -> Validity:
     status = analysis["llm"]
     if not status["attempted"]:
         return "no_call"
     if not status["available"] or status["failures"]:
         return "failed"
-    if not replies.kept:
-        return "nothing_kept"
     return "valid"
 
 
@@ -680,13 +785,14 @@ def measure_with_model(
         runs.append(
             ModelCase(
                 case=case,
-                validity=validity_of(analysis, replies),
+                validity=validity_of(analysis),
                 deterministic=deterministic,
                 model=analysis,
                 seconds=seconds,
                 calls=calls,
                 replies=replies,
                 unanchored=unanchored(analysis, deterministic, recorder.shown),
+                recorded=recorder.recorded,
             )
         )
         print(f"measured {case.id} with the model: {runs[-1].validity}", file=sys.stderr)
@@ -714,7 +820,7 @@ def _supported(analysis: dict[str, Any]) -> int:
 
 
 def render_model(
-    benchmark: Benchmark, runs: list[ModelCase], *, model: str, cap: float, spent: float
+    benchmark: Benchmark, runs: list[ModelCase], *, model: str, cap: float | None, spent: float
 ) -> str:
     """The valid cases' measures without the model and with it, then what the model did."""
     valid = [run for run in runs if run.validity == "valid"]
@@ -765,8 +871,10 @@ def render_model(
         "| What the model did | Value |",
         "| --- | --- |",
         f"| Cases | {len(runs)}: {counts['valid']} valid, {counts['no_call']} with nothing to send "
-        f"the model, {counts['failed']} with a failed batch, {counts['nothing_kept']} where the "
-        f"analysis kept nothing the model said, {counts['not_run']} not run for the cap |",
+        f"the model, {counts['failed']} with a failed batch, {counts['not_run']} not run for the "
+        "cap |",
+        "| Valid cases where the analysis kept nothing the model said | "
+        f"{sum(not run.replies.kept for run in valid)} |",
         f"| Findings the model supported, valid cases | {_rate(supported, reported)} |",
         f"| Findings only the run with the model has, valid cases | {added} |",
         f"| Findings only the run without it has, valid cases | {removed} |",
@@ -774,11 +882,15 @@ def render_model(
         f"| Behaviors in the other replies | {replies.behaviors}, and {replies.obligations} "
         "obligations |",
         f"| Behaviors the analysis kept | {replies.kept} |",
+        f"| Kept behaviors whose refactor evidence was set aside | {replies.set_aside_refactor} |",
         f"| Behaviors discarded for citing evidence never shown | {replies.fabricated_reference} |",
         f"| Evidence IDs cited that were never shown | {replies.fabricated_ids} |",
         "| Behaviors discarded for citing another batch's evidence | "
         f"{replies.other_batch_reference} |",
         f"| Behaviors discarded for citing evidence twice | {replies.repeated_reference} |",
+        "| Behaviors discarded for naming a change where only refactors were found | "
+        f"{replies.contradicted_refactor} |",
+        f"| Behaviors discarded past the per-symbol cap | {replies.over_cap} |",
         "| Behaviors kept in a category no evidence supports, made unknown | "
         f"{replies.unsupported_category} |",
         "| Evidence in the output the analysis did not extract | "
@@ -793,7 +905,11 @@ def render_model(
         f"| Tokens | {sum(call.input_tokens or 0 for call in calls)} in, "
         f"{sum(call.output_tokens or 0 for call in calls)} out, of which "
         f"{sum(call.reasoning_tokens or 0 for call in calls)} reasoning |",
-        f"| Cost | {spent:.4f} USD of a {cap:g} USD cap{estimated} |",
+        (
+            "| Cost | none: the replies were replayed |"
+            if cap is None
+            else f"| Cost | {spent:.4f} USD of a {cap:g} USD cap{estimated} |"
+        ),
         f"| Seconds per call | {_median_max([call.seconds for call in calls])} |",
         "| Seconds per analysis with the model | "
         f"{_median_max([run.seconds for run in measured])} |",
@@ -810,6 +926,8 @@ def render_model(
             run.replies.repeated_reference
             + run.replies.fabricated_reference
             + run.replies.other_batch_reference
+            + run.replies.contradicted_refactor
+            + run.replies.over_cap
         )
         lines.append(
             f"| `{run.case.id}` | {run.validity} | {run.model['llm']['calls']} "
@@ -826,7 +944,7 @@ def model_report(
     model: str,
     endpoint: str,
     options: dict[str, Any],
-    cap: float,
+    cap: float | None,
     spent: float,
 ) -> dict[str, Any]:
     """Everything a run measured, per case and per call, but no repository content."""
@@ -873,15 +991,19 @@ def model_report(
 
 
 def write_model_run(directory: Path, runs: list[ModelCase], report: dict[str, Any]) -> Path:
-    """Save the report and each case's two analyses, for reading the model's wording later."""
+    """Save the report, each case's two analyses, for reading the model's wording later, and
+    every call's reply, for replaying the run."""
     directory.mkdir(parents=True, exist_ok=True)
-    for run in runs:
-        stem = re.sub(r"[^A-Za-z0-9_.-]+", "-", run.case.id)
-        for name, analysis in (("without-model", run.deterministic), ("with-model", run.model)):
-            if analysis:
-                (directory / f"{stem}.{name}.json").write_text(
-                    json.dumps(analysis, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-                )
+    with (directory / "replies.jsonl").open("w", encoding="utf-8") as replies:
+        for run in runs:
+            stem = re.sub(r"[^A-Za-z0-9_.-]+", "-", run.case.id)
+            for name, analysis in (("without-model", run.deterministic), ("with-model", run.model)):
+                if analysis:
+                    (directory / f"{stem}.{name}.json").write_text(
+                        json.dumps(analysis, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+                    )
+            for entry in run.recorded:
+                replies.write(json.dumps({"case": run.case.id, **entry}, ensure_ascii=False) + "\n")
     path = directory / "report.json"
     path.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return path
@@ -959,18 +1081,65 @@ def _count(value: str) -> int:
     return int(value)
 
 
+def _replay(recorded: Path, benchmark: Benchmark, chosen: list[Case], scratch: Path) -> int:
+    """Measure the chosen cases again with the replies a recorded run got, calling no model.
+
+    The same replies make two versions of the analysis comparable, which two runs of a model are
+    not: its replies differ from one run to the next.
+    """
+    try:
+        recorded_report = json.loads((recorded / "report.json").read_text(encoding="utf-8"))
+        lines = (recorded / "replies.jsonl").read_text(encoding="utf-8").splitlines()
+        entries = [json.loads(line) for line in lines if line.strip()]
+    except (OSError, ValueError):
+        print(f"run_benchmark: {recorded} holds no recorded run with its replies", file=sys.stderr)
+        return 2
+    measured = {
+        case["id"] for case in recorded_report.get("cases", []) if case.get("validity") != "not_run"
+    }
+    subset = benchmark.model_copy(
+        update={"cases": [case for case in chosen if case.id in measured]}
+    )
+    model = ReplayClient(entries)
+    name = f"{recorded_report.get('model', 'a model')}, replayed"
+    try:
+        # Nothing leaves this machine, so no repository needs to be public.
+        runs = measure_with_model(subset, scratch, model, public=lambda slug: True)
+    except RuntimeError as exc:
+        print(f"run_benchmark: {exc}", file=sys.stderr)
+        return 1
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    report = model_report(
+        runs,
+        model=name,
+        endpoint="replay",
+        options={"replay": str(recorded)},
+        cap=None,
+        spent=0.0,
+    )
+    path = write_model_run(scratch / "model-runs" / f"{stamp}-replay-{recorded.name}", runs, report)
+    print(render_model(subset, runs, model=name, cap=None, spent=0.0))
+    print(f"Replayed {model.served} recorded replies; {model.missing} requests had none recorded.")
+    print(f"report: {path}", file=sys.stderr)
+    return 0
+
+
 def _main_model(arguments: list[str], default_scratch: str) -> int:
     parser = argparse.ArgumentParser(
         prog="run_benchmark.py llm",
         description="Measure the development cases without a model and with one.",
     )
-    parser.add_argument("--model", required=True, help="the model's name at the endpoint")
+    parser.add_argument("--model", help="the model's name at the endpoint")
     parser.add_argument(
         "--max-cost-usd",
         type=_number(0, inclusive=False),
-        required=True,
         metavar="USD",
         help="make no call once the calls so far cost this much",
+    )
+    parser.add_argument(
+        "--replay",
+        metavar="RUN_DIR",
+        help="answer each call with the reply a recorded run got, calling no model",
     )
     parser.add_argument("--base-url", default=DEFAULT_BASE_URL, metavar="URL")
     parser.add_argument("--api-key-env", default=DEFAULT_API_KEY_ENV, metavar="NAME")
@@ -994,6 +1163,10 @@ def _main_model(arguments: list[str], default_scratch: str) -> int:
     parser.add_argument("--cases", default=str(CASES), metavar="PATH")
     parser.add_argument("--scratch", default=default_scratch, metavar="DIR")
     namespace = parser.parse_args(arguments)
+    if namespace.replay is None and (namespace.model is None or namespace.max_cost_usd is None):
+        parser.error(
+            "--model and --max-cost-usd are required, unless --replay names a recorded run"
+        )
     benchmark = load(Path(namespace.cases))
     unknown = sorted(set(namespace.case) - {case.id for case in benchmark.cases})
     if unknown:
@@ -1004,6 +1177,8 @@ def _main_model(arguments: list[str], default_scratch: str) -> int:
         parser.error(f"a held-out case is never measured with a model: {', '.join(held_out)}")
     chosen = [case for case in chosen if case.split == "development"][: namespace.limit]
     scratch = _scratch(namespace.scratch)
+    if namespace.replay is not None:
+        return _replay(Path(namespace.replay).expanduser().resolve(), benchmark, chosen, scratch)
     options = {
         "temperature": not namespace.no_temperature,
         "reasoning_effort": namespace.reasoning_effort,
