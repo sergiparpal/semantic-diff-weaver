@@ -15,7 +15,7 @@ span. The renderer keeps it one, so a repository's text never becomes Markdown o
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from .ast_diff import StructuralDelta
 from .models import BehaviorCategory, BehaviorChange, Evidence, ObligationType
@@ -33,6 +33,84 @@ SHARED_CONTEXT_CHARS = 30
 # 2: a drop of 5 lowered it by exactly 1, which rounding half to even could undo, and the title
 # then ordered the two.
 SECOND_SCENARIO_RELEVANCE_DROP = 10
+
+# What a call reaches the outside world through: the network, files, or another process. A
+# changed call of one is the effect itself, so a test intercepts it and asserts what it was handed.
+# Any other call computes a value, a builtin's or a library's, and spying on it pins the symbol's
+# implementation: a second blind review judged five such obligations noise, a spy on `next`,
+# `isinstance`, `str.lower`, `environ.get`, or a file's `close`, and the one on an HTTP request
+# useful. Its change matters through what the symbol returns, raises, or leaves.
+OUTSIDE_MODULES = (
+    "aiohttp",
+    "ftplib",
+    "http.client",
+    "httpx",
+    "requests",
+    "shutil",
+    "smtplib",
+    "socket",
+    "sqlite3",
+    "ssl",
+    "subprocess",
+    "tempfile",
+    "urllib.request",
+    "urllib3",
+    "webbrowser",
+)
+OUTSIDE_FUNCTIONS = frozenset(
+    {
+        "input",
+        "open",
+        "os.chmod",
+        "os.kill",
+        "os.makedirs",
+        "os.mkdir",
+        "os.popen",
+        "os.remove",
+        "os.rename",
+        "os.replace",
+        "os.rmdir",
+        "os.system",
+        "os.unlink",
+        "os.write",
+    }
+)
+OUTSIDE_METHODS = frozenset(
+    {
+        "commit",
+        "connect",
+        "execute",
+        "executemany",
+        "fetch",
+        "flush",
+        "mkdir",
+        "patch",
+        "post",
+        "put",
+        "read_bytes",
+        "read_text",
+        "recv",
+        "recv_into",
+        "request",
+        "rmdir",
+        "rollback",
+        "send",
+        "sendall",
+        "sendfile",
+        "sendto",
+        "touch",
+        "unlink",
+        "urlopen",
+        "write",
+        "write_bytes",
+        "write_text",
+        "writelines",
+    }
+)
+# A method name many types share, a mapping's `get` among them, reaches outside only on an object
+# whose name says it is a client of something.
+SHARED_METHODS = frozenset({"delete", "get", "head", "options"})
+CLIENT_NAMES = ("client", "conn", "cursor", "http", "session", "sock", "transport")
 
 ORDER_KINDS = frozenset({"call_order_change", "condition_order_change", "statement_order_change"})
 # The kinds of the deltas `ast_diff` makes of Python code. A parse it could not complete, or a body
@@ -199,6 +277,23 @@ def describe_change(delta: StructuralDelta) -> Change | None:
     )
 
 
+def leaves_the_process(call: str) -> bool:
+    """Whether a call, as extraction records it, `session.post(url, data=body)`, reaches the
+    network, a file, or another process, by its name alone."""
+    callee = call.split("(", 1)[0]
+    if callee in OUTSIDE_FUNCTIONS or any(
+        callee == module or callee.startswith(f"{module}.") for module in OUTSIDE_MODULES
+    ):
+        return True
+    receiver, _, method = callee.rpartition(".")
+    if not receiver:
+        return False
+    if method in OUTSIDE_METHODS:
+        return True
+    owner = receiver.rpartition(".")[2].casefold()
+    return method in SHARED_METHODS and any(name in owner for name in CLIENT_NAMES)
+
+
 def changes_by_evidence(deltas: Sequence[StructuralDelta]) -> dict[str, Change]:
     """What each Python delta changed, by the ID of the evidence `build_candidates` makes of it."""
     return {
@@ -358,6 +453,8 @@ class _Finding:
     # What changed, as `_what_changed` says it, for the kinds it can say.
     changed: str
     relevance: int
+    # The symbols whose code reads a module-level variable a changed assignment writes.
+    readers: tuple[str, ...] = ()
 
     @property
     def runs(self) -> str:
@@ -567,28 +664,50 @@ def _call_scenario(found: _Finding) -> Scenario:
             "The callee fails until the limit is reached",
             "The attempts, the waits, and the final outcome are asserted",
         )
-    if found.change.removed_only:
+    outside = _outside(found.change)
+    if outside.removed_only:
         return found.scenario(
             ObligationType.INTERACTION,
             f"Assert what {found.subject} does without its former call",
-            found.changed,
+            _what_changed(found.subject, found.evidence, outside),
             observed,
             "The call no longer happens, and what takes its place is asserted",
         )
-    if found.change.internal:
+    if outside.added and not outside.removed:
         return found.scenario(
-            ObligationType.REGRESSION,
-            f"Assert what {found.subject} produces through its changed call",
-            f"{found.changed}, its own project's code",
-            found.runs,
-            "The value it returns, or the state it leaves, is asserted",
+            ObligationType.INTERACTION,
+            f"Assert the arguments of the new call in {found.subject}",
+            _what_changed(found.subject, found.evidence, outside),
+            observed,
+            "The call happens when intended, with the arguments intended",
         )
+    if outside.added:
+        return found.scenario(
+            ObligationType.INTERACTION,
+            f"Assert the arguments of the changed call in {found.subject}",
+            _what_changed(found.subject, found.evidence, outside),
+            observed,
+            "The arguments it passes, and what it does with the result, match the intended change",
+        )
+    # No changed call leaves the process: what the symbol makes of the call is what to check.
+    own = ", its own project's code" if found.change.internal else ""
+    # A module's top-level code takes no input: it runs as the module is imported.
+    module = (found.evidence.symbol or "<module>") == "<module>"
     return found.scenario(
-        ObligationType.INTERACTION,
-        f"Assert the arguments of the changed call in {found.subject}",
-        found.changed,
-        observed,
-        "The arguments it passes, and what it does with the result, match the intended change",
+        ObligationType.REGRESSION,
+        f"Assert the outcome of {found.subject} that depends on its changed call",
+        f"{found.changed}{own}",
+        found.runs if module else f"{found.runs} with input that reaches the changed call",
+        "What it returns, raises, or leaves is asserted, rather than the call itself",
+    )
+
+
+def _outside(change: Change) -> Change:
+    """The change narrowed to the calls it changed that leave the process."""
+    added = tuple(value for value in change.added if leaves_the_process(value))
+    removed = tuple(value for value in change.removed if leaves_the_process(value))
+    return replace(
+        change, added=added, removed=removed, added_total=len(added), removed_total=len(removed)
     )
 
 
@@ -602,6 +721,17 @@ def _assignment_scenario(found: _Finding) -> Scenario:
             "The resulting state is asserted, and a repeated call keeps it stable",
         )
     module = (found.evidence.symbol or "<module>") == "<module>"
+    if module and found.change.assigned_names and found.readers:
+        names = _quotes(found.change.assigned_names, len(found.change.assigned_names))
+        readers = _quotes(found.readers, len(found.readers))
+        verb = "does" if len(found.readers) == 1 else "do"
+        return found.scenario(
+            ObligationType.REGRESSION,
+            f"Clarify and characterize what {readers} {verb} with the changed {names}",
+            f"{found.changed}, which {readers} {'reads' if len(found.readers) == 1 else 'read'}",
+            f"{_quote(found.readers[0])} is called with input the changed value decides",
+            "Its result under the new value is asserted",
+        )
     if (module or found.change.symbol_kind == "class") and found.change.assigned_names:
         names = _quotes(found.change.assigned_names, len(found.change.assigned_names))
         return found.scenario(
@@ -827,12 +957,13 @@ def _primary(
 
 
 def evidence_scenarios(
-    behavior: BehaviorChange, changes: Mapping[str, Change]
+    behavior: BehaviorChange, changes: Mapping[str, Change], readers: Sequence[str] = ()
 ) -> tuple[Scenario, ...]:
     """The scenarios a finding's evidence supports: none when no Python delta describes it.
 
     One scenario says what to run, what changed, and what to assert. A changed default has a
     second, for the former value passed explicitly, and a changed boundary one for either side.
+    `readers` names the symbols whose code reads a module-level variable the finding assigns.
     """
     picked = _primary(behavior, changes)
     if picked is None:
@@ -846,5 +977,44 @@ def evidence_scenarios(
         subject=subject,
         changed=_what_changed(subject, evidence, change) if change.kind in _VERBS else "",
         relevance=CATEGORY_PROFILES[behavior.category].scenarios[0].relevance,
+        readers=tuple(readers),
     )
     return _scenarios_of(found)
+
+
+def primary_kind(behavior: BehaviorChange, changes: Mapping[str, Change]) -> str | None:
+    """The kind of the delta a finding's scenario is written from, or None for none."""
+    picked = _primary(behavior, changes)
+    return picked[1].kind if picked is not None else None
+
+
+WEAK_CALL_CATEGORIES = frozenset(
+    {BehaviorCategory.DEPENDENCY_INTERACTION, BehaviorCategory.UNKNOWN}
+)
+
+
+def weakly_anchored(
+    behavior: BehaviorChange, changes: Mapping[str, Change], readers: Sequence[str] = ()
+) -> bool:
+    """Whether the finding's scenario names nothing a test could check beyond its symbol's result.
+
+    A call that only computes a value, an assignment in a function, and a module-level one whose
+    readers are unknown say where to look but not what to assert: the second blind review judged
+    all six of the last two kinds noise. Another finding's scenario on the same symbol speaks for
+    the symbol better, and `generate_obligations` links the finding to it instead.
+    """
+    picked = _primary(behavior, changes)
+    if picked is None:
+        return False
+    evidence, change = picked
+    if change.kind == "call_change":
+        calls = (*change.added, *change.removed)
+        return behavior.category in WEAK_CALL_CATEGORIES and not any(
+            leaves_the_process(call) for call in calls
+        )
+    if change.kind == "assignment_change":
+        module = (evidence.symbol or "<module>") == "<module>"
+        return behavior.category is not BehaviorCategory.STATE_TRANSITION and not (
+            module and change.assigned_names and readers
+        )
+    return False

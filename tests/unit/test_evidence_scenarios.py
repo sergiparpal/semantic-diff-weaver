@@ -15,6 +15,8 @@ from semantic_diff_weaver.evidence_scenarios import (
     changes_by_evidence,
     describe_change,
     evidence_scenarios,
+    leaves_the_process,
+    weakly_anchored,
 )
 from semantic_diff_weaver.models import (
     BehaviorCategory,
@@ -22,12 +24,14 @@ from semantic_diff_weaver.models import (
     Evidence,
     ObligationType,
     Origin,
+    Presentation,
     RiskLabel,
     ScoreExplanation,
     WeaverConfig,
 )
 from semantic_diff_weaver.obligations import generate_obligations
 from semantic_diff_weaver.semantic_candidates import SemanticCandidate, build_candidates
+from semantic_diff_weaver.semantic_interpreter import SuggestedScenario
 from semantic_diff_weaver.source import SourceHunk, SourceRevisionPair
 from semantic_diff_weaver.taxonomy import CATEGORY_PROFILES, Scenario
 from semantic_diff_weaver.textutil import split_code_spans
@@ -229,14 +233,28 @@ def test_a_changed_dependency_call_asks_for_its_arguments() -> None:
     assert scenario.when == "`fetch` runs, with the call observed through a stub or a spy"
 
 
-def test_a_removed_call_asks_what_takes_its_place() -> None:
+def test_a_removed_call_out_of_the_process_asks_what_takes_its_place() -> None:
+    (scenario,) = _scenarios(
+        "def f(sock):\n    sock.sendall(b'ping')\n    return 1\n",
+        "def f(sock):\n    return 1\n",
+        BehaviorCategory.DEPENDENCY_INTERACTION,
+    )
+    assert scenario.title == "Assert what `f` does without its former call"
+    assert scenario.given == "`f` no longer calls `sock.sendall(b'ping')`"
+
+
+def test_a_call_that_only_computes_a_value_asks_for_the_outcome_not_a_spy() -> None:
     (scenario,) = _scenarios(
         "def f(client):\n    client.ping()\n    return 1\n",
         "def f(client):\n    return 1\n",
         BehaviorCategory.DEPENDENCY_INTERACTION,
     )
-    assert scenario.title == "Assert what `f` does without its former call"
+    assert scenario.title == "Assert the outcome of `f` that depends on its changed call"
     assert scenario.given == "`f` no longer calls `client.ping()`"
+    assert scenario.when == "`f` runs with input that reaches the changed call"
+    assert scenario.then == (
+        "What it returns, raises, or leaves is asserted, rather than the call itself"
+    )
 
 
 def test_a_side_effect_call_asks_whether_the_effect_happens() -> None:
@@ -261,7 +279,7 @@ def test_a_call_to_the_project_s_own_code_asks_what_it_produces() -> None:
     (scenario,) = evidence_scenarios(
         _manual(BehaviorCategory.UNKNOWN, "call_change"), {"ev-001": change}
     )
-    assert scenario.title == "Assert what `f` produces through its changed call"
+    assert scenario.title == "Assert the outcome of `f` that depends on its changed call"
     assert scenario.given.endswith(", its own project's code")
 
 
@@ -364,7 +382,14 @@ def test_a_module_s_own_code_runs_as_the_module_is_imported() -> None:
     assert scenario.given == (
         "The top-level code of `m.py` now calls `setup(2)` where it called `setup(1)`"
     )
-    assert scenario.when == (
+    # It takes no input to reach the call with.
+    assert scenario.when == "The top-level code of `m.py` runs as the module is imported"
+    (spied,) = _scenarios(
+        "requests.get('https://example.invalid/a')\n",
+        "requests.get('https://example.invalid/b')\n",
+        BehaviorCategory.DEPENDENCY_INTERACTION,
+    )
+    assert spied.when == (
         "The top-level code of `m.py` runs as the module is imported, with the call observed "
         "through a stub or a spy"
     )
@@ -611,7 +636,7 @@ def test_the_evidence_on_the_finding_s_own_symbol_says_what_it_is_about() -> Non
     (scenario,) = evidence_scenarios(behavior, changes)
     # `g`'s condition would say most, but the finding is about `f`, whose call says more than its
     # assignment.
-    assert scenario.title == "Assert the arguments of the changed call in `f`"
+    assert scenario.title == "Assert the outcome of `f` that depends on its changed call"
 
 
 def test_a_finding_no_python_delta_describes_has_no_evidence_scenario() -> None:
@@ -708,7 +733,7 @@ def test_code_the_parser_could_not_name_is_found_by_its_file() -> None:
     change = Change(kind="call_change", added=("go()",), added_total=1)
     behavior = _manual(BehaviorCategory.DEPENDENCY_INTERACTION, "call_change", symbol="<unparsed>")
     (scenario,) = evidence_scenarios(behavior, {"ev-001": change})
-    assert scenario.title == "Assert the arguments of the changed call in `m.py`"
+    assert scenario.title == "Assert the outcome of `m.py` that depends on its changed call"
 
 
 def test_a_class_body_runs_as_code_uses_the_class() -> None:
@@ -717,10 +742,7 @@ def test_a_class_body_runs_as_code_uses_the_class() -> None:
     )
     behavior = _manual(BehaviorCategory.DEPENDENCY_INTERACTION, "call_change", symbol="Config")
     (scenario,) = evidence_scenarios(behavior, {"ev-001": change})
-    assert (
-        scenario.when
-        == "Code that uses `Config` runs, with the call observed through a stub or a spy"
-    )
+    assert scenario.when == "Code that uses `Config` runs with input that reaches the changed call"
 
 
 def test_a_signature_whose_defaults_were_not_recorded_is_read_as_a_signature() -> None:
@@ -741,3 +763,270 @@ def test_a_signature_whose_defaults_were_not_recorded_is_read_as_a_signature() -
     behavior = _manual(BehaviorCategory.DEFAULT_BEHAVIOR, "signature_change")
     (scenario,) = evidence_scenarios(behavior, {"ev-001": described})
     assert scenario.title == "Check former contract behavior of `f`"
+
+
+@pytest.mark.parametrize(
+    ("call", "outside"),
+    [
+        ("session.post(self.url, data=body)", True),
+        ("subprocess.call([str(cmd_path), f.name])", True),
+        ("open(path, 'rb')", True),
+        ("os.remove(path)", True),
+        ("self.wfile.write(b'0\\r\\n\\r\\n')", True),
+        ("self.client.get(url)", True),
+        ("requests.get(url)", True),
+        ("conn.execute(query)", True),
+        ("urllib.request.urlopen(url)", True),
+        # What only computes a value, or reads the process's own state.
+        ("environ.get('wsgi.file_wrapper', _FileWrapper)", False),
+        ("os.environ.get('LESS', '')", False),
+        ("cache.get(key)", False),
+        ("next(_id_generator)", False),
+        ("isinstance(nested, SchemaMeta)", False),
+        ("name.lower()", False),
+        ("f.close()", False),
+        ("datetime.now(UTC)", False),
+        ("re.compile('/|;')", False),
+        ("<dynamic>.join(cmd_params)", False),
+        ("run(x)", False),
+    ],
+)
+def test_a_call_leaves_the_process_by_what_it_names(call: str, outside: bool) -> None:
+    assert leaves_the_process(call) is outside
+
+
+def test_a_new_call_out_of_the_process_asks_for_its_arguments() -> None:
+    change = Change(kind="call_change", added=("sock.sendall(payload)",), added_total=1)
+    (scenario,) = evidence_scenarios(
+        _manual(BehaviorCategory.DEPENDENCY_INTERACTION, "call_change"), {"ev-001": change}
+    )
+    assert scenario.title == "Assert the arguments of the new call in `f`"
+    assert scenario.then == "The call happens when intended, with the arguments intended"
+
+
+def test_only_the_calls_out_of_the_process_are_quoted_for_a_spy() -> None:
+    change = Change(
+        kind="call_change",
+        removed=("session.post(url, data=raw)", "raw.encode('utf-8')"),
+        added=("session.post(url, data=payload)", "Payload(raw)"),
+        removed_total=2,
+        added_total=2,
+    )
+    (scenario,) = evidence_scenarios(
+        _manual(BehaviorCategory.DEPENDENCY_INTERACTION, "call_change"), {"ev-001": change}
+    )
+    assert scenario.title == "Assert the arguments of the changed call in `f`"
+    assert scenario.given == (
+        "`f` now calls `session.post(url, data=payload)` where it called "
+        "`session.post(url, data=raw)`"
+    )
+
+
+@pytest.mark.parametrize(
+    ("category", "change", "symbol", "readers", "weak"),
+    [
+        (
+            BehaviorCategory.DEPENDENCY_INTERACTION,
+            Change(kind="call_change", added=("next(counter)",), added_total=1),
+            "f",
+            (),
+            True,
+        ),
+        (
+            BehaviorCategory.DEPENDENCY_INTERACTION,
+            Change(kind="call_change", added=("session.post(url)",), added_total=1),
+            "f",
+            (),
+            False,
+        ),
+        # A side effect is what a test observes, whatever the call's name.
+        (
+            BehaviorCategory.SIDE_EFFECT,
+            Change(kind="call_change", added=("notify(user)",), added_total=1),
+            "f",
+            (),
+            False,
+        ),
+        (
+            BehaviorCategory.UNKNOWN,
+            Change(kind="assignment_change", added=("x = 1",), added_total=1),
+            "f",
+            (),
+            True,
+        ),
+        (
+            BehaviorCategory.STATE_TRANSITION,
+            Change(kind="assignment_change", added=("self.state = 'open'",), added_total=1),
+            "f",
+            (),
+            False,
+        ),
+        (
+            BehaviorCategory.UNKNOWN,
+            Change(
+                kind="assignment_change",
+                added=("ROOTS = ('a',)",),
+                added_total=1,
+                assigned_names=("ROOTS",),
+            ),
+            "<module>",
+            ("select",),
+            False,
+        ),
+        (
+            BehaviorCategory.UNKNOWN,
+            Change(
+                kind="assignment_change",
+                added=("ROOTS = ('a',)",),
+                added_total=1,
+                assigned_names=("ROOTS",),
+            ),
+            "<module>",
+            (),
+            True,
+        ),
+        (
+            BehaviorCategory.UNKNOWN,
+            Change(kind="condition_change", added=("ready",), added_total=1),
+            "f",
+            (),
+            False,
+        ),
+    ],
+)
+def test_a_finding_is_weakly_anchored_when_it_names_nothing_to_assert(
+    category: BehaviorCategory,
+    change: Change,
+    symbol: str,
+    readers: tuple[str, ...],
+    weak: bool,
+) -> None:
+    behavior = _manual(category, change.kind, symbol=symbol)
+    assert weakly_anchored(behavior, {"ev-001": change}, readers) is weak
+    assert weakly_anchored(behavior, {}) is False
+
+
+def test_a_module_variable_with_known_readers_names_what_to_call() -> None:
+    change = Change(
+        kind="assignment_change",
+        removed=("ROOTS = ('core',)",),
+        added=("ROOTS = ('core', 'tools')",),
+        removed_total=1,
+        added_total=1,
+        assigned_names=("ROOTS",),
+    )
+    behavior = _manual(BehaviorCategory.UNKNOWN, "assignment_change", symbol="<module>")
+    (one,) = evidence_scenarios(behavior, {"ev-001": change}, ("select",))
+    assert one.title == "Clarify and characterize what `select` does with the changed `ROOTS`"
+    assert one.given.endswith(", which `select` reads")
+    assert one.when == "`select` is called with input the changed value decides"
+    (two,) = evidence_scenarios(behavior, {"ev-001": change}, ("select", "Index.build"))
+    assert two.title == (
+        "Clarify and characterize what `select` and `Index.build` do with the changed `ROOTS`"
+    )
+    assert two.given.endswith(", which `select` and `Index.build` read")
+
+
+def _evidence_behavior(
+    index: int, category: BehaviorCategory, kind: str, *, symbol: str = "f"
+) -> BehaviorChange:
+    behavior = _manual(category, kind, symbol=symbol)
+    return behavior.model_copy(
+        update={
+            "id": f"bc-{index:03d}",
+            "evidence": [Evidence(id=f"ev-{index:03d}", path="m.py", symbol=symbol, kind=kind)],
+        }
+    )
+
+
+def test_a_weak_finding_joins_the_obligation_of_a_stronger_one_on_its_symbol() -> None:
+    strong = _evidence_behavior(1, BehaviorCategory.UNKNOWN, "condition_change")
+    weak = _evidence_behavior(2, BehaviorCategory.DEPENDENCY_INTERACTION, "call_change")
+    elsewhere = _evidence_behavior(3, BehaviorCategory.UNKNOWN, "assignment_change", symbol="g")
+    changes = {
+        "ev-001": Change(kind="condition_change", added=("ready",), added_total=1),
+        "ev-002": Change(kind="call_change", added=("next(counter)",), added_total=1),
+        "ev-003": Change(kind="assignment_change", added=("x = 1",), added_total=1),
+    }
+    obligations, omitted = generate_obligations(
+        [strong, weak, elsewhere], {}, False, WeaverConfig().rules, changes=changes
+    )
+    assert omitted == 0
+    by_title = {item.title: item.behavior_change_ids for item in obligations}
+    assert by_title == {
+        "Exercise both outcomes of the changed condition in `f`": ["bc-001", "bc-002"],
+        # Nothing stronger speaks for `g`, so its own scenario stays.
+        "Assert what `g` computes from its changed assignment": ["bc-003"],
+    }
+
+
+def test_a_weak_finding_keeps_its_own_obligation_when_coverage_differs() -> None:
+    strong = _evidence_behavior(1, BehaviorCategory.UNKNOWN, "condition_change")
+    weak = _evidence_behavior(2, BehaviorCategory.DEPENDENCY_INTERACTION, "call_change")
+    changes = {
+        "ev-001": Change(kind="condition_change", added=("ready",), added_total=1),
+        "ev-002": Change(kind="call_change", added=("next(counter)",), added_total=1),
+    }
+    obligations, _ = generate_obligations(
+        [strong, weak],
+        {},
+        False,
+        WeaverConfig().rules,
+        coverage_states={"bc-001": "covered"},
+        changes=changes,
+    )
+    assert sorted(item.behavior_change_ids for item in obligations) == [["bc-001"], ["bc-002"]]
+
+
+def test_a_review_question_is_never_folded_away() -> None:
+    strong = _evidence_behavior(1, BehaviorCategory.UNKNOWN, "condition_change")
+    weak = _evidence_behavior(2, BehaviorCategory.DEPENDENCY_INTERACTION, "call_change").model_copy(
+        update={"presentation": Presentation.REVIEW_QUESTION}
+    )
+    changes = {
+        "ev-001": Change(kind="condition_change", added=("ready",), added_total=1),
+        "ev-002": Change(kind="call_change", added=("next(counter)",), added_total=1),
+    }
+    obligations, _ = generate_obligations(
+        [strong, weak], {}, False, WeaverConfig().rules, changes=changes
+    )
+    titles = {item.title for item in obligations if item.behavior_change_ids == ["bc-002"]}
+    assert "Resolve the high-risk review question" in titles
+
+
+def test_a_folded_finding_keeps_the_model_s_obligations_for_it() -> None:
+    strong = _evidence_behavior(1, BehaviorCategory.UNKNOWN, "condition_change")
+    weak = _evidence_behavior(2, BehaviorCategory.DEPENDENCY_INTERACTION, "call_change")
+    changes = {
+        "ev-001": Change(kind="condition_change", added=("ready",), added_total=1),
+        "ev-002": Change(kind="call_change", added=("next(counter)",), added_total=1),
+    }
+    suggestion = SuggestedScenario(
+        evidence_ids=("ev-002",),
+        type=ObligationType.POSITIVE,
+        title="Two styles get distinct ids",
+        given="Two styles with the same link",
+        when="Both are created",
+        then="Their ids differ",
+    )
+    obligations, _ = generate_obligations(
+        [strong, weak], {}, False, WeaverConfig().rules, [suggestion], changes=changes
+    )
+    model = [item for item in obligations if item.title == "Two styles get distinct ids"]
+    assert [item.behavior_change_ids for item in model] == [["bc-002"]]
+    assert model[0].origin is Origin.LLM_SUPPORTED
+
+
+def test_without_a_stronger_finding_an_assignment_joins_its_symbol_s_call() -> None:
+    call = _evidence_behavior(1, BehaviorCategory.DEPENDENCY_INTERACTION, "call_change")
+    assignment = _evidence_behavior(2, BehaviorCategory.UNKNOWN, "assignment_change")
+    changes = {
+        "ev-001": Change(kind="call_change", added=("next(counter)",), added_total=1),
+        "ev-002": Change(kind="assignment_change", added=("x = 1",), added_total=1),
+    }
+    obligations, _ = generate_obligations(
+        [call, assignment], {}, False, WeaverConfig().rules, changes=changes
+    )
+    assert [(item.title, item.behavior_change_ids) for item in obligations] == [
+        ("Assert the outcome of `f` that depends on its changed call", ["bc-001", "bc-002"])
+    ]

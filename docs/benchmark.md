@@ -169,6 +169,28 @@ but not its wording, which for a deterministic obligation is the same wherever i
 at most two from a case weighs the cases with many obligations less than the pool does. And it is
 one run of one model, whose next run proposes other obligations.
 
+### The obligations, reviewed again
+
+A correction since writes a Python finding's obligations from its evidence (`docs/decisions.md`,
+2026-11-07, obligations from evidence), and was measured as the first review was, with its
+criterion fixed beforehand: at least 6 of 20 deterministic obligations useful. The second review
+drew 40 obligations with another seed from a replay of the later run's replies through the
+correction's first version.
+
+| Obligations | Drawn from | Cases | Useful | Noise | Unsure |
+| --- | --- | --- | --- | --- | --- |
+| The model's | 182 | 14 | 12 | 8 | 0 |
+| Deterministic, quoting their evidence | 176 | 15 | 3 | 16 | 1 |
+
+It missed the criterion. Three against none of the first review is no difference 20 a side can
+tell from chance (two-sided Fisher p = 0.23), and neither is the model's 12 against its 6 (p =
+0.11), which shows how far one round differs from the next. A spy on a changed call was useful once
+in six, on black#5645's HTTP request, and pinned the code's writing the other five times, on `next`,
+`isinstance`, `str.lower`, `environ.get`, or a file's `close`. Obligations on an assignment, or on
+"the code that reads" a module-level name, were noise all six times: they said where to look, but
+not what to call or assert. The correction was iterated once on exactly those, as its decision
+records, and is measured again by a third review.
+
 ## Results
 
 Each split measured with Semantic Diff Weaver 0.15.0, and with 0.16.0, which makes the three

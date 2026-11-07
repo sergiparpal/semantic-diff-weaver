@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from typing import TYPE_CHECKING
 
-from .evidence_scenarios import Change, evidence_scenarios
+from .evidence_scenarios import Change, evidence_scenarios, primary_kind, weakly_anchored
 from .models import (
     BehaviorChange,
     CandidateTest,
@@ -149,6 +149,47 @@ def _group_overflow(
     )
 
 
+def _symbol(behavior: BehaviorChange) -> tuple[str, str]:
+    first = behavior.evidence[0]
+    return first.path, first.symbol or "<module>"
+
+
+def _folded(
+    behaviors: list[BehaviorChange],
+    quoting: Mapping[str, tuple[Scenario, ...]],
+    weak: set[str],
+    kinds: Mapping[str, str | None],
+    coverage_by_behavior: Mapping[str, CoverageStatus],
+) -> dict[str, str]:
+    """Each weakly anchored behavior another on its symbol speaks for, to that other one.
+
+    A behavior whose scenario quotes a call that only computes a value, or an assignment, says
+    where to look but not what to assert; the first behavior of its symbol whose scenario does say
+    it stands for both. Without one, an assignment joins the symbol's call, whose scenario asks at
+    least for the symbol's outcome. Only behaviors whose coverage status agrees are linked, so the
+    obligation's status and candidates stay true of each, and a review question keeps its own.
+    """
+    anchors: dict[tuple[str, str], str] = {}
+    calls: dict[tuple[str, str], str] = {}
+    for behavior in behaviors:
+        if not quoting[behavior.id] or behavior.presentation is Presentation.REVIEW_QUESTION:
+            continue
+        if behavior.id not in weak:
+            anchors.setdefault(_symbol(behavior), behavior.id)
+        elif kinds[behavior.id] == "call_change":
+            calls.setdefault(_symbol(behavior), behavior.id)
+    folded: dict[str, str] = {}
+    for behavior in behaviors:
+        if behavior.id not in weak or behavior.presentation is Presentation.REVIEW_QUESTION:
+            continue
+        anchor = anchors.get(_symbol(behavior))
+        if anchor is None and kinds[behavior.id] == "assignment_change":
+            anchor = calls.get(_symbol(behavior))
+        if anchor is not None and coverage_by_behavior[behavior.id] is coverage_by_behavior[anchor]:
+            folded[behavior.id] = anchor
+    return folded
+
+
 def generate_obligations(
     behaviors: list[BehaviorChange],
     candidate_tests: dict[str, list[CandidateTest]],
@@ -157,24 +198,46 @@ def generate_obligations(
     llm_suggestions: list[SuggestedScenario] | None = None,
     coverage_states: dict[str, str] | None = None,
     changes: Mapping[str, Change] | None = None,
+    readers: Mapping[str, Sequence[str]] | None = None,
 ) -> tuple[list[TestObligation], int]:
     """Each behavior's scenarios, deduplicated, prioritized, and capped.
 
     A behavior's scenarios quote what its evidence changed, by `changes`, when a Python delta
-    describes it; any other takes its category's scenarios.
+    describes it; any other takes its category's scenarios. `readers` names, by behavior ID, the
+    symbols reading a module-level variable it assigns. A behavior whose scenario would say little
+    is linked to a stronger one's obligation on the same symbol instead (see `_folded`).
     """
     generated: list[TestObligation] = []
     by_semantics: dict[tuple[str, str, str, CoverageStatus], TestObligation] = {}
     coverage_by_behavior: dict[str, CoverageStatus] = {}
     for behavior in behaviors:
-        candidates = candidate_tests.get(behavior.id, [])
         grounded = (coverage_states or {}).get(behavior.id)
-        coverage = _coverage_status(candidates, mapping_incomplete, grounded)
-        coverage_by_behavior[behavior.id] = coverage
+        coverage_by_behavior[behavior.id] = _coverage_status(
+            candidate_tests.get(behavior.id, []), mapping_incomplete, grounded
+        )
+    readers = readers or {}
+    quoting = {
+        behavior.id: evidence_scenarios(behavior, changes or {}, readers.get(behavior.id, ()))
+        for behavior in behaviors
+    }
+    weak = {
+        behavior.id
+        for behavior in behaviors
+        if quoting[behavior.id]
+        and weakly_anchored(behavior, changes or {}, readers.get(behavior.id, ()))
+    }
+    kinds = {behavior.id: primary_kind(behavior, changes or {}) for behavior in behaviors}
+    folded = _folded(behaviors, quoting, weak, kinds, coverage_by_behavior)
+    # The obligation each behavior's first scenario became, for a folded behavior to join.
+    first_obligation: dict[str, TestObligation] = {}
+    for behavior in behaviors:
+        candidates = candidate_tests.get(behavior.id, [])
+        coverage = coverage_by_behavior[behavior.id]
         gap = TEST_GAP_WITH_CANDIDATES if candidates else TEST_GAP_WITHOUT_CANDIDATES
         scenarios: tuple[Scenario, ...] = (
-            evidence_scenarios(behavior, changes or {})
-            or CATEGORY_PROFILES[behavior.category].scenarios
+            ()
+            if behavior.id in folded
+            else quoting[behavior.id] or CATEGORY_PROFILES[behavior.category].scenarios
         )
         behavior_evidence_ids = {item.id for item in behavior.evidence}
         supported_suggestions = [
@@ -203,7 +266,7 @@ def generate_obligations(
                 ),
                 *scenarios[: max(0, rules.max_obligations_per_behavior - 1)],
             )
-        for scenario in scenarios:
+        for position, scenario in enumerate(scenarios):
             # A category's scenarios name no symbol, so without the coverage status in the key
             # every behavior of a category shared one obligation, and a behavior with no test
             # showed another's candidates under `candidate_exists_unverified`. Merging only
@@ -236,6 +299,8 @@ def generate_obligations(
                     existing.then = scenario.then
                     existing.origin = scenario_origin
                 existing.confidence = max(existing.confidence, behavior.confidence)
+                if position == 0:
+                    first_obligation.setdefault(behavior.id, existing)
                 continue
             obligation = TestObligation(
                 id=f"to-{len(generated) + 1:03d}",
@@ -253,6 +318,23 @@ def generate_obligations(
             )
             generated.append(obligation)
             by_semantics[key] = obligation
+            if position == 0:
+                first_obligation.setdefault(behavior.id, obligation)
+    by_id = {behavior.id: behavior for behavior in behaviors}
+    for behavior_id, anchor in folded.items():
+        target = first_obligation[anchor]
+        behavior = by_id[behavior_id]
+        candidates = candidate_tests.get(behavior_id, [])
+        gap = TEST_GAP_WITH_CANDIDATES if candidates else TEST_GAP_WITHOUT_CANDIDATES
+        relevance = quoting[behavior_id][0].relevance
+        target.behavior_change_ids = sorted({*target.behavior_change_ids, behavior_id})
+        target.priority = max(
+            target.priority,
+            obligation_priority(behavior.risk_score, relevance, gap, behavior.confidence),
+        )
+        target.candidate_existing_tests = _merge_candidate_tests(
+            target.candidate_existing_tests, candidates
+        )[: rules.max_candidate_tests_per_obligation]
     ordered = sorted(
         generated, key=lambda item: (-item.priority, item.behavior_change_ids[0], item.title)
     )
