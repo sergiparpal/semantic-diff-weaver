@@ -256,6 +256,39 @@ second server waiting for approval.
 `.claude-plugin/plugin.json` carries the package version and is kept in step with it by
 `tests/contract/test_claude_code_plugin.py`.
 
+## Output-affecting corrections (2026-11-07, private symbols and unnamed changes)
+
+The third blind review of the evidence-quoting obligations (`docs/benchmark.md`, "The obligations,
+reviewed again") met its criterion, and its notes named what was still noise. Three corrections
+follow from them.
+
+- **A private symbol added or removed joins a related finding's obligation.** A symbol only its
+  own module uses, such as `_resolve_pager_command` or `_ColorStreamHandler.__init__`, is tested
+  through the code around it, and its obligation named no input of its own: the review judged
+  two added and one removed private symbol noise, and was unsure of a fourth. It is now weakly
+  anchored, as a call that only computes a value is, and joins the obligation of a related
+  finding: the code that calls an added one, which the call graph knows; the code whose calls
+  stopped naming a removed one; or another symbol of its class. Without one, an added private
+  symbol's own obligation names its callers. On the development cases `_less_uses_raw_mode` joins
+  `_pipepager`'s condition, black#5643's two new helpers join `_handle_regular_fmt_block`, and
+  werkzeug#3331's removed `_ColorStreamHandler` joins `_log`, which stopped calling it. A public
+  symbol keeps its own obligation.
+- **A change no rule names quotes the lines that changed.** Its evidence says only "body changed",
+  so its obligation was the category's fallback, "Clarify and characterize the changed contract",
+  noise both times it was drawn. The diff's hunks hold no context lines (`--unified=0`), so the
+  lines they span in the symbol's own code, outside the symbols it holds and without blank lines
+  and comments, are what changed; `ast_diff` records them as it records a delta's changed values,
+  redacted and bounded. For httpx#3699 the obligation on `__init__.py` quotes the added
+  `"FunctionAuth",`, the export the reviewer would have tested.
+- **A removed `raise` says what the symbol still raises.** "What it does instead of raising"
+  misled where the symbol went on raising a group of the same errors. The obligation now quotes
+  the raises left and asks which exception reaches the caller on that path.
+
+On the 60 development cases the findings are unchanged, and the obligations go from 135 to 124,
+121 of them quoting their evidence. Of the corpus goldens only the change no rule names moves: its
+obligation quotes the `...` that replaced `pass`, and still asks to clarify and characterize. This
+step has not been reviewed blind.
+
 ## Output-affecting corrections (2026-11-07, obligations from evidence)
 
 A blind review of 40 test obligations on the benchmark's development cases (`docs/benchmark.md`,

@@ -104,14 +104,14 @@
         "candidate_existing_tests": [],
         "confidence": 0.665,
         "coverage_status": "no_candidate_found",
-        "given": "The missing runtime or business contract is identified",
+        "given": "`dynamic` changed in a way no rule names: it now reads `...` where it read `pass`",
         "id": "to-001",
         "origin": "deterministic_fallback",
         "priority": 60,
-        "then": "Expected observable outcomes are documented and tested",
-        "title": "Clarify and characterize the changed contract",
+        "then": "What it returns, raises, or leaves there is asserted",
+        "title": "Clarify and characterize what the changed lines of `dynamic` do",
         "type": "review",
-        "when": "The changed cases are reviewed"
+        "when": "`dynamic` runs with input that reaches the changed lines"
       }
     ],
     "test_selection": {

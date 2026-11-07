@@ -384,3 +384,73 @@ def test_a_decorator_delta_records_the_decorators_it_changed() -> None:
 )
 def test_a_delta_names_the_kind_of_its_symbol(old: str, new: str, kind: str) -> None:
     assert {item.symbol_kind for item in _deltas(old, new).values()} == {kind}
+
+
+def test_a_change_no_rule_names_records_the_lines_that_changed() -> None:
+    """Its display text says only "body changed", so its metadata holds the lines instead."""
+    old = "def f(x):\n    del x[0]  # drop\n    return x\n"
+    new = "def f(x):\n    del x[1]  # drop\n\n    return x\n"
+    hunks = (SourceHunk(id="hunk-001", old_start=2, old_count=1, new_start=2, new_count=2),)
+    (delta,) = analyze_ast(
+        [
+            SourceRevisionPair(
+                path="m.py",
+                old_path="m.py",
+                new_path="m.py",
+                hunks=hunks,
+                old_text=old,
+                new_text=new,
+            )
+        ]
+    ).deltas
+    assert delta.kind == "unknown_structure"
+    # A blank line says nothing, and is left out.
+    assert (delta.metadata["removed"], delta.metadata["added"]) == (
+        ["del x[0]  # drop"],
+        ["del x[1]  # drop"],
+    )
+
+
+def test_a_module_s_unnamed_change_leaves_out_the_lines_of_its_definitions() -> None:
+    old = "x = 1\nx\n\n\ndef a():\n    return 1\n"
+    new = "x = 1\nx + 1\n# note\n\n\ndef a():\n    return 2\n"
+    hunks = (
+        SourceHunk(id="hunk-001", old_start=2, old_count=1, new_start=2, new_count=2),
+        SourceHunk(id="hunk-002", old_start=6, old_count=1, new_start=7, new_count=1),
+    )
+    deltas = analyze_ast(
+        [
+            SourceRevisionPair(
+                path="m.py",
+                old_path="m.py",
+                new_path="m.py",
+                hunks=hunks,
+                old_text=old,
+                new_text=new,
+            )
+        ]
+    ).deltas
+    (module,) = [item for item in deltas if item.symbol == "<module>"]
+    assert module.kind == "unknown_structure"
+    # `return 2` is `a`'s own line, and the comment says nothing.
+    assert (module.metadata["removed"], module.metadata["added"]) == (["x"], ["x + 1"])
+
+
+@pytest.mark.parametrize(
+    ("text", "kind", "expected"),
+    [
+        (None, "function", []),
+        ("def f():\n    pass\n", "function", ["pass"]),
+    ],
+)
+def test_changed_lines_read_only_a_revision_that_exists(
+    text: str | None, kind: str, expected: list[str]
+) -> None:
+    from semantic_diff_weaver.ast_diff.analyze import _changed_lines
+
+    symbol = replace(
+        {item.qualified_name: item for item in extract_symbols("def f():\n    pass\n")}["f"],
+        kind=kind,
+    )
+    # Lines past the end of the text are ignored, as a hunk of a shorter revision would be.
+    assert _changed_lines(text, [(2, 5)], symbol, [symbol]) == expected

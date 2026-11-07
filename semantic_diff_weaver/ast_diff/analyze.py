@@ -6,7 +6,7 @@ import time
 
 from ..models import LineRange
 from ..source import SourceHunk, SourceRevisionPair
-from .compare import compare_symbol, first_party_names, own_call_names
+from .compare import changed_value_metadata, compare_symbol, first_party_names, own_call_names
 from .extract import AstResourceLimit, extract_symbols
 from .limits import AstBudget
 from .match import match_cross_file_symbols, match_symbols
@@ -88,6 +88,72 @@ def _parse_changed_file(
     if extracted_symbols + len(old_symbols) + len(new_symbols) > budget.max_extracted_symbols_total:
         raise AstResourceLimit("aggregate symbol budget exceeded")
     return old_symbols, new_symbols, source_bytes, len(old_symbols) + len(new_symbols)
+
+
+def _changed_lines(
+    text: str | None,
+    ranges: list[tuple[int, int]],
+    symbol: SymbolSnapshot,
+    symbols: list[SymbolSnapshot],
+) -> list[str]:
+    """The changed lines of a symbol's own code: inside it, outside the symbols it holds.
+
+    A module's own code is the whole file but its definitions, which are symbols of their own;
+    its snapshot's line range counts statements, not lines. Blank and comment lines say nothing.
+    """
+    if text is None:
+        return []
+    lines = text.splitlines()
+    start, end = (1, len(lines)) if symbol.kind == "module" else (symbol.start, symbol.end)
+    nested = [
+        (item.start, item.end)
+        for item in symbols
+        if item is not symbol
+        and item.kind != "module"
+        and start <= item.start
+        and item.end <= end
+        and (item.start, item.end) != (start, end)
+    ]
+    found: list[str] = []
+    for first, count in ranges:
+        for number in range(max(first, start), min(first + count - 1, end) + 1):
+            if any(low <= number <= high for low, high in nested) or number > len(lines):
+                continue
+            line = lines[number - 1].strip()
+            if line and not line.startswith("#"):
+                found.append(line)
+    return found
+
+
+def _quote_unnamed_change(
+    deltas: list[StructuralDelta],
+    changed: SourceRevisionPair,
+    old: SymbolSnapshot,
+    new: SymbolSnapshot,
+    old_symbols: list[SymbolSnapshot],
+    new_symbols: list[SymbolSnapshot],
+) -> None:
+    """Give a change no rule names the lines that changed, which its obligation quotes.
+
+    Its display text says only "body changed". The diff's hunks hold no context lines, so the
+    lines they span inside the symbol are what changed.
+    """
+    for delta in deltas:
+        if delta.kind != "unknown_structure":
+            continue
+        removed = _changed_lines(
+            changed.old_text,
+            [(hunk.old_start, hunk.old_count) for hunk in changed.hunks],
+            old,
+            old_symbols,
+        )
+        added = _changed_lines(
+            changed.new_text,
+            [(hunk.new_start, hunk.new_count) for hunk in changed.hunks],
+            new,
+            new_symbols,
+        )
+        delta.metadata.update(changed_value_metadata(removed, added))
 
 
 def _drop_redundant_module_deltas(
@@ -233,6 +299,9 @@ def analyze_ast(files: list[SourceRevisionPair], budget: AstBudget | None = None
                 new_path=changed.new_path or path,
                 own_calls=own_calls_by_path[path],
                 first_party=first_party_by_path[path],
+            )
+            _quote_unnamed_change(
+                symbol_deltas, changed, pair.old, pair.new, old_symbols, new_symbols
             )
             if symbol_deltas:
                 changed_symbol_keys.add((path, pair.new.qualified_name))
