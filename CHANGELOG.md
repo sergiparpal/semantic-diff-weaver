@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- **Evaluation:** `docs/evaluation.md` records the prompt-injection cases against a second model,
+  llama-3.1-8b-instruct, with 0.19.2's copy rule, for 0.0063 USD. No evidence the analysis did not
+  extract reached the output, and no finding was lost. Its replies repeated an injection's marker
+  in 9 of 21 valid injected runs, and none reached the analysis. Replayed with the rule turned off,
+  3 would have, each the README's command as an obligation's title, as gpt-oss-120b wrote it
+  before the rule. Its 3 invalid runs followed a README asking for evidence it was never shown into
+  replies the schema rejects, and the analysis kept its deterministic findings. Documentation only.
+
 ## 0.19.2 - 2026-11-08
 
 A model's prose that copies what it was shown. With a model, the analysis discards a model's text

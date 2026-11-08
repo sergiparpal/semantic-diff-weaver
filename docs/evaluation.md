@@ -291,24 +291,33 @@ mangled file name. See `docs/decisions.md`, 2026-11-08.
 `scripts/prompt_injection.py` analyzes eight fixture changes with a real model, each made twice,
 clean and with an instruction to the model in the README or in a changed string, plus one in a
 comment as a control. It checks that no evidence the analysis did not extract reaches the output,
-and measures what the instructions get the model to write. On 2026-11-08 with gpt-oss-120b, low
-reasoning, three runs a variant, 48 calls, 0.0097 USD:
+and measures what the instructions get the model to write. On 2026-11-08, three runs a variant, 48
+calls a model: gpt-oss-120b with low reasoning for 0.0097 USD, before the copy rule, and
+llama-3.1-8b-instruct for 0.0063 USD, with it. Each run's other column is its replies replayed,
+with the rule on or turned off; turned off, the replay reproduces gpt-oss-120b's live figures.
 
-| Measure | Before the copy rule | With it, replayed |
-| --- | --- | --- |
-| Evidence the analysis did not extract, in the output | 0 | 0 |
-| Deterministic findings lost | 0 | 0 |
-| References to evidence never shown, discarded | 2 | 2 |
-| Injected runs whose replies repeated a marker | 13 of 24 | 13 of 24 |
-| Injected runs that carried one into the analysis | 7 of 24 | 2 of 24 |
-| README command as an obligation's title | 3 of 3 | 0 of 3 |
+| Measure | gpt-oss-120b, before the rule | with it | llama-3.1-8b, before the rule | with it |
+| --- | --- | --- | --- | --- |
+| Valid runs | 48 of 48 | 48 of 48 | 45 of 48 | 45 of 48 |
+| Evidence the analysis did not extract, in the output | 0 | 0 | 0 | 0 |
+| Deterministic findings lost | 0 | 0 | 0 | 0 |
+| References to evidence never shown, discarded | 2 | 2 | 0 | 0 |
+| Injected runs whose replies repeated a marker | 13 of 24 | 13 of 24 | 9 of 21 | 9 of 21 |
+| Injected runs that carried one into the analysis | 7 of 24 | 2 of 24 | 3 of 21 | 0 of 21 |
+| README command as an obligation's title | 3 of 3 | 0 of 3 | 3 of 3 | 0 of 3 |
 
 The copy rule discards a model's text that repeats 40 or more consecutive characters of what the
-call showed it from the repository, or of its own instructions. The 2 injected runs still carrying
-a marker carry the marker alone. Replayed on the benchmark's 60 development cases, the rule
-discarded 2 of the model's 262 proposed obligations and 1 of its findings, all long quotes of the
-changed code. The control's comment never reached the model. See `docs/decisions.md`, 2026-11-08,
-a model's prose that copies what it was shown.
+call showed it from the repository, or of its own instructions. The 2 injected runs of
+gpt-oss-120b still carrying a marker carry the marker alone. Both models, before the rule, titled
+an obligation with the README's command in every run that asked for it. llama-3.1-8b's 3 invalid
+runs are the README that asked for evidence it was never shown: following it, the model wrote
+replies the schema rejects, and the analysis kept its deterministic findings. In both models the
+warning that asked for a higher category lowered the confidence instead, from 0.772 to 0.675 and
+from 0.835 to 0.750, through the assumptions the model added, and no category moved. Replayed on
+the benchmark's 60 development cases, the rule discarded 2 of gpt-oss-120b's 262 proposed
+obligations and 1 of its findings, all long quotes of the changed code. The control's comment never
+reached the model. See `docs/decisions.md`, 2026-11-08, a model's prose that copies what it was
+shown.
 
 ## The Claude Code skill
 
