@@ -26,6 +26,15 @@
   `exclude`. On 2026-11-07 every case passed all three of its runs with the plugin and none
   without it, for 9.51 USD with the rerun of one case. `AGENTS.md` gives the command, which takes
   a cost ceiling.
+- **Tests:** a weekly `anthropic-sdk` workflow notices an `anthropic` release that would fail every
+  call the adapter sends, which ends an analysis in deterministic fallback behind a generic warning.
+  No CI job installs the extra, and a release inside its range reaches users with no Dependabot pull
+  request. The workflow reads the newest release the extra admits from PyPI, without installing or
+  importing it, and opens one issue when it sends an API version the adapter was not checked
+  against, or its `messages.create` stops taking a keyword the adapter passes.
+  `scripts/check_anthropic_sdk.py` runs the same check locally and exits 1 when either moved. On
+  2026-11-08 it read 2.6.0, which still sends 2026-10-21 and takes every keyword. See
+  `docs/decisions.md`, 2026-11-08.
 
 ## 0.19.0 - 2026-11-07
 
