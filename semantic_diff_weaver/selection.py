@@ -20,7 +20,9 @@ Where the analysis cannot see, the selection gives up narrowness rather than a t
 
 Nothing here sees a test that reaches the code through an installed command, a pytest plugin
 named only in pytest's configuration, or a process it starts other than Python, or one that
-reads a changed Python file as data.
+reads a changed Python file as data. Nor does it see a test failed by what another test file sets
+up for the whole session, as Django builds the test database from the models every collected
+module defines: a model a change adds to one test file can fail the setup of tests in all the rest.
 """
 
 from __future__ import annotations

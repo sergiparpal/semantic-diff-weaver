@@ -750,6 +750,64 @@ every mutant, since `tests/conftest.py` imports the package, whose `__init__.py`
 of it, and both of meal-manager's 2. A miss can show only where the selection leaves a test out.
 The coverage run of each base took 22 seconds on distiller, 16 on claim-ledger, and 117 here.
 
+## The selection measured against real red runs (2026-11-08)
+
+The mutants measure the selection against faults made on purpose. The testing plan also wanted
+real failures: `select` run in shadow beside the full suite, in the CI of the repositories the
+project is tried on, recording any failure the selection would have left out. Those runs are never
+red. All 59 runs of claim-ledger's `ci.yml` since 2026-10-25 passed, all 90 of meal-manager's
+`tests.yml` since 2026-07-26, and the last 200 of adaptive-policy-compilation: each runs its whole
+suite in a pre-commit hook, so no failing commit reaches CI. distiller found the same for its own
+selector's shadow on 2026-11-03, a miss rate of 0 out of 0. Public projects' pull requests are red
+often, so `scripts/shadow_select.py` replays theirs. Seven choices are deliberate:
+
+- **The change the run tested.** A pull request's run tests its head merged into the base branch
+  as the branch stood then, and names the head alone. The script compares the head with its merge
+  base with the base branch's last first-parent commit before the run began. The branch as it is
+  now may hold the pull request merged, which would leave no change.
+- **Failures from the logs, kept when they name a file of the head.** It reads every failed job's
+  log for pytest's short summary, its progress lines, its `-v` and pytest-xdist lines, and
+  unittest's `FAIL:` and `ERROR:` lines. httpx's `-r` lists only skipped tests, so its failures show
+  in the progress alone. A name counts only when it names a file of the head, itself or the one
+  file it is the tail of. A test that runs pytest on files of its own, as anyio's plugin tests do,
+  prints names that match none, and so does a session that tests another project downstream, as
+  packaging's does for pdm.
+- **Two configurations.** By default a changed file that is not Python runs the whole suite, and
+  most of these pull requests add a changelog fragment, so the default selection is nearly always
+  the whole suite: safe, and no measure of the selection. Each run is also selected with
+  `selection.ignore` set to `DOCUMENTATION_IGNORE`, documentation and changelog paths written down
+  before the first record, so that no result could shape the list. `.github/` is not on it, since a
+  workflow change can change what every test runs on.
+- **A miss only when nothing else explains it.** A failed test file the selection left out is
+  shared when the same file failed within three days on the base branch, or in another pull request
+  whose selection left it out too: a dependency's new release or a flaky test fails it there as
+  well. Another run of the same branch is no other pull request. The rest are listed, to be read
+  one by one.
+- **Missed or escaped, as for mutants.** A run with an unexplained failure left out is missed when
+  a selected file failed too, since running the selection alone would still have failed, and
+  escaped when none did. Only an escaped run is one the selection would have passed.
+- **Nothing of theirs runs.** The script runs no test and installs nothing, and reads logs and paths
+  as untrusted text, matched with patterns.
+- **The token stays with the API.** Job logs need a token even for public repositories. The API
+  answers with a redirect to a signed URL, which the script follows itself, without the token, and
+  only to Azure Blob Storage or GitHub's own hosts. A moved repository's redirect it follows only
+  inside the API. It reads runs from the last 85 days, since GitHub keeps logs for 90.
+
+On 2026-11-08 it read the benchmark's 20 projects, up to 15 red pull-request runs each, 268 in all.
+In 54 a test file of the head failed; the rest failed in lint, type checks, coverage thresholds,
+builds, or a downstream project's tests, never started a job, or had lost their logs. No run
+escaped. By default `select` ran the whole suite for 43 of the 54, nearly always for a changelog
+fragment; with documentation ignored, for 13, and otherwise it kept 93% of the test files on
+average, since most of these packages import nearly all of themselves from their `__init__.py`. Two
+failures it left out were shared: both DRF pull requests failed the same test of `test_parsers.py`
+on the same day, and the first changed only a documentation page. One run was missed: DRF's pull
+request 9751 added a Django model to `tests/test_validators.py` whose constraint name collided in
+the test database, which Django builds for the whole session from every collected module's models,
+so 1,027 tests in 56 files errored at setup. The 4 of those files `select` left out never reach the
+change, and 52 it selected failed too. No static reading sees a test failed by what another test
+file sets up for the session; the selection's docstring, `docs/configuration.md`, and the README
+now say so.
+
 ## Contexts recorded on Python 3.14 (2026-11-06)
 
 A data file recorded on Python 3.14 named fewer tests than ran a change, and nothing said so. It was

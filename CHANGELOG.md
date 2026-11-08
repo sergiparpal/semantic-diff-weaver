@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- **Evaluation:** `scripts/shadow_select.py` measures `select` against failures that happened, the
+  red pull-request runs of public projects, since the repositories this project is tried on never
+  push a red run: their pre-commit hooks run the whole suite. It reads each run's failed tests from
+  its CI logs, asks this checkout's `select` which test files the pull request's change can affect,
+  with the default configuration and with documentation and changelogs ignored, and runs nothing of
+  theirs. On 2026-11-08, 54 of 268 red runs of the benchmark's 20 projects failed a test file of the
+  head, and no run escaped: in none would the selection alone have passed. One was missed. A model
+  that DRF's pull request 9751 added to one test file broke the test database every test shares, and
+  4 of the 56 files that failed were ones `select` left out, beside 52 it chose. The selection's
+  docstring, `docs/configuration.md`, and the README now name that blind spot, and
+  `docs/evaluation.md` records the Raspberry Pi's nightly mutants. No analysis changes. See
+  `docs/decisions.md`, 2026-11-08, the selection measured against real red runs.
+
 ## 0.19.1 - 2026-11-08
 
 The brief in the job summary, and the skills for the user's own change. The GitHub Action writes

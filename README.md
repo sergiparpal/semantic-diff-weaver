@@ -177,8 +177,9 @@ never read by policy, and a repository whose tests' imports cannot all be follow
 bounds run the whole suite too. A test file that loads modules by a name it does not write out or
 from a file path, or that starts another Python, is selected whenever Python changed. A selected
 path is only ever letters, digits, and `_./-`, so a shell can take the list as it is. What no
-static reading sees is a test that reaches the code through an installed command, or a pytest
-plugin named only in pytest's configuration: run the whole suite on your default branch as well.
+static reading sees is a test that reaches the code through an installed command, a pytest plugin
+named only in pytest's configuration, or what another test file sets up for the whole session,
+such as a Django model: run the whole suite on your default branch as well.
 See [the decision record](docs/decisions.md#tests-a-change-can-affect-2026-11-02).
 
 ### Model provider
@@ -535,7 +536,8 @@ CI's `hermes-current` job does with the current release built from its Git tag.
   half the findings name none; 14 of 29 symbols whose behavior did not change got a finding too.
 - Test selection follows imports, never runs: a test that reaches the code through an installed
   command, a process it starts other than Python, or a pytest plugin named only in pytest's
-  configuration is not seen, nor one that reads a changed Python file as data.
+  configuration is not seen, nor one that reads a changed Python file as data, nor one failed by
+  what another test file sets up for the whole session, such as the Django models it defines.
 - No network ref lookup, test execution, or test generation. The GitHub Action posts a comment
   through the `gh` CLI using the workflow's own token; the analyzer itself makes no network
   request and reads no pull-request API.
