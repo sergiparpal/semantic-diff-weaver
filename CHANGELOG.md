@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **Evaluation:** `docs/benchmark.md` measures the 90 development cases with 0.19.2 and three
+  models through OpenRouter, deepseek-v4-flash, llama-3.1-8b-instruct, and gpt-oss-120b, for
+  0.16 USD, and 15 of them with gpt-6.1-terra through Hermes's `ctx.llm`. No model changed
+  precision in any category, recall, or the unchanged symbols given a finding, and none cited
+  evidence it was not shown. Only gpt-oss-120b's support told right findings from wrong ones, at
+  p = 0.02 on its own and 0.07 corrected for the three models. The refactor rule discarded 22
+  claims of a change, none at the cost of a behavior change's finding. Two findings moved to
+  another symbol when a model's claim merged into them, a defect not yet corrected.
+  Documentation only.
 - **Evaluation:** `scripts/prompt_injection.py`'s summary gives the calls a run made and what
   the endpoint billed for them, failed calls included. It gave only what the analyses kept,
   which left out a reply the schema rejects and the retry it costs: llama-3.1-8b-instruct's run

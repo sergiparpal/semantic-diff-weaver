@@ -18,7 +18,7 @@ Since then the first held-out cases have joined development, and so has a second
 and measured with it. A third held-out split of 30, labeled by two models and reviewed, now waits
 for the next change; how it was labeled, and the baseline it and the 90 development cases set,
 come first below. Then come the second split's baseline and the second round's correction,
-measured on it while it was held out, a measurement of the development cases with a model, and the
+measured on it while it was held out, measurements of the development cases with models, and the
 first round's results.
 
 Unlike the 18-case corpus of `docs/evaluation.md`, whose cases were written to exercise the
@@ -326,6 +326,103 @@ former signature.
 the deterministic 9 of 20 lies between 26% and 66% at 95%. One reviewer judged all 120 obligations,
 on the development cases the correction was designed from, so obligations of other cases would be
 what confirms it.
+
+### Four models, with 0.19.2
+
+Measured 2026-11-08 by `run_benchmark.py llm` with Semantic Diff Weaver 0.19.2 on the 90
+development cases, with three models through OpenRouter, each under a 0.50 USD cap:
+`deepseek/deepseek-v4-flash` and `openai/gpt-oss-120b` at low reasoning effort, and
+`meta-llama/llama-3.1-8b-instruct`, which does not reason. `gpt-6.1-terra` answered 15 of the
+cases, one per repository drawn with `random.Random(20261108)`, as the `ctx.llm` that Hermes 0.22.7
+gives the plugin, at its profile's medium reasoning effort, on a ChatGPT subscription that has no
+price per call. A runner outside this repository measured it with `run_benchmark.py`'s own code, and
+`--replay` reproduces its 15 analyses from the replies it recorded, as it does the 90 of a run
+through OpenRouter.
+
+| Measure, 90 development cases | deepseek-v4-flash | llama-3.1-8b-instruct | gpt-oss-120b |
+| --- | --- | --- | --- |
+| Cases measured, the rest with a failed batch | 88 | 90 | 90 |
+| Findings in an expected category, without the model and with it | 46 of 251, 46 of 254 | 48 of 262, 48 of 263 | 48 of 262, 48 of 264 |
+| Behavior changes given a finding, with the model | 115 of 115 | 120 of 120 | 120 of 120 |
+| Unchanged symbols given a finding, without and with | 31 of 100, 31 of 100 | 31 of 100, 31 of 100 | 31 of 100, 31 of 100 |
+| Findings the model added, and removed | 3, 0 | 1, 0 | 3, 1 |
+| Findings it supported, in an expected category | 30 of 46 | 33 of 48 | 35 of 48 |
+| Findings it supported, in another category or on an unchanged symbol | 116 of 208 | 134 of 215 | 119 of 216 |
+| Two-sided Fisher p of the two shares | 0.25 | 0.51 | 0.02 |
+| Mean confidence in an expected category, another, and on an unchanged symbol | 0.83, 0.72, 0.75 | 0.83, 0.73, 0.75 | 0.81, 0.70, 0.72 |
+| Test obligations, without and with | 214, 409 | 223, 330 | 223, 547 |
+| Claims of a change on a refactor's evidence, discarded | 5 | 1 | 3 |
+| Evidence cited that the model was not shown | 0 | 0 | 0 |
+| Evidence in the output that the analysis did not extract | 0 | 0 | 0 |
+| Calls, and those cut at the output cap | 126, 10 | 120, 2 | 120, 1 |
+| Output tokens, and those spent reasoning | 236,168, 180,162 | 51,168, 0 | 78,807, 9,237 |
+| Cost | 0.0700 USD | 0.0616 USD | 0.0308 USD |
+| Seconds per analysis with the model, median and most | 26.1, 116.6 | 3.6, 21.1 | 5.3, 27.7 |
+
+Without a model the mean confidences are 0.81, 0.69, and 0.72, on the 90 cases and on DeepSeek's 88.
+
+| Measure, 15 development cases | gpt-6.1-terra | deepseek-v4-flash | llama-3.1-8b-instruct | gpt-oss-120b |
+| --- | --- | --- | --- | --- |
+| Findings in an expected category, without the model and with it | 3 of 23, 3 of 23 | 3 of 23, 3 of 23 | 3 of 23, 3 of 23 | 3 of 23, 3 of 24 |
+| Behavior changes given a finding, with the model | 11 of 12 | 12 of 12 | 12 of 12 | 12 of 12 |
+| Unchanged symbols given a finding, without and with | 3 of 15, 3 of 15 | 3 of 15, 3 of 15 | 3 of 15, 3 of 15 | 3 of 15, 3 of 15 |
+| Findings it supported, in an expected category | 3 of 3 | 3 of 3 | 2 of 3 | 3 of 3 |
+| Findings it supported, in another category or on an unchanged symbol | 13 of 20 | 11 of 20 | 17 of 20 | 17 of 21 |
+| Test obligations, without and with | 21, 51 | 21, 45 | 21, 27 | 21, 58 |
+| Behaviors it named, and those kept | 43, 30 | 30, 29 | 37, 36 | 36, 36 |
+| Claims of a change on a refactor's evidence, discarded | 13 | 1 | 0 | 0 |
+| Evidence cited that it was not shown, or in the output and not extracted | 0 | 0 | 0 | 0 |
+| Calls | 21 | 21 | 20 | 20 |
+| Tokens in, and out | 44,456, 6,006 | 30,789, 29,645 | 29,365, 4,997 | 38,697, 10,064 |
+| Cost | none per call | 0.0089 USD | 0.0076 USD | 0.0040 USD |
+| Seconds per analysis with the model, median | 9.3 | 19.6 | 2.7 | 4.8 |
+
+**No model changed what the analysis finds.** Precision in every category is what it is without a
+model, since a model cannot change a finding's category (`docs/decisions.md`, 2026-11-06), and no
+model gave a finding to an unchanged symbol that had none. Leaving aside one that moved, below, the
+findings the three added, 3, 1, and 2, are unknown changes, a category no label expects. Each is on
+evidence that already carries a finding of another category on the same symbol, where the model's
+claim matched neither that finding's category nor its evidence. gpt-oss-120b's second is on
+black's JSON schema, which is not scored. gpt-6.1-terra's 15 cases show the same.
+
+**Two findings moved to another symbol when a model's claim merged into them.** In flask#5899,
+gpt-6.1-terra cited the evidence of `App.should_ignore_error`, a behavior change, together with
+that of the class `App`. Its claim merged with the deterministic finding on
+`App.should_ignore_error`, and the merge sorts its evidence by ID, which put `App`'s first. A
+finding is read by its first evidence, by this benchmark and by the report's baseline, change
+groups, obligations, and skeletons alike, so the finding moved to `App`. That is the one behavior
+change any of these runs left without a finding. gpt-oss-120b did the same in packaging#1457, where
+a finding on an added `__replace__` moved to the module. It is not corrected yet.
+
+**Support tells right findings from wrong ones weakly, and confidence does not.** gpt-oss-120b's
+35 of 48 against 119 of 216 is p = 0.02, where its 60-case run with 0.18.0 gave p = 0.16. But it is
+one of three models measured on the same findings, and corrected for three, p = 0.07. DeepSeek and
+Llama show no difference these cases can tell. Both raise every outcome's mean confidence by about
+0.03, wrong findings' as much as right ones', and gpt-oss-120b leaves the means where they were.
+
+**No model cited evidence it was not shown, and no evidence the analysis did not extract reached
+the output.** The refactor rule (`docs/decisions.md`, 2026-11-07, a model's claims on refactors)
+discarded 22 claims of a change: 12 on symbols labeled unchanged, 9 on classes no label covers, and
+1 on click#3781's `edit`, a behavior change that kept the two findings its other evidence carries.
+Replayed with each claim traced, none of the 22 cost a behavior change its finding. gpt-6.1-terra
+made 13 of them in 15 cases, 13 of its 43 behaviors. Most said the evidence named a refactor without
+showing what changed: for a change of typing alone, all the evidence shows of the code is the
+symbol's name before and after.
+
+**What the models differ in is obligations, time, and cost.** gpt-oss-120b proposed 419
+obligations on the 90 cases, DeepSeek 246, and Llama 179. These runs' obligations have not been
+reviewed; the reviews above judged 6, 12, and 6 of 20 of gpt-oss-120b's useful, from its runs of
+2026-11-07. DeepSeek reasons at low effort too, 76% of its output tokens, and took 26.1 seconds per
+analysis at the median, against Llama's 3.6. Its reasoning and reply together reached the batch's
+output cap, 2,000 tokens plus one for every six characters of input, up to 8,192, in 10 of its 126
+calls. The retry hit the same cap in two cases, both of tenacity, and their batches fell back to
+the deterministic findings. gpt-6.1-terra, through the Pi, took 9.3 seconds at the median.
+
+**For finding behavior changes, these runs measure nothing the layer adds.** The category is the
+structural rules', what a model supports is right only a little more often than what it does not,
+and a model brings no evidence of its own. What the layer adds is obligations, the one place the
+reviews above found it useful, and the deterministic obligations from evidence reached 9 of 20 in
+the third review, against the model's 6.
 
 ## Results
 

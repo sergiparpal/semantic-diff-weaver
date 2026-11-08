@@ -225,7 +225,12 @@ symbols with a finding and 16 of 103 scored findings in an expected category, an
 change keeps its finding and its category. These are the numbers the corpus above does not give.
 With a model, `openai/gpt-oss-120b` on the development cases, the findings stayed as they were but
 for two wrong ones, and a blind review judged 6 of 20 of the test obligations the model adds
-useful, and none of 20 deterministic ones.
+useful, and none of 20 deterministic ones. With 0.19.2 on all 90 development cases, three models
+through OpenRouter, deepseek-v4-flash, llama-3.1-8b-instruct, and gpt-oss-120b, left precision in
+every category and the unchanged symbols' findings as they were, for 0.16 USD in all, and so did
+gpt-6.1-terra through Hermes on 15 of them. None cited evidence it was not shown. A model's claim
+that merged into a deterministic finding moved two findings to another symbol, one of them a
+behavior change's only finding.
 
 `docs/real-pr-validation.md` records what the analyzer says on other real merged pull requests,
 produced by the opt-in `scripts/validate_real_prs.py` harness. Those are **observations on
