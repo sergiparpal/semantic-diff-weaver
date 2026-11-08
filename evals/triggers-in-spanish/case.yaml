@@ -1,0 +1,50 @@
+schema_version: "1.1"
+name: triggers-in-spanish
+description: >-
+  A plain question in Spanish about what a branch changes loads the skill, which analyzes the
+  change and reports the boundary it moved, with obligations to test it.
+tags: [trigger, spanish]
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: |
+    ¿Qué cambia esta rama respecto a main y qué debería probar antes de mergearla?
+  max_turns: 20
+  timeout_seconds: 600
+  allowed_tools:
+    - Bash
+    - Read
+    - Glob
+    - Grep
+    - Skill
+    - mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__analyze_semantic_diff
+    - mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__generate_test_skeletons
+graders:
+  - name: skill-fires
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?semantic-diff"'
+  - name: analyzes
+    type: tool_used
+    tool: mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__analyze_semantic_diff
+    min: 1
+  - name: no-unapproved-skeletons
+    type: tool_used
+    tool: mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__generate_test_skeletons
+    min: 0
+    max: 0
+  - name: quotes-the-new-comparison
+    type: regex
+    pattern: 'count <= MAX_ITEMS'
+  - name: cites-an-obligation
+    type: regex
+    pattern: 'to-00[12]'
+  - name: answers-in-spanish
+    type: regex
+    pattern: '\b(?:rama|cambio|probar|prueba)\b'
+    flags: i
+  - name: reports-the-boundary
+    type: llm
+    criteria: >-
+      The answer says that a basket of exactly MAX_ITEMS (5) items is now allowed, where before
+      the change it was not, and suggests a test for exactly that case.

@@ -1,0 +1,43 @@
+schema_version: "1.1"
+name: unverified-candidates
+description: >-
+  The candidate test the analysis lists is presented as unverified: matched statically, never
+  run.
+tags: [report]
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: |
+    Which existing tests cover this branch's change, and are they enough?
+  max_turns: 20
+  timeout_seconds: 600
+  allowed_tools:
+    - Bash
+    - Read
+    - Glob
+    - Grep
+    - Skill
+    - mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__analyze_semantic_diff
+    - mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__generate_test_skeletons
+graders:
+  - name: analyzes
+    type: tool_used
+    tool: mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__analyze_semantic_diff
+    min: 1
+  - name: names-the-candidate
+    type: regex
+    pattern: 'test_a_small_basket_is_allowed'
+  - name: says-unverified
+    type: regex
+    pattern: 'unverified|not verified|statically|(?:not|never) (?:been )?run|haven.t (?:been )?run'
+    flags: i
+  - name: candidate-is-not-proof
+    type: llm
+    criteria: >-
+      The answer says the existing test was matched to the change without being run, so it does
+      not prove the change is covered.
+  - name: no-unapproved-skeletons
+    type: tool_used
+    tool: mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__generate_test_skeletons
+    min: 0
+    max: 0

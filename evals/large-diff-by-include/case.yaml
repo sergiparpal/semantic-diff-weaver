@@ -1,0 +1,41 @@
+schema_version: "1.1"
+name: large-diff-by-include
+description: >-
+  A change to 106 files is past the analysis's 40-file limit; the skill analyzes it one area at
+  a time with include, never with exclude.
+tags: [scope]
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: |
+    What does this branch change in behavior?
+  max_turns: 30
+  timeout_seconds: 900
+  allowed_tools:
+    - Bash
+    - Read
+    - Glob
+    - Grep
+    - Skill
+    - mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__analyze_semantic_diff
+    - mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__generate_test_skeletons
+graders:
+  - name: narrows-with-include
+    type: tool_used
+    tool: mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__analyze_semantic_diff
+    input_match: '"include"'
+    min: 1
+  - name: never-excludes
+    type: tool_used
+    tool: mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__analyze_semantic_diff
+    input_match: '"exclude"'
+    min: 0
+    max: 0
+  - name: names-every-area
+    type: regex
+    pattern: '^(?=[\s\S]*billing)(?=[\s\S]*shipping)(?=[\s\S]*scripts)(?=[\s\S]*limits\.py)'
+  - name: no-unapproved-skeletons
+    type: tool_used
+    tool: mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__generate_test_skeletons
+    min: 0
+    max: 0

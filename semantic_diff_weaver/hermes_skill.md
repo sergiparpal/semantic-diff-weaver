@@ -1,11 +1,12 @@
 # Semantic diff review
 
-Use this skill whenever the user asks what a commit, a branch, or a pull request changes in
-behavior, how risky a change is, what to test before merging it, which existing tests to run, or
-to scaffold those tests. Two read-only tools from the semantic-diff-weaver plugin do the work:
-`analyze_semantic_diff` reads two committed Git revisions and returns evidence-backed, risk-ranked
-test obligations, and `generate_test_skeletons` scaffolds failing tests for the obligations the
-user approves. Neither imports, executes, builds, or modifies the repository.
+Use this skill whenever the user asks what their change, a commit, a branch, or a pull request does
+in behavior, how risky a change is, what to test, which existing tests to run, or to scaffold those
+tests, also when some of their edits are not committed yet. Two read-only tools from the
+semantic-diff-weaver plugin do the work: `analyze_semantic_diff` reads two committed Git revisions
+and returns evidence-backed, risk-ranked test obligations, and `generate_test_skeletons` scaffolds
+failing tests for the obligations the user approves. Neither imports, executes, builds, or modifies
+the repository.
 
 **Do not run the code under review to find out what it does.** Executing a revision's code, for
 instance with `exec` on a file read through `git show`, runs whatever the change contains. With a

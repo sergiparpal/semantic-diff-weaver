@@ -216,3 +216,27 @@ package, and appends each mutant to a JSONL file that its `summary` subcommand r
 its test files on average, and for claim-ledger's 15, 80%. This repository's 6 and meal-manager's 8
 could show none, since `select` chose all their test files for every mutant. See
 `docs/decisions.md`, 2026-11-07.
+
+## The Claude Code skill
+
+`evals/` measures `skills/semantic-diff/SKILL.md` with `claude plugin eval`: nine cases, each a
+repository built by `evals/fixture.sh` and a question a user would ask, run as full Claude Code
+sessions with the plugin's real server and graded on the tool calls and the answer. On 2026-11-07,
+three runs a case, with the plugin and without it:
+
+| Case | With the plugin | Without it |
+| --- | --- | --- |
+| `triggers-in-spanish` | 1.00, 1.00, 1.00 | 0.67 |
+| `triggers-in-english` | 1.00, 1.00, 1.00 | 0.47 |
+| `stale-local-main` | 1.00, 1.00, 1.00 | 0.50 |
+| `diverged-main` | 1.00, 1.00, 1.00 | 0.44 |
+| `uncommitted-edits` | 1.00, 1.00, 1.00 | 0.60 |
+| `unverified-candidates` | 1.00, 1.00, 1.00 | 0.40 |
+| `no-unapproved-skeletons` | 1.00, 1.00, 1.00 | 0.25 |
+| `path-outside-workspace` | 1.00, 1.00, 1.00 | 0.60 |
+| `large-diff-by-include` | 1.00, 1.00, 1.00 | 0.75 |
+
+The scores without the plugin are means of three runs, none of which passed. `uncommitted-edits`
+was run again, at 0.82 USD, after a judge's false failure turned one of its graders into a regex.
+Its first run had found that the skill did not load for "What does my change do?", which its
+description now covers. The suite cost 8.69 USD; see `docs/decisions.md`, 2026-11-07.

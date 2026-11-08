@@ -164,6 +164,63 @@ What they show is the mechanism, the skill loaded first every time, and that no 
 executed the code. Each run costs 47,000 to 88,000 input tokens, most of them cached. The skill
 and the extra `tool_describe` add up to about 25,000.
 
+## The Claude Code skill measured with `claude plugin eval` (2026-11-07)
+
+`skills/semantic-diff/SKILL.md` tells Claude Code when to use the tools and how: which base to
+compare with, what to say about edits not committed, how to present candidate tests, when to
+scaffold, what to do after an error, and how to keep a large diff readable. Nothing tested any of
+it. `evals/` now holds nine cases for `claude plugin eval`, which runs each as a full Claude Code
+session with the plugin, and again without it. Each case builds a repository, asks what a user
+would, and grades the tool calls and the answer:
+
+| Case | The repository | What must happen |
+| --- | --- | --- |
+| `triggers-in-spanish`, `triggers-in-english` | a branch that makes a limit inclusive | the skill loads, the tool runs, and the answer quotes the new comparison and an obligation |
+| `stale-local-main` | local `main` behind `origin/main`, which merged a change to `report.py` | the base is `origin/main` or its merge base, never local `main` |
+| `diverged-main` | `main` and `origin/main`, each with a commit the other lacks | the answer shows both and asks which one |
+| `uncommitted-edits` | an uncommitted edit beside the committed change | the answer says the edit is not analyzed |
+| `unverified-candidates` | the same branch | the candidate test is presented as matched, not run |
+| `no-unapproved-skeletons` | the same branch, and "prepare them for me" | no skeleton until the user names obligations |
+| `path-outside-workspace` | the repository in `/tmp`, outside the workspace | no retry with another path or a copy, and the answer names the setting that authorizes it |
+| `large-diff-by-include` | 106 changed files, past the 40-file limit | one call per area with `include`, none with `exclude` |
+
+Four choices are deliberate:
+
+- **The real server.** `--allow-real-servers` starts the plugin's own server in every run. It is
+  this repository's code, deterministic and offline, so the graders see what a user would get,
+  where a mock would grade the skill against answers written for it. It runs as whoever runs the
+  suite, outside the sandbox, which is why the command is for this repository's own suite only.
+- **One fixture, a variant a case.** `evals/fixture.sh` builds each repository in the run's working
+  directory with a fixed author and fixed dates, so its commits, and the SHAs the graders name, are
+  the same in every run. Remote-tracking refs are written with `git update-ref`, and nothing is
+  fetched.
+- **Facts are graded deterministically.** `tool_used` graders with `input_match` read the tool
+  calls' arguments, and `regex` graders read the answer. Each `llm` grader judges a single claim:
+  the default judge, Haiku, failed an answer meeting a four-part criterion in two of three votes,
+  and in three of three a long answer meeting a single one, which a regex now checks instead.
+- **The cost.** Each run is a full Claude session billed to whoever runs the suite. The command in
+  `AGENTS.md` takes a ceiling, and the report stays local with `--no-publish`.
+
+The first run found a gap. Asked "What does my change do, and what should I test?" beside an
+uncommitted edit, Claude did not load the skill: it read `git diff` and ran the test suite. The
+skill's description named "a diff, branch, or pull request" and "what to test before merging". It
+now names "their change, a commit, a diff, a branch, or a pull request" and "what to test", "also
+when some of their edits are not committed yet". The Hermes skill's first paragraph says the same,
+to keep the two in step. The case then passed: the skill loaded, analyzed the committed change, and
+said the uncommitted edit was left out.
+
+The suite then ran three times a case with the plugin and three times without it: 54 sessions,
+8.69 USD, 26 minutes. With the plugin all 27 runs did what their case asks, and 26 passed every
+grader. In the 27th the judge failed an answer that said "The analysis only covers committed code.
+Your uncommitted edit to `pkg/report.py` wasn't part of it.", the claim it was judging. That claim
+is a regex now, matching all four answers recorded with the plugin and none of the three without
+it, and the case's three runs, for 0.82 USD, again passed every grader. Without the plugin no run
+passed. The cases scored 0.25 to 0.75, 0.47 below on average. Most of that is the tool's absence,
+but two cases are the skill's guidance alone, since `git` is there either way. Beside a diverged
+`main`, Claude without the skill asked which base to use in none of three runs. With `main` behind
+`origin/main`, it named `origin/main` in none. A run cost about 0.16 USD with the plugin and 0.12
+without it, and 0.43 for the large diff's four calls.
+
 ## Repository-clone plugin install (2026-07-30)
 
 `hermes plugins install sergiparpal/semantic-diff-weaver --enable` is the documented install path,

@@ -1,6 +1,6 @@
 ---
 name: semantic-diff
-description: Review the behavioral meaning of a committed change to Python code, to API schemas (OpenAPI, Swagger, JSON Schema), or to configuration files the repository names, and plan regression tests with the read-only analyze_semantic_diff tool, then scaffold failing tests for the obligations the user approves with generate_test_skeletons. Use when the user asks what a diff, branch, or pull request changes in behavior, how risky it is, what to test before merging, which existing tests to run, or to scaffold those tests.
+description: Review the behavioral meaning of a committed change to Python code, to API schemas (OpenAPI, Swagger, JSON Schema), or to configuration files the repository names, and plan regression tests with the read-only analyze_semantic_diff tool, then scaffold failing tests for the obligations the user approves with generate_test_skeletons. Use when the user asks what their change, a commit, a diff, a branch, or a pull request does in behavior, how risky it is, what to test, which existing tests to run, or to scaffold those tests, also when some of their edits are not committed yet.
 ---
 
 # Semantic diff review
