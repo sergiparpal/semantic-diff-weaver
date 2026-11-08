@@ -236,7 +236,50 @@ package, and appends each mutant to a JSONL file that its `summary` subcommand r
 2026-11-07, 41 mutants of four repositories gave no miss. For distiller's 12, `select` chose 62% of
 its test files on average, and for claim-ledger's 15, 80%. This repository's 6 and meal-manager's 8
 could show none, since `select` chose all their test files for every mutant. See
-`docs/decisions.md`, 2026-11-07.
+`docs/decisions.md`, 2026-11-07. A nightly job on a Raspberry Pi has measured 20 mutants each of
+distiller and claim-ledger since 2026-11-08; its first night, at distiller's 3012a73 and
+claim-ledger's cd0c05e, caught 19 and 13 of them, with `select` choosing 54% and 83% of their test
+files on average, and missed none.
+
+## Test selection against real red runs
+
+`scripts/shadow_select.py` measures `select` against failures that happened: the red pull-request
+runs of public projects, whose failed tests it reads from their CI logs. The repositories this
+project is tried on give none, since their pre-commit hooks run the whole suite before every
+commit. A failed test file `select` left out is shared when the same file failed within three days
+where no change `select` connected to it ran, and unexplained otherwise. A run is missed when an
+unexplained file failed beside a selected one, so that running the selection alone would still
+have failed, and escaped when no selected file failed.
+
+On 2026-11-08 it read the benchmark's 20 projects: their newest red pull-request runs from the last
+85 days, up to 15 a project, 268 in all, from 2026-08-21 to 2026-11-08. In 54 a test file of the
+head failed, 216 files in all. The other 214 failed in lint, type checks, coverage thresholds,
+builds, or a downstream project's tests (124), never started a job (88), or had lost their logs
+(2).
+
+| Measure | Default configuration | Documentation ignored |
+| --- | --- | --- |
+| Whole suite selected | 43 of 54 runs | 13 of 54 |
+| Test files chosen otherwise, on average | 95%, over 11 runs | 93%, over 41 |
+| Runs caught, explained, missed, escaped | 53, 0, 1, 0 | 51, 2, 1, 0 |
+| Failed files selected, shared, unexplained | 212, 0, 4 | 210, 2, 4 |
+
+No run escaped. Nearly every pull request changes a file that is not Python, most often a changelog
+fragment, so by default `select` runs the whole suite. With documentation and changelogs ignored, as
+`selection.ignore` lets a repository say, it narrows 41 runs, yet keeps 93% of the test files on
+average: most of these packages import nearly all of themselves from their `__init__.py`, so almost
+every test reaches almost any change. Only DRF's selections were narrow, 56% over 6 runs.
+
+The missed run is DRF's pull request 9751. It added to `tests/test_validators.py` a Django model
+with a constraint named `unique_constraint`, and building the test database for the session failed
+on `relation "unique_constraint" already exists`, so 1,027 tests errored at setup, in 56 files.
+`select` chose 55 of the 61 test files, 52 of the failed ones among them, and left out 4 that never
+reach the change: they failed only because the session's database could not be built. No static
+reading sees a test failed by what another test file sets up for the whole session, and
+`docs/configuration.md` now says so. The two shared failures are `tests/test_parsers.py` in DRF's
+pull requests 10060 and 10062 on 2026-10-06. The first changed only a documentation page, which
+`select` rightly connects to no test, and both failed `test_get_encoded_filename` on the same
+mangled file name. See `docs/decisions.md`, 2026-11-08.
 
 ## The Claude Code skill
 

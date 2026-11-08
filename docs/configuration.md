@@ -392,8 +392,12 @@ path and nothing more.
 
 What no static reading sees is a test that reaches the code through an installed console command,
 a process other than Python, or a pytest plugin named only in pytest's own configuration, with `-p`
-or an entry point, or one that reads a changed Python file as data: run the whole suite on the
-default branch as well.
+or an entry point, or one that reads a changed Python file as data. Nor does it see a test failed
+by what another test file sets up for the whole session: Django builds its test database from the
+models every collected module defines, so a model a change adds to one test file can fail the setup
+of tests in every other, as one did in a pull request `docs/evaluation.md` describes. Running the
+selection alone still fails there, since the changed test file is selected. Run the whole suite on
+the default branch as well.
 
 ## Test skeletons
 
