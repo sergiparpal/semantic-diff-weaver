@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "annotation": "One annotator, Claude Opus 5.5, labeled every Python symbol each pull request changes outside its tests, from the diff and the files at its two commits, before reading the analyzer's output on it, and a reviewer, sergiparpal, then checked every label on a page that showed each symbol's diff and never the analyzer's findings, correcting 26 of the first 162 labels and 16 of the next 89. The first 60 cases came in two splits, the held_out ones labeled before the analyzer was changed against the development ones; once measured, those held_out cases joined development, and the 30 held_out cases of encode/django-rest-framework, jd/tenacity, urllib3/urllib3, agronholm/anyio, and pypa/packaging were labeled and reviewed before the analyzer's next change. reviewed_by names whoever checked a case's labels after the annotator.",
+  "annotation": "One annotator, Claude Opus 5.5, labeled every Python symbol each of the first 90 pull requests changes outside its tests, from the diff and the files at its two commits, before reading the analyzer's output on it, and a reviewer, sergiparpal, then checked every label on a page that showed each symbol's diff and never the analyzer's findings, correcting 26 of the first 162 labels and 16 of the next 89. The first 60 cases came in two splits, the held_out ones labeled before the analyzer was changed against the development ones; once measured, those held_out cases joined development, as did the 30 cases of encode/django-rest-framework, jd/tenacity, urllib3/urllib3, agronholm/anyio, and pypa/packaging, labeled and reviewed before the analyzer's next change. The 30 held_out cases of django-guardian/django-guardian, jazzband/django-oauth-toolkit, redis/redis-py, more-itertools/more-itertools, and dateutil/dateutil were labeled by two annotators, Claude Opus 5.5 and gpt-6.1-terra, blind and apart, from each case's diff and the code of its changed symbols, before the analyzer's output on them was read; the reviewer then settled the label of every symbol that is not added, on a page that showed the two proposals as A and B without saying whose and never the analyzer's findings, and the 4 added symbols keep the empty list the rules give them. reviewed_by names whoever checked a case's labels after the annotators.",
   "sampled_from": {
     "psf/requests": "3c7baaa05ab4aa49cc819ce3a819d260de19c157",
     "pallets/click": "2247b35ea1c47c727d7a06e51fa280e12a863ff6",
@@ -16,7 +16,12 @@
     "jd/tenacity": "aac059c906170ee7b6ce1aa086a226f3aded5c99",
     "urllib3/urllib3": "c5347bbd39203d68d7b0e3ffb83ced3e3b4b9109",
     "agronholm/anyio": "b8eb6ef5a4d6f9c3d8408187fe14af199f9289d2",
-    "pypa/packaging": "ae4946b30f8ae5226e92500722e55618e91f9864"
+    "pypa/packaging": "ae4946b30f8ae5226e92500722e55618e91f9864",
+    "django-guardian/django-guardian": "27bba7283e6e34a5c484940425d51fd5ec472bb9",
+    "jazzband/django-oauth-toolkit": "285ba9c38306bccf798cc4f9fe64fbbae8659e40",
+    "redis/redis-py": "4fe8a8c18e289bdbd7a02f01def74aeaf8719b7d",
+    "more-itertools/more-itertools": "f42daddf205f335fea6e200dad46049f33e71221",
+    "dateutil/dateutil": "a78cbd81d5d03b5f126eb36edb92bca78972c804"
   },
   "cases": [
     {
@@ -2228,7 +2233,7 @@
       "base": "1af5b55758ac514c492ed3a5fc1a6fb244cdb257",
       "head": "6f6f44bca2e193509ea108914c9e52b102ec6642",
       "subject": "Fix SearchFilter crash when search_fields uses the pk alias (#10071)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "rest_framework/filters.py",
@@ -2252,7 +2257,7 @@
       "base": "e140de794d11149a09c04a3ee7cc4815946148f8",
       "head": "1af5b55758ac514c492ed3a5fc1a6fb244cdb257",
       "subject": "Prepare release 3.18.3 (#10067)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "rest_framework/__init__.py",
@@ -2273,7 +2278,7 @@
       "base": "7195f7e4c51527054623ea55fc4491786acc91f8",
       "head": "e140de794d11149a09c04a3ee7cc4815946148f8",
       "subject": "Restore order_by_precedence from 3.18.1 (#10066)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "rest_framework/utils/mediatypes.py",
@@ -2296,7 +2301,7 @@
       "base": "af3fabfd517307fbc5d500fba1ab8f6e25f220b0",
       "head": "69694a17d0b6ac14b4ea4d77916b73c68dc5a3e8",
       "subject": "Prepare release 3.18.2 (#10065)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "rest_framework/__init__.py",
@@ -2317,7 +2322,7 @@
       "base": "ce3dcc77106d33b0ef73eaaacb791ad4d9b9b956",
       "head": "7aa4ec6513469139768d530f3eecfaae3e513b73",
       "subject": "Update pre-commit hooks (#10044)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "rest_framework/parsers.py",
@@ -2338,7 +2343,7 @@
       "base": "018982819da29d18494904f1a44a7364cac17c6b",
       "head": "ce3dcc77106d33b0ef73eaaacb791ad4d9b9b956",
       "subject": "Fix UniqueConstraint validation with conditional fields (#9707) (#10021)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "rest_framework/serializers.py",
@@ -2407,7 +2412,7 @@
       "base": "4a74682e0186b5f2d25906aa190cd639c705a958",
       "head": "b6201eceedfc719e996dcbc3f6c17f21011fb236",
       "subject": "fix: only treat None and 0 as \"no wait\" (#741)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "tenacity/__init__.py",
@@ -2460,7 +2465,7 @@
       "base": "949dcfa6c0a4f0109dbbd019ff58208a580d185b",
       "head": "26f719dc73d3c5612b9c1b8d18a7883837790ad8",
       "subject": "Respect enabled=False on the direct-call path (#645)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "tenacity/__init__.py",
@@ -2500,7 +2505,7 @@
       "base": "389aab8b2688f7a1df41c2dd7797eeb18c8baff9",
       "head": "949dcfa6c0a4f0109dbbd019ff58208a580d185b",
       "subject": "fix: read the tornado global live instead of an import-time snapshot (#696)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "tenacity/__init__.py",
@@ -2548,7 +2553,7 @@
       "base": "a09999688c8d3bb3d4ca1716748009954cc7c4d0",
       "head": "389aab8b2688f7a1df41c2dd7797eeb18c8baff9",
       "subject": "fix: restore support for falsy wait values and callable + strategy (#694)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "tenacity/__init__.py",
@@ -2620,7 +2625,7 @@
       "base": "e6ef84a1cebc01963106b1aecd598393054e0277",
       "head": "d6690dc06a0beebef9d91018d31fe42db11c2640",
       "subject": "refactor: declare BaseAction's REPR_FIELDS and NAME as ClassVar (#680)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "tenacity/__init__.py",
@@ -2648,7 +2653,7 @@
       "base": "69b3fee7bd8ba900782da918b339f05b52272419",
       "head": "e6ef84a1cebc01963106b1aecd598393054e0277",
       "subject": "refactor: drop always-true truthiness checks and enable truthy-bool (#679)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "tenacity/__init__.py",
@@ -2711,7 +2716,7 @@
       "base": "5feb993421a48a508bc70c78e745337cc6415265",
       "head": "2aa7e9c35234a90a1ce09b84dc7b706a6d604674",
       "subject": "Keep the stored key in RecentlyUsedContainer lookups (#5347)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/urllib3/_collections.py",
@@ -2734,7 +2739,7 @@
       "base": "96449eb1ac8cfca8fb9605b8bbff7a5fe0081dd2",
       "head": "5feb993421a48a508bc70c78e745337cc6415265",
       "subject": "Tighten numeric validation of response framing (#5083)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/urllib3/response.py",
@@ -2778,7 +2783,7 @@
       "base": "8883fd900057ee65f553586389ecd70269f05e04",
       "head": "96449eb1ac8cfca8fb9605b8bbff7a5fe0081dd2",
       "subject": "Replace stray CR/LF/NUL with SP and trim response header values (#5177)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/urllib3/connection.py",
@@ -2801,7 +2806,7 @@
       "base": "d07367de9244fe44109aa2f04ae88240bece22b9",
       "head": "8883fd900057ee65f553586389ecd70269f05e04",
       "subject": "Speed up parse_url() by ~28% for common ASCII hosts and plain paths (#5314)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/urllib3/util/url.py",
@@ -2829,7 +2834,7 @@
       "base": "5a2177893de299c9693b82ab11ec9e20169ba0bc",
       "head": "257a7dfa161cad030f5cba99b24fca7672af1881",
       "subject": "Correct the HTTPHeaderDict.add combine example (#5329)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/urllib3/_collections.py",
@@ -2850,7 +2855,7 @@
       "base": "c284372e2e11639b4554d50bf6d1a5b1750c0df0",
       "head": "5a2177893de299c9693b82ab11ec9e20169ba0bc",
       "subject": "Honor Retry-After on PoolManager redirects (#5330)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/urllib3/poolmanager.py",
@@ -2876,7 +2881,7 @@
       "base": "838382c4db305969bc0a269e885068574179c477",
       "head": "e833551a77bd82455b1753b50f6f92e7b0a7d456",
       "subject": "Fixed groupby() splitting identical keys that don't compare equal to themselves (#1447)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/anyio/itertools.py",
@@ -2901,7 +2906,7 @@
       "base": "02ff4f85650413b1c4d12aeafa0a4f9290766393",
       "head": "576892e9f1ffd5417dec3bebfe9d8c3cbf5d47dc",
       "subject": "Fixed certain pending tasks not woken up by the closing of memory object streams (#1443)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/anyio/streams/memory.py",
@@ -2975,7 +2980,7 @@
       "base": "b7f8c6825cb4b222650a2c3b0cd58e73e681bb79",
       "head": "cd21b36e95fb0606bd1c78771616a48d175dfb1b",
       "subject": "Fixed `TypedAttributeSet` not collecting annotations from superclasses (#1358)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/anyio/_core/_typedattr.py",
@@ -2999,7 +3004,7 @@
       "base": "633965bad02a857574b3dbad03d1ef9f35e9caa4",
       "head": "6219807568bd7c32f2c08f923c7d93f95c836127",
       "subject": "Restore TCP read backpressure after a cancelled receive (#1424)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/anyio/_backends/_asyncio.py",
@@ -3025,7 +3030,7 @@
       "base": "3f1ff43aa33a02bb2ab64c229cd4b59e80c76328",
       "head": "633965bad02a857574b3dbad03d1ef9f35e9caa4",
       "subject": "Fixed BlockingPortal completion racing with Future cancellation (#1410)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/anyio/from_thread.py",
@@ -3050,7 +3055,7 @@
       "base": "ad0e2c09a51c995dc12de52d83139e55e8f7b057",
       "head": "3f1ff43aa33a02bb2ab64c229cd4b59e80c76328",
       "subject": "Fix short writes in UNIXSocketStream.send_fds() (#1422)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/anyio/_backends/_asyncio.py",
@@ -3084,7 +3089,7 @@
       "base": "b635dc5e60d6fb8020416c6bab9421964bfa342a",
       "head": "78d8673da4d275bb7aee0126a5edc3cf90976af1",
       "subject": "feat(ranges): answer containment and disjointness together (#1473)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/packaging/ranges.py",
@@ -3163,7 +3168,7 @@
       "base": "01fc80c47251ca5fead213e588d15b5d4b83b824",
       "head": "b635dc5e60d6fb8020416c6bab9421964bfa342a",
       "subject": "perf(ranges): stop disjointness queries at the first overlap (#1471)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/packaging/_ranges.py",
@@ -3228,7 +3233,7 @@
       "base": "f124fb7f2a18e41a5593f4c5c47d63db6f49f0d1",
       "head": "01fc80c47251ca5fead213e588d15b5d4b83b824",
       "subject": "ci(downstream): bump pdm to 2.29.4 (#1479)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "noxfile.py",
@@ -3251,7 +3256,7 @@
       "base": "c1d2a9d8f5ca7cc11b7d2e902ed5ee3e255e8560",
       "head": "f124fb7f2a18e41a5593f4c5c47d63db6f49f0d1",
       "subject": "perf(specifiers): cache a Specifier's canonical form (#1372)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "benchmarks/specifiers.py",
@@ -3330,7 +3335,7 @@
       "base": "ffced26d0a30557a0e181dbaca561a0432ddec53",
       "head": "1a62a26afe0f4881593e31bed4f7753bd1c8fe27",
       "subject": "perf(ranges): subtract version intervals directly (#1460)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "benchmarks/specifiers.py",
@@ -3389,7 +3394,7 @@
       "base": "fc613377731e5211ab6e08e6fd6163f09ae67ce8",
       "head": "ffced26d0a30557a0e181dbaca561a0432ddec53",
       "subject": "feat(specifiers): add `__replace__` to Specifier and SpecifierSet (#1457)",
-      "split": "held_out",
+      "split": "development",
       "labels": [
         {
           "path": "src/packaging/specifiers.py",
@@ -3416,6 +3421,961 @@
       "reviewed_by": [
         "sergiparpal"
       ]
+    },
+    {
+      "id": "django-guardian/django-guardian#1066",
+      "repository": "django-guardian/django-guardian",
+      "pull_request": 1066,
+      "base": "71fd85acb173798f9b7927ea23fd956887abbf04",
+      "head": "4763e6aae51002ab38e18fbe3d525feb55276721",
+      "subject": "Merge pull request #1066 from django-guardian/port-1053-raise-404",
+      "labels": [
+        {
+          "path": "guardian/conf/settings.py",
+          "symbol": "check_configuration",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change"
+          ],
+          "rationale": "Enabling both GUARDIAN_RENDER_404 and GUARDIAN_RAISE_404 now makes check_configuration raise ImproperlyConfigured, as the equivalent 403 check already did."
+        },
+        {
+          "path": "guardian/utils.py",
+          "symbol": "get_40x_or_None",
+          "change": "modified",
+          "expected": [
+            "error_handling_change"
+          ],
+          "rationale": "When permission is denied and raising a 404 is configured, the caller now gets Http404 instead of ObjectDoesNotExist, which Django answers with a 404; the permission decision is the same."
+        },
+        {
+          "path": "guardian/utils.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The module imports a different exception; where Http404 is raised is get_40x_or_None, labeled on its own."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "django-guardian/django-guardian#1054",
+      "repository": "django-guardian/django-guardian",
+      "pull_request": 1054,
+      "base": "d1a406e86fe8b0db7db3808afe30d4935525a85e",
+      "head": "ad14a39de61293db72e6fe7cb952f25e1cef40fe",
+      "subject": "Merge pull request #1054 from kayaal34/fix/backend-anonymous-user-cache",
+      "labels": [
+        {
+          "path": "guardian/backends.py",
+          "symbol": "check_user_support",
+          "change": "modified",
+          "expected": [
+            "output_contract_change",
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "With the cache on, get_anonymous_user() can return the user copy an earlier query cached, so a row changed within the TTL shows its old values in the returned tuple; a TTL of 0 queries the database on every call."
+        },
+        {
+          "path": "guardian/backends.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The module now imports get_anonymous_user; the anonymous-user query and the cache use happen when check_user_support is called, labeled on its own."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "django-guardian/django-guardian#1057",
+      "repository": "django-guardian/django-guardian",
+      "pull_request": 1057,
+      "base": "8fe29faaeed584bfd8a7d72bd8c6e1dd9dc37677",
+      "head": "5423944b7b07f1164f2da6498357ad81a4a3441c",
+      "subject": "Merge pull request #1057 from Anikesh0001/fix/clean-orphan-obj-perms-batch-skip",
+      "labels": [
+        {
+          "path": "guardian/utils.py",
+          "symbol": "clean_orphan_obj_perms",
+          "change": "modified",
+          "expected": [
+            "boundary_change",
+            "output_contract_change",
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "After deleting orphans the next batch starts after the last primary key read, so rows skipped before are now reached and the returned total can grow; batches are counted per table and the resume point is computed from the rows left."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "django-guardian/django-guardian#1058",
+      "repository": "django-guardian/django-guardian",
+      "pull_request": 1058,
+      "base": "1edccdf9d97de2454569863231c5e574265a08d1",
+      "head": "1d6d5e0fd2200ba6ab3bbe657d1b5b38f1ab2418",
+      "subject": "Merge pull request #1058 from Anikesh0001/fix/get-40x-any-perm-global",
+      "labels": [
+        {
+          "path": "guardian/utils.py",
+          "symbol": "get_40x_or_None",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "authorization_change",
+            "output_contract_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "With accept_global_perms and any_perm, one global permission of the list now suffices, so the function can return None and skip the per-object queries and the denial response, the configured exception included."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "django-guardian/django-guardian#1059",
+      "repository": "django-guardian/django-guardian",
+      "pull_request": 1059,
+      "base": "9cdda6b69139c30d3a06e98cabac25ac54510fbc",
+      "head": "8fd5bad493182269048283082a37a9a785d00855",
+      "subject": "Merge pull request #1059 from Anikesh0001/fix/get-objects-for-group-global-ctype",
+      "labels": [
+        {
+          "path": "guardian/shortcuts.py",
+          "symbol": "get_objects_for_group",
+          "change": "modified",
+          "expected": [
+            "authorization_change",
+            "output_contract_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "The group's permission query now filters by content type as well as codename, so a permission of another model with the same codename no longer grants access to every object of the queried model."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "django-guardian/django-guardian#1056",
+      "repository": "django-guardian/django-guardian",
+      "pull_request": 1056,
+      "base": "d1a406e86fe8b0db7db3808afe30d4935525a85e",
+      "head": "b85a50aff2eef692014b4dcc676c79a8952674ba",
+      "subject": "Merge pull request #1056 from wang2-lat/fix/1049-superuser-prefetch-get-perms",
+      "labels": [
+        {
+          "path": "guardian/core.py",
+          "symbol": "ObjectPermissionChecker.get_perms",
+          "change": "modified",
+          "expected": [
+            "authorization_change",
+            "output_contract_change",
+            "side_effect_change",
+            "ordering_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "With AUTO_PREFETCH an active superuser skips the prefetch, and on a cache miss every permission of the object's type is queried and cached before the empty-list early exit can apply."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "jazzband/django-oauth-toolkit#1931",
+      "repository": "jazzband/django-oauth-toolkit",
+      "pull_request": 1931,
+      "base": "4e30e1315cc5d7027ffdfa43fa00e3bf9b57ce60",
+      "head": "419cbed405a79c77b9296d5c26be0062646c3d74",
+      "subject": "Return consent_required when prompt=none still needs consent (#1931)",
+      "labels": [
+        {
+          "path": "oauth2_provider/authorization_server/views/base.py",
+          "symbol": "AuthorizationView.get",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "authorization_change",
+            "output_contract_change",
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "With prompt=none and forced approval the view now looks up prior authorizations: one covering the requested scopes, claims and resources produces the authorization response, and when consent is still needed it redirects with consent_required."
+        },
+        {
+          "path": "oauth2_provider/authorization_server/views/base.py",
+          "symbol": "AuthorizationView._login_required_response",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "output_contract_change"
+          ],
+          "rationale": "The method now accepts an error argument that used to raise TypeError and puts its value in the redirect, so a caller can signal consent_required; omitting it still gives login_required."
+        },
+        {
+          "path": "oauth2_provider/authorization_server/views/base.py",
+          "symbol": "AuthorizationView._resources_covered",
+          "change": "added",
+          "expected": [],
+          "rationale": "New helper deciding whether a token's RFC 8707 resources cover the requested ones."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "jazzband/django-oauth-toolkit#1939",
+      "repository": "jazzband/django-oauth-toolkit",
+      "pull_request": 1939,
+      "base": "85c16335390164f10d14b02558216c27f44809d6",
+      "head": "f587c421f76c9bb449bffa3f338f03b68eac1193",
+      "subject": "fix: check device.is_expired() in TokenView.device_flow_token_response (#1939)",
+      "labels": [
+        {
+          "path": "oauth2_provider/authorization_server/views/base.py",
+          "symbol": "TokenView.device_flow_token_response",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "state_transition_change",
+            "retry_timeout_change",
+            "output_contract_change",
+            "side_effect_change",
+            "ordering_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "DENIED now takes precedence; for a pending or authorized device past its deadline, is_expired() saves the EXPIRED status and the view returns expired_token, which ends the polling without issuing a token."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "jazzband/django-oauth-toolkit#1929",
+      "repository": "jazzband/django-oauth-toolkit",
+      "pull_request": 1929,
+      "base": "a90c9e7381e6e6f5ba199e866815ec2512230009",
+      "head": "2c2cffcb6f9399f45ac63715e7f99876e5d547ca",
+      "subject": "fix(authorization-server): validate redirect_uri before consent error redirects (#1929)",
+      "labels": [
+        {
+          "path": "oauth2_provider/authorization_server/views/base.py",
+          "symbol": "AuthorizationView.form_valid",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "output_contract_change",
+            "default_behavior_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "On an invalid resource the view now consults the validator before redirecting with invalid_target, uses the client's default URI when none is given, and returns a fatal error response when the client or the URI fails validation."
+        },
+        {
+          "path": "oauth2_provider/authorization_server/views/base.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The import gives an oauthlib exception the name OAuthlibFatalClientError; form_valid catches it and decides the response, labeled on its own."
+        },
+        {
+          "path": "oauth2_provider/core/backends_oauthlib.py",
+          "symbol": "OAuthLibCore.create_authorization_response",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "state_transition_change",
+            "default_behavior_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "On denied consent the method now validates the client and writes the resolved URI, possibly the default one, into the caller's credentials dict, and raises a fatal error without the rejected URI when validation fails."
+        },
+        {
+          "path": "oauth2_provider/core/backends_oauthlib.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The module adds is_absolute_uri to its imports; the URI check runs when the new validation method is called."
+        },
+        {
+          "path": "oauth2_provider/core/backends_oauthlib.py",
+          "symbol": "OAuthLibCore.validate_authorization_redirect_uri",
+          "change": "added",
+          "expected": [],
+          "rationale": "A new method, empty by the rule for added symbols; validating the URI is labeled on the two methods that start calling it."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "jazzband/django-oauth-toolkit#1942",
+      "repository": "jazzband/django-oauth-toolkit",
+      "pull_request": 1942,
+      "base": "2eb675ab7219c299f79c7fdfca2e930f4e468272",
+      "head": "a90c9e7381e6e6f5ba199e866815ec2512230009",
+      "subject": "fix(dcr): return 400 for deeply nested JSON instead of 500 (#1942)",
+      "labels": [
+        {
+          "path": "oauth2_provider/authorization_server/cimd.py",
+          "symbol": "SafeMetadataFetcher._read_document",
+          "change": "modified",
+          "expected": [
+            "error_handling_change"
+          ],
+          "rationale": "When json.loads hits the recursion limit the caller now gets CIMDError, with the original RecursionError as its cause, where RecursionError propagated directly before."
+        },
+        {
+          "path": "oauth2_provider/authorization_server/views/dynamic_client_registration.py",
+          "symbol": "_parse_metadata",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "output_contract_change"
+          ],
+          "rationale": "When json.loads hits the recursion limit the exception used to escape the method; the caller now gets the tuple (None, error response) with invalid_client_metadata."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "jazzband/django-oauth-toolkit#1941",
+      "repository": "jazzband/django-oauth-toolkit",
+      "pull_request": 1941,
+      "base": "53ef02d7e5514a63b99bb518183736b328e59f6e",
+      "head": "2eb675ab7219c299f79c7fdfca2e930f4e468272",
+      "subject": "fix(cimd): refuse metadata documents with lone Unicode surrogates (#1941)",
+      "labels": [
+        {
+          "path": "oauth2_provider/authorization_server/cimd.py",
+          "symbol": "SafeMetadataFetcher._read_document",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change"
+          ],
+          "rationale": "The method now checks that the whole JSON document encodes to UTF-8, so a lone Unicode surrogate in a key or a value raises CIMDError before the metadata is returned."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "jazzband/django-oauth-toolkit#1930",
+      "repository": "jazzband/django-oauth-toolkit",
+      "pull_request": 1930,
+      "base": "16d967ade7a326cb3969bd82d8fbc181c981b804",
+      "head": "53ef02d7e5514a63b99bb518183736b328e59f6e",
+      "subject": "fix: reject lone Unicode surrogates in DCR redirect URIs (#1930)",
+      "labels": [
+        {
+          "path": "oauth2_provider/authorization_server/views/dynamic_client_registration.py",
+          "symbol": "_parse_metadata",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "output_contract_change"
+          ],
+          "rationale": "A JSON object with a lone Unicode surrogate, returned as (data, None) before, is now rejected with (None, error response) and invalid_client_metadata, even when the character is outside the URIs."
+        },
+        {
+          "path": "oauth2_provider/validators.py",
+          "symbol": "AllowedURIValidator.__call__",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change"
+          ],
+          "rationale": "A lone Unicode surrogate in the URI now raises ValidationError when the URI is encoded to UTF-8, with a message that names the cause and leaves out the value, which could not be shown either."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "redis/redis-py#4583",
+      "repository": "redis/redis-py",
+      "pull_request": 4583,
+      "base": "393ec3c6015cc0daa49d21041ff2edcd1862fee0",
+      "head": "5a3cb832dd5b291ce48ce5a9ac200c9432f4fbd1",
+      "subject": "fix(asyncio): record connection.closed when disconnect() times out, is cancelled or has no task (#4583)",
+      "labels": [
+        {
+          "path": "redis/asyncio/connection.py",
+          "symbol": "AbstractConnection.disconnect",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "state_transition_change",
+            "side_effect_change",
+            "ordering_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "The connection drops its socket references before awaiting the close, so a second close does not record it again; a finally block records the close even on cancellation or timeout, and without a task _close() is used and the close is recorded too."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "redis/redis-py#4582",
+      "repository": "redis/redis-py",
+      "pull_request": 4582,
+      "base": "7006b28872a6fcb26e230b843209a6b4a983b192",
+      "head": "092ebe390803dfa672356ca6f51d2e50d4222d24",
+      "subject": "fix: record stream lag for XREADGROUP replies with claim_min_idle_time (#4582)",
+      "labels": [
+        {
+          "path": "redis/asyncio/observability/recorder.py",
+          "symbol": "record_streaming_lag_from_response",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "The async version reads the ID from message[0], so entries with extra fields, which failed to unpack before with the exception swallowed, now reach the collector and record the lag metric."
+        },
+        {
+          "path": "redis/observability/recorder.py",
+          "symbol": "record_streaming_lag_from_response",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "The sync version accepts entries with extra fields, since it reads only the ID at index zero, so those replies now reach record_streaming_lag and produce a metric."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "redis/redis-py#4581",
+      "repository": "redis/redis-py",
+      "pull_request": 4581,
+      "base": "24adfa78a5eea3c28d6b4f9b50aeb1660e030d13",
+      "head": "889d7a473697cdc842d29f3be3ba9476037f9af9",
+      "subject": "chore: read timezone-aware cryptography timestamps in OCSP checks (#4581)",
+      "labels": [
+        {
+          "path": "redis/ocsp.py",
+          "symbol": "_check_certificate",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Reads cryptography's UTC properties and falls back to the old ones when they are missing, avoiding the deprecation warnings that could abort the check when treated as errors; the validity limits apply to the same instants."
+        },
+        {
+          "path": "redis/ocsp.py",
+          "symbol": "_utc_time",
+          "change": "added",
+          "expected": [],
+          "rationale": "A new function, empty by the rule for added symbols, though its callers can change once they use it."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "redis/redis-py#4580",
+      "repository": "redis/redis-py",
+      "pull_request": 4580,
+      "base": "ed805593c77085249ce01a7df1f97953743ba061",
+      "head": "24adfa78a5eea3c28d6b4f9b50aeb1660e030d13",
+      "subject": "perf(asyncio): offload large cluster pipeline packing off the event loop (#4580)",
+      "labels": [
+        {
+          "path": "redis/asyncio/client.py",
+          "symbol": "Pipeline._execute_transaction",
+          "change": "modified",
+          "expected": [
+            "dependency_interaction_change"
+          ],
+          "rationale": "The transaction now calls the module-level function to pack MULTI, the commands and EXEC; the usual packing is equivalent, but a subclass that overrides _pack_commands no longer takes part in that call."
+        },
+        {
+          "path": "redis/asyncio/client.py",
+          "symbol": "Pipeline._execute_pipeline",
+          "change": "modified",
+          "expected": [
+            "dependency_interaction_change"
+          ],
+          "rationale": "The pipeline sends its setup and queued commands to the module-level packer, keeping the usual packing but no longer dispatching to an override of _pack_commands on the instance or a subclass."
+        },
+        {
+          "path": "redis/asyncio/client.py",
+          "symbol": "Pipeline._pack_commands",
+          "change": "removed",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "The method is removed from Pipeline: a caller that awaited pipeline._pack_commands(...) loses that way to get the bytes, though the two internal callers moved to the equivalent module function."
+        },
+        {
+          "path": "redis/asyncio/client.py",
+          "symbol": "_pack_pipeline_commands",
+          "change": "added",
+          "expected": [],
+          "rationale": "New module-level helper holding the former Pipeline._pack_commands logic."
+        },
+        {
+          "path": "redis/asyncio/cluster.py",
+          "symbol": "ClusterNode.execute_pipeline",
+          "change": "modified",
+          "expected": [
+            "boundary_change",
+            "ordering_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "The 1000-command threshold applies here too: with 999 commands the node packs on the event loop thread, from 1000 it hands packing to another thread, and other tasks can run before the write."
+        },
+        {
+          "path": "redis/asyncio/cluster.py",
+          "symbol": "TransactionStrategy._execute_transaction",
+          "change": "modified",
+          "expected": [
+            "boundary_change",
+            "ordering_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "The 1000-command threshold counts MULTI and EXEC: 997 ordinary commands are packed on the event loop thread, while 998 reach it and are handed to another thread, so other tasks can run before the send."
+        },
+        {
+          "path": "redis/asyncio/cluster.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The module imports the packer from redis.asyncio.client, which it already imported classes from; the decision to hand packing to another thread is made when a batch is packed."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "redis/redis-py#4578",
+      "repository": "redis/redis-py",
+      "pull_request": 4578,
+      "base": "8476a0f2cbc50582e5893675f34dc4bec0d51990",
+      "head": "7f0298144aeb1b0a6f62aebc40da95102afa8b7f",
+      "subject": "Pass the stop index of JSON.ARRINDEX when start is omitted (#4578)",
+      "labels": [
+        {
+          "path": "redis/commands/json/commands.py",
+          "symbol": "JSONCommands.arrindex",
+          "change": "modified",
+          "expected": [
+            "boundary_change",
+            "output_contract_change",
+            "default_behavior_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "When stop is given without start, the client now sends 0 and then stop to Redis instead of dropping the limit, and the narrower search can change the index the server returns."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "redis/redis-py#4574",
+      "repository": "redis/redis-py",
+      "pull_request": 4574,
+      "base": "93e757ec4b03ce5efbb7f145f0c8c63a716cb1be",
+      "head": "91b66ffd2fb14d60a92ccc3ba18bd0eb951ceafc",
+      "subject": "Return raw bytes from CF.SCANDUMP when decode_responses=True (#4574)",
+      "labels": [
+        {
+          "path": "redis/commands/bf/commands.py",
+          "symbol": "CFCommands.scandump",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "output_contract_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "With decode_responses on, NEVER_DECODE now asks the executor to return the binary chunk as bytes, which also avoids the decoding error a chunk that does not fit the client's encoding could raise."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "more-itertools/more-itertools#1345",
+      "repository": "more-itertools/more-itertools",
+      "pull_request": 1345,
+      "base": "08dca284ba5446a026afdc34067b658f9da989eb",
+      "head": "c629214760c78c0a2235e896d335cccfb3a64466",
+      "subject": "Merge pull request #1345 from chengzhudejing/fix/numeric-range-large-equality-hash",
+      "labels": [
+        {
+          "path": "more_itertools/more.py",
+          "symbol": "numeric_range.__eq__",
+          "change": "modified",
+          "expected": [
+            "boundary_change",
+            "error_handling_change",
+            "output_contract_change"
+          ],
+          "rationale": "Two distinct ranges longer than sys.maxsize can now be compared: reading _len removes the limit len() imposed, so True or False comes back where OverflowError could be raised."
+        },
+        {
+          "path": "more_itertools/more.py",
+          "symbol": "numeric_range.__hash__",
+          "change": "modified",
+          "expected": [
+            "boundary_change",
+            "error_handling_change",
+            "output_contract_change"
+          ],
+          "rationale": "A range of more than sys.maxsize items can now be a dict key: the hash reads the internal length and returns an integer where len() raised OverflowError."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "more-itertools/more-itertools#1342",
+      "repository": "more-itertools/more-itertools",
+      "pull_request": 1342,
+      "base": "4aeb4338ae1407d8da9723e86da99efeb446f719",
+      "head": "fbd55137fe47b44f55190c3714c75f1b21bf834d",
+      "subject": "Merge pull request #1342 from feiiiiii5/more-itertools-C-211",
+      "labels": [
+        {
+          "path": "more_itertools/more.py",
+          "symbol": "chunked_even",
+          "change": "modified",
+          "expected": [
+            "boundary_change",
+            "validation_change",
+            "error_handling_change",
+            "output_contract_change",
+            "side_effect_change",
+            "ordering_change"
+          ],
+          "rationale": "When iteration starts, n=0 now yields no chunks and a negative n raises its own ValueError before the iterator is taken, where the old code could consume items filling its buffer and only then fail in islice."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "more-itertools/more-itertools#1334",
+      "repository": "more-itertools/more-itertools",
+      "pull_request": 1334,
+      "base": "4aeb4338ae1407d8da9723e86da99efeb446f719",
+      "head": "bafe069b729fc6456a603bd3a87483e50c36c852",
+      "subject": "Merge pull request #1334 from deadstrobe5/faster-interleave-longest",
+      "labels": [
+        {
+          "path": "more_itertools/more.py",
+          "symbol": "interleave_longest",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "output_contract_change",
+            "side_effect_change",
+            "ordering_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "The call now returns a filter object and builds zip_longest right away, so an __iter__ with effects runs at the call and a non-iterable argument raises TypeError there; items are still read on demand."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "more-itertools/more-itertools#1322",
+      "repository": "more-itertools/more-itertools",
+      "pull_request": 1322,
+      "base": "4aeb4338ae1407d8da9723e86da99efeb446f719",
+      "head": "d1f347fec150ca1b4c6f95082b9df89a0923b1d2",
+      "subject": "Merge pull request #1322 from feiiiiii5/fix/peekable-slice-negative-step",
+      "labels": [
+        {
+          "path": "more_itertools/more.py",
+          "symbol": "peekable._get_slice",
+          "change": "modified",
+          "expected": [
+            "boundary_change",
+            "error_handling_change",
+            "state_transition_change",
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "For p[5::-1] only the first six items are now cached, which changes the read limit, the cache contents and the calls to the iterator; the slice ends even on an infinite source and avoids errors the source could raise further on."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "more-itertools/more-itertools#1331",
+      "repository": "more-itertools/more-itertools",
+      "pull_request": 1331,
+      "base": "737c261c21271e1a6eb949f7d188297bebe8b125",
+      "head": "da864da6d8beaa49d693b719cbc21a5d88dfb475",
+      "subject": "Merge pull request #1331 from more-itertools/flit-4-sdist",
+      "labels": [
+        {
+          "path": "more_itertools/__init__.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Only the __version__ string changes, from 11.2.0 to 11.2.1."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "more-itertools/more-itertools#1314",
+      "repository": "more-itertools/more-itertools",
+      "pull_request": 1314,
+      "base": "b21ec4ee8e139ebe297e2221980a694bebb69523",
+      "head": "909b70336ce229088bbc253d300190c99fb8411a",
+      "subject": "Merge pull request #1314 from more-itertools/version-11.2.0",
+      "labels": [
+        {
+          "path": "more_itertools/__init__.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Only the __version__ string changes, from 11.1.0 to 11.2.0; the changes to tail and iter_index are labeled on their own."
+        },
+        {
+          "path": "more_itertools/recipes.py",
+          "symbol": "tail",
+          "change": "modified",
+          "expected": [
+            "boundary_change",
+            "validation_change",
+            "error_handling_change",
+            "output_contract_change",
+            "side_effect_change",
+            "ordering_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "With n=-1 and a list, tail now reads its length and returns an iterator that consumes the input without yielding values, while deque rejects the size for a source without a length; both calls failed before touching the input."
+        },
+        {
+          "path": "more_itertools/recipes.py",
+          "symbol": "iter_index",
+          "change": "modified",
+          "expected": [
+            "boundary_change",
+            "validation_change",
+            "error_handling_change",
+            "output_contract_change",
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "With a negative bound and a source without an index method, the whole source used to be consumed into a tuple and searched; islice now rejects the bound with ValueError when the search starts, consuming no items and yielding none of the earlier indices."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "dateutil/dateutil#1655",
+      "repository": "dateutil/dateutil",
+      "pull_request": 1655,
+      "base": "71d92da6f0318101653039ab3f051aef5d7e0438",
+      "head": "6e1864c7c309f4d905e8b337864ca8b5d3ff9d34",
+      "subject": "Release the rrule cache lock on every exit from a refill (#1655)",
+      "labels": [
+        {
+          "path": "src/dateutil/rrule.py",
+          "symbol": "rrulebase._iter_cached",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "state_transition_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "The context manager now releases the lock when the cache is complete or on an exception, where a break could skip release() and leave another iterator over the same rule waiting forever."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "dateutil/dateutil#1600",
+      "repository": "dateutil/dateutil",
+      "pull_request": 1600,
+      "base": "bd5fd88b0b0255dd364b57af58acf89389c6c69d",
+      "head": "21b6862a1e5674ac98695cb35afa5dd8ab6711c1",
+      "subject": "Allow pickling and deepcopy of cached recurrence rules (#1600)",
+      "labels": [
+        {
+          "path": "src/dateutil/rrule.py",
+          "symbol": "rrulebase.__reduce_ex__",
+          "change": "added",
+          "expected": [],
+          "rationale": "New method: pickling or copying a cached rrule drops its lock and generator and sends an empty cache."
+        },
+        {
+          "path": "src/dateutil/rrule.py",
+          "symbol": "rrulebase.__setstate__",
+          "change": "added",
+          "expected": [],
+          "rationale": "New method: unpickling restores the state and gives a cached rrule a fresh lock and a reset cache."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "dateutil/dateutil#1285",
+      "repository": "dateutil/dateutil",
+      "pull_request": 1285,
+      "base": "b04edc08aa3559063b3b097f437941d8c4b84aba",
+      "head": "bfd8260a7e4b0caafb57719bf26f8e4856885ad9",
+      "subject": "Merge pull request #1285 from graingert/patch-1",
+      "labels": [
+        {
+          "path": "src/dateutil/tz/tz.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "The direct constructor builds the same 1970-01-01 midnight, and on Python 3.12 it avoids the warning utcfromtimestamp(0) gave at import, even when warnings are configured as errors."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "dateutil/dateutil#1248",
+      "repository": "dateutil/dateutil",
+      "pull_request": 1248,
+      "base": "e8151c15172620d8d55e410f9297564368c886bf",
+      "head": "c73a9b183ff0aa2ab2ac8c7c52b61ac6081b6eed",
+      "subject": "Merge pull request #1248 from pganssle/add-pre-commit",
+      "labels": [
+        {
+          "path": "src/dateutil/relativedelta.py",
+          "symbol": "relativedelta",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Only a trailing space after weekday: in relativedelta's docstring is removed; the date arithmetic is unchanged."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "dateutil/dateutil#1179",
+      "repository": "dateutil/dateutil",
+      "pull_request": 1179,
+      "base": "94e4cf3a837efd5585d8a7d590275e8b61212b51",
+      "head": "7c5c98959bd0e9eea3c55fdf78bef3ae5b8c995e",
+      "subject": "docs: YYYYMM is not supported (#1179)",
+      "labels": [
+        {
+          "path": "src/dateutil/parser/isoparser.py",
+          "symbol": "isoparser.isoparse",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The docstring no longer lists YYYYMM as a supported format; the parsing code is identical at both commits."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "dateutil/dateutil#1148",
+      "repository": "dateutil/dateutil",
+      "pull_request": 1148,
+      "base": "b3180d3aab2925e41c8cc5bfd84c640dcad6003c",
+      "head": "7d2e7f639dc6075b2db45981ceefb748e452d441",
+      "subject": "Merge pull request #1148 from cclauss/patch-1",
+      "labels": [
+        {
+          "path": "dateutil/rrule.py",
+          "symbol": "rrulebase.count",
+          "change": "modified",
+          "expected": [],
+          "rationale": "A docstring typo is fixed, trough to through; the method still walks the recurrences when it needs their count."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
     }
   ]
 }

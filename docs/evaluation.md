@@ -194,21 +194,23 @@ describe only the bounded synthetic corpus and are not a claim about arbitrary r
 
 ## Real pull requests
 
-`docs/benchmark.md` measures the analyzer on 90 real pull requests from fifteen public
-repositories, against the labels of `benchmark/cases.json`: a model wrote one for every Python
-symbol they change before reading the analyzer's output, and a person reviewed all 251,
-correcting 42. The 60 development cases are the ones the analyzer is changed against, and the 30
-held-out cases, labeled and reviewed before its next change, measure that change on code it was not
-designed from. Their baseline, in deterministic mode with 0.16.0 on 2026-11-03: every one of the
-44 held-out behavior changes got a finding, 16 of them in an expected category, and 18 of the 29
-unchanged symbols got one too; 16 of the 107 scored findings, and 16 of the 50 that name a
-behavior category, are in an expected one. The second round's correction, released in 0.17.0
-and measured on them once it was designed, leaves 14 of those 29 symbols with a finding and 16 of
-103 scored findings in an expected category, and every behavior change keeps its finding and its
-category. These are the numbers the corpus above does not give. With a model, `openai/gpt-oss-120b`
-on the development cases, the findings stayed as they were but for two wrong ones, and a blind
-review judged 6 of 20 of the test obligations the model adds useful, and none of 20 deterministic
-ones.
+`docs/benchmark.md` measures the analyzer on 120 real pull requests from twenty public
+repositories, against the labels of `benchmark/cases.json`. For the first 90, a model wrote one for
+every Python symbol they change before reading the analyzer's output, and a person reviewed all
+251, correcting 42. For the last 30, two models labeled each of their 53 symbols blind and apart,
+and the person settled every label that is scored. The 90 development cases are the ones the
+analyzer is changed against, and the 30 held-out cases, labeled and reviewed before its next
+change, will measure that change on code it was not designed from. The previous held-out split,
+which has since joined development, gave the second round's baseline, in deterministic mode with
+0.16.0 on 2026-11-03: every one of its 44 behavior changes got a finding, 16 of them in an expected
+category, and 18 of its 29 unchanged symbols got one too; 16 of the 107 scored findings, and 16 of
+the 50 that name a behavior category, are in an expected one. The second round's correction,
+released in 0.17.0 and measured on them once it was designed, leaves 14 of those 29 symbols with a
+finding and 16 of 103 scored findings in an expected category, and every behavior change keeps its
+finding and its category. These are the numbers the corpus above does not give. With a model,
+`openai/gpt-oss-120b` on the development cases, the findings stayed as they were but for two wrong
+ones, and a blind review judged 6 of 20 of the test obligations the model adds useful, and none of
+20 deterministic ones.
 
 `docs/real-pr-validation.md` records what the analyzer says on other real merged pull requests,
 produced by the opt-in `scripts/validate_real_prs.py` harness. Those are **observations on

@@ -6,6 +6,17 @@
   runs every fixture met its ceiling, taking 1.8 to 3.0 times as long as on the development
   machine; the mass-rename fixture came closest, at half of its two-second ceiling. Documentation
   only.
+- **Evaluation:** the benchmark has a third held-out split, 30 pull requests of
+  django-guardian/django-guardian, jazzband/django-oauth-toolkit, redis/redis-py,
+  more-itertools/more-itertools, and dateutil/dateutil, and the second split joins development,
+  which now has 90 cases. Two annotators of different model families, Claude Opus 5.5 and
+  gpt-6.1-terra, labeled its 53 symbols blind and apart. They agreed on whether the behavior
+  changes for 43 of the 47 scored symbols (kappa 0.78), and on the exact categories for 19. The
+  reviewer settled every scored label on a page that showed the two proposals as A and B without
+  saying whose. The labels hold the benchmark's first `authorization_change`, and list 3.4
+  categories per behavior change against development's 2.2, so precision on the two splits does
+  not compare. `benchmark/README.md` gives the protocol, and `docs/benchmark.md` the agreement and
+  the review. No analyzer behavior changes, and the split has not been measured yet.
 - **Fix:** the GitHub Action writes the brief to the job summary on every run, before it comments.
   `docs/github-action.md` said a fork's pull request still showed the result in the step summary,
   but nothing wrote one, so a run that could not comment showed nothing. A run on a push, with

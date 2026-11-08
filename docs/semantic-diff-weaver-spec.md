@@ -961,9 +961,10 @@ plugin.
 - Verified source-to-test mapping. *Open by design:* every candidate test is reported as
   unverified.
 - Evaluation corpus and public benchmark. *Done:* the 18-case corpus of `docs/evaluation.md`,
-  and `benchmark/cases.json`, 90 real pull requests from fifteen public repositories with every
-  Python symbol they change labeled by a model and reviewed by a person, 30 of them held out from
-  the analyzer's next change, which `scripts/run_benchmark.py` measures in `docs/benchmark.md`.
+  and `benchmark/cases.json`, 120 real pull requests from twenty public repositories with every
+  Python symbol they change labeled by a model, or by two apart, and reviewed by a person, 30 of
+  them held out from the analyzer's next change, which `scripts/run_benchmark.py` measures in
+  `docs/benchmark.md`.
 - Downstream integration with regression selection and autonomous test generation. *Partly:*
   `test_selection` and the `select` subcommand name the test files a change can affect, by the
   imports their tests follow, or say why the whole suite has to run; autonomous test generation
@@ -1022,11 +1023,12 @@ All eight are answered by the shipped design, where shown.
    similarity matching that accepts at 0.82 and refuses near-ties within 0.03, moves between two
    files that both remain included (`ast_diff/match.py`).
 6. Which public repositories can form an evaluation corpus with human-labeled behavioral diffs?
-   *Answered:* fifteen public Python libraries, six merged pull requests each, sampled without
+   *Answered:* twenty public Python libraries, six merged pull requests each, sampled without
    choosing them by hand and labeled symbol by symbol, 30 of them held out from the analyzer's next
    change (`benchmark/cases.json`, measured in `docs/benchmark.md`). A model, Claude Opus 5.5,
-   wrote the labels and a person reviewed every one, correcting 42 of the 251, as `reviewed_by`
-   records case by case.
+   wrote the first 251 labels and a person reviewed every one, correcting 42. Claude Opus 5.5 and
+   gpt-6.1-terra wrote the last 53 blind and apart, and the person settled every scored one between
+   them, as `reviewed_by` records case by case.
 7. Should deterministic findings be emitted when the LLM is unavailable? *Answered:* yes, by
    default: with `rules.deterministic_fallback` on, a run without a model, or whose every model
    call fails, reports the deterministic findings; turned off, it fails with `llm_unavailable`.

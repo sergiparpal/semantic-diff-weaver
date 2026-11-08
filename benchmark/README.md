@@ -1,7 +1,7 @@
 # Labeled benchmark of real pull requests
 
-`cases.json` is a public benchmark for analyzers of behavioral change: 90 pull requests merged into
-fifteen public Python repositories, each pinned by two commits, with every Python symbol it changes
+`cases.json` is a public benchmark for analyzers of behavioral change: 120 pull requests merged into
+twenty public Python repositories, each pinned by two commits, with every Python symbol it changes
 outside its tests labeled by the categories a reviewer expects of it, or by none when its behavior
 does not change. `scripts/run_benchmark.py` measures Semantic Diff Weaver against it, and
 `docs/benchmark.md` holds the results.
@@ -19,29 +19,45 @@ from where its pull request branched off. A pull request was taken when the anal
 the Python symbols it changes outside the tests is between 1 and 10 and none of its scope was left
 unread, and was never chosen by hand. `run_benchmark.py propose` reproduces the sample; it prints
 how many symbols and files each pull request changes and never a finding. Ten repositories were
-sampled first, and five more later for a second held-out split.
+sampled first, then five more for a second held-out split, and five more for a third.
 
 ## The splits
 
-Each case's `split` says what it is for. The 60 `development` cases are the ones the analyzer is
+Each case's `split` says what it is for. The 90 `development` cases are the ones the analyzer is
 changed against: their disagreements are read to design a correction. They are the first sample's
 30 development cases, from `psf/requests`, `pallets/click`, `psf/black`, `encode/httpx`, and
-`python-attrs/attrs`, and its 30 held-out cases, from `pallets/flask`, `pallets/werkzeug`,
-`encode/starlette`, `Textualize/rich`, and `marshmallow-code/marshmallow`, which were labeled before
-the analyzer was first changed and joined development once that change had been measured on them.
-The 30 `held_out` cases, from `encode/django-rest-framework`, `jd/tenacity`, `urllib3/urllib3`,
-`agronholm/anyio`, and `pypa/packaging`, were labeled, reviewed, and committed before the
-analyzer's next change, and measure it on code it was not designed from. Once a correction has
-been measured on them, a new held-out sample is labeled before the next one is designed.
+`python-attrs/attrs`, and two held-out splits that joined development once a change had been
+measured on them: the first sample's 30 held-out cases, from `pallets/flask`, `pallets/werkzeug`,
+`encode/starlette`, `Textualize/rich`, and `marshmallow-code/marshmallow`, and the second sample's
+30, from `encode/django-rest-framework`, `jd/tenacity`, `urllib3/urllib3`, `agronholm/anyio`, and
+`pypa/packaging`. The 30 `held_out` cases, from `django-guardian/django-guardian`,
+`jazzband/django-oauth-toolkit`, `redis/redis-py`, `more-itertools/more-itertools`, and
+`dateutil/dateutil`, were labeled, reviewed, and committed before the analyzer's next change, and
+measure it on code it was not designed from. Once a correction has been measured on them, a new
+held-out sample is labeled before the next one is designed.
 
 ## The labels
 
-One annotator labeled every case from its diff and the files at its two commits, before reading
-the analyzer's output on it; the labels were committed before the first measurement. A reviewer
-then checked every label on a page that showed each symbol's diff and never the analyzer's
-findings, and corrected 26 of the first sample's 162 labels and 16 of the second's 89. Each label
-names a symbol as the analyzer does — `Class.method`, `function.nested` for a function defined
-directly in another's body, a class's own statements as `Class`, and a module's top-level
+One annotator labeled every case of the first two samples from its diff and the files at its two
+commits, before reading the analyzer's output on it; the labels were committed before the first
+measurement. A reviewer then checked every label on a page that showed each symbol's diff and never
+the analyzer's findings, and corrected 26 of the first sample's 162 labels and 16 of the second's
+89.
+
+The third sample was labeled twice, by annotators of two model families, Claude Opus 5.5 and
+gpt-6.1-terra, each alone and blind to the other and to the analyzer, from every case's diff and the
+code of its changed symbols at both commits. For every symbol that is not added, the reviewer then
+settled the label on a page that showed the symbol's diff and the two proposals as A and B, in an
+order drawn per symbol and without saying whose, and never the analyzer's findings: one of the
+proposals, both together, or a label of their own, with the reviewer's note on the symbol as its
+rationale. An added symbol keeps the empty list its rule gives it, with the first annotator's
+rationale. The third sample's labels list more categories per behavior change than the first two
+samples' do, 3.4 against 2.2, so a finding in an expected category is likelier there, and precision
+on that split does not compare with development's. `docs/benchmark.md` gives the two annotators'
+agreement and the review.
+
+Each label names a symbol as the analyzer does — `Class.method`, `function.nested` for a function
+defined directly in another's body, a class's own statements as `Class`, and a module's top-level
 statements as `<module>` — and says whether it was `modified`, `added`, or `removed`. A definition
 inside an `if` or a `try` belongs to the symbol around it, as werkzeug's module-level `__getattr__`
 under `if not t.TYPE_CHECKING:` belongs to `<module>`.
@@ -71,8 +87,8 @@ under `if not t.TYPE_CHECKING:` belongs to `<module>`.
   change.
 
 Each label carries one line of rationale. A case's `reviewed_by` names whoever checks its labels
-after the first annotator; a label found wrong is corrected with its reason in the commit that
-changes it, and never to agree with the analyzer.
+after its annotators; a label found wrong is corrected with its reason in the commit that changes
+it, and never to agree with the analyzer.
 
 ## Running it
 
