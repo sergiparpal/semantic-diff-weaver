@@ -37,7 +37,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 
-from .ast_diff.extract import import_bindings
+from .ast_diff.extract import import_bindings, parse_python
 from .call_graph import importable_name, locate_module, module_locator, package_of, source_roots
 from .errors import WeaverError
 from .git_diff import ChangedFile, GitRepository
@@ -188,7 +188,7 @@ def _run_code(code: str | None, reading: _Reading, depth: int) -> None:
         reading.opaque = True
         return
     try:
-        tree = ast.parse(code)
+        tree = parse_python(code)
     except (MemoryError, RecursionError, SyntaxError, TypeError, ValueError):
         reading.opaque = True
         return
@@ -410,7 +410,7 @@ def _follow(
             read_bytes += len(source.encode("utf-8"))
             reading = _Reading()
             try:
-                tree = ast.parse(source)
+                tree = parse_python(source)
                 _read(tree, package_of(path, roots), reading)
             except (MemoryError, RecursionError, SyntaxError, TypeError, ValueError):
                 return UNPARSED.format(path=path)

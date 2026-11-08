@@ -6,6 +6,7 @@ import ast
 import builtins
 import copy
 import hashlib
+import warnings
 from collections import Counter, defaultdict
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
@@ -118,6 +119,22 @@ def _assigned_variables(*targets: ast.expr) -> frozenset[str]:
     return frozenset(names)
 
 
+def parse_python(source: str, *, type_comments: bool = False) -> ast.Module:
+    """Parse a repository's Python without the warnings its code raises.
+
+    Python warns while it parses some literals: a string with an invalid escape sequence, such
+    as a regular expression written without the ``r`` prefix, is a ``SyntaxWarning`` from 3.12
+    and a ``DeprecationWarning`` before. Such a warning is about the analyzed code, yet it went
+    to this process's stderr, where it read as the tool's own, and where warnings are errors it
+    was raised as a ``SyntaxError`` about a file Python runs. Every parse of a repository's code
+    comes here.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", SyntaxWarning)
+        warnings.simplefilter("ignore", DeprecationWarning)
+        return ast.parse(source, type_comments=type_comments)
+
+
 def parse_module(source: str) -> ast.Module:
     """Parse committed source, preferring type comments but never failing because of them.
 
@@ -128,9 +145,9 @@ def parse_module(source: str) -> ast.Module:
     fabricated ``parse_incomplete`` finding about source that Python itself accepts.
     """
     try:
-        return ast.parse(source, type_comments=True)
+        return parse_python(source, type_comments=True)
     except SyntaxError:
-        return ast.parse(source)
+        return parse_python(source)
 
 
 def _validate_ast_budget(tree: ast.AST, budget: AstBudget) -> None:
