@@ -13,7 +13,11 @@ verified):
   This check fails on a `dangerous` verdict and on any high or critical finding outside `tests/`:
   those are findings no user should be asked to accept.
 - It reads the plugin's Python dependencies from `pyproject.toml` and, with the user's consent,
-  installs them into an environment of its own. `--yes-deps` gives that consent here.
+  installs them into an environment of its own. `--yes-deps` gives that consent here. When it
+  cannot enable the plugin, for instance because resolving that environment fails, it says why
+  and still exits 0, with the plugin installed but disabled. So this check reads Hermes's plugin
+  listing after the install and, unless it shows the plugin enabled, fails with the end of the
+  install's output.
 - It loads the plugin in that environment. This check loads it there with Hermes's own plugin
   manager, requires both tools, and runs one analysis on Hermes's versions of Pydantic and PyYAML.
 
@@ -129,6 +133,30 @@ def unacceptable_findings(verdict: str, findings: Iterable[ScanFinding]) -> list
                 f"{finding.file}:{finding.line} ({finding.pattern_id})"
             )
     return problems
+
+
+def enable_problem(listing: str) -> str | None:
+    """Why Hermes's plugin listing shows the plugin not enabled after the install; None if it is.
+
+    `listing` is what `hermes plugins list --json` prints, the listing `after-install.md` tells a
+    user to check: one row per plugin, each with a `name` and a `status` of `enabled`,
+    `not enabled`, or `disabled`. 0.22.7 and 0.23.0 print the same rows. This reads the status
+    rather than Hermes's wording of the refusal, which no release promises to keep.
+    """
+    try:
+        rows = json.loads(listing)
+    except json.JSONDecodeError:
+        return f"Hermes's plugin listing is not JSON: it starts {listing[:200]!r}"
+    statuses = [
+        row.get("status")
+        for row in (rows if isinstance(rows, list) else [])
+        if isinstance(row, dict) and row.get("name") == PLUGIN_NAME
+    ]
+    if len(statuses) != 1:
+        return f"Hermes's plugin listing has {len(statuses)} rows named {PLUGIN_NAME}, not one"
+    if statuses[0] != "enabled":
+        return f"Hermes lists the plugin as {statuses[0]!r} although the install passed --enable"
+    return None
 
 
 def dependency_python(home: Path) -> Path:
@@ -265,6 +293,17 @@ def main() -> int:
         if install.returncode != 0 or not installed.is_dir():
             raise VerificationError(
                 "Hermes refused or failed the install; `--force` accepts only a caution verdict:\n"
+                + _tail(install)
+            )
+        listing = _run(
+            [str(hermes), "plugins", "list", "--json"], environment, working, STEP_TIMEOUT_SECONDS
+        )
+        if listing.returncode != 0:
+            raise VerificationError(f"`hermes plugins list --json` failed:\n{_tail(listing)}")
+        problem = enable_problem(listing.stdout)
+        if problem:
+            raise VerificationError(
+                f"the install exited 0, but {problem}; the install's output ends:\n"
                 + _tail(install)
             )
 

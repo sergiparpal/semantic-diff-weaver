@@ -50,6 +50,14 @@
   `scripts/check_anthropic_sdk.py` runs the same check locally and exits 1 when either moved. On
   2026-11-08 it read 2.6.0, which still sends 2026-10-21 and takes every keyword. See
   `docs/decisions.md`, 2026-11-08.
+- **Tests:** `hermes-current` names the reason when Hermes installs the plugin but does not enable
+  it. Hermes's install exits 0 when it refuses to enable a plugin, for instance because resolving
+  the plugin's dependency environment fails. On 2026-11-08 a 504 for a wheel that one of Hermes's
+  own optional extras downloads failed the job that way, on `main` too, and the log showed only a
+  missing-PyYAML traceback from the load check. `scripts/verify_hermes_install.py` now reads
+  `hermes plugins list --json` after the install and fails unless it shows the plugin enabled,
+  with the end of the install's output, where Hermes says why. See `docs/decisions.md`,
+  2026-11-08, an install that leaves the plugin disabled.
 
 ## 0.19.0 - 2026-11-07
 
