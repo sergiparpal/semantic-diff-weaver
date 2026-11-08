@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.19.3 - 2026-11-08
+
+A merged finding's symbol, and the analyzed code's warnings. With a model, a finding that a
+model's claim merges into keeps its own symbol: sorted by ID alone, its evidence could begin with
+another symbol's, and in the benchmark's flask#5899 a removed method's only finding became its
+class's. With or without a model, the analysis parses a repository's code without the warnings
+that code raises, which reached stderr and, where warnings are errors, made a file Python runs
+count as unparsed. `docs/benchmark.md` measures the 90 development cases with three more models
+and 15 of them with gpt-6.1-terra: none changes what the analysis finds. A patch release; schema
+1.5 and every golden are unchanged.
 
 - **Fix:** the analysis parses a repository's code without the warnings that code raises.
   Python warns while it parses a string with an invalid escape sequence, such as a regular
