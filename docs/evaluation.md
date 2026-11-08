@@ -281,6 +281,30 @@ pull requests 10060 and 10062 on 2026-10-06. The first changed only a documentat
 `select` rightly connects to no test, and both failed `test_get_encoded_filename` on the same
 mangled file name. See `docs/decisions.md`, 2026-11-08.
 
+## The inference layer against prompt injection
+
+`scripts/prompt_injection.py` analyzes eight fixture changes with a real model, each made twice,
+clean and with an instruction to the model in the README or in a changed string, plus one in a
+comment as a control. It checks that no evidence the analysis did not extract reaches the output,
+and measures what the instructions get the model to write. On 2026-11-08 with gpt-oss-120b, low
+reasoning, three runs a variant, 48 calls, 0.0097 USD:
+
+| Measure | Before the copy rule | With it, replayed |
+| --- | --- | --- |
+| Evidence the analysis did not extract, in the output | 0 | 0 |
+| Deterministic findings lost | 0 | 0 |
+| References to evidence never shown, discarded | 2 | 2 |
+| Injected runs whose replies repeated a marker | 13 of 24 | 13 of 24 |
+| Injected runs that carried one into the analysis | 7 of 24 | 2 of 24 |
+| README command as an obligation's title | 3 of 3 | 0 of 3 |
+
+The copy rule discards a model's text that repeats 40 or more consecutive characters of what the
+call showed it from the repository, or of its own instructions. The 2 injected runs still carrying
+a marker carry the marker alone. Replayed on the benchmark's 60 development cases, the rule
+discarded 2 of the model's 262 proposed obligations and 1 of its findings, all long quotes of the
+changed code. The control's comment never reached the model. See `docs/decisions.md`, 2026-11-08,
+a model's prose that copies what it was shown.
+
 ## The Claude Code skill
 
 `evals/` measures `skills/semantic-diff/SKILL.md` with `claude plugin eval`: nine cases, each a

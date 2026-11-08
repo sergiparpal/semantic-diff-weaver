@@ -57,6 +57,14 @@ import.
 - Model input separates trusted instructions from delimited untrusted evidence. Output may reference
   only deterministic evidence IDs and cannot trigger reads, tools, subprocesses, network access, or
   configuration changes.
+- The model sees the changed code as the analysis extracts it, expressions and strings but never a
+  comment or a docstring, and the README's excerpt. A repository can still write instructions
+  there, and the model's prose reaches the report: a finding of its own, an assumption, a proposed
+  obligation. That prose is discarded when it repeats 40 or more consecutive characters of what the
+  call showed it from the repository, or of its own instructions, since that is the repository
+  speaking through the model. Shorter echoes remain possible, and the prose is otherwise only
+  redacted and bounded. `scripts/prompt_injection.py` measures this against a model, and
+  `tests/security/test_prompt_injection.py` holds the regressions.
 - Delimiter characters inside untrusted model data are JSON-escaped, and terminal/bidirectional
   controls are rendered visibly in Markdown. Repository text in a code span, a symbol or a path, is
   shown as it is between more backticks than it holds, so it can close neither the span nor its

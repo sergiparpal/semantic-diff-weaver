@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- **Security:** with a model, the analysis discards a model's text that repeats 40 or more
+  consecutive characters of what the call showed it from the repository, or of its own
+  instructions: a proposed obligation whole, a finding of the model's own, or an assumption alone,
+  each with a warning. A repository can write instructions to the model in its README or in a
+  changed string. Measured with gpt-oss-120b, a README that asked for it got its own `curl` command,
+  piped to a shell, into a test obligation's title in 3 of 3 runs. Evidence it never showed was
+  never accepted, nor was a finding lost. On the same replies, replayed, injected text reached the
+  analysis in 2 runs of 24 instead of 7, a marker alone each time. On the benchmark's 60 development
+  cases the rule discarded 2 of the model's 262 obligations and 1 of its findings, long quotes of
+  the changed code. Analyses without a model are unchanged. See `docs/decisions.md`, 2026-11-08, a
+  model's prose that copies what it was shown.
+- **Evaluation:** `scripts/prompt_injection.py` measures the inference layer against eight fixture
+  repositories that tell the model what to say, each analyzed clean and injected, without a model
+  and with one, under a spending cap, with `--replay` for later code. `docs/security.md` says what
+  the model sees, never a comment or a docstring, and what its prose can still carry.
 - **Evaluation:** `scripts/shadow_select.py` measures `select` against failures that happened, the
   red pull-request runs of public projects, since the repositories this project is tried on never
   push a red run: their pre-commit hooks run the whole suite. It reads each run's failed tests from
