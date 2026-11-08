@@ -120,6 +120,26 @@ NousResearch/hermes-agent. Four choices are deliberate:
 - **The uv pin is linked, not read.** The installer's format is Hermes's own and can change, so the
   issue links the file at the new tag rather than parsing it.
 
+## An install that leaves the plugin disabled (2026-11-08)
+
+On 2026-11-08 `hermes-current` failed on #88, which changes benchmark labels and documentation, and
+failed on `main` when reproduced locally. Its only message was a traceback from the load check: no
+package metadata for PyYAML, under Hermes's own interpreter. The install had exited 0. When Hermes's
+package manager builds a plugin's dependency environment, it resolves Hermes's whole lock again,
+optional extras included, and GitHub answered 504 for the release wheel one of those extras
+downloads, kittentts 0.8.1. Hermes then refused to enable the plugin, printed why, and left it
+installed but disabled. With no dependency environment, the load check ran where PyYAML is missing,
+and the reason Hermes printed never reached the log. The branch ruleset admits no bypass, so merging
+waited about three hours for the download to recover.
+
+`scripts/verify_hermes_install.py` now reads `hermes plugins list --json` right after the install,
+the listing `after-install.md` tells a user to check. Unless it shows the plugin `enabled`, the check
+fails with the end of the install's output, where Hermes says why. It reads each row's `status`,
+which 0.22.7 and 0.23.0 print alike, rather than matching the wording of Hermes's refusal. Offline
+tests cover the judgment. Run against v0.23.0 with an unreachable package index, the check reports
+the plugin `not enabled` and prints the resolver's connection error. A failed upstream download
+still fails the job, as it would fail a user's install; re-run the job once the download recovers.
+
 ## A weekly check of the anthropic SDK (2026-11-08)
 
 The Anthropic adapter fails silently: a request the SDK or its API version rejects fails every
