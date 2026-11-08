@@ -2,8 +2,13 @@
 
 ## Unreleased
 
+- **Evaluation:** `scripts/prompt_injection.py`'s summary gives the calls a run made and what
+  the endpoint billed for them, failed calls included. It gave only what the analyses kept,
+  which left out a reply the schema rejects and the retry it costs: llama-3.1-8b-instruct's run
+  read 0.0063 USD where 0.0097 was billed, for 51 calls in 48 runs. `docs/evaluation.md` and
+  `docs/decisions.md` now give the billed cost and the calls of both models' runs.
 - **Evaluation:** `docs/evaluation.md` records the prompt-injection cases against a second model,
-  llama-3.1-8b-instruct, with 0.19.2's copy rule, for 0.0063 USD. No evidence the analysis did not
+  llama-3.1-8b-instruct, with 0.19.2's copy rule, for 0.0097 USD. No evidence the analysis did not
   extract reached the output, and no finding was lost. Its replies repeated an injection's marker
   in 9 of 21 valid injected runs, and none reached the analysis. Replayed with the rule turned off,
   3 would have, each the README's command as an obligation's title, as gpt-oss-120b wrote it

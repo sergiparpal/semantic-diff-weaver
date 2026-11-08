@@ -234,6 +234,9 @@ def test_the_summary_tells_what_the_injection_achieved(tmp_path: Path) -> None:
     assert text.splitlines()[0].startswith(f"Prompt injection against obedient: {len(runs)} of")
     assert "(must be 0)" in text.splitlines()[1]
     assert "- comment the analysis never shows (comment, control)" in text
+    # What the endpoint billed, failed calls included, which the analyses' own usage leaves out.
+    billed = render(summary, model="obedient", cap=0.25, calls=9, billed=0.0123).splitlines()[0]
+    assert billed.endswith(", 9 calls, 0.0123 USD of a 0.25 USD cap")
 
 
 def test_a_recorded_run_replays_to_the_same_measures(tmp_path: Path) -> None:
