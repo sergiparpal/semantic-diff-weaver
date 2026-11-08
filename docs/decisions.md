@@ -120,6 +120,43 @@ NousResearch/hermes-agent. Four choices are deliberate:
 - **The uv pin is linked, not read.** The installer's format is Hermes's own and can change, so the
   issue links the file at the new tag rather than parsing it.
 
+## A weekly check of the anthropic SDK (2026-11-08)
+
+The Anthropic adapter fails silently: a request the SDK or its API version rejects fails every
+call, and the analysis falls back to deterministic findings behind a generic per-batch warning, as
+*Anthropic requests carry no sampling parameters* records. Nothing would have shown such a release.
+No CI job installs the `anthropic` extra, and a release inside its range, `>=0.77,<3`, reaches users
+with no Dependabot pull request: 2.4.0, 2.5.0, and 2.6.0 came out that way between 2026-11-02 and
+2026-11-05. The weekly `anthropic-sdk` workflow, on Mondays at 06:45 UTC and on dispatch, runs
+`scripts/check_anthropic_sdk.py --open-issue`. Four choices are deliberate:
+
+- **The newest release the extra admits.** It is what installing the extra takes. A release past
+  the range waits for the pull request that widens it, which a stub-server probe has to back, since
+  CI cannot.
+- **Read, never run.** The check downloads that release's wheel from PyPI, compares its digest with
+  the one the index lists, and parses two modules with `ast`: the API version
+  `anthropic/_constants.py` sets, and the parameters of the `Messages.create` that runs, the last
+  definition after its overloads. Nothing from the SDK is installed or imported, and only its
+  release number, the API version, and the script's own keywords reach an issue.
+- **Two signals, not every release.** The API version is what SDK 2.0 moved, and a keyword `create`
+  stops taking raises `TypeError` on every call. Other changes leave both alone and open nothing.
+  The keywords are the script's `ADAPTER_KEYWORDS`, and a unit test fails when the adapter passes
+  one it does not list.
+- **One issue per change.** As with Hermes, the notice is an issue, but it is titled after the new
+  API version or the keywords lost rather than the release, so later releases that keep the change
+  add nothing. It says how to check the adapter, with the local stub server of 2026-10-25, and to
+  move `CHECKED_API_VERSION` only once that is done. It and `hermes-release` are the workflows that
+  may write issues, and neither may do anything else.
+
+Run on 2026-11-08, it read 2.6.0: API version 2026-10-21, the one checked on 2026-10-25, and every
+keyword the adapter passes. 2.5.0 and 2.6.0, inside the range and unreviewed until then, change no
+request: they add typed error classes, move the status mapping into the base client, and add
+tracing attributes. Two of the new classes are named for a timeout, `RequestTimeoutError` for HTTP
+408 and `GatewayTimeoutError` for 504. The adapter treats any class whose name says `Timeout` as a
+timeout, so from 2.5.0 on those two responses reach the interpreter as timeouts, which it retries
+once within its eight-call ceiling, where before they were provider failures. That is what the
+adapter means by a timeout, a request that did not complete in time, so it stays.
+
 ## A Hermes skill tells the agent when to use the tools (2026-11-06)
 
 The whole agent was driven on the user's Raspberry Pi: Hermes v0.22.7 and gpt-6.1-terra at medium

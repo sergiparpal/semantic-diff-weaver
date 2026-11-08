@@ -200,7 +200,10 @@ parameter is omitted for families whose thinking is always on, sent as `between_
 *every* call, and the run then degrades to deterministic findings with only a generic per-batch
 warning to show for it. So check an override against the prefix lists in
 `semantic_diff_weaver/providers/anthropic_client.py` before setting it in CI; the reasoning is in
-[docs/decisions.md](docs/decisions.md).
+[docs/decisions.md](docs/decisions.md). No CI job installs the SDK, so a weekly workflow,
+`anthropic-sdk`, opens an issue when the newest release the extra admits sends an API version the
+adapter was not checked against, or its `messages.create` stops taking a keyword the adapter
+passes.
 
 When the package or the key is missing, the CLI prints a one-line notice to stderr and
 continues in deterministic mode — **missing credentials are never a hard failure**, and neither

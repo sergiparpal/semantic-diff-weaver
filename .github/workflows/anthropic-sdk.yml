@@ -1,0 +1,39 @@
+name: anthropic-sdk
+
+# The Anthropic adapter shapes each request for the API version the `anthropic` SDK sends, and a
+# request that version rejects fails every call into deterministic fallback behind a generic
+# warning. CI never installs the extra, and a release inside its range reaches users with no
+# Dependabot pull request, so nothing else notices one. This weekly check reads the newest release
+# the extra admits from PyPI, without installing it, and opens one issue when it sends an API
+# version the adapter was not checked against, or its `messages.create` stopped taking a keyword
+# the adapter passes: `scripts/check_anthropic_sdk.py`. As with `hermes-release`, nothing merges
+# through it; a failed run means it could not check, or could not open the issue.
+on:
+  schedule:
+    - cron: "45 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+# Not cancelling, as in `hermes-release`: a dispatch must not kill the scheduled run, and two runs
+# at once could both find no issue and open two.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - run: python scripts/check_anthropic_sdk.py --open-issue
+        env:
+          # Reads public release files from PyPI and opens at most one issue, which
+          # `issues: write` allows. Actions sets GITHUB_REPOSITORY, which names where.
+          GITHUB_TOKEN: ${{ github.token }}

@@ -27,6 +27,10 @@
       NousResearch/hermes-agent with the job's `HERMES_TAG`, using `python
       scripts/check_hermes_release.py` as the weekly `hermes-release` workflow does. Move the
       tag, its commit, and `UV_VERSION` together.
+- [x] Check the newest `anthropic` release the extra admits with `python
+      scripts/check_anthropic_sdk.py`, as the weekly `anthropic-sdk` workflow does: it must send
+      the API version the adapter was checked against, and its `messages.create` must take every
+      keyword the adapter passes. No CI job installs the extra, so nothing else checks it.
 - [x] Update changelog and evaluation measurements if behavior changed.
 - [x] Bump the `uses: sergiparpal/semantic-diff-weaver@vX.Y.Z` examples in `README.md` and
       `docs/github-action.md` to the new tag. No moving major tag is published, so nothing
