@@ -535,6 +535,31 @@ turned off, a replay that reproduces gpt-oss-120b's live figures, 3 would have: 
 as an obligation's title, in each of the three runs that asked for it, as gpt-oss-120b wrote it
 before the rule.
 
+## Output-affecting corrections (2026-11-08, a merged finding's symbol)
+
+With a model, a claim whose evidence matches no finding's becomes a finding of its own, identified
+by the first evidence it cites, and the deduplication merges it into a finding on that symbol
+whose evidence it shares. The merge kept the retained finding's path and symbol, but sorted the
+merged evidence by ID. Everything downstream reads a finding's symbol from its first evidence: the
+baseline's identity, the change groups, the obligations, the skeletons, and the benchmark. So a
+claim that also cited another symbol's evidence, with a lower ID, moved the finding to that
+symbol. In flask#5899 gpt-6.1-terra's claim on the removed `App.should_ignore_error` also cited
+the assignment that replaced it in `App`, and the method's only finding became the class's. In
+packaging#1457, gpt-oss-120b moved an added `__replace__`'s finding to the module the same way
+(`docs/benchmark.md`, "Four models, with 0.19.2").
+
+A merged finding's evidence now begins with its own symbol's, in ID order, and the rest follows in
+ID order. Without a model all of a finding's evidence is its own symbol's and keeps its order, so
+deterministic output, schema, and goldens are unchanged.
+
+Replayed through the correction, the four recorded runs of 2026-11-08 change in those two cases
+alone. In each, the finding returns to its symbol with an obligation of its own: flask#5899's
+asks what still depends on the removed `App.should_ignore_error`, where it shared the class's
+question about the code that reads `should_ignore_error`, and packaging#1457's asks to
+characterize the new `Specifier.__replace__`, as the one on `SpecifierSet.__replace__` does. Every
+behavior change of gpt-6.1-terra's 15 cases has a finding again. The other 283 analyses with a
+model, and all 285 without one, are unchanged, obligations included.
+
 ## Output-affecting corrections (2026-11-07, a model's claims on refactors)
 
 With a model, the reconciliation keeps a model's category only where a deterministic finding on the

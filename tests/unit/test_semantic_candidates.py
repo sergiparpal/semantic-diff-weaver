@@ -7,7 +7,11 @@ import pytest
 from semantic_diff_weaver.ast_diff import StructuralDelta
 from semantic_diff_weaver.models import BehaviorCategory, Evidence, LineRange, Origin
 from semantic_diff_weaver.scoring import confidence_score
-from semantic_diff_weaver.semantic_candidates import SemanticCandidate, build_candidates
+from semantic_diff_weaver.semantic_candidates import (
+    SemanticCandidate,
+    build_candidates,
+    evidence_identity,
+)
 from semantic_diff_weaver.service import _deduplicate_candidates
 
 
@@ -158,6 +162,55 @@ def test_overlapping_deterministic_and_llm_candidates_merge_evidence() -> None:
     assert [item.id for item in merged[0].evidence] == ["ev-001", "ev-999"]
     assert merged[0].origin is Origin.LLM_SUPPORTED
     assert merged[0].summary == "The exact boundary is included."
+
+
+def test_a_merge_keeps_the_retained_symbol_s_evidence_first() -> None:
+    """The report reads a finding's symbol from its first evidence.
+
+    In flask#5899 a model's claim on the removed `App.should_ignore_error` also cited the
+    assignment that replaced it in `App`, an evidence ID lower than the method's. Merged into the
+    method's deterministic finding and sorted by ID, the evidence began with the class's, and
+    the finding moved to `App`, leaving the removed method with none.
+    """
+    removed = Evidence(
+        id="ev-008", path="src/app.py", symbol="App.should_ignore_error", kind="symbol_removed"
+    )
+    assigned = Evidence(id="ev-007", path="src/app.py", symbol="App", kind="assignment_change")
+    deterministic = SemanticCandidate(
+        path="src/app.py",
+        symbol="App.should_ignore_error",
+        category=BehaviorCategory.UNKNOWN,
+        summary="The method was removed.",
+        observable_impact="Callers of the method fail.",
+        evidence=(removed,),
+        confidence_baseline=0.69,
+    )
+    claim = replace(
+        deterministic,
+        summary="The method was removed from App.",
+        evidence=(removed, assigned),
+        confidence_baseline=0.8,
+        origin=Origin.LLM_SUPPORTED,
+        rule_ids=("SDW-LLM-SUPPORTED",),
+    )
+
+    merged = _deduplicate_candidates([deterministic, claim])
+
+    assert len(merged) == 1
+    assert [item.id for item in merged[0].evidence] == ["ev-008", "ev-007"]
+    assert evidence_identity(merged[0].evidence) == ("src/app.py", "App.should_ignore_error")
+    assert merged[0].origin is Origin.LLM_SUPPORTED
+
+
+def test_a_merge_still_orders_one_symbol_s_evidence_by_id() -> None:
+    """Without a model all of a finding's evidence is its own symbol's, and stays in ID order."""
+    existing = build_candidates([delta("comparison_change", "x < 1", "x <= 1")])[0]
+    lower = existing.evidence[0].model_copy(update={"id": "ev-000"})
+    incoming = replace(existing, evidence=(existing.evidence[0], lower))
+
+    merged = _deduplicate_candidates([existing, incoming])
+
+    assert [item.id for item in merged[0].evidence] == ["ev-000", "ev-001"]
 
 
 def test_semantically_equal_candidate_impacts_deduplicate_without_shared_evidence() -> None:
