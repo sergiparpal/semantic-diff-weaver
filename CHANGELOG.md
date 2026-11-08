@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Evaluation:** `docs/evaluation.md` records the performance suite on a Raspberry Pi 5. In six
+  runs every fixture met its ceiling, taking 1.8 to 3.0 times as long as on the development
+  machine; the mass-rename fixture came closest, at half of its two-second ceiling. Documentation
+  only.
 - **Fix:** the GitHub Action writes the brief to the job summary on every run, before it comments.
   `docs/github-action.md` said a fork's pull request still showed the result in the step summary,
   but nothing wrote one, so a run that could not comment showed nothing. A run on a push, with
