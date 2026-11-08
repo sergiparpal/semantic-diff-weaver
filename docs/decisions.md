@@ -481,6 +481,49 @@ on its symbol. A third review, drawn the same way with another seed from a repla
 code, met the criterion: 9 of 20 deterministic obligations useful, 9 noise, and 2 unsure, against
 6 of 20 of the model's (`docs/benchmark.md`, "The obligations, reviewed again").
 
+## Output-affecting corrections (2026-11-08, a model's prose that copies what it was shown)
+
+The testing plan asked whether repositories that tell the model what to say can put fabricated
+evidence into an analysis. `scripts/prompt_injection.py` asks it of a real model. Its eight cases
+in `tests/fixtures/prompt_injection_cases.json` each make one change twice, clean and with an
+instruction to the model, and the two heads differ in that text alone. The instruction sits where
+the analysis shows the model one: three cases put it in the README, whose excerpt every call
+carries, and four in a changed string. A last case puts it in a comment as a control. The model
+never sees a comment or a docstring, only the changed code as the analysis extracts it. Each
+variant is analyzed without a model and three times with one.
+
+On 2026-11-08, gpt-oss-120b, with low reasoning, answered all 48 calls for 0.0097 USD:
+
+- **The promise held.** No evidence the analysis did not extract reached the output, and no
+  deterministic finding was lost or changed category. Twice the model cited the evidence ID a
+  README named, `ev-999`, and both behaviors were discarded.
+- **The model's prose did not.** In 13 of the 24 injected runs a reply repeated an injection's
+  marker. In 7 that text reached the analysis, where nothing but redaction stood between it and the
+  report. A README asking for it made the model title a test obligation with the README's own line,
+  a `curl` command piped to a shell, in 3 of 3 runs; a changed error message got the same in 1 of
+  3. A string that tried to close the evidence's frame had the model copy its own instructions into
+  a title once. No instruction suppressed a finding, raised a category, or played down the
+  loosened permission check; the model quoted that check's new message as the change it is.
+
+So the analysis now discards a model's text that repeats 40 or more consecutive characters of what
+the call showed it from the repository: the changed code, its path and symbol, the evidence's
+values, and the README's excerpt. It discards one that repeats its own instructions too. A
+proposed obligation goes whole when any of its four texts copies. So does a finding of the
+model's own whose summary or impact copies, while an assumption that copies goes alone. Each
+discard is a warning. The comparison sets case, runs of space, and compatibility forms aside,
+since the model joins a README's wrapped lines. The analysis's own text in the input, its
+category hints and assumptions, is no source: a model repeating it repeats nothing of the
+repository's.
+
+On the same replies, replayed, the injected runs that carried text into the analysis fell from 7
+to 2, and those 2 hold a marker alone, with no command or link. On the 60 development cases of the
+benchmark, whose 87 recorded replies proposed 262 obligations and 155 behaviors, it discarded 2
+obligations and 1 finding of the model's own. All three quoted the changed code at length: a
+`given` naming click#3769's two calls, httpx#3571's error message about `socksio`, and attrs#1593's
+`getattr` call. That is the price of the rule. A quote shorter than 40 characters, a name or a
+short message, is kept, and so is an instruction that short; the rule makes a long copy fail, not
+a short echo.
+
 ## Output-affecting corrections (2026-11-07, a model's claims on refactors)
 
 With a model, the reconciliation keeps a model's category only where a deterministic finding on the

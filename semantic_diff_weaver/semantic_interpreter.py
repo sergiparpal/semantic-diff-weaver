@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import unicodedata
 from collections import defaultdict
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field, replace
 from typing import Any
 
@@ -101,6 +103,62 @@ class EvidenceBatch:
     candidates: tuple[SemanticCandidate, ...]
     symbol_payloads: tuple[dict[str, Any], ...]
     evidence_ids: frozenset[str]
+
+
+# A model's prose that repeats this many consecutive characters of the repository's text, or of
+# its own instructions, is the repository speaking through the model: measured on 2026-11-08, a
+# README asking for it made gpt-oss-120b title a test obligation with the README's own `curl | sh`
+# line in 3 of 3 runs. A quoted error message or name stays well under it.
+COPY_SPAN_CHARS = 40
+# The fields of a model call's input that hold the repository's text, not the analysis's own.
+REPOSITORY_TEXT_KEYS = frozenset(
+    {"old", "new", "path", "symbol", "metadata", "repository_purpose_context"}
+)
+
+
+def _comparable(text: str) -> str:
+    """Text as a copy survives it: Unicode compatibility forms, case, and runs of space set aside,
+    since a model joins a README's lines and may change a hyphen."""
+    return " ".join(unicodedata.normalize("NFKC", text).casefold().split())
+
+
+def _repository_strings(value: Any, *, inside: bool = False) -> Iterator[str]:
+    if isinstance(value, str):
+        if inside:
+            yield value
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            yield from _repository_strings(item, inside=inside or key in REPOSITORY_TEXT_KEYS)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _repository_strings(item, inside=inside)
+
+
+class ShownText:
+    """Every window of `COPY_SPAN_CHARS` characters of what one call showed the model that the
+    repository wrote, and of the model's instructions, to tell a copy from the model's own prose."""
+
+    def __init__(self, texts: Iterable[str]) -> None:
+        self._windows: set[str] = set()
+        for text in texts:
+            comparable = _comparable(text)
+            for start in range(len(comparable) - COPY_SPAN_CHARS + 1):
+                self._windows.add(comparable[start : start + COPY_SPAN_CHARS])
+
+    @classmethod
+    def of_payload(cls, payload: str) -> ShownText:
+        return cls([*_repository_strings(json.loads(payload)), INSTRUCTIONS])
+
+    def copied(self, text: str) -> bool:
+        comparable = _comparable(text)
+        return any(
+            comparable[start : start + COPY_SPAN_CHARS] in self._windows
+            for start in range(len(comparable) - COPY_SPAN_CHARS + 1)
+        )
+
+
+NOTHING_SHOWN = ShownText(())
+COPY_WARNING = "copies the repository's text or the model's instructions."
 
 
 def _serialized_size(payload: dict[str, Any]) -> int:
@@ -451,6 +509,7 @@ def _accept_behavior(
     behavior_counts: dict[str, int],
     candidates: list[SemanticCandidate],
     warnings: list[str],
+    shown: ShownText = NOTHING_SHOWN,
 ) -> SemanticCandidate | None:
     referenced = set(behavior.evidence_ids)
     if len(referenced) != len(behavior.evidence_ids):
@@ -497,7 +556,13 @@ def _accept_behavior(
     if category not in supported_categories and category is not BehaviorCategory.UNKNOWN:
         category = BehaviorCategory.UNKNOWN
         warnings.append("Downgraded an unsupported LLM category to unknown_semantic_change.")
-    redacted_assumptions = [_generated_text(item, max_chars=1000) for item in behavior.assumptions]
+    redacted_assumptions = [
+        _generated_text(item, max_chars=1000)
+        for item in behavior.assumptions
+        if not shown.copied(item)
+    ]
+    if len(redacted_assumptions) < len(behavior.assumptions):
+        warnings.append(f"Dropped an LLM assumption that {COPY_WARNING}")
     existing_index = next(
         (
             index
@@ -521,6 +586,9 @@ def _accept_behavior(
         )
         candidates[existing_index] = promoted
         return promoted
+    if shown.copied(behavior.summary) or shown.copied(behavior.observable_impact):
+        warnings.append(f"Discarded an LLM finding that {COPY_WARNING}")
+        return None
     path, symbol = evidence_identity(evidence)
     accepted = SemanticCandidate(
         path=path,
@@ -542,6 +610,7 @@ def _accept_suggestions(
     parsed: LlmBatchResponse,
     accepted_for_batch: list[SemanticCandidate | None],
     warnings: list[str],
+    shown: ShownText = NOTHING_SHOWN,
 ) -> list[SuggestedScenario]:
     suggestions: list[SuggestedScenario] = []
     suggestion_counts: defaultdict[int, int] = defaultdict(int)
@@ -551,6 +620,10 @@ def _accept_suggestions(
             continue
         suggested_candidate = accepted_for_batch[suggestion.behavior_index]
         if suggested_candidate is None:
+            continue
+        texts = (suggestion.title, suggestion.given, suggestion.when, suggestion.then)
+        if any(shown.copied(item) for item in texts):
+            warnings.append(f"Discarded an LLM obligation that {COPY_WARNING}")
             continue
         if suggestion_counts[suggestion.behavior_index] >= MAX_OBLIGATIONS_PER_BEHAVIOR:
             warnings.append("Discarded an LLM obligation above the per-behavior cap.")
@@ -658,6 +731,7 @@ def interpret_candidates(
             calls=calls,
             max_calls=config.rules.max_llm_calls,
         )
+        shown = ShownText.of_payload(payload)
         calls += used
         usage = _merge_usage(usage, batch_usage)
         schema_failure_seen |= schema_fail
@@ -686,9 +760,10 @@ def interpret_candidates(
                     behavior_counts=behavior_counts,
                     candidates=merged_candidates,
                     warnings=warnings,
+                    shown=shown,
                 )
             )
-        suggestions.extend(_accept_suggestions(parsed, accepted_for_batch, warnings))
+        suggestions.extend(_accept_suggestions(parsed, accepted_for_batch, warnings, shown))
     runtime_omitted = len(batches) - visited_batches
     if runtime_omitted:
         omitted_batches += runtime_omitted
