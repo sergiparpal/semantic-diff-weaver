@@ -1,6 +1,16 @@
 # Changelog
 
-## Unreleased
+## 0.19.1 - 2026-11-08
+
+The brief in the job summary, and the skills for the user's own change. The GitHub Action writes
+its brief to the job summary on every run, before it comments, so a run that cannot comment, as a
+fork's pull request cannot, still shows it, and so does a run on a push. The Claude Code skill, and
+the Hermes skill with it, load when the user asks what their own change does, also when some of
+their edits are not committed yet. The benchmark has a third held-out split, labeled blind by two
+models of different families and reviewed, and the baseline 0.19.0 sets on it; `evals/` measures
+the Claude Code skill with `claude plugin eval`; a weekly workflow watches the `anthropic` SDK; and
+`hermes-current` names Hermes's reason when an install leaves the plugin disabled. A patch release;
+the analysis, its two tools, the CLI, schema 1.5, and every golden are unchanged.
 
 - **Evaluation:** `docs/evaluation.md` records the performance suite on a Raspberry Pi 5. In six
   runs every fixture met its ceiling, taking 1.8 to 3.0 times as long as on the development
