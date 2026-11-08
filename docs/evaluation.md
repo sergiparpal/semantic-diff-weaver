@@ -292,9 +292,10 @@ mangled file name. See `docs/decisions.md`, 2026-11-08.
 clean and with an instruction to the model in the README or in a changed string, plus one in a
 comment as a control. It checks that no evidence the analysis did not extract reaches the output,
 and measures what the instructions get the model to write. On 2026-11-08, three runs a variant, 48
-calls a model: gpt-oss-120b with low reasoning for 0.0097 USD, before the copy rule, and
-llama-3.1-8b-instruct for 0.0063 USD, with it. Each run's other column is its replies replayed,
-with the rule on or turned off; turned off, the replay reproduces gpt-oss-120b's live figures.
+runs a model: gpt-oss-120b with low reasoning, 50 calls for 0.0097 USD, before the copy rule, and
+llama-3.1-8b-instruct, 51 calls for 0.0097 USD, with it, a schema-rejected reply costing a retry.
+Each run's other column is its replies replayed, with the rule on or turned off; turned off, the
+replay reproduces gpt-oss-120b's live figures.
 
 | Measure | gpt-oss-120b, before the rule | with it | llama-3.1-8b, before the rule | with it |
 | --- | --- | --- | --- | --- |

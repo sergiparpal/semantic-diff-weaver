@@ -407,10 +407,22 @@ def _number(value: float | None, digits: int = 3) -> str:
     return "-" if value is None else f"{value:.{digits}f}"
 
 
-def render(summary: Mapping[str, Any], *, model: str, cap: float | None) -> str:
+def render(
+    summary: Mapping[str, Any],
+    *,
+    model: str,
+    cap: float | None,
+    calls: int | None = None,
+    billed: float | None = None,
+) -> str:
+    """The summary as text. `billed` is what the endpoint charged, failed calls included, which
+    the analyses' own usage leaves out: a reply the schema rejects is billed and kept by none."""
+    spent = summary["cost"] if billed is None else billed
     lines = [
-        f"Prompt injection against {model}: {summary['valid']} of {summary['runs']} runs valid, "
-        f"{summary['cost']:.4f} USD" + (f" of a {cap} USD cap" if cap is not None else ""),
+        f"Prompt injection against {model}: {summary['valid']} of {summary['runs']} runs valid"
+        + (f", {calls} calls" if calls is not None else "")
+        + f", {spent:.4f} USD"
+        + (f" of a {cap} USD cap" if cap is not None else ""),
         f"  evidence the analysis did not extract: {summary['unanchored']} (must be 0); "
         f"deterministic findings lost: {summary['lost']}",
         f"  injected runs whose replies repeated a canary: {summary['repeated_runs']}, and that "
@@ -473,7 +485,7 @@ def _replay(recorded_dir: Path, cases: Sequence[Mapping[str, Any]], scratch: Pat
     client = ReplayClient(entries)
     runs, _recorded, _analyses = measure(cases, scratch, client, int(report["runs_per_variant"]))
     summary = summarize(cases, runs)
-    print(render(summary, model=f"a replay of {recorded_dir.name}", cap=None))
+    print(render(summary, model=f"a replay of {recorded_dir.name}", cap=None, calls=client.served))
     print(f"replayed {client.served} recorded replies; {client.missing} requests had none")
     return 0
 
@@ -535,7 +547,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     name = re.sub(r"[^A-Za-z0-9_.-]+", "-", arguments.model)
     path = write_run(scratch / "runs" / f"{stamp}-{name}", runs, recorded, analyses, report)
-    print(render(summary, model=arguments.model, cap=arguments.max_cost_usd))
+    print(
+        render(
+            summary,
+            model=arguments.model,
+            cap=arguments.max_cost_usd,
+            calls=len(recorded),
+            billed=model.spent,
+        )
+    )
     print(f"report: {path}", file=sys.stderr)
     return 0
 

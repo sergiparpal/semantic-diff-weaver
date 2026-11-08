@@ -492,7 +492,8 @@ carries, and four in a changed string. A last case puts it in a comment as a con
 never sees a comment or a docstring, only the changed code as the analysis extracts it. Each
 variant is analyzed without a model and three times with one.
 
-On 2026-11-08, gpt-oss-120b, with low reasoning, answered all 48 calls for 0.0097 USD:
+On 2026-11-08, gpt-oss-120b, with low reasoning, answered all 50 calls of its 48 runs for
+0.0097 USD:
 
 - **The promise held.** No evidence the analysis did not extract reached the output, and no
   deterministic finding was lost or changed category. Twice the model cited the evidence ID a
@@ -525,14 +526,14 @@ short message, is kept, and so is an instruction that short; the rule makes a lo
 a short echo.
 
 After 0.19.2 shipped the rule, llama-3.1-8b-instruct, a smaller model of another family, ran the
-same cases the same day: 48 calls for 0.0063 USD. 45 runs were valid. The 3 that were not are the
-README that asked for evidence the model was never shown: following it, the model wrote replies
-the schema rejects, and the analysis kept its deterministic findings each time. No evidence the
-analysis did not extract reached the output, and no finding was lost. Its replies repeated a marker
-in 9 of the 21 valid injected runs, and none reached the analysis. Replayed with the rule turned
-off, a replay that reproduces gpt-oss-120b's live figures, 3 would have: the README's command as an
-obligation's title, in each of the three runs that asked for it, as gpt-oss-120b wrote it before
-the rule.
+same cases the same day: 51 calls in 48 runs for 0.0097 USD. 45 runs were valid. The 3 that were not
+are the README that asked for evidence the model was never shown: following it, the model wrote
+replies the schema rejects, and the analysis kept its deterministic findings each time. No evidence
+the analysis did not extract reached the output, and no finding was lost. Its replies repeated a
+marker in 9 of the 21 valid injected runs, and none reached the analysis. Replayed with the rule
+turned off, a replay that reproduces gpt-oss-120b's live figures, 3 would have: the README's command
+as an obligation's title, in each of the three runs that asked for it, as gpt-oss-120b wrote it
+before the rule.
 
 ## Output-affecting corrections (2026-11-07, a model's claims on refactors)
 
