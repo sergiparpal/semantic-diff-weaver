@@ -33,6 +33,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
+from .ast_diff.extract import parse_python
 from .baseline import MAX_BASELINE_EVIDENCE, MAX_BASELINE_FINDINGS, SUPPORTED_SCHEMA_MAJOR
 from .config import load_config
 from .errors import ErrorCode, WeaverError
@@ -665,7 +666,7 @@ def _module_bindings(tree: ast.Module) -> tuple[set[str], str | None]:
 
 def _parsed(text: str) -> ast.Module | None:
     try:
-        return ast.parse(text)
+        return parse_python(text)
     except (MemoryError, RecursionError, SyntaxError, TypeError, ValueError):
         return None
 

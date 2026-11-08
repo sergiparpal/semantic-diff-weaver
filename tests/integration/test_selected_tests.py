@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import warnings
 from collections.abc import Callable
 from pathlib import Path
 
@@ -170,3 +171,27 @@ def test_select_refuses_to_widen_the_operator_s_roots(
     status, out, err = _select(capsys, repo, base, head, "--allow-root", str(tmp_path))
     assert (status, out) == (EXIT_ARGUMENT_ERROR, "")
     assert "cannot widen" in err
+
+
+def test_a_test_file_s_invalid_escapes_raise_no_warning(repo_factory: Factory) -> None:
+    """The analysis parses the repository's tests to index and select them.
+
+    A regular expression written without the `r` prefix, here `"\\d+"`, makes Python warn while
+    parsing it, and the warning went to the analyzer's stderr, where it read as the tool's own.
+    """
+    pattern = '"' + chr(92) + 'd+"'
+    test = (
+        "import re\n\nfrom shop.money import cents\n\n\ndef test_cents():\n"
+        f"    assert cents(1) and re.match({pattern}, '1')\n"
+    )
+    repo, base, head = repo_factory({**SHOP, "tests/test_money.py": test}, CHANGED)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        envelope = analyze(
+            {"repo_path": str(repo), "base_ref": base, "head_ref": head, "output_format": "json"}
+        )
+
+    selected = AnalysisResult.model_validate(envelope).test_selection
+    assert "tests/test_money.py" in [item.path for item in selected.tests]
+    assert [item for item in caught if item.filename == "<unknown>"] == []

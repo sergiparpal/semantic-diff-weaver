@@ -14,6 +14,7 @@ from pathlib import PurePosixPath
 from typing import ClassVar, TypeGuard
 from urllib.parse import urlsplit
 
+from .ast_diff.extract import parse_python
 from .call_graph import CallGraph, Node, bare_name, package_of
 from .errors import WeaverError
 from .git_diff import ChangeHistory, GitRepository
@@ -617,7 +618,7 @@ def _index_source(path: str, source: str) -> list[IndexedTest]:
     # No type comment is read here, and ``type_comments=True`` only narrows the accepted
     # grammar, so requesting them would drop otherwise-indexable test files for a signal
     # this function never uses.
-    tree = ast.parse(source)
+    tree = parse_python(source)
     tests = list(_test_functions(tree.body))
     # An import in a test's own body is that test's; the rest of the file imports for all.
     shared = list(_outside(tree, {id(node) for _, node in tests}))
@@ -672,7 +673,7 @@ def defines_tests(source: str) -> bool:
     analyzed, and the AST stage reports why it could not be read.
     """
     try:
-        tree = ast.parse(source)
+        tree = parse_python(source)
     except (MemoryError, RecursionError, SyntaxError, TypeError, ValueError):
         return False
     return has_tests(tree)

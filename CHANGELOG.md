@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **Fix:** the analysis parses a repository's code without the warnings that code raises.
+  Python warns while it parses a string with an invalid escape sequence, such as a regular
+  expression written without the `r` prefix: a `SyntaxWarning` from 3.12, a `DeprecationWarning`
+  before. Each parse of the product code, of its tests, or of a test file the skeletons extend
+  printed such a warning to stderr, where it read as the tool's own. Where warnings are errors,
+  as under `-W error`, Python raised it as a `SyntaxError` instead: the analysis reported a file
+  Python runs as unparsed and lost its changes, and the skeletons refused its test file. Every
+  parse now goes through one helper that ignores both categories, and a test keeps it the only
+  one.
 - **Fix:** with a model, a finding that a model's claim merges into keeps its own symbol. The
   merge kept the finding's path and symbol but sorted its evidence by ID, and the baseline, the
   change groups, the obligations, and the skeletons all read a finding's symbol from its first

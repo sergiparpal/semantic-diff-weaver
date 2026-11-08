@@ -256,6 +256,57 @@ def test_type_comments_are_still_read_when_the_source_allows_them() -> None:
     assert "# type: (int) -> str" in handler.signature
 
 
+# A regular expression written without the `r` prefix: `"\d+"` is an invalid escape sequence,
+# which Python warns about while it parses the file, a SyntaxWarning from 3.12 and a
+# DeprecationWarning before. The backslash is built with chr, so this file holds no such escape.
+_DIGITS = "import re\n\nDIGITS = re.compile(" + '"' + chr(92) + 'd+"' + ")\n"
+
+
+def _digits_pair() -> SourceRevisionPair:
+    return SourceRevisionPair(
+        path="digits.py",
+        old_path="digits.py",
+        new_path="digits.py",
+        old_text=_DIGITS,
+        new_text=_DIGITS.replace("d+", "d*"),
+        hunks=(SourceHunk(id="hunk-001", old_start=1, old_count=20, new_start=1, new_count=20),),
+    )
+
+
+def test_the_analyzed_code_s_invalid_escapes_raise_no_warning() -> None:
+    """The warning is about the analyzed code, and it went to the analyzer's stderr."""
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        analysis = analyze_ast([_digits_pair()])
+
+    assert analysis.failed_files == 0
+    assert [item for item in caught if item.filename == "<unknown>"] == []
+
+
+def test_the_analyzed_code_s_invalid_escapes_parse_where_warnings_are_errors() -> None:
+    """Under `-W error` the warning became a SyntaxError about a file Python runs.
+
+    The file was reported as unparsed, a fabricated `parse_incomplete` finding, and its change
+    was lost.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        analysis = analyze_ast([_digits_pair()])
+
+    assert analysis.failed_files == 0
+    assert analysis.deltas
+
+
+def test_every_parse_of_a_repository_s_code_goes_through_one_helper() -> None:
+    """`parse_python` keeps the analyzed code's warnings out; a bare `ast.parse` would not."""
+    callers = sorted(
+        path.as_posix()
+        for path in Path("semantic_diff_weaver").rglob("*.py")
+        if "ast.parse(" in path.read_text(encoding="utf-8")
+    )
+    assert callers == ["semantic_diff_weaver/ast_diff/extract.py"]
+
+
 def test_the_declared_version_matches_the_packaging_metadata() -> None:
     """`__version__` drifted from pyproject.toml and plugin.yaml and reported a stale release."""
     import json
