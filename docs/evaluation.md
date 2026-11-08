@@ -153,6 +153,15 @@ seconds for the last, and 0.5.0 timed 0.02, 0.42, 0.38, and 0.79 on code 0.6.0 l
 1.5 seconds for the mass-rename fixture then: the machine was slower at that hour, not the code, and
 that fixture is back at a fifth of its ceiling, as on 2026-07-26.
 
+The ceilings also hold on modest hardware. On 2026-11-08 the suite ran six times at 6889c53 on a
+Raspberry Pi 5 (four Cortex-A76 cores at 2.4 GHz, Debian 13, Python 3.13.5), unthrottled at 56 to
+60 °C, and every fixture met its ceiling in every run. The intervals the six assertions compare took
+0.05, 0.99, 0.47, 1.80, 0.30, and 1.90 seconds as medians, 1.8 to 3.0 times the development
+machine's 0.02, 0.46, 0.26, 0.73, 0.10, and 0.77 that morning. The mass-rename fixture comes
+closest, at half of its two-second ceiling, and no other reaches two fifths of its own. Those
+intervals leave out what each test builds before its clock starts, which the call-phase figures
+above include; on the Pi those were 0.05, 0.99, 0.97, 2.02, 1.11, and 1.91.
+
 The complete automated suite reports 98.29% overall branch-aware coverage across 2,049 passing tests
 and one skip, the real-Hermes discovery test, with at least 90% branch coverage in every critical
 module — the lowest is `path_policy.py` at 92.42%, followed by `semantic_interpreter.py` at 92.97%,
