@@ -167,13 +167,23 @@ def _merge_duplicate(existing: SemanticCandidate, incoming: SemanticCandidate) -
     evidence_by_id = {item.id: item for item in existing.evidence}
     for evidence in incoming.evidence:
         evidence_by_id.setdefault(evidence.id, evidence)
+    own = (existing.path, existing.symbol)
     stronger = incoming.confidence_baseline > existing.confidence_baseline
     return replace(
         existing,
         summary=incoming.summary if stronger else existing.summary,
         observable_impact=incoming.observable_impact if stronger else existing.observable_impact,
         confidence_baseline=max(existing.confidence_baseline, incoming.confidence_baseline),
-        evidence=tuple(evidence_by_id[key] for key in sorted(evidence_by_id)),
+        # By ID, but the retained symbol's own evidence first. The report reads a finding's
+        # symbol from its first evidence, and a model's claim can cite another symbol's beside
+        # it: sorted by ID alone, a claim on a removed method that also cited its class's
+        # evidence moved the method's finding to the class.
+        evidence=tuple(
+            sorted(
+                evidence_by_id.values(),
+                key=lambda item: (evidence_identity((item,)) != own, item.id),
+            )
+        ),
         assumptions=tuple(sorted({*existing.assumptions, *incoming.assumptions})),
         rule_ids=tuple(sorted({*existing.rule_ids, *incoming.rule_ids})),
         related_calls=existing.related_calls | incoming.related_calls,

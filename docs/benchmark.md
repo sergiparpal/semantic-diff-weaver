@@ -392,7 +392,10 @@ that of the class `App`. Its claim merged with the deterministic finding on
 finding is read by its first evidence, by this benchmark and by the report's baseline, change
 groups, obligations, and skeletons alike, so the finding moved to `App`. That is the one behavior
 change any of these runs left without a finding. gpt-oss-120b did the same in packaging#1457, where
-a finding on an added `__replace__` moved to the module. It is not corrected yet.
+a finding on an added `__replace__` moved to the module. A correction since keeps a merged
+finding's own evidence first (`docs/decisions.md`, 2026-11-08, a merged finding's symbol).
+Replayed through it, both findings return to their symbols, and nothing else in the four runs
+changes.
 
 **Support tells right findings from wrong ones weakly, and confidence does not.** gpt-oss-120b's
 35 of 48 against 119 of 216 is p = 0.02, where its 60-case run with 0.18.0 gave p = 0.16. But it is

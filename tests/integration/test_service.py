@@ -10,6 +10,7 @@ import semantic_diff_weaver.service as service
 from semantic_diff_weaver.plugin import handle_analyze_semantic_diff
 from semantic_diff_weaver.service import _read_readme_excerpt, analyze
 from tests.conftest import git
+from tests.contract.test_llm_call import FakeLlm, Result
 
 
 @pytest.mark.parametrize("output_format", ["json", "markdown", "both"])
@@ -191,6 +192,51 @@ def test_handler_always_returns_json_on_llm_failure(repo_factory) -> None:
         "LLM interpretation was unavailable; deterministic fallback was used."
         in result["analysis"]["limitations"]
     )
+
+
+def test_a_model_s_claim_on_two_symbols_leaves_the_finding_on_its_own(repo_factory) -> None:
+    """flask#5899: the claim on a removed method also cited the assignment replacing it.
+
+    The class's assignment has the lower evidence ID. Merged into the method's finding and
+    sorted by ID, the evidence began with the class's, and the report read the finding as the
+    class's, leaving the removed method without one.
+    """
+    repo, base, head = repo_factory(
+        {"app.py": "class App:\n    def should_ignore_error(self, error):\n        return False\n"},
+        {"app.py": "class App:\n    should_ignore_error = None\n"},
+    )
+    arguments = {
+        "repo_path": str(repo),
+        "base_ref": base,
+        "head_ref": head,
+        "output_format": "json",
+    }
+    ids = {
+        (item["symbol"], item["kind"]): item["id"]
+        for behavior in analyze(arguments)["behavior_changes"]
+        for item in behavior["evidence"]
+    }
+    removed = ids[("App.should_ignore_error", "symbol_removed")]
+    assigned = ids[("App", "assignment_change")]
+    assert assigned < removed
+    claim = {
+        "category": "unknown_semantic_change",
+        "summary": "The method is gone.",
+        "observable_impact": "Code that calls it fails.",
+        "evidence_ids": [removed, assigned],
+        "assumptions": [],
+        "confidence": 0.8,
+    }
+
+    result = analyze(arguments, llm=FakeLlm([Result("json", {"behaviors": [claim]})]))
+
+    merged = [
+        behavior
+        for behavior in result["behavior_changes"]
+        if removed in {item["id"] for item in behavior["evidence"]}
+    ]
+    assert [behavior["origin"] for behavior in merged] == ["llm_supported"]
+    assert [item["id"] for item in merged[0]["evidence"]] == [removed, assigned]
 
 
 def test_running_without_a_model_is_stated_as_a_limitation_not_warned_about(
