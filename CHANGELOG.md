@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.19.2 - 2026-11-08
+
+A model's prose that copies what it was shown. With a model, the analysis discards a model's text
+that repeats 40 or more consecutive characters of the repository's text it was shown, or of its
+own instructions. Before it, a README that asked gpt-oss-120b to put its own `curl` command, piped
+to a shell, into the test plan got it into an obligation's title in 3 of 3 runs, and in none after.
+`scripts/prompt_injection.py` measures the inference layer against such repositories.
+`scripts/shadow_select.py` measures `select` against the failures of public projects' red
+pull-request runs, where no run escaped the selection. A patch release; analyses without a model,
+schema 1.5, and every golden are unchanged.
 
 - **Security:** with a model, the analysis discards a model's text that repeats 40 or more
   consecutive characters of what the call showed it from the repository, or of its own
