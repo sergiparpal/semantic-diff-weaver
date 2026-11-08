@@ -16,7 +16,14 @@
   saying whose. The labels hold the benchmark's first `authorization_change`, and list 3.4
   categories per behavior change against development's 2.2, so precision on the two splits does
   not compare. `benchmark/README.md` gives the protocol, and `docs/benchmark.md` the agreement and
-  the review. No analyzer behavior changes, and the split has not been measured yet.
+  the review. No analyzer behavior changes.
+- **Evaluation:** `docs/benchmark.md` records the baseline that the third held-out split and the 90
+  development cases set with 0.19.0, in deterministic mode. Every behavior change of both splits
+  gets a finding. Held out, 30 of 37 get one in an expected category, none of the 10 unchanged
+  symbols gets one, and 37 of the 72 scored findings are in an expected category; in development,
+  46 of 120, 31 of 100, and 48 of 262. Scored against each annotator's labels as given, before the
+  review, the held-out precision is 48.6% and 36.6%. The split's wider labels explain part of its
+  lead, and its sample the rest. Only the held-out totals were computed. Documentation only.
 - **Fix:** the GitHub Action writes the brief to the job summary on every run, before it comments.
   `docs/github-action.md` said a fork's pull request still showed the result in the step summary,
   but nothing wrote one, so a run that could not comment showed nothing. A run on a push, with

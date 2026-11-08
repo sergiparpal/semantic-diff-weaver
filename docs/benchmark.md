@@ -16,9 +16,10 @@ Since then the first held-out cases have joined development, and so has a second
 30 pull requests, from `encode/django-rest-framework`, `jd/tenacity`, `urllib3/urllib3`,
 `agronholm/anyio`, and `pypa/packaging`, labeled and reviewed before the second round's correction
 and measured with it. A third held-out split of 30, labeled by two models and reviewed, now waits
-for the next change; how it was labeled comes first below. Then come the second split's baseline
-and the second round's correction, measured on it while it was held out, a measurement of the
-development cases with a model, and the first round's results.
+for the next change; how it was labeled, and the baseline it and the 90 development cases set,
+come first below. Then come the second split's baseline and the second round's correction,
+measured on it while it was held out, a measurement of the development cases with a model, and the
+first round's results.
 
 Unlike the 18-case corpus of `docs/evaluation.md`, whose cases were written to exercise the
 taxonomy, these are changes as maintainers made them.
@@ -97,10 +98,52 @@ The limits:
 - a proposal's wording can betray whose it is;
 - the annotators saw the changed symbols and the diff, not whole files, which the page linked.
 
-The labels were committed before any measurement on them. The split's baseline will read only its
-summary, as the second split's did.
+The labels were committed before any measurement on them.
 
-## Baseline for the next correction
+## Baseline for the third round
+
+Measured 2026-11-08 with Semantic Diff Weaver 0.19.0 in deterministic mode, on the 90 development
+cases and the 30 held-out cases of the third split, before any correction is designed from the
+development ones.
+
+| Measure | Development, 90 cases | Held-out, 30 cases |
+| --- | --- | --- |
+| Labeled symbols | 251 | 53 |
+| Behavior changes | 120 | 37 |
+| Unchanged symbols | 100 | 10 |
+| Findings on Python | 291 | 78 |
+| Precision, findings in an expected category | 48 of 262 (18.3%) | 37 of 72 (51.4%) |
+| Precision, findings naming a behavior category | 48 of 128 (37.5%) | 37 of 45 (82.2%) |
+| Recall, behavior changes given a finding | 120 of 120 | 37 of 37 |
+| Recall, behavior changes given one in an expected category | 46 of 120 (38.3%) | 30 of 37 (81.1%) |
+| Unchanged symbols given a finding | 31 of 100 (31.0%) | 0 of 10 (0.0%) |
+| Unchanged symbols given one naming a behavior category | 17 of 100 (17.0%) | 0 of 10 (0.0%) |
+
+Findings on an added or removed symbol without a category, 29 in development and 6 held out, are
+neither right nor wrong and are left out of precision. No finding fell on an unlabeled symbol, and
+development's one finding outside Python is not scored.
+
+The two columns do not compare. The held-out labels list 3.43 categories per behavior change,
+against development's 2.17, and a finding is right in any of them. Scored against each annotator's
+labels as given, before the review, the same held-out findings come out as follows:
+
+| Held-out findings scored against | Categories per change | Precision, expected category | Precision, naming a category | Recall in an expected category | Unchanged symbols with a finding |
+| --- | --- | --- | --- | --- | --- |
+| The reviewed labels | 3.43 | 37 of 72 (51.4%) | 37 of 45 (82.2%) | 30 of 37 (81.1%) | 0 of 10 |
+| gpt-6.1-terra's labels | 3.24 | 35 of 72 (48.6%) | 35 of 45 (77.8%) | 28 of 37 (75.7%) | 0 of 10 |
+| Claude Opus 5.5's labels | 2.30 | 26 of 71 (36.6%) | 26 of 45 (57.8%) | 22 of 33 (66.7%) | 3 of 13 |
+
+Against the narrowest labels, close to development's in breadth, the held-out figures still stand
+above development's: 36.6% against 18.3%, and 57.8% against 37.5% for findings that name a
+category. The split differs beyond its labels. Its 10 unchanged symbols are all imports, version
+strings, or docstrings, and none got a finding. A correction is to be judged by how each split
+moves, never by comparing one with the other.
+
+For the held-out split only these totals were computed. Its findings by category and by case, and
+each disagreement, stay unread until a correction designed from the development cases is measured
+on it, and the analyses written beside the clones were deleted unread.
+
+## Baseline for the second round
 
 Measured 2026-11-03 with Semantic Diff Weaver 0.16.0 on the splits as they stood until 2026-11-08:
 the 60 development cases, which are the first round's two splits together, and the 30 held-out

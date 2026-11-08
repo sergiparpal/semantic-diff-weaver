@@ -200,17 +200,22 @@ every Python symbol they change before reading the analyzer's output, and a pers
 251, correcting 42. For the last 30, two models labeled each of their 53 symbols blind and apart,
 and the person settled every label that is scored. The 90 development cases are the ones the
 analyzer is changed against, and the 30 held-out cases, labeled and reviewed before its next
-change, will measure that change on code it was not designed from. The previous held-out split,
-which has since joined development, gave the second round's baseline, in deterministic mode with
-0.16.0 on 2026-11-03: every one of its 44 behavior changes got a finding, 16 of them in an expected
-category, and 18 of its 29 unchanged symbols got one too; 16 of the 107 scored findings, and 16 of
-the 50 that name a behavior category, are in an expected one. The second round's correction,
-released in 0.17.0 and measured on them once it was designed, leaves 14 of those 29 symbols with a
-finding and 16 of 103 scored findings in an expected category, and every behavior change keeps its
-finding and its category. These are the numbers the corpus above does not give. With a model,
-`openai/gpt-oss-120b` on the development cases, the findings stayed as they were but for two wrong
-ones, and a blind review judged 6 of 20 of the test obligations the model adds useful, and none of
-20 deterministic ones.
+change, will measure that change on code it was not designed from. Their baseline, in
+deterministic mode with 0.19.0 on 2026-11-08: every one of the 37 held-out behavior changes got a
+finding, 30 of them in an expected category, and none of the 10 unchanged symbols got one; 37 of
+the 72 scored findings, and 37 of the 45 that name a behavior category, are in an expected one.
+Their labels list more categories per behavior change than development's, 3.43 against 2.17, so
+these figures do not compare with development's 48 of 262 and 48 of 128. The previous held-out
+split, which has since joined development, gave the second round's baseline, in deterministic mode
+with 0.16.0 on 2026-11-03: every one of its 44 behavior changes got a finding, 16 of them in an
+expected category, and 18 of its 29 unchanged symbols got one too; 16 of the 107 scored findings,
+and 16 of the 50 that name a behavior category, are in an expected one. The second round's
+correction, released in 0.17.0 and measured on them once it was designed, leaves 14 of those 29
+symbols with a finding and 16 of 103 scored findings in an expected category, and every behavior
+change keeps its finding and its category. These are the numbers the corpus above does not give.
+With a model, `openai/gpt-oss-120b` on the development cases, the findings stayed as they were but
+for two wrong ones, and a blind review judged 6 of 20 of the test obligations the model adds
+useful, and none of 20 deterministic ones.
 
 `docs/real-pr-validation.md` records what the analyzer says on other real merged pull requests,
 produced by the opt-in `scripts/validate_real_prs.py` harness. Those are **observations on
