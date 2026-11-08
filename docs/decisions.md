@@ -524,6 +524,16 @@ obligations and 1 finding of the model's own. All three quoted the changed code 
 short message, is kept, and so is an instruction that short; the rule makes a long copy fail, not
 a short echo.
 
+After 0.19.2 shipped the rule, llama-3.1-8b-instruct, a smaller model of another family, ran the
+same cases the same day: 48 calls for 0.0063 USD. 45 runs were valid. The 3 that were not are the
+README that asked for evidence the model was never shown: following it, the model wrote replies
+the schema rejects, and the analysis kept its deterministic findings each time. No evidence the
+analysis did not extract reached the output, and no finding was lost. Its replies repeated a marker
+in 9 of the 21 valid injected runs, and none reached the analysis. Replayed with the rule turned
+off, a replay that reproduces gpt-oss-120b's live figures, 3 would have: the README's command as an
+obligation's title, in each of the three runs that asked for it, as gpt-oss-120b wrote it before
+the rule.
+
 ## Output-affecting corrections (2026-11-07, a model's claims on refactors)
 
 With a model, the reconciliation keeps a model's category only where a deterministic finding on the
