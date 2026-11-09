@@ -1,6 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.19.4 - 2026-11-09
+
+A model's claim in another category, and a retry's budget. With a model, a claim in a category that
+no finding on its evidence has adds no finding: made an unknown change, it was reported beside the
+finding already there, a second finding of the same change, 6 times on the benchmark's 90
+development cases with three models. And a batch's retry gets twice its first call's output budget
+and timeout, where a reasoning model's reply cut off at its budget got the same budget again, which
+cut off two of deepseek-v4-flash's batches a second time. Analyses without a model are unchanged. A
+patch release; schema 1.5 and every golden are unchanged.
 
 - **Fix:** with a model, a claim in a category that no finding on its evidence has adds no finding.
   A model cannot change a finding's category, so the analysis made such a claim an unknown change,

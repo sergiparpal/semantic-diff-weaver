@@ -37,7 +37,8 @@ now emits no prediction outside its reviewed expected labels. The 2026-10-31 re-
 0.4.0, 0.4.1, 0.5.0, 0.6.0, and 0.6.1, and the 2026-11-01 ones for 0.6.2, 0.7.0, 0.8.0, 0.8.1,
 0.8.2, 0.9.0, 0.10.0, 0.11.0, 0.11.1, 0.12.0, and 0.13.0, and the 2026-11-02 ones for 0.14.0,
 0.15.0, and 0.16.0, the 2026-11-04 one for 0.17.0, the 2026-11-06 one for 0.18.0, the 2026-11-07
-one for 0.19.0, and the 2026-11-08 ones for 0.19.1, 0.19.2, and 0.19.3, found the same figures. Of 0.4.1's
+one for 0.19.0, the 2026-11-08 ones for 0.19.1, 0.19.2, and 0.19.3, and the 2026-11-09 one for
+0.19.4, found the same figures. Of 0.4.1's
 corrections only the output-contract one reaches the corpus: the `return annotation signature` case
 is now worded as a change to typing alone, at 0.80 confidence instead of 0.879, and keeps its
 category, risk, and obligations. 0.5.0 gives every case a
@@ -80,7 +81,8 @@ changes no golden: what it ships differs from 0.19.0 only in the Action's job su
 skills' descriptions, outside the analysis. Nor does 0.19.2, which discards a model's prose that
 copies what the repository showed it, since no case runs with a model. Nor does 0.19.3: no case
 runs with a model, so no model's claim merges into a finding, and parsing without the analyzed
-code's warnings changes only what reached stderr.
+code's warnings changes only what reached stderr. Nor does 0.19.4, whose two corrections act on a
+model's claims and on the retry of a model's call, for the same reason.
 
 The previous measurement on this same corpus was 88.24% precision (15 of 17). The two surplus
 predictions were both `ordering_change` findings produced by comparing `statement_order` tuples for
@@ -103,45 +105,47 @@ a chain of calls on instances across a call graph at its module limit, a variabl
 read across a graph at its module limit, and a test selection following 999 test files through a
 chain of 999 modules at its file limit, with five-, two-, five-, and five-second ceilings for the
 first four, a one-second ceiling on grouping the fifth, and a five-second ceiling on the last. They
-completed in approximately 0.02, 0.46, 0.58, 0.78, 0.49, and 0.76 seconds in the 0.19.3 timing run,
-across six runs in which the third took 0.57 to 0.65 and the fourth 0.77 to 0.88. 0.19.2's code,
-timed beside it, took 0.02, 0.46, 0.59, 0.80, 0.51, and 0.77, the third 0.58 to 0.65 and the fourth
-0.79 to 0.82: the fixtures parse through the warnings filter 0.19.3 puts around each parse, and
-the two differ by at most 0.02 seconds, within the runs' spread. 0.19.2's own run, earlier that
+completed in approximately 0.02, 0.45, 0.57, 0.78, 0.48, and 0.75 seconds in the 0.19.4 timing run,
+across six runs in which the third took 0.56 to 0.58 and the fourth 0.77 to 0.79. 0.19.3's code,
+timed beside it, took 0.02, 0.45, 0.59, 0.80, 0.49, and 0.75, the third 0.58 to 0.60 and the fourth
+0.78 to 0.87: 0.19.4 changes no code a deterministic analysis runs. 0.19.3's own run, the day
+before, timed 0.02, 0.46, 0.58, 0.78, 0.49, and 0.76, the third 0.57 to 0.65 and the fourth 0.77 to
+0.88, beside 0.19.2's code at 0.02, 0.46, 0.59, 0.80, 0.51, and 0.77, the third 0.58 to 0.65 and the
+fourth 0.79 to 0.82: the fixtures parse through the warnings filter 0.19.3 puts around each parse,
+and the two differ by at most 0.02 seconds, within the runs' spread. 0.19.2's own run, earlier that
 day on a busier machine, timed 0.03, 0.51, 0.67, 0.87, 0.55, and 0.82, the third 0.63 to 0.70 and
 the fourth 0.87 to 0.93, beside 0.19.1's code at 0.02, 0.52, 0.65, 0.87, 0.55, and 0.83, the third
 0.63 to 0.69 and the fourth 0.86 to 0.90: 0.19.2 changes no code a deterministic analysis runs.
-0.19.1's own run, earlier that day, timed 0.02, 0.46, 0.59, 0.80, 0.51,
-and 0.77, the third 0.58 to 0.62 and the fourth 0.78 to 0.84, beside 0.19.0's code at 0.02, 0.46,
-0.60, 0.81, 0.50, and 0.78, the third 0.59 to 0.62 and the fourth 0.80 to 0.83: 0.19.1 changes no
-code the fixtures run. 0.19.0's own run, a day earlier, timed 0.02,
-0.48, 0.62, 0.83, 0.55, and 0.81, the third 0.59 to 0.67 and the fourth 0.82 to 1.31, beside
-0.18.0's code at 0.02, 0.48, 0.61, 0.96, 0.54, and 0.81, the third 0.58 to 0.64 and the fourth 0.83
-to 1.10: where 0.19.0's code runs, recording what each delta changed and writing obligations from
-it, the two differ by at most 0.01 seconds, and the fourth fixture, whose code it does not change,
-varied with the machine. 0.18.0's own run, a day earlier, timed 0.02, 0.45, 0.58, 0.81,
-0.51, and 0.77, the third 0.57 to 0.63 and the fourth 0.79 to 0.88, beside 0.17.0's code at 0.03,
-0.43, 0.58, 0.80, 0.49, and 0.75: 0.18.0 changed no code the fixtures run. 0.17.0's own run, two
-days before that, timed 0.02, 0.43, 0.57, 0.78, 0.47, and 0.74, the third 0.57 to 0.61 and the
-fourth 0.76 to 0.85, beside 0.16.0's code at 0.02, 0.41, 0.53, 0.78, 0.47, and 0.74, the third 0.52
-to 0.54: each of the full-service fixture's 80 extractions then also
+0.19.1's own run, earlier that day, timed 0.02, 0.46, 0.59, 0.80, 0.51, and 0.77, the third 0.58 to
+0.62 and the fourth 0.78 to 0.84, beside 0.19.0's code at 0.02, 0.46, 0.60, 0.81, 0.50, and 0.78,
+the third 0.59 to 0.62 and the fourth 0.80 to 0.83: 0.19.1 changes no code the fixtures run.
+0.19.0's own run, a day earlier, timed 0.02, 0.48, 0.62, 0.83, 0.55, and 0.81, the third 0.59 to
+0.67 and the fourth 0.82 to 1.31, beside 0.18.0's code at 0.02, 0.48, 0.61, 0.96, 0.54, and 0.81,
+the third 0.58 to 0.64 and the fourth 0.83 to 1.10: where 0.19.0's code runs, recording what each
+delta changed and writing obligations from it, the two differ by at most 0.01 seconds, and the
+fourth fixture, whose code it does not change, varied with the machine. 0.18.0's own run, a day
+earlier, timed 0.02, 0.45, 0.58, 0.81, 0.51, and 0.77, the third 0.57 to 0.63 and the fourth 0.79 to
+0.88, beside 0.17.0's code at 0.03, 0.43, 0.58, 0.80, 0.49, and 0.75: 0.18.0 changed no code the
+fixtures run. 0.17.0's own run, two days before that, timed 0.02, 0.43, 0.57, 0.78, 0.47, and 0.74,
+the third 0.57 to 0.61 and the fourth 0.76 to 0.85, beside 0.16.0's code at 0.02, 0.41, 0.53, 0.78,
+0.47, and 0.74, the third 0.52 to 0.54: each of the full-service fixture's 80 extractions then also
 walked its file once more, for what its annotations can read. Before that walk took the place of
 three, the fixture took 0.61 beside 0.16.0's 0.53. 0.16.0's own run, two days before that, timed
-0.02, 0.43, 0.55, 0.82, 0.53, and 0.80, the third 0.51 to 0.63 and the fourth 0.76 to 0.93,
-beside 0.15.0's code at 0.02, 0.46, 0.51, 0.83, 0.49, and 0.79, the third 0.47 to 0.52: each of the full-service fixture's 80 extractions then also walked
-its file once for the names it mentions, reads, and imports, and a module took a second
-fingerprint without its imports. Before those walks were folded into one, and the rarer ones kept
-to a file that writes `TYPE_CHECKING` or a body that raises, the fixture took 0.66 beside 0.15.0's
-0.48. 0.15.0's own run, earlier that day,
-timed 0.02, 0.41, 0.49, 0.80, 0.49, and 0.75, the fourth 0.79 to 0.90 and the last 0.73 to 0.76,
-beside 0.14.0's code at 0.02, 0.43, 0.49, 0.80, and 0.50 on the five fixtures it has, the fourth
-0.79 to 0.86: the full-service fixture has no test file, so the selection every analysis now makes
-reads none there. 0.14.0's own run, an hour and a half earlier, timed 0.02, 0.42, 0.48, 0.81, and 0.48,
-the fourth 0.80 to 0.84 and the last 0.48 to 0.50, beside 0.13.0's code at 0.02, 0.42, 0.48, 0.81,
-and 0.49, the fourth 0.79 to 0.84 and the last 0.49 each time: no fixture names a coverage run, so
-0.14.0 reads no test contexts in them, and they take as long as before. 0.13.0's own run, the
-evening before, timed 0.02, 0.41, 0.47, 0.82, and 0.48, the fourth 0.81 to 0.85 and the last 0.48 to
-0.51, of which grouping takes a tenth of a second and building its 500-module graph the rest, beside
+0.02, 0.43, 0.55, 0.82, 0.53, and 0.80, the third 0.51 to 0.63 and the fourth 0.76 to 0.93, beside
+0.15.0's code at 0.02, 0.46, 0.51, 0.83, 0.49, and 0.79, the third 0.47 to 0.52: each of the
+full-service fixture's 80 extractions then also walked its file once for the names it mentions,
+reads, and imports, and a module took a second fingerprint without its imports. Before those walks
+were folded into one, and the rarer ones kept to a file that writes `TYPE_CHECKING` or a body that
+raises, the fixture took 0.66 beside 0.15.0's 0.48. 0.15.0's own run, earlier that day, timed 0.02,
+0.41, 0.49, 0.80, 0.49, and 0.75, the fourth 0.79 to 0.90 and the last 0.73 to 0.76, beside 0.14.0's
+code at 0.02, 0.43, 0.49, 0.80, and 0.50 on the five fixtures it has, the fourth 0.79 to 0.86: the
+full-service fixture has no test file, so the selection every analysis now makes reads none there.
+0.14.0's own run, an hour and a half earlier, timed 0.02, 0.42, 0.48, 0.81, and 0.48, the fourth
+0.80 to 0.84 and the last 0.48 to 0.50, beside 0.13.0's code at 0.02, 0.42, 0.48, 0.81, and 0.49,
+the fourth 0.79 to 0.84 and the last 0.49 each time: no fixture names a coverage run, so 0.14.0
+reads no test contexts in them, and they take as long as before. 0.13.0's own run, the evening
+before, timed 0.02, 0.41, 0.47, 0.82, and 0.48, the fourth 0.81 to 0.85 and the last 0.48 to 0.51,
+of which grouping takes a tenth of a second and building its 500-module graph the rest, beside
 0.12.0's code at 0.02, 0.41, 0.47, and 0.81, the fourth 0.79 to 0.86, so the four fixtures both have
 took as long as before. 0.12.0's own run, three hours earlier, timed 0.02, 0.43, 0.47, and 0.81, the
 last 0.78 to 0.85, beside 0.11.1's code at 0.02, 0.41, 0.50, and 0.81, the last 0.80 to 0.81: the
@@ -178,14 +182,14 @@ closest, at half of its two-second ceiling, and no other reaches two fifths of i
 intervals leave out what each test builds before its clock starts, which the call-phase figures
 above include; on the Pi those were 0.05, 0.99, 0.97, 2.02, 1.11, and 1.91.
 
-The complete automated suite reports 98.30% overall branch-aware coverage across 2,186 passing tests
+The complete automated suite reports 98.30% overall branch-aware coverage across 2,195 passing tests
 and one skip, the real-Hermes discovery test, with at least 90% branch coverage in every critical
 module — the lowest is `path_policy.py` at 92.42%, followed by `git_diff/` at 93.16%,
-`semantic_interpreter.py`, which 0.19.2 extends, at 94.00%, and `config.py` at 94.74%. `cli.py`,
-`coverage_map.py`, and `baseline.py`, added to the critical set on 2026-10-31, are at 100%, as are
-`skeletons.py`, added with test skeletons, `change_groups.py`, added with connected changes, and
-`selection.py`, added with test selection. `schema_diff/`, added with API schemas and reading
-configuration files too, is at 98.91%, `mcp_server.py`, added on 2026-10-05, at 98.21%, and
+`semantic_interpreter.py`, which 0.19.2 and 0.19.4 extend, at 94.16%, and `config.py` at 94.74%.
+`cli.py`, `coverage_map.py`, and `baseline.py`, added to the critical set on 2026-10-31, are at
+100%, as are `skeletons.py`, added with test skeletons, `change_groups.py`, added with connected
+changes, and `selection.py`, added with test selection. `schema_diff/`, added with API schemas and
+reading configuration files too, is at 98.91%, `mcp_server.py`, added on 2026-10-05, at 98.21%, and
 `ast_diff/`, whose comparison 0.16.0, 0.17.0, and 0.19.0 extend, at 97.01%. `obligations.py`, which
 0.19.0 writes from evidence, is at 98.61%, and `evidence_scenarios.py`, new in it and outside the
 critical set, at 100%. The suite ran with no `ANTHROPIC_API_KEY` in the environment: no live LLM
