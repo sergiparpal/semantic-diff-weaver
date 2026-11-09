@@ -2,18 +2,18 @@
 
 ## Unreleased
 
-- **Fix:** with a model, a claim in a category that no finding on its evidence has adds no
-  finding. A model cannot change a finding's category, so the analysis made such a claim an
-  unknown change, and where no finding on that evidence was unknown either, reported it beside the
-  finding already there: a second finding of the same change, in a category no label expects. It
-  happened 6 times on the benchmark's 90 development cases, with three models. The claim now adds
-  no finding, and the analysis warns that it added none; its obligations go to the findings whose
-  evidence holds all of its own, as any of a model's obligations do. A claim on evidence where a
-  finding is an unknown change is still made one. Replayed, the four recorded runs change in those
-  six cases alone: no model adds a finding, and each of the three runs has one obligation fewer.
-  `run_benchmark.py llm` counts such behaviors apart, and `prompt_injection.py` too. Analyses
-  without a model are unchanged. See `docs/decisions.md`, 2026-11-09, a model's claim in another
-  category.
+- **Fix:** with a model, a claim in a category that no finding on its evidence has adds no finding.
+  A model cannot change a finding's category, so the analysis made such a claim an unknown change,
+  and where no finding on that evidence was unknown either, reported it beside the finding already
+  there: a second finding of the same change, in a category no label expects. It happened 6 times on
+  the benchmark's 90 development cases, with three models. The claim now adds no finding, and the
+  analysis warns that it added none; its obligations go to the findings whose evidence holds all of
+  its own, as any of a model's obligations do, unless its prose copies what it was shown, which
+  still discards it with them. A claim on evidence where a finding is an unknown change is still
+  made one. Replayed, the four recorded runs change in those six cases alone: no model adds a
+  finding, and each of the three runs has one obligation fewer. `run_benchmark.py llm` counts such
+  behaviors apart, and `prompt_injection.py` too. Analyses without a model are unchanged. See
+  `docs/decisions.md`, 2026-11-09, a model's claim in another category.
 
 ## 0.19.3 - 2026-11-08
 

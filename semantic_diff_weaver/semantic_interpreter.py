@@ -500,6 +500,11 @@ def _invoke_batch(
     return None, used, usage, schema_failure
 
 
+def _prose_copies(behavior: Any, shown: ShownText) -> bool:
+    """Whether a behavior's summary or impact copies what its call showed the model."""
+    return shown.copied(behavior.summary) or shown.copied(behavior.observable_impact)
+
+
 def _accept_behavior(
     behavior: Any,
     *,
@@ -566,7 +571,12 @@ def _accept_behavior(
             # the same change, in a category no label expects: 6 times on the 90 development
             # cases, with three models (docs/decisions.md, 2026-11-09, a model's claim in
             # another category). It adds no finding, and its obligations go to the findings
-            # whose evidence holds all of its own, as any of a model's obligations do.
+            # whose evidence holds all of its own, as any of a model's obligations do. Prose that
+            # copies what the call showed still discards it with them, as it did the finding it
+            # made (docs/decisions.md, 2026-11-08, a model's prose that copies what it was shown).
+            if _prose_copies(behavior, shown):
+                warnings.append(f"Discarded an LLM finding that {COPY_WARNING}")
+                return None
             warnings.append(
                 "Added no finding for an LLM behavior in a category no finding on its evidence has."
             )
@@ -603,7 +613,7 @@ def _accept_behavior(
         )
         candidates[existing_index] = promoted
         return tuple(item.id for item in promoted.evidence)
-    if shown.copied(behavior.summary) or shown.copied(behavior.observable_impact):
+    if _prose_copies(behavior, shown):
         warnings.append(f"Discarded an LLM finding that {COPY_WARNING}")
         return None
     path, symbol = evidence_identity(evidence)

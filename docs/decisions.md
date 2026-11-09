@@ -551,9 +551,11 @@ named an unknown change themselves, and two named a category the analysis made u
 those, on click#3781, named no behavior change at all, a refactor, and was reported as a change.
 
 Such a claim now adds no finding, and the analysis warns that it added none. Its obligations go
-where any of a model's obligations go, to each finding whose evidence holds all of the claim's. A
-claim on evidence where one finding is an unknown change is still made one, and supports or joins
-that finding. `run_benchmark.py llm` counts the behaviors that add no finding apart from those made
+where any of a model's obligations go, to each finding whose evidence holds all of the claim's.
+One whose summary or impact copies what the call showed it is still discarded with them, as the
+finding it made was (2026-11-08, a model's prose that copies what it was shown). A claim on
+evidence where one finding is an unknown change is still made one, and supports or joins that
+finding. `run_benchmark.py llm` counts the behaviors that add no finding apart from those made
 unknown. Deterministic output, schema, and goldens are unchanged.
 
 Replayed through the correction, the four recorded runs of 2026-11-08 change in those six cases
