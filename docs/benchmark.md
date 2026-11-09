@@ -382,11 +382,11 @@ model, since a model cannot change a finding's category (`docs/decisions.md`, 20
 model gave a finding to an unchanged symbol that had none. Leaving aside one that moved, below, the
 findings the three added, 3, 1, and 2, are unknown changes, a category no label expects. Each is on
 evidence that already carries a finding of another category on the same symbol, where the model's
-claim matched neither that finding's category nor its evidence. gpt-oss-120b's second is on
-black's JSON schema, which is not scored. gpt-6.1-terra's 15 cases show the same. A correction
-since adds no finding for such a claim (`docs/decisions.md`, 2026-11-09, a model's claim in
-another category). Replayed through it, no model adds a finding, and each of the three runs has
-one obligation fewer.
+claim matched neither that finding's category nor its evidence. gpt-oss-120b's second is on black's
+JSON schema, which is not scored. gpt-6.1-terra's 15 cases show the same. A correction since adds no
+finding for such a claim (`docs/decisions.md`, 2026-11-09, a model's claim in another category).
+Replayed through it, no model adds a finding, and each of the three runs has one obligation fewer.
+Run live with 0.19.4, DeepSeek added none either.
 
 **Two findings moved to another symbol when a model's claim merged into them.** In flask#5899,
 gpt-6.1-terra cited the evidence of `App.should_ignore_error`, a behavior change, together with
@@ -415,15 +415,17 @@ made 13 of them in 15 cases, 13 of its 43 behaviors. Most said the evidence name
 showing what changed: for a change of typing alone, all the evidence shows of the code is the
 symbol's name before and after.
 
-**What the models differ in is obligations, time, and cost.** gpt-oss-120b proposed 419
-obligations on the 90 cases, DeepSeek 246, and Llama 179. These runs' obligations have not been
-reviewed; the reviews above judged 6, 12, and 6 of 20 of gpt-oss-120b's useful, from its runs of
-2026-11-07. DeepSeek reasons at low effort too, 76% of its output tokens, and took 26.1 seconds per
-analysis at the median, against Llama's 3.6. Its reasoning and reply together reached the batch's
-output cap, 2,000 tokens plus one for every six characters of input, up to 8,192, in 10 of its 126
-calls. The retry hit the same cap in two cases, both of tenacity, and their batches fell back to
-the deterministic findings. A correction since gives a retry twice the budget (`docs/decisions.md`,
-2026-11-09, a batch's retry). gpt-6.1-terra, through the Pi, took 9.3 seconds at the median.
+**What the models differ in is obligations, time, and cost.** gpt-oss-120b proposed 419 obligations
+on the 90 cases, DeepSeek 246, and Llama 179. These runs' obligations have not been reviewed; the
+reviews above judged 6, 12, and 6 of 20 of gpt-oss-120b's useful, from its runs of 2026-11-07.
+DeepSeek reasons at low effort too, 76% of its output tokens, and took 26.1 seconds per analysis at
+the median, against Llama's 3.6. Its reasoning and reply together reached the batch's output cap,
+2,000 tokens plus one for every six characters of input, up to 8,192, in 10 of its 126 calls. The
+retry hit the same cap in two cases, both of tenacity, and their batches fell back to the
+deterministic findings. A correction since gives a retry twice the budget (`docs/decisions.md`,
+2026-11-09, a batch's retry). Run again live with it, DeepSeek's retries answered 7 of the 8 batches
+whose first call was cut off, 3 of them with more tokens than that call's budget, and one case lost
+a batch. gpt-6.1-terra, through the Pi, took 9.3 seconds at the median.
 
 **For finding behavior changes, these runs measure nothing the layer adds.** The category is the
 structural rules', what a model supports is right only a little more often than what it does not,

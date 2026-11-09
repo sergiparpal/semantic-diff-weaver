@@ -568,6 +568,11 @@ change and the call change there, two findings, neither of which holds both. The
 obligations in those cases stay, now on the findings beside them. The other 279 analyses with a
 model, and all 285 without one, are unchanged.
 
+A live run of deepseek-v4-flash on the 90 development cases with 0.19.4, made the same day to
+measure a batch's retry (2026-11-09, below), confirms it: the model added no finding, where its run
+with 0.19.2 had added 3, and findings in an expected category were 48 of 260 with the model and
+without it.
+
 ## Output-affecting corrections (2026-11-08, a merged finding's symbol)
 
 With a model, a claim whose evidence matches no finding's becomes a finding of its own, identified
@@ -2921,6 +2926,16 @@ Without a model nothing changes. The test suites' fake models never read the bud
 schema, or golden changes. Recorded replies cannot measure the correction, since a replay answers
 each request with what the live run got, whatever its budget. `tests/contract/test_llm_call.py`
 reproduces tenacity#645's cut-off with a fake model that reasons.
+
+So deepseek-v4-flash ran the 90 development cases again live the same day, with 0.19.4 and the
+options of the run above, for 0.0708 USD. As in that run, 8 first calls were cut off at the cap.
+Their retries were answered 7 times, where they had been 6, and 1 case lost a batch, httpx#3699,
+where 2 had. Three of the answered retries spent more tokens than their first call's budget allowed,
+1.17, 1.41, and 1.51 times as many, on click#3781, rich#4076, and packaging#1457: none of those
+replies would have fit the first budget. None of the 0.19.2 run's answered retries had. The retry
+cut off again, httpx#3699's, had exactly twice its first call's 2,093 tokens. Which batches a run
+cuts off varies, and only two cases, both of tenacity, had a first call cut off in both runs, so the
+three retries that needed the larger budget are the measure, more than the one case fewer.
 
 ## A call's output budget follows its batch (2026-11-06)
 
