@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **Evaluation:** `docs/decisions.md` and `docs/benchmark.md` record a batch's retry measured live.
+  deepseek-v4-flash ran the 90 development cases again with 0.19.4 and the options of its 0.19.2
+  run, for 0.0708 USD. Of the 8 batches whose first call was cut off at the output cap, 7 were
+  answered on the retry, where 6 had been, and 3 of those retries spent more tokens than the first
+  call's budget, which no retry had at 0.19.2. One case lost a batch, where two had. The same run
+  added no finding of the model's own, where the 0.19.2 run had added 3. Documentation only.
+
 ## 0.19.4 - 2026-11-09
 
 A model's claim in another category, and a retry's budget. With a model, a claim in a category that
