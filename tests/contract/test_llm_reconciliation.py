@@ -24,11 +24,46 @@ def test_fabricated_evidence_is_discarded() -> None:
     assert any("fabricated evidence" in item for item in result.warnings)
 
 
-def test_unsupported_category_is_downgraded() -> None:
+@pytest.mark.parametrize("category", ["authorization_change", "unknown_semantic_change"])
+def test_a_claim_in_a_category_no_finding_on_its_evidence_has_adds_no_finding(
+    category: str,
+) -> None:
+    """click#3764: made an unknown change, such a claim was a second finding of one change."""
+    payload = valid_payload()
+    payload["behaviors"][0]["category"] = category
+    result = interpret_candidates([candidate()], FakeLlm([Result("json", payload)]), WeaverConfig())
+    # The structural rules' finding stands as they made it, and alone.
+    assert result.candidates == [candidate()]
+    # The claim's obligation still rests on its evidence, which that finding holds.
+    assert [(item.evidence_ids, item.title) for item in result.suggestions] == [
+        (("ev-001",), "Exercise five")
+    ]
+    assert any("Added no finding" in item for item in result.warnings)
+    assert not any("Downgraded" in item for item in result.warnings)
+
+
+def test_a_claim_across_findings_in_other_categories_adds_none() -> None:
+    """flask#6168: one claim cited a return change and a call change, each a finding of its own."""
+    beside = candidate_variant(id="ev-002", symbol="limit")
     payload = valid_payload()
     payload["behaviors"][0]["category"] = "authorization_change"
-    result = interpret_candidates([candidate()], FakeLlm([Result("json", payload)]), WeaverConfig())
-    assert any(item.category is BehaviorCategory.UNKNOWN for item in result.candidates)
+    payload["behaviors"][0]["evidence_ids"] = ["ev-001", "ev-002"]
+    result = interpret_candidates(
+        [candidate(), beside], FakeLlm([Result("json", payload)]), WeaverConfig()
+    )
+    assert result.candidates == [candidate(), beside]
+    assert [item.evidence_ids for item in result.suggestions] == [("ev-001", "ev-002")]
+
+
+def test_an_unsupported_category_on_an_unknown_change_s_evidence_supports_it() -> None:
+    """Unknown is a category the finding on that evidence has, so the claim is made one."""
+    unknown = replace(candidate(), category=BehaviorCategory.UNKNOWN)
+    payload = valid_payload()
+    payload["behaviors"][0]["category"] = "authorization_change"
+    result = interpret_candidates([unknown], FakeLlm([Result("json", payload)]), WeaverConfig())
+    assert [(item.category, item.origin) for item in result.candidates] == [
+        (BehaviorCategory.UNKNOWN, Origin.LLM_SUPPORTED)
+    ]
     assert any("Downgraded" in item for item in result.warnings)
 
 

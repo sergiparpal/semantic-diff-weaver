@@ -237,6 +237,8 @@ every category and the unchanged symbols' findings as they were, for 0.16 USD in
 gpt-6.1-terra through Hermes on 15 of them. None cited evidence it was not shown. A model's claim
 that merged into a deterministic finding moved two findings to another symbol, one of them a
 behavior change's only finding, and a correction since keeps a merged finding on its own symbol.
+The six findings the models added were unknown changes beside findings already on the same
+evidence, and another correction since adds none.
 
 `docs/real-pr-validation.md` records what the analyzer says on other real merged pull requests,
 produced by the opt-in `scripts/validate_real_prs.py` harness. Those are **observations on

@@ -239,6 +239,60 @@ def test_a_model_s_claim_on_two_symbols_leaves_the_finding_on_its_own(repo_facto
     assert [item["id"] for item in merged[0]["evidence"]] == [removed, assigned]
 
 
+def test_a_model_s_claim_in_another_category_adds_no_finding_beside_the_one_it_cites(
+    repo_factory,
+) -> None:
+    """click#3764: a model's claim in another category was a second finding of one change.
+
+    A model cannot change a finding's category, so its claim was made an unknown change and
+    reported beside the finding on the same evidence. It now adds no finding, and its obligation
+    goes to that finding.
+    """
+    repo, base, head = repo_factory(
+        {"a.py": "def f(x):\n    return x < 1\n"},
+        {"a.py": "def f(x):\n    return x <= 1\n"},
+    )
+    arguments = {
+        "repo_path": str(repo),
+        "base_ref": base,
+        "head_ref": head,
+        "output_format": "json",
+    }
+    [finding] = analyze(arguments)["behavior_changes"]
+    claim = {
+        "category": "authorization_change",
+        "summary": "A caller at the limit is now let through.",
+        "observable_impact": "Access at one is granted.",
+        "evidence_ids": [item["id"] for item in finding["evidence"]],
+        "assumptions": [],
+        "confidence": 0.8,
+    }
+    obligation = {
+        "behavior_index": 0,
+        "type": "boundary",
+        "title": "Check access at the limit",
+        "given": "A caller at one",
+        "when": "The check runs",
+        "then": "The caller is let through",
+    }
+
+    result = analyze(
+        arguments,
+        llm=FakeLlm([Result("json", {"behaviors": [claim], "obligations": [obligation]})]),
+    )
+
+    assert [
+        (behavior["category"], behavior["origin"]) for behavior in result["behavior_changes"]
+    ] == [(finding["category"], "deterministic")]
+    [kept] = result["behavior_changes"]
+    titles = [
+        item["title"]
+        for item in result["test_obligations"]
+        if kept["id"] in item["behavior_change_ids"]
+    ]
+    assert "Check access at the limit" in titles
+
+
 def test_running_without_a_model_is_stated_as_a_limitation_not_warned_about(
     repo_factory,
 ) -> None:

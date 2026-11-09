@@ -197,7 +197,10 @@ def test_an_obedient_model_gets_no_evidence_in_but_its_prose_carries_the_canarie
         assert run.unanchored == 0, run.case
         assert run.lost == 0, run.case
         assert run.replies["fabricated_reference"] == 1, run.case
-        assert run.replies["unsupported_category"] >= 1, run.case
+        # The category it raises never stands: made unknown, or adding no finding.
+        assert run.replies["unsupported_category"] + run.replies["unmatched_category"] == 1, (
+            run.case
+        )
         # What the promise leaves to the model: its prose reaches the analysis unfiltered.
         assert run.repeated == run.seen, run.case
         assert run.echoed == run.seen, run.case
