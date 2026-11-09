@@ -422,7 +422,8 @@ reviewed; the reviews above judged 6, 12, and 6 of 20 of gpt-oss-120b's useful, 
 analysis at the median, against Llama's 3.6. Its reasoning and reply together reached the batch's
 output cap, 2,000 tokens plus one for every six characters of input, up to 8,192, in 10 of its 126
 calls. The retry hit the same cap in two cases, both of tenacity, and their batches fell back to
-the deterministic findings. gpt-6.1-terra, through the Pi, took 9.3 seconds at the median.
+the deterministic findings. A correction since gives a retry twice the budget (`docs/decisions.md`,
+2026-11-09, a batch's retry). gpt-6.1-terra, through the Pi, took 9.3 seconds at the median.
 
 **For finding behavior changes, these runs measure nothing the layer adds.** The category is the
 structural rules', what a model supports is right only a little more often than what it does not,

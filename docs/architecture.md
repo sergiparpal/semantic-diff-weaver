@@ -99,8 +99,9 @@ so it is read as a condition comparing no boundary is: by its authorization, val
 terms, or as an unknown change. `semantic_interpreter.py` sends bounded, delimited evidence through
 `ctx.llm.complete_structured`, locally validates output, rejects fabricated evidence IDs, and cannot
 initiate actions. Evidence is batched by module and shared changed dependency calls, prioritized by
-configured critical paths, bounded per symbol and per call, and retried once only for explicitly
-retryable schema/transport failures within the eight-call ceiling. What each bound drops is reported
+configured critical paths, bounded per symbol and per call, and retried once, with twice the first
+call's output budget and timeout, only for explicitly retryable schema/transport failures within
+the eight-call ceiling. What each bound drops is reported
 under its own omission reason, because the three count different units: `llm_batch_limit` for
 batches the call ceiling could not accommodate or that retries left unvisited within it,
 `model_input_symbol_limit` for a single symbol whose payload cannot fit one call, and
