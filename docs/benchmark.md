@@ -383,7 +383,10 @@ model gave a finding to an unchanged symbol that had none. Leaving aside one tha
 findings the three added, 3, 1, and 2, are unknown changes, a category no label expects. Each is on
 evidence that already carries a finding of another category on the same symbol, where the model's
 claim matched neither that finding's category nor its evidence. gpt-oss-120b's second is on
-black's JSON schema, which is not scored. gpt-6.1-terra's 15 cases show the same.
+black's JSON schema, which is not scored. gpt-6.1-terra's 15 cases show the same. A correction
+since adds no finding for such a claim (`docs/decisions.md`, 2026-11-09, a model's claim in
+another category). Replayed through it, no model adds a finding, and each of the three runs has
+one obligation fewer.
 
 **Two findings moved to another symbol when a model's claim merged into them.** In flask#5899,
 gpt-6.1-terra cited the evidence of `App.should_ignore_error`, a behavior change, together with

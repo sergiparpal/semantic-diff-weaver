@@ -535,6 +535,37 @@ turned off, a replay that reproduces gpt-oss-120b's live figures, 3 would have: 
 as an obligation's title, in each of the three runs that asked for it, as gpt-oss-120b wrote it
 before the rule.
 
+## Output-affecting corrections (2026-11-09, a model's claim in another category)
+
+With a model, a claim keeps its category only where a finding of the structural rules on the same
+evidence has it (2026-11-06); otherwise the reconciliation makes it an unknown change. A claim that
+is an unknown change, made one or named one by the model, supports or joins an unknown change on its
+evidence. Where the findings on that evidence were all of other categories, it became a finding of
+its own beside them: a second finding of the same change, in a category no label expects. In the
+runs of `docs/benchmark.md`, "Four models, with 0.19.2", these were all the findings the models
+added but the one that moved: 3 with deepseek-v4-flash, on anyio#1443's
+`MemoryObjectReceiveStream`, click#3764's `_tempfilepager`, and flask#6168's
+`SessionInterface.get_expiration_time`; 1 with llama-3.1-8b-instruct, on click#3776's `_pipepager`;
+and 2 with gpt-oss-120b, on click#3781's `edit` and black#5643's JSON schema. Four of the six claims
+named an unknown change themselves, and two named a category the analysis made unknown. One of
+those, on click#3781, named no behavior change at all, a refactor, and was reported as a change.
+
+Such a claim now adds no finding, and the analysis warns that it added none. Its obligations go
+where any of a model's obligations go, to each finding whose evidence holds all of the claim's. A
+claim on evidence where one finding is an unknown change is still made one, and supports or joins
+that finding. `run_benchmark.py llm` counts the behaviors that add no finding apart from those made
+unknown. Deterministic output, schema, and goldens are unchanged.
+
+Replayed through the correction, the four recorded runs of 2026-11-08 change in those six cases
+alone, and each loses the finding it added. With the three models, the findings in an expected
+category are again what they are without one, 46 of 251 on deepseek-v4-flash's 88 cases and 48 of
+262 with the other two, and no model adds a finding. Each of the three runs has one obligation
+fewer. Two of them were the removed findings' own, from the unknown category's templates. The
+third was deepseek-v4-flash's "Verify UTC equivalence" on flask#6168, whose claim cited the return
+change and the call change there, two findings, neither of which holds both. The model's other
+obligations in those cases stay, now on the findings beside them. The other 279 analyses with a
+model, and all 285 without one, are unchanged.
+
 ## Output-affecting corrections (2026-11-08, a merged finding's symbol)
 
 With a model, a claim whose evidence matches no finding's becomes a finding of its own, identified
