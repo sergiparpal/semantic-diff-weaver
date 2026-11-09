@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- **Fix:** with a model, a batch's retry gets twice its first call's output budget and timeout,
+  within the same ceilings of 8,192 tokens and 150 seconds. A reasoning model's thinking shares
+  the budget with its reply and varies from call to call, so a reply cut off at its budget could
+  be cut off again on a retry with the same one: on the benchmark's 90 development cases,
+  deepseek-v4-flash lost two batches, both of tenacity, that way, and they fell back to the
+  deterministic findings. A host hands back a cut-off reply as one it cannot read, so every retry
+  gets the larger budget, after a timeout too. Analyses without a model are unchanged. See
+  `docs/decisions.md`, 2026-11-09, a batch's retry.
+
 ## 0.19.3 - 2026-11-08
 
 A merged finding's symbol, and the analyzed code's warnings. With a model, a finding that a

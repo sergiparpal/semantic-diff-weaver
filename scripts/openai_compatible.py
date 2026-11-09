@@ -348,7 +348,8 @@ class OpenAICompatibleClient:
         finish_reason = choice.get("finish_reason")
         record.finish_reason = finish_reason[:40] if isinstance(finish_reason, str) else None
         if record.finish_reason == "length":
-            # Cut off at the token budget, possibly by reasoning: a schema failure, retried once.
+            # Cut off at the token budget, possibly by reasoning: a schema failure, retried once
+            # with twice the budget.
             record.outcome = "length"
             raise ValueError("the reply was cut off at its token budget")
         content = message.get("content")

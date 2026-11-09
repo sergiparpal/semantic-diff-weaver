@@ -154,6 +154,14 @@ def test_the_output_budget_and_timeout_grow_with_the_batch() -> None:
     assert budgets == sorted(budgets)
 
 
+def test_a_retry_gets_twice_the_budget_and_time_within_the_ceilings() -> None:
+    for chars in (0, 700, 6_432, 20_000, 34_326, 48_000, 1_000_000):
+        tokens, seconds = call_budget(chars)
+        assert call_budget(chars, retry=True) == (min(8192, 2 * tokens), min(150, 2 * seconds))
+    # A batch at the default input bound is at both ceilings already.
+    assert call_budget(48_000, retry=True) == call_budget(48_000) == (8192, 150)
+
+
 class TruncatingLlm:
     """A model whose reply grows with the evidence and is cut off past the caller's budget.
 
@@ -193,6 +201,61 @@ def test_a_batch_near_the_input_bound_gets_room_for_its_whole_reply() -> None:
     assert result.status.available is True
     assert result.status.failures == 0
     assert not result.warnings
+
+
+class ReasoningLlm:
+    """A model whose thinking shares the output budget with its reply.
+
+    At low effort, deepseek-v4-flash spent 2,304 of the 3,072 tokens a tenacity#645 batch allowed
+    on reasoning (2026-11-08), and its reply was cut off on both attempts.
+    """
+
+    def __init__(self, thinking: int) -> None:
+        self.thinking = thinking
+        self.calls: list[dict[str, Any]] = []
+
+    def complete_structured(self, **kwargs: Any) -> Result:
+        self.calls.append(kwargs)
+        reply = 200 + len(kwargs["input"][0]["text"]) // 21
+        if kwargs["max_tokens"] < self.thinking + reply:
+            return Result("text", None)
+        return Result("json", valid_payload())
+
+
+def test_a_reply_cut_off_at_its_budget_is_retried_with_twice_the_budget() -> None:
+    """Retried with the same budget, the reply was cut off again, and the batch fell back."""
+    llm = ReasoningLlm(thinking=2304)
+
+    result = interpret_candidates([candidate()], llm, WeaverConfig())
+
+    first, retry = llm.calls
+    assert (retry["max_tokens"], retry["timeout"]) == (
+        2 * first["max_tokens"],
+        2 * first["timeout"],
+    )
+    assert result.status.available is True
+    assert result.status.failures == 0
+    assert result.suggestions
+
+
+def test_a_retry_after_a_timeout_gets_twice_the_time() -> None:
+    class SlowOnce:
+        def __init__(self) -> None:
+            self.calls: list[dict[str, Any]] = []
+
+        def complete_structured(self, **kwargs: Any) -> Result:
+            self.calls.append(kwargs)
+            if len(self.calls) == 1:
+                raise TimeoutError("the structured inference request timed out")
+            return Result("json", valid_payload())
+
+    llm = SlowOnce()
+
+    result = interpret_candidates([candidate()], llm, WeaverConfig())
+
+    first, retry = llm.calls
+    assert retry["timeout"] == 2 * first["timeout"]
+    assert result.status.available is True
 
 
 def test_pydantic_parsed_results_and_common_usage_aliases_are_accepted() -> None:

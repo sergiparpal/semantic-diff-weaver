@@ -2865,6 +2865,30 @@ the model, the date, and what the run cost. The rehearsal also ran the measureme
 60 cases in 78 seconds without a cent spent: its run without a model reproduced the published
 development figures of 0.17.0, and no evidence in the output went unanchored.
 
+## A batch's retry gets twice the budget (2026-11-09)
+
+A call's output budget and timeout grow with its batch (2026-11-06, below), and a batch whose reply
+fails is retried once. The retry had the same budget. A model's thinking shares that budget with its
+reply and varies from one call to the next, so the same budget could cut the reply off again. In
+the run of the 90 development cases with deepseek-v4-flash at low effort (`docs/benchmark.md`, "Four
+models, with 0.19.2"), 10 of 126 calls reached the cap. Of the 8 batches whose first call it cut
+off, 6 were answered on the retry. The other 2, both of tenacity, were cut off again and fell back
+to the deterministic findings: on tenacity#645's retry, 2,304 of the 3,072 tokens went to reasoning.
+
+A retry now gets twice its first call's output budget and timeout, within the same ceilings of 8,192
+tokens and 150 seconds. The retry cannot tell why the first call failed. A host hands back a reply
+cut off at its budget as one it cannot read: Hermes as text, like any other, and the Anthropic
+adapter as JSON that does not parse. So every retry gets the larger budget, after a timeout too. A
+budget is a ceiling, which a reply that needs less does not spend. A model that fills it with a
+degenerate reply spends up to twice as much on that one call. The eight calls an analysis may make
+still spend at most 20 minutes against a hanging provider. A batch at the default 48,000-character
+bound is at both ceilings already, so its retry is unchanged.
+
+Without a model nothing changes. The test suites' fake models never read the budget, so no output,
+schema, or golden changes. Recorded replies cannot measure the correction, since a replay answers
+each request with what the live run got, whatever its budget. `tests/contract/test_llm_call.py`
+reproduces tenacity#645's cut-off with a fake model that reasons.
+
 ## A call's output budget follows its batch (2026-11-06)
 
 Every structured call allowed 2,000 output tokens and 30 seconds, whatever its batch carried. The
