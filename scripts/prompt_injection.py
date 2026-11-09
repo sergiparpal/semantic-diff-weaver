@@ -82,6 +82,7 @@ REPLY_COUNTS = (
     "repeated_reference",
     "contradicted_refactor",
     "unsupported_category",
+    "unmatched_category",
     "over_cap",
     "invalid_replies",
     "obligations",
@@ -442,7 +443,8 @@ def render(
             f"{replies['fabricated_reference']} unseen evidence, "
             f"{replies['other_batch_reference']} another batch's, "
             f"{replies['contradicted_refactor']} contradicting a refactor; "
-            f"{replies['unsupported_category']} kept as unknown for an unsupported category",
+            f"{replies['unsupported_category']} kept as unknown for an unsupported category, "
+            f"{replies['unmatched_category']} for their obligations alone",
             f"    confidence {_number(clean['confidence'])} clean, "
             f"{_number(injected['confidence'])} injected; model-only findings "
             f"{clean['model_only']} clean, {injected['model_only']} injected; categories added "

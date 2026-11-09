@@ -510,7 +510,12 @@ def _accept_behavior(
     candidates: list[SemanticCandidate],
     warnings: list[str],
     shown: ShownText = NOTHING_SHOWN,
-) -> SemanticCandidate | None:
+) -> tuple[str, ...] | None:
+    """Reconcile one of a model's behaviors with the findings.
+
+    Returns the IDs of the evidence its obligations rest on, or None when it is discarded with
+    them.
+    """
     referenced = set(behavior.evidence_ids)
     if len(referenced) != len(behavior.evidence_ids):
         warnings.append("Discarded an LLM finding with duplicate evidence references.")
@@ -553,7 +558,19 @@ def _accept_behavior(
         return None
     behavior_counts[symbol_key] += 1
     category = behavior.category
-    if category not in supported_categories and category is not BehaviorCategory.UNKNOWN:
+    if category not in supported_categories:
+        if BehaviorCategory.UNKNOWN not in supported_categories:
+            # Every finding on this evidence is the structural rules', in a category a model
+            # cannot change (docs/decisions.md, 2026-11-06), and none is an unknown change.
+            # Made an unknown change, the claim was reported beside them as a second finding of
+            # the same change, in a category no label expects: 6 times on the 90 development
+            # cases, with three models (docs/decisions.md, 2026-11-09, a model's claim in
+            # another category). It adds no finding, and its obligations go to the findings
+            # whose evidence holds all of its own, as any of a model's obligations do.
+            warnings.append(
+                "Added no finding for an LLM behavior in a category no finding on its evidence has."
+            )
+            return tuple(item.id for item in evidence)
         category = BehaviorCategory.UNKNOWN
         warnings.append("Downgraded an unsupported LLM category to unknown_semantic_change.")
     redacted_assumptions = [
@@ -585,7 +602,7 @@ def _accept_behavior(
             assumptions=tuple(sorted({*existing.assumptions, *redacted_assumptions})),
         )
         candidates[existing_index] = promoted
-        return promoted
+        return tuple(item.id for item in promoted.evidence)
     if shown.copied(behavior.summary) or shown.copied(behavior.observable_impact):
         warnings.append(f"Discarded an LLM finding that {COPY_WARNING}")
         return None
@@ -603,12 +620,12 @@ def _accept_behavior(
         rule_ids=("SDW-LLM-SUPPORTED",),
     )
     candidates.append(accepted)
-    return accepted
+    return tuple(item.id for item in accepted.evidence)
 
 
 def _accept_suggestions(
     parsed: LlmBatchResponse,
-    accepted_for_batch: list[SemanticCandidate | None],
+    accepted_for_batch: list[tuple[str, ...] | None],
     warnings: list[str],
     shown: ShownText = NOTHING_SHOWN,
 ) -> list[SuggestedScenario]:
@@ -618,8 +635,8 @@ def _accept_suggestions(
         if suggestion.behavior_index >= len(accepted_for_batch):
             warnings.append("Discarded an LLM obligation with an invalid behavior index.")
             continue
-        suggested_candidate = accepted_for_batch[suggestion.behavior_index]
-        if suggested_candidate is None:
+        evidence_ids = accepted_for_batch[suggestion.behavior_index]
+        if evidence_ids is None:
             continue
         texts = (suggestion.title, suggestion.given, suggestion.when, suggestion.then)
         if any(shown.copied(item) for item in texts):
@@ -631,7 +648,7 @@ def _accept_suggestions(
         suggestion_counts[suggestion.behavior_index] += 1
         suggestions.append(
             SuggestedScenario(
-                evidence_ids=tuple(item.id for item in suggested_candidate.evidence),
+                evidence_ids=evidence_ids,
                 type=suggestion.type,
                 title=_generated_text(suggestion.title, max_chars=300),
                 given=_generated_text(suggestion.given, max_chars=1000),
@@ -749,7 +766,7 @@ def interpret_candidates(
             if evidence.id in batch.evidence_ids
         }
         behavior_counts: defaultdict[str, int] = defaultdict(int)
-        accepted_for_batch: list[SemanticCandidate | None] = []
+        accepted_for_batch: list[tuple[str, ...] | None] = []
         for behavior in parsed.behaviors:
             accepted_for_batch.append(
                 _accept_behavior(

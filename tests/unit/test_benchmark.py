@@ -342,7 +342,7 @@ def test_a_case_is_measured_without_a_model_and_with_one(tmp_path: Path) -> None
     [run] = run_benchmark.measure_with_model(benchmark, scratch, model, public=lambda slug: True)
     assert run.validity == "valid"
     assert run.replies == Replies(
-        behaviors=3, fabricated_reference=1, kept=2, unsupported_category=1, fabricated_ids=1
+        behaviors=3, fabricated_reference=1, kept=2, unmatched_category=1, fabricated_ids=1
     )
     assert (run.unanchored, run.calls) == (0, model.calls)
     without = run_benchmark.findings_of(run.deterministic)
@@ -351,28 +351,28 @@ def test_a_case_is_measured_without_a_model_and_with_one(tmp_path: Path) -> None
     assert [(found.category, found.origin) for found in without] == [
         ("boundary_change", "deterministic_fallback")
     ]
-    # The model supports the finding and adds an unknown change in place of the category it
-    # named, which no deterministic finding on that evidence has.
-    assert sorted((found.category, found.origin) for found in with_model) == [
-        ("boundary_change", "llm_supported"),
-        ("unknown_semantic_change", "llm_supported"),
+    # The model supports the finding. The other category it named for the same evidence is one
+    # no finding there has, so that behavior adds no finding beside it.
+    assert [(found.category, found.origin) for found in with_model] == [
+        ("boundary_change", "llm_supported")
     ]
     report = run_benchmark.render_model(
         benchmark, [run], model="scripted", cap=1.0, spent=model.spent
     )
     for line in (
         "| Measure, on the 1 valid cases | Without a model | With scripted |",
-        "| Precision, findings in an expected category | 1 of 1 (100.0%) | 1 of 2 (50.0%) |",
-        "| Findings only the run with the model has, valid cases | 1 |",
+        "| Precision, findings in an expected category | 1 of 1 (100.0%) | 1 of 1 (100.0%) |",
+        "| Findings only the run with the model has, valid cases | 0 |",
         "| Findings only the run without it has, valid cases | 0 |",
         "| Behaviors discarded for citing evidence never shown | 1 |",
         "| Evidence IDs cited that were never shown | 1 |",
-        "| Behaviors kept in a category no evidence supports, made unknown | 1 |",
+        "| Behaviors kept in a category no evidence supports, made unknown | 0 |",
+        "| Behaviors kept in a category no finding on their evidence has, adding no finding | 1 |",
         "| Evidence in the output the analysis did not extract | 0 |",
         "| Calls | 1: ok 1 |",
         "| Cost | 0.0010 USD of a 1 USD cap |",
         "| Behaviors the analysis kept | 2 |",
-        f"| `owner/name#1` | valid | 1 | 1, 2 | 2 | 2 | 1 | 0.0010 | {run.seconds:.1f} |",
+        f"| `owner/name#1` | valid | 1 | 1, 1 | 1 | 2 | 1 | 0.0010 | {run.seconds:.1f} |",
     ):
         assert line in report
 
@@ -486,6 +486,7 @@ def test_a_reply_is_judged_by_the_analysis_s_rules_in_their_order() -> None:
     first = {"id": "ev-001", "path": "a.py", "symbol": "f", "kind": "comparison_change"}
     second = {"id": "ev-002", "path": "b.py", "symbol": "g", "kind": "call_added"}
     third = {"id": "ev-003", "path": "c.py", "symbol": "h", "kind": "annotation_change"}
+    fourth = {"id": "ev-004", "path": "d.py", "symbol": "k", "kind": "assignment_change"}
     obligation = {
         "behavior_index": 0,
         "type": "boundary",
@@ -514,6 +515,8 @@ def test_a_reply_is_judged_by_the_analysis_s_rules_in_their_order() -> None:
                 _behavior("refactor_likely_no_behavior_change", ["ev-003"]),
             ]
         },
+        # On an unknown change's evidence, another category is made unknown and supports it.
+        {"behaviors": [_behavior("side_effect_change", ["ev-004"])]},
     ]
 
     class Answering:
@@ -531,21 +534,28 @@ def test_a_reply_is_judged_by_the_analysis_s_rules_in_their_order() -> None:
     recorder.complete_structured(
         input=framed({"category_hint": "refactor_likely_no_behavior_change", "evidence": [third]})
     )
+    recorder.complete_structured(
+        input=framed({"category_hint": "unknown_semantic_change", "evidence": [fourth]})
+    )
     assert recorder.shown == {
         "ev-001": {"path": "a.py", "symbol": "f", "kind": "comparison_change"},
         "ev-002": {"path": "b.py", "symbol": "g", "kind": "call_added"},
         "ev-003": {"path": "c.py", "symbol": "h", "kind": "annotation_change"},
+        "ev-004": {"path": "d.py", "symbol": "k", "kind": "assignment_change"},
     }
+    # On g's evidence, whose one finding is a side effect, neither another category nor unknown
+    # adds a finding.
     assert recorder.replies() == Replies(
         invalid_replies=1,
-        behaviors=8,
+        behaviors=9,
         obligations=1,
         repeated_reference=1,
         fabricated_reference=1,
         other_batch_reference=1,
         contradicted_refactor=1,
-        kept=4,
+        kept=5,
         unsupported_category=1,
+        unmatched_category=2,
         fabricated_ids=1,
     )
 
@@ -734,8 +744,8 @@ def test_a_refactor_s_evidence_is_set_aside_and_the_per_symbol_cap_kept() -> Non
     recorder.complete_structured(
         input=[{"type": "text", "text": f"{INPUT_PREFIX}{document}{INPUT_SUFFIX}"}]
     )
-    # The first rests on g's evidence alone, in a category g's finding lacks; three behaviors on
-    # g reach the cap, so the last is discarded.
+    # The first rests on g's evidence alone, in a category g's finding lacks, so it adds no
+    # finding; three behaviors on g reach the cap, so the last is discarded.
     assert recorder.replies() == Replies(
-        behaviors=4, kept=3, set_aside_refactor=1, unsupported_category=1, over_cap=1
+        behaviors=4, kept=3, set_aside_refactor=1, unmatched_category=1, over_cap=1
     )

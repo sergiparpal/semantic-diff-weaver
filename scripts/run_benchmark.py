@@ -478,13 +478,17 @@ class Replies:
     contradicted_refactor: int = 0
     # Behaviors past the per-symbol cap of one reply.
     over_cap: int = 0
-    # Behaviors it keeps, as the finding of theirs it supports or as a new one.
+    # Behaviors it keeps: as the finding of theirs it supports, as a new one, or for their
+    # obligations alone.
     kept: int = 0
     # Kept behaviors naming a change whose refactor evidence the analysis set aside.
     set_aside_refactor: int = 0
     # Kept behaviors whose category no deterministic finding on their evidence has, so the analysis
-    # makes each an unknown change.
+    # makes each an unknown change, since one of those findings is unknown.
     unsupported_category: int = 0
+    # Kept behaviors whose category no finding on their evidence has, none of them unknown, so the
+    # analysis adds no finding for them and keeps only their obligations.
+    unmatched_category: int = 0
     # Evidence IDs cited that the model was never shown during the analysis.
     fabricated_ids: int = 0
 
@@ -624,8 +628,12 @@ class RecordingClient:
         counts[symbol] += 1
         replies.kept += 1
         replies.set_aside_refactor += set_aside
-        if category != UNKNOWN and category not in {hints[item] for item in references}:
-            replies.unsupported_category += 1
+        categories = {hints[item] for item in references}
+        if category not in categories:
+            if UNKNOWN in categories:
+                replies.unsupported_category += 1
+            else:
+                replies.unmatched_category += 1
 
 
 class ReplayClient:
@@ -893,6 +901,8 @@ def render_model(
         f"| Behaviors discarded past the per-symbol cap | {replies.over_cap} |",
         "| Behaviors kept in a category no evidence supports, made unknown | "
         f"{replies.unsupported_category} |",
+        "| Behaviors kept in a category no finding on their evidence has, adding no finding | "
+        f"{replies.unmatched_category} |",
         "| Evidence in the output the analysis did not extract | "
         f"{sum(run.unanchored for run in measured)} |",
         f"| Calls | {len(calls)}"
