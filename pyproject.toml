@@ -54,7 +54,15 @@ cache-keys = [{ file = "pyproject.toml" }, { file = "semantic_diff_weaver/**/*.p
 [tool.pytest.ini_options]
 addopts = "--strict-config --strict-markers"
 testpaths = ["tests"]
+# pytest-timeout fails a test still running at 30 seconds, or at its mark's own limit, and prints
+# its other threads' stacks. It acts through Python code, a SIGALRM handler or a timer thread on
+# Windows, which a thread stuck in C code can keep from running; such a test would run on until
+# CI's job timeout cancelled the job, which can lose the job's log. faulthandler's watchdog is a C
+# thread: a test still running at 240 seconds, past every mark's limit, has every thread's stack
+# printed, and the process exits, which fails the step with its log.
 timeout = 30
+faulthandler_timeout = 240
+faulthandler_exit_on_timeout = true
 markers = [
   "performance: bounded performance regression tests",
 ]

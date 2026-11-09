@@ -48,7 +48,13 @@ jobs:
             # ceilings guard complexity, which the Ubuntu and Windows legs keep timing.
             pytest-args: '-m "not performance"'
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    # A stall has to end the pytest step, which then keeps its log, before this timeout cancels the
+    # job, which may keep none: on 2026-11-08 and 2026-11-09 the macOS leg ran past it in pytest,
+    # and each time the job was cancelled 25 minutes in with no log to say where. Each bound sits
+    # inside the next, with room for twice the slowest leg's 10 minutes of pytest: a test stops by
+    # pyproject.toml's timeouts, by 240 seconds at the latest; the session stops after the test at
+    # hand once 18 minutes have passed; the step stops at 25 minutes, and the job at 30.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -61,10 +67,12 @@ jobs:
       - run: >-
           python -m pytest
           ${{ matrix.pytest-args }}
+          --session-timeout=1080
           --cov=semantic_diff_weaver
           --cov-branch
           --cov-report=json:coverage.json
           --cov-report=term-missing
+        timeout-minutes: 25
       - run: python scripts/check_coverage.py coverage.json
       - run: python -m ruff check .
       - run: python -m ruff format --check .
