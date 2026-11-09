@@ -44,6 +44,14 @@ MAX_OUTPUT_TOKENS = 8192
 BASE_TIMEOUT_SECONDS = 30
 CHARS_PER_TIMEOUT_SECOND = 400
 MAX_TIMEOUT_SECONDS = 150
+# A batch's retry gets twice its first call's budget and time, within the same ceilings. Thinking
+# shares the budget with the reply, and a reasoning model's thinking varies from call to call: at
+# low effort, deepseek-v4-flash reached the cap in 10 of its 126 calls on the 90 development cases
+# (2026-11-08), and of the 8 batches it cut off, 2 were cut off again when retried with the same
+# budget and fell back. A host hands back a reply cut off at its budget as one it cannot read,
+# Hermes as text like any other, so a retry cannot tell why the first call failed, and every retry
+# gets the larger budget: a ceiling, which a reply that needs less does not spend.
+RETRY_BUDGET_FACTOR = 2
 MAX_BEHAVIORS_PER_SYMBOL = 3
 MAX_OBLIGATIONS_PER_BEHAVIOR = 6
 LLM_CONFIDENCE_CAP_EXISTING = 0.98
@@ -427,18 +435,23 @@ def _accumulate_usage(current: LlmUsage | None, result: Any) -> LlmUsage | None:
     )
 
 
-def call_budget(input_chars: int) -> tuple[int, int]:
-    """The output-token cap and the timeout in seconds for a call carrying `input_chars`."""
-    max_tokens = min(MAX_OUTPUT_TOKENS, BASE_OUTPUT_TOKENS + input_chars // CHARS_PER_OUTPUT_TOKEN)
+def call_budget(input_chars: int, *, retry: bool = False) -> tuple[int, int]:
+    """The output-token cap and the timeout in seconds for a call carrying `input_chars`, twice
+    each for a batch's retry, within the same ceilings."""
+    factor = RETRY_BUDGET_FACTOR if retry else 1
+    max_tokens = min(
+        MAX_OUTPUT_TOKENS, factor * (BASE_OUTPUT_TOKENS + input_chars // CHARS_PER_OUTPUT_TOKEN)
+    )
     timeout = min(
-        MAX_TIMEOUT_SECONDS, BASE_TIMEOUT_SECONDS + input_chars // CHARS_PER_TIMEOUT_SECOND
+        MAX_TIMEOUT_SECONDS,
+        factor * (BASE_TIMEOUT_SECONDS + input_chars // CHARS_PER_TIMEOUT_SECOND),
     )
     return max_tokens, timeout
 
 
-def _call(llm: LlmClient, payload: str) -> Any:
+def _call(llm: LlmClient, payload: str, *, retry: bool = False) -> Any:
     text = _input_text(payload)
-    max_tokens, timeout = call_budget(len(text))
+    max_tokens, timeout = call_budget(len(text), retry=retry)
     return llm.complete_structured(
         instructions=INSTRUCTIONS,
         input=[
@@ -479,7 +492,10 @@ def _invoke_batch(
     calls: int,
     max_calls: int,
 ) -> tuple[LlmBatchResponse | None, int, LlmUsage | None, bool]:
-    """Attempt up to two structured calls for one batch. Returns parsed, calls used, usage, schema_fail."""
+    """Attempt up to two structured calls for one batch, the second with twice the budget.
+
+    Returns parsed, calls used, usage, schema_fail.
+    """
     usage: LlmUsage | None = None
     schema_failure = False
     attempts = 0
@@ -488,7 +504,7 @@ def _invoke_batch(
         attempts += 1
         used += 1
         try:
-            result = _call(llm, payload)
+            result = _call(llm, payload, retry=attempts > 1)
             usage = _accumulate_usage(usage, result)
             return _parse_structured_result(result), used, usage, schema_failure
         except (TimeoutError, ValidationError, ValueError) as exc:
