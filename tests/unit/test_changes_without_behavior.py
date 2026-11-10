@@ -1,5 +1,6 @@
 """Changes that alter no code that runs: type-checking blocks, imports, reworded messages,
-annotations and type variables a type checker alone reads, and a release's version string.
+annotations and type variables a type checker alone reads, a release's version string, and
+constants a module adds, or private ones it removes, for code elsewhere to read.
 
 Each was a finding on the labeled benchmark's development cases while its label said that no
 behavior changed: `docs/benchmark.md` records the measurements.
@@ -653,6 +654,74 @@ def test_a_version_string_alone_is_a_refactor() -> None:
 )
 def test_a_version_with_more_than_its_text_stays_a_change(old: str, new: str) -> None:
     assert not _typing_refactors(_compare(old, new))
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        pytest.param("import re\n", "import re\n_DIGITS = re.compile('[0-9]+')\n", id="pattern"),
+        pytest.param("X = 1\n", "X = 1\nPAGE = 2 ** 16\n", id="arithmetic"),
+        pytest.param("X = 1\n", "X = 1\n_LETTERS = '\\u00a1-\\uffff'\n", id="string"),
+        pytest.param("X = 1\n", "X = 1\nSTARS = ('*', '**')\n", id="tuple"),
+        pytest.param("X = 1\n", "X = 1\nSAFE = frozenset({'a', 'b'})\n", id="frozenset"),
+        pytest.param(
+            "import typing\n",
+            "import typing\nT = typing.TypeVar('T', bound=int)\n\n\ndef f(x: T) -> T:\n    return T\n",
+            id="type-variable-read-by-code",
+        ),
+        pytest.param(
+            "import typing\n",
+            "import typing\nHook = typing.Callable[[typing.Any, bool], typing.Any]\n",
+            id="type-alias",
+        ),
+        pytest.param("X = 1\n", "X = 1\nDefault = Config\n", id="alias"),
+        pytest.param("_OLD = 'a'\nX = 1\n", "X = 1\n", id="private-removed"),
+    ],
+)
+def test_constants_a_module_only_adds_or_privately_removes_are_a_refactor(
+    old: str, new: str
+) -> None:
+    """starlette#3725's `PARAM_FORMAT_REGEX`, marshmallow#2937's `_UNICODE_LETTERS`, and
+    werkzeug#3338's removed `_mime_split_re` were each a finding on a module its label calls
+    unchanged: the code that reads them changed, and its own findings say how."""
+    (delta,) = _compare(old, new)
+    assert delta.kind == "structural_refactor"
+    assert delta.metadata == {"materiality": 0.0, "constants_only": True}
+    assert _rule(delta) == (BehaviorCategory.REFACTOR, "SDW-RULE-REFACTOR-CONSTANTS")
+
+
+def test_a_constants_refactor_names_what_was_added_and_removed() -> None:
+    (delta,) = _compare("_A = 1\nX = 1\n", "X = 1\nB = 2\nC = 3\n")
+    assert (delta.old, delta.new) == ("_A", "B, C")
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        pytest.param("X = 1\n", "X = 2\n", id="a-value-changed"),
+        pytest.param("PUBLIC = 1\nX = 1\n", "X = 1\n", id="a-public-one-removed"),
+        pytest.param(
+            "from itertools import count\n",
+            "from itertools import count\n_ids = count()\n",
+            id="a-value-holding-state",
+        ),
+        pytest.param("X = 1\n", "X = 1\n_SEEN = []\n", id="a-list"),
+        pytest.param("X = 1\n", "X = 1\n_BY_NAME = {}\n", id="a-dict"),
+        pytest.param("X = 1\n", "X = 1\n__all__ = ['X']\n", id="a-dunder"),
+        pytest.param("X = 1\n", "X = 1\nY = 2\nY = 3\n", id="bound-twice"),
+        pytest.param("X = 1\n", "X = 1\nY = 2\nsetup(Y)\n", id="beside-code-that-runs"),
+        pytest.param("X = 1\n", "X = 1\nimport re\nP = re.compile('a')\n", id="beside-an-import"),
+        pytest.param("X = 1\n", "X = 1\nN = compute()\n", id="a-call"),
+        pytest.param(
+            "import re\nX = 1\n",
+            "import re\nX = 1\nP = re.compile(pattern())\n",
+            id="a-pattern-it-computes",
+        ),
+    ],
+)
+def test_a_constant_that_may_change_the_module_stays_a_change(old: str, new: str) -> None:
+    """rich#3845 added `_id_generator = count()`, state its label calls a change of the module."""
+    assert not any(item.metadata.get("constants_only") for item in _compare(old, new))
 
 
 @pytest.mark.parametrize(

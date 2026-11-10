@@ -105,6 +105,14 @@ class SymbolSnapshot:
     # Whether nothing a callable is decorated with or defined in reads its annotations (see
     # `extract.annotations_unread`).
     annotations_unread: bool = False
+    # A function's lines whose code feeds the value it returns or yields (see
+    # `extract.output_lines`). Empty for any other symbol.
+    output_lines: frozenset[int] = frozenset()
+    # A module's names bound once at its top level to a constant, each to a digest of its value,
+    # and its fingerprint without them (see `extract.module_constants`). None for any other symbol,
+    # or a module built without its file's typing context, never read as constants alone.
+    constants: dict[str, str] = field(default_factory=dict)
+    fingerprint_without_constants: str | None = None
 
     @property
     def signature_shape(self) -> str:

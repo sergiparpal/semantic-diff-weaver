@@ -1053,19 +1053,57 @@ def evidence_scenarios(
     if picked is None:
         return ()
     evidence, change = picked
-    subject = _subject(evidence)
     context = context or NO_CONTEXT
-    found = _Finding(
+    relevance = CATEGORY_PROFILES[behavior.category].scenarios[0].relevance
+    scenarios = _scenarios_of(_found(behavior, evidence, change, relevance, context))
+    beside = _beside_the_return(behavior, changes, evidence, change)
+    if beside is None:
+        return scenarios
+    # What feeds the changed return names inputs its expression alone does not: a condition's
+    # two outcomes. It was a finding and an obligation of its own until `SDW-RULE-OUTPUT-FLOW`
+    # joined it to the return's.
+    second = _found(behavior, *beside, max(0, relevance - SECOND_SCENARIO_RELEVANCE_DROP), context)
+    return (*scenarios, *_scenarios_of(second)[:1])
+
+
+def _found(
+    behavior: BehaviorChange,
+    evidence: Evidence,
+    change: Change,
+    relevance: int,
+    context: Context,
+) -> _Finding:
+    subject = _subject(evidence)
+    return _Finding(
         category=behavior.category,
         evidence=evidence,
         change=change,
         subject=subject,
         changed=_what_changed(subject, evidence, change) if change.kind in _VERBS else "",
-        relevance=CATEGORY_PROFILES[behavior.category].scenarios[0].relevance,
+        relevance=relevance,
         readers=context.readers,
         callers=context.callers,
     )
-    return _scenarios_of(found)
+
+
+def _beside_the_return(
+    behavior: BehaviorChange, changes: Mapping[str, Change], evidence: Evidence, change: Change
+) -> tuple[Evidence, Change] | None:
+    """In an output contract's finding written from its changed return, the change on the same
+    symbol that feeds the value, in the order of `_GENERAL`, if there is one."""
+    if behavior.category is not BehaviorCategory.OUTPUT_CONTRACT or change.kind != "return_change":
+        return None
+    own = (evidence.path, evidence.symbol)
+    feeding = [
+        (item, changes[item.id])
+        for item in behavior.evidence
+        if item.id in changes
+        and (item.path, item.symbol) == own
+        and changes[item.id].kind not in {"return_change", "signature_change"}
+    ]
+    if not feeding:
+        return None
+    return min(feeding, key=lambda pair: _GENERAL.index(pair[1].kind))
 
 
 def primary_kind(behavior: BehaviorChange, changes: Mapping[str, Change]) -> str | None:
