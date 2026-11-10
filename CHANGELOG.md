@@ -8,6 +8,13 @@
   answered on the retry, where 6 had been, and 3 of those retries spent more tokens than the first
   call's budget, which no retry had at 0.19.2. One case lost a batch, where two had. The same run
   added no finding of the model's own, where the 0.19.2 run had added 3. Documentation only.
+- **Evaluation:** `docs/benchmark.md` records a fourth blind review of test obligations: the four
+  models' runs of 2026-11-08, replayed through 0.19.4, on the 30 development cases the obligations
+  from evidence were not designed from. The deterministic obligations were useful 10 times in 20,
+  where the third review found 9 of 20 on the cases they were designed from, and the models' 9 times
+  in 37: 3 of 10 each of gpt-oss-120b's and deepseek-v4-flash's, 3 of gpt-6.1-terra's 7, and none of
+  llama-3.1-8b-instruct's 10. A model's obligations of type `review` were useful twice in 18.
+  Documentation only.
 
 ## 0.19.4 - 2026-11-09
 
