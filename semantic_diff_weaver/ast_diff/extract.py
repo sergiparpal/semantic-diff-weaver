@@ -871,18 +871,45 @@ _FUNCTION_SCOPES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)
 # Code a function defines but does not run itself: what it computes is not what the function
 # returns.
 _NESTED_SCOPES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)
+# The statements whose test or header feeds a function's value when code in their blocks does.
+_COMPOUND = (ast.If, ast.While, ast.For, ast.AsyncFor, ast.With, ast.AsyncWith)
+# What gives a function's value.
+_GIVES = (ast.Return, ast.Yield, ast.YieldFrom)
+# The expressions that write or give a value from inside another statement's code.
+_INLINE = (ast.NamedExpr, ast.Yield, ast.YieldFrom)
+# The same node types as `node_inventory` names them.
+_INLINE_NAMES = frozenset(kind.__name__ for kind in _INLINE)
+# Where a statement keeps the statements it holds, in the order of its fields: a block, a `try`'s
+# handlers, a `match`'s cases. A handler or a case keeps its own in its `body`.
+_STATEMENT_FIELDS = ("body", "handlers", "orelse", "finalbody", "cases")
 
 
-def _own_nodes(statements: list[ast.stmt]) -> list[ast.AST]:
-    """Every node of `statements`, none inside a function, class, or lambda they define."""
-    found: list[ast.AST] = []
-    pending: list[ast.AST] = list(statements)
+def _own_code(
+    statements: list[ast.stmt], *, inline: bool = True
+) -> list[tuple[ast.AST, tuple[ast.stmt, ...]]]:
+    """Every statement in `statements`, none inside a function or class they define, each with
+    the compound statements (see `_COMPOUND`) whose blocks hold it. With `inline`, also every
+    assignment expression, `yield`, and `yield from` in their code, none inside a lambda: a caller
+    that knows the code has none passes False, and no expression is read."""
+    found: list[tuple[ast.AST, tuple[ast.stmt, ...]]] = []
+    pending: list[tuple[ast.AST, tuple[ast.stmt, ...]]] = [(item, ()) for item in statements]
     while pending:
-        node = pending.pop()
+        node, enclosing = pending.pop()
         if isinstance(node, _NESTED_SCOPES):
             continue
-        found.append(node)
-        pending.extend(ast.iter_child_nodes(node))
+        if isinstance(node, ast.stmt) or (inline and isinstance(node, _INLINE)):
+            found.append((node, enclosing))
+        # A compound statement's blocks are its only statements; its test or header is not one.
+        holding = (*enclosing, node) if isinstance(node, _COMPOUND) else enclosing
+        if not inline:
+            pending.extend(
+                (child, holding)
+                for field in _STATEMENT_FIELDS
+                for child in getattr(node, field, ())
+            )
+            continue
+        for child in ast.iter_child_nodes(node):
+            pending.append((child, holding if isinstance(child, ast.stmt) else enclosing))
     return found
 
 
@@ -922,13 +949,21 @@ def _written_chains(target: ast.AST) -> set[str]:
     return {chain} if chain is not None else set()
 
 
-def _related(chain: str, chains: set[str]) -> bool:
+def _prefixes(chain: str) -> Iterator[str]:
+    """The objects `chain` is an attribute of: `a` and `a.b` for `a.b.c`."""
+    end = chain.find(".")
+    while end != -1:
+        yield chain[:end]
+        end = chain.find(".", end + 1)
+
+
+def _related(chain: str, chains: set[str], around: set[str]) -> bool:
     """Whether writing `chain` changes what reading one of `chains` gives: the same name, an
-    attribute of it, or an object it is an attribute of."""
-    return any(
-        chain == other or other.startswith(f"{chain}.") or chain.startswith(f"{other}.")
-        for other in chains
-    )
+    attribute of it, or an object it is an attribute of. `around` holds every object a chain in
+    `chains` is an attribute of (see `_prefixes`), so no chain is compared with each."""
+    if chain in chains or chain in around:
+        return True
+    return "." in chain and any(prefix in chains for prefix in _prefixes(chain))
 
 
 def _binding(node: ast.AST) -> tuple[set[str], list[ast.AST]] | None:
@@ -980,7 +1015,9 @@ def _header(node: ast.AST) -> range:
     return _span(node)
 
 
-def output_lines(node: ast.FunctionDef | ast.AsyncFunctionDef) -> frozenset[int]:
+def output_lines(
+    node: ast.FunctionDef | ast.AsyncFunctionDef, *, inline: bool = True
+) -> frozenset[int]:
     """The lines of a function whose code feeds the value it returns or yields.
 
     What a `return` or a `yield` gives reads some names and attribute chains; a statement that
@@ -988,47 +1025,50 @@ def output_lines(node: ast.FunctionDef | ast.AsyncFunctionDef) -> frozenset[int]
     returns or yields one, writes such a name or calls a method of one, or holds the test of an
     `if` or a `while`, or the header of a `for` or a `with`, whose blocks do. Nested functions,
     classes, and lambdas are code of their own. Without a `return` or a `yield` that gives a
-    value, no line does.
+    value, no line does. A caller that knows the body holds no assignment expression, `yield`, or
+    `yield from` passes `inline=False`, and only statements are read (see `_own_code`).
     """
-    nodes = _own_nodes(node.body)
+    code = _own_code(node.body, inline=inline)
     given: list[ast.expr] = []
-    for item in nodes:
-        if isinstance(item, (ast.Return, ast.Yield, ast.YieldFrom)) and item.value is not None:
+    for item, _ in code:
+        if isinstance(item, _GIVES) and item.value is not None:
             given.append(item.value)
     if not given:
         return frozenset()
     reads: set[str] = set().union(*(_read_chains(value) for value in given))
-    bindings = [found for item in nodes if (found := _binding(item)) is not None]
+    around = {prefix for chain in reads for prefix in _prefixes(chain)}
+    found = [_binding(item) for item, _ in code]
+    bindings = [binding for binding in found if binding is not None]
     grew = True
     while grew:
         grew = False
         for written, values in bindings:
-            if any(_related(chain, reads) for chain in written):
+            if any(_related(chain, reads, around) for chain in written):
                 more = set().union(*(_read_chains(value) for value in values)) - reads
                 if more:
                     reads |= more
+                    around.update(prefix for chain in more for prefix in _prefixes(chain))
                     grew = True
 
-    def feeds(item: ast.AST) -> bool:
-        if isinstance(item, (ast.Return, ast.Yield, ast.YieldFrom)):
+    def feeds(item: ast.AST, binding: tuple[set[str], list[ast.AST]] | None) -> bool:
+        if isinstance(item, _GIVES):
             return item.value is not None
-        found = _binding(item)
-        if found is not None and any(_related(chain, reads) for chain in found[0]):
+        if binding is not None and any(_related(chain, reads, around) for chain in binding[0]):
             return True
         called = _called_on(item)
-        return called is not None and _related(called, reads)
+        return called is not None and _related(called, reads, around)
 
     lines: set[int] = set()
-    for item in nodes:
-        compound = isinstance(
-            item, (ast.If, ast.While, ast.For, ast.AsyncFor, ast.With, ast.AsyncWith)
-        )
-        if compound:
-            blocks: list[ast.stmt] = [*getattr(item, "body", []), *getattr(item, "orelse", [])]
-            if feeds(item) or any(feeds(inner) for inner in _own_nodes(blocks)):
-                lines.update(_header(item))
-        elif feeds(item):
-            lines.update(_span(item))
+    # The compound statements whose blocks hold code that feeds the value, by identity.
+    holding: set[int] = set()
+    for (item, enclosing), binding in zip(code, found, strict=True):
+        if not feeds(item, binding):
+            continue
+        lines.update(_header(item) if isinstance(item, _COMPOUND) else _span(item))
+        holding.update(id(compound) for compound in enclosing)
+    for item, _ in code:
+        if id(item) in holding:
+            lines.update(_header(item))
     return frozenset(lines)
 
 
@@ -1509,7 +1549,9 @@ def snapshot_symbol(
         decorators = tuple(decorator_name(item) for item in node.decorator_list)
         display = signature
         beyond_parameters = typing_beyond_parameters(node)
-        outputs = output_lines(node)
+        # Without an assignment expression or a `yield` anywhere in it, a body's statements
+        # alone say what feeds its value.
+        outputs = output_lines(node, inline=any(name in _INLINE_NAMES for name, _ in inventory))
         if typing is not None:
             annotated = parameter_typing(node, typing)
             unread = annotations_unread(node, qualified_name, kind, typing)
