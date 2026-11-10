@@ -26,8 +26,11 @@
   changes given a finding in an expected category go from 46 to 70 of 120, and precision in an
   expected category from 18.3% to 31.0%; no behavior change loses its finding or its category. A
   finding whose condition joined its return's keeps that condition's obligation as a second one.
-  Schema 1.5 and every golden are unchanged; `docs/decisions.md` records the decision and the
-  held-out criterion fixed before measuring it.
+  Measured once on the third held-out split, against a criterion committed before, it held and
+  improved: 32 of 37 behavior changes get a finding in an expected category where 30 did, precision
+  in an expected category rises from 51.4% to 63.5%, every behavior change keeps a finding, and no
+  unchanged symbol gets one. Schema 1.5 and every golden are unchanged; `docs/decisions.md` records
+  the decision, and `docs/benchmark.md` both splits' measurements.
 
 ## 0.19.4 - 2026-11-09
 

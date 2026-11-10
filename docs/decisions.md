@@ -705,6 +705,24 @@ precision in an expected category stays at or above 51.4% (37 of 72), and no unc
 a finding (0 of 10). It improves on it if more behavior changes, or a greater share of findings, are
 in an expected category.
 
+**It held, and improved.** Measured once on 2026-11-10, after commit 20e6b53 had fixed the
+correction and the criterion, with 0.19.4 as it stands and with the correction, reading the summary
+alone and deleting the analyses unread. 0.19.4 gives the 0.19.0 baseline exactly.
+
+| Measure, 30 held-out cases | 0.19.4 | With the correction |
+| --- | --- | --- |
+| Findings on Python | 78 | 80 |
+| Precision, findings in an expected category | 37 of 72 (51.4%) | 47 of 74 (63.5%) |
+| Precision, findings naming a behavior category | 37 of 45 (82.2%) | 47 of 57 (82.5%) |
+| Recall, behavior changes given a finding | 37 of 37 | 37 of 37 |
+| Recall, behavior changes given one in an expected category | 30 of 37 (81.1%) | 32 of 37 (86.5%) |
+| Unchanged symbols given a finding | 0 of 10 | 0 of 10 |
+
+Ten more findings are in an expected category and two more behavior changes get one, while every
+behavior change keeps a finding and no unchanged symbol gains one. The held-out findings by category
+and by case, and their disagreements, stay unread; the split has measured this correction, so the
+next one waits for a new held-out sample.
+
 ## Output-affecting corrections (2026-11-04, typing and versions)
 
 The labeled benchmark's second round, designed from its 60 development cases alone: the first

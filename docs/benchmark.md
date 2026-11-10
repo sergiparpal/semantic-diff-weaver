@@ -15,14 +15,50 @@ labeled before the first such change and measured it on code it was not designed
 Since then the first held-out cases have joined development, and so has a second held-out split of
 30 pull requests, from `encode/django-rest-framework`, `jd/tenacity`, `urllib3/urllib3`,
 `agronholm/anyio`, and `pypa/packaging`, labeled and reviewed before the second round's correction
-and measured with it. A third held-out split of 30, labeled by two models and reviewed, now waits
-for the next change; how it was labeled, and the baseline it and the 90 development cases set,
-come first below. Then come the second split's baseline and the second round's correction,
-measured on it while it was held out, measurements of the development cases with models, and the
-first round's results.
+and measured with it. A third held-out split of 30, labeled by two models and reviewed, has measured
+the third round's correction, which comes first below, followed by how that split was labeled and
+the baseline it and the 90 development cases set. Then come the second split's baseline and the
+second round's correction, measured on it while it was held out, measurements of the development
+cases with models, and the first round's results.
 
 Unlike the 18-case corpus of `docs/evaluation.md`, whose cases were written to exercise the
 taxonomy, these are changes as maintainers made them.
+
+## Third round
+
+Designed from the 90 development cases alone, measured 2026-11-10 on both splits, the third round
+names what the rules reported as unknown changes when the change decides what its function returns,
+and reads constants a module only adds as no change (`docs/decisions.md`, 2026-11-10, what a change
+feeds). A changed condition, comparison, assignment, loop, context, or call that feeds the value a
+function returns or yields is an output contract change; so is a module's changed `__all__`; and a
+module that only adds constants, or removes private ones, is a refactor whose readers' findings say
+what changed. Its criterion on the held-out split was committed before measuring it: every behavior
+change keeps a finding, no fewer than 30 of 37 keep one in an expected category, precision in an
+expected category stays at or above 51.4%, and no unchanged symbol gains a finding.
+
+| Measure | Development, 0.19.4 | Development, corrected | Held-out, 0.19.4 | Held-out, corrected |
+| --- | --- | --- | --- | --- |
+| Findings on Python | 291 | 277 | 78 | 80 |
+| Precision, findings in an expected category | 48 of 262 (18.3%) | 77 of 248 (31.0%) | 37 of 72 (51.4%) | 47 of 74 (63.5%) |
+| Precision, findings naming a behavior category | 48 of 128 (37.5%) | 77 of 168 (45.8%) | 37 of 45 (82.2%) | 47 of 57 (82.5%) |
+| Recall, behavior changes given a finding | 120 of 120 | 120 of 120 | 37 of 37 | 37 of 37 |
+| Recall, behavior changes given one in an expected category | 46 of 120 (38.3%) | 70 of 120 (58.3%) | 30 of 37 (81.1%) | 32 of 37 (86.5%) |
+| Unchanged symbols given a finding | 31 of 100 (31.0%) | 28 of 100 (28.0%) | 0 of 10 | 0 of 10 |
+| Unchanged symbols given one naming a behavior category | 17 of 100 (17.0%) | 19 of 100 (19.0%) | 0 of 10 | 0 of 10 |
+
+**It met its criterion and moved both splits the same way.** No behavior change lost its finding or
+its category on either split. In development 24 more behavior changes get a finding in an expected
+category, all of them output contract changes the rules had called unknown, such as attrs#1593's
+`_is_class_var` and httpx#3699's exported `FunctionAuth`; held out, 2 more do, and precision in an
+expected category rises by 12 points on each split. In development three modules labeled unchanged
+lost their only findings, the constants starlette#3725, marshmallow#2937, and werkzeug#3338 added or
+removed, and four unchanged symbols whose findings were unknown changes now name an output contract:
+rewrites that return what they returned, which the rule cannot tell from changes that do not. Held
+out, the 10 unchanged symbols still get no finding.
+
+The held-out split was measured once with the correction, reading its summary alone; its findings by
+category and by case, and its disagreements, stay unread. Having measured this correction, it is not
+the held-out split of the next one.
 
 ## Third held-out sample
 

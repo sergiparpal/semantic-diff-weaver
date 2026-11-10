@@ -225,7 +225,11 @@ deterministic mode with 0.19.0 on 2026-11-08: every one of the 37 held-out behav
 finding, 30 of them in an expected category, and none of the 10 unchanged symbols got one; 37 of
 the 72 scored findings, and 37 of the 45 that name a behavior category, are in an expected one.
 Their labels list more categories per behavior change than development's, 3.43 against 2.17, so
-these figures do not compare with development's 48 of 262 and 48 of 128. The previous held-out
+these figures do not compare with development's 48 of 262 and 48 of 128. The third round's
+correction, designed from the development cases and measured once on these, names the output
+contract changes the rules had called unknown: held out, 32 of the 37 behavior changes get a finding
+in an expected category and 47 of 74 scored findings are in one, still with no unchanged symbol
+given a finding; in development, 70 of 120 and 77 of 248. The previous held-out
 split, which has since joined development, gave the second round's baseline, in deterministic mode
 with 0.16.0 on 2026-11-03: every one of its 44 behavior changes got a finding, 16 of them in an
 expected category, and 18 of its 29 unchanged symbols got one too; 16 of the 107 scored findings,
