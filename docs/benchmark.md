@@ -325,7 +325,7 @@ former signature.
 **One round is wide.** The model's share went from 6 to 12 to 6 of 20 across the three reviews, and
 the deterministic 9 of 20 lies between 26% and 66% at 95%. One reviewer judged all 120 obligations,
 on the development cases the correction was designed from, so obligations of other cases would be
-what confirms it.
+what confirms it. The fourth review, below, drew them from 30 other cases.
 
 ### Four models, with 0.19.2
 
@@ -416,22 +416,84 @@ showing what changed: for a change of typing alone, all the evidence shows of th
 symbol's name before and after.
 
 **What the models differ in is obligations, time, and cost.** gpt-oss-120b proposed 419 obligations
-on the 90 cases, DeepSeek 246, and Llama 179. These runs' obligations have not been reviewed; the
-reviews above judged 6, 12, and 6 of 20 of gpt-oss-120b's useful, from its runs of 2026-11-07.
-DeepSeek reasons at low effort too, 76% of its output tokens, and took 26.1 seconds per analysis at
-the median, against Llama's 3.6. Its reasoning and reply together reached the batch's output cap,
-2,000 tokens plus one for every six characters of input, up to 8,192, in 10 of its 126 calls. The
-retry hit the same cap in two cases, both of tenacity, and their batches fell back to the
-deterministic findings. A correction since gives a retry twice the budget (`docs/decisions.md`,
-2026-11-09, a batch's retry). Run again live with it, DeepSeek's retries answered 7 of the 8 batches
-whose first call was cut off, 3 of them with more tokens than that call's budget, and one case lost
-a batch. gpt-6.1-terra, through the Pi, took 9.3 seconds at the median.
+on the 90 cases, DeepSeek 246, and Llama 179. The review below judged 3 of 10 of gpt-oss-120b's and
+DeepSeek's useful, and none of Llama's. DeepSeek reasons at low effort too, 76% of its output
+tokens, and took 26.1 seconds per analysis at the median, against Llama's 3.6. Its reasoning and
+reply together reached the batch's output cap, 2,000 tokens plus one for every six characters of
+input, up to 8,192, in 10 of its 126 calls. The retry hit the same cap in two cases, both of
+tenacity, and their batches fell back to the deterministic findings. A correction since gives a
+retry twice the budget (`docs/decisions.md`, 2026-11-09, a batch's retry). Run again live with it,
+DeepSeek's retries answered 7 of the 8 batches whose first call was cut off, 3 of them with more
+tokens than that call's budget, and one case lost a batch. gpt-6.1-terra, through the Pi, took 9.3
+seconds at the median.
 
 **For finding behavior changes, these runs measure nothing the layer adds.** The category is the
 structural rules', what a model supports is right only a little more often than what it does not,
 and a model brings no evidence of its own. What the layer adds is obligations, the one place the
-reviews above found it useful, and the deterministic obligations from evidence reached 9 of 20 in
-the third review, against the model's 6.
+reviews found it useful, and in the fourth review, below, the deterministic obligations were useful
+10 times in 20 and the models' 9 times in 37.
+
+### The four models' obligations, reviewed blind
+
+A fourth review, finished 2026-11-10, judged these runs' obligations as the first three judged
+gpt-oss-120b's: one reviewer, a page that showed each obligation with its pull request, its symbols,
+and the hunks its evidence covers but never where it came from, and a verdict of useful, noise, or
+unsure with a note. The four runs were first replayed through 0.19.4, so the obligations are the
+ones the analysis now writes from the same replies.
+
+Every obligation came from the 30 development cases that were the second held-out split, those of
+`encode/django-rest-framework`, `jd/tenacity`, `urllib3/urllib3`, `agronholm/anyio`, and
+`pypa/packaging`, which the obligations from evidence and their iteration were not designed from. So
+the deterministic side measures those corrections on cases they never saw, the confirmation the
+third review lacked, and a card's project says nothing of where it came from. A model's obligation
+is one its analysis has that the analysis without it lacks, and whose text the model wrote, by its
+recorded replies. With `random.Random(20261110)`, 20 deterministic obligations were drawn and 10 of
+each model's, at most two from a case; gpt-6.1-terra answered 5 of these cases and proposed 7
+obligations, in 3 of them, and all 7 were drawn.
+
+| Obligations | Drawn from | Cases | Useful | Noise | Unsure |
+| --- | --- | --- | --- | --- | --- |
+| Deterministic | 99 | 16 | 10 | 10 | 0 |
+| gpt-oss-120b's | 118 | 9 | 3 | 7 | 0 |
+| deepseek-v4-flash's | 72 | 8 | 3 | 6 | 1 |
+| llama-3.1-8b-instruct's | 53 | 9 | 0 | 10 | 0 |
+| gpt-6.1-terra's | 7 | 3 | 3 | 4 | 0 |
+
+**The deterministic obligations held on cases they were not designed from.** Ten of 20 were useful,
+where the third review found 9 of 20 on the cases they were designed from, so the criterion of 6 is
+met and no fit to those cases shows (two-sided Fisher p = 1.0). Changed conditions were useful all
+four times again, eight of eight over the two reviews, and so was either side of a changed boundary,
+both times. The noise was in obligations that name no outcome to assert: "Verify the side-effect
+occurrence of the changed call" all three times, where the notes named the outcome that would show
+it, such as a pending send woken with `ClosedResourceError`; "Characterize the new" public symbol
+both times, with "a representative input" and no expected result; and once each a call's outcome
+that the changed line alone does not decide, a former contract that success and failure would both
+satisfy, a state transition, the category's fallback, and a loop's "no item, one, and several",
+where splitting an empty string by commas still gives one item.
+
+**The models' obligations were useful less often.** Nine of their 37 were, against 10 of 20
+deterministic ones (p = 0.08): 3 of 10 each of gpt-oss-120b's and DeepSeek's, 3 of gpt-6.1-terra's
+7, and none of Llama's 10, which differs from the deterministic side at p = 0.01, or 0.04 corrected
+for four models. gpt-oss-120b's 3 of 10 is in line with the 6, 12, and 6 of 20 of its runs of
+2026-11-07. A model's obligations come on top of the deterministic ones, so their number counts as
+well: on these 30 cases gpt-oss-120b added 118, about 4 a case, DeepSeek 72, Llama 53, and
+gpt-6.1-terra 7 in its 5.
+
+**A model's obligations of type `review` were useful twice in 18**, against 7 times in its other 19
+(p = 0.12). gpt-6.1-terra's three others were all useful and its four reviews all noise, and 44 of
+the 53 obligations Llama added are reviews. Grouped by their notes, 14 of the models' 27 noise
+obligations named no input and no expected result, such as "Review the changed condition" or "Assess
+impact of new state and methods", and 8 misread the code, five of them DeepSeek's: a `None` the
+function never returns, an omitted `retries` taken for `None`, `__radd__` tried with the strategy on
+its left. Three asked about what the documentation or the diff already settles, one asked for
+documentation, and one described the implementation.
+
+**The limits are the earlier reviews'.** One person judged all 57, and 10 obligations a model, or
+gpt-6.1-terra's 7 from 3 cases, leave each share wide: 3 of 10 lies between 11% and 60% at 95%. Six
+notes compare a card with another of its case; a model's obligations do come beside the
+deterministic ones, so a repeat costs the reader, but two of the six compare two models, which no
+analysis shows together. Whether to drop a model's `review` obligations is a question this sample
+raised, so another sample would have to answer it.
 
 ## Results
 
@@ -611,9 +673,9 @@ label, so a label is a model's reading that one reviewer accepted, chose, or cor
 and twenty pull requests of at most ten changed symbols each, sampled from twenty libraries' recent
 history, say nothing of large changes or of applications. Outside "With a model" the analyzer ran
 without one, as the MCP server always runs it and the CLI does without a provider; that section
-measures one run of one model on the development cases, and one reviewer's reading of 40 test
-obligations. A finding is matched to a label by the path and symbol of its first evidence, so two
-overloads of one name share a label.
+measures runs of four models on the development cases, and one reviewer's reading of 177 test
+obligations in four reviews. A finding is matched to a label by the path and symbol of its first
+evidence, so two overloads of one name share a label.
 
 The held-out split measures a correction only while no correction is designed from it. A change to
 the analyzer's categories is made against the development cases, measured on both splits, and

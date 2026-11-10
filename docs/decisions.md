@@ -401,7 +401,9 @@ follow from them.
 On the 60 development cases the findings are unchanged, and the obligations go from 135 to 124,
 121 of them quoting their evidence. Of the corpus goldens only the change no rule names moves: its
 obligation quotes the `...` that replaced `pass`, and still asks to clarify and characterize. This
-step has not been reviewed blind.
+step was not reviewed blind on its own. The fourth review measured it together with the obligations
+from evidence, on 30 cases neither was designed from (`docs/benchmark.md`, "The four models'
+obligations, reviewed blind").
 
 ## Output-affecting corrections (2026-11-07, obligations from evidence)
 
@@ -480,6 +482,13 @@ reads it, which the call graph knows. A weakly anchored finding joins a stronger
 on its symbol. A third review, drawn the same way with another seed from a replay through this
 code, met the criterion: 9 of 20 deterministic obligations useful, 9 noise, and 2 unsure, against
 6 of 20 of the model's (`docs/benchmark.md`, "The obligations, reviewed again").
+
+A fourth review confirmed it on cases it was not designed from. It drew 20 deterministic obligations
+from the 30 development cases of the second held-out split, through 0.19.4, which carries this
+correction and the next: 10 were useful and 10 noise. Changed conditions were useful all four times
+again. A side effect's occurrence was noise all three times, for want of the outcome that shows it,
+and so was a new public symbol's characterization both times (`docs/benchmark.md`, "The four models'
+obligations, reviewed blind").
 
 ## Output-affecting corrections (2026-11-08, a model's prose that copies what it was shown)
 
