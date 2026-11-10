@@ -56,7 +56,7 @@ FLOW = (BehaviorCategory.OUTPUT_CONTRACT, "SDW-RULE-OUTPUT-FLOW")
 HELPERS = "def _a(x):\n    return x\n\n\ndef _b(x):\n    return x\n\n\n"
 
 
-@pytest.mark.parametrize(
+FLOWS = pytest.mark.parametrize(
     ("source", "lines"),
     [
         pytest.param(
@@ -103,10 +103,60 @@ HELPERS = "def _a(x):\n    return x\n\n\ndef _b(x):\n    return x\n\n\n"
             {5},
             id="a-nested-function-s-return",
         ),
+        pytest.param(
+            "def f(xs):\n    for x in xs:\n        if x:\n            return x\n    return None\n",
+            {2, 3, 4, 5},
+            id="every-block-around-a-return",
+        ),
+        pytest.param(
+            "def f(x):\n    try:\n        y = parse(x)\n    except ValueError:\n"
+            "        return None\n    return y\n",
+            {3, 5, 6},
+            id="a-handler-s-return",
+        ),
+        pytest.param(
+            "def f(command):\n    match command:\n        case 'go':\n            result = 1\n"
+            "        case _:\n            result = 0\n    return result\n",
+            {4, 6, 7},
+            id="a-match-s-cases",
+        ),
+        pytest.param(
+            "def f(xs):\n    if (n := len(xs)) > 2:\n        return n\n    return 0\n",
+            {2, 3, 4},
+            id="an-assignment-expression",
+        ),
+        pytest.param(
+            "def f(x):\n    a, b = x\n    c = 0\n    return a\n", {2, 4}, id="a-tuple-target"
+        ),
+        pytest.param(
+            "def f(xs):\n    first, *rest = xs\n    return rest\n", {2, 3}, id="a-starred-target"
+        ),
+        pytest.param(
+            "def f(keys):\n    out = {}\n    for k in keys:\n        out[k] = 1\n    return out\n",
+            {2, 3, 4, 5},
+            id="an-item-of-it",
+        ),
+        pytest.param(
+            "def f(p):\n    with lock:\n        value = p.read()\n    return value\n",
+            {2, 3, 4},
+            id="a-with-block-that-binds-nothing",
+        ),
     ],
 )
+
+
+@FLOWS
 def test_output_lines_follow_what_the_function_returns(source: str, lines: set[int]) -> None:
     assert _lines(source) == lines
+
+
+@FLOWS
+def test_a_snapshot_reads_expressions_only_when_its_code_holds_them(
+    source: str, lines: set[int]
+) -> None:
+    # Extraction reads only statements unless the body's node inventory names an assignment
+    # expression, a `yield`, or a `yield from`, and finds the same lines.
+    assert set(_symbol(source, "f").output_lines) == lines
 
 
 def test_a_value_that_feeds_the_return_is_an_output_contract_change() -> None:
