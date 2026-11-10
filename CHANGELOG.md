@@ -15,6 +15,22 @@
   in 37: 3 of 10 each of gpt-oss-120b's and deepseek-v4-flash's, 3 of gpt-6.1-terra's 7, and none of
   llama-3.1-8b-instruct's 10. A model's obligations of type `review` were useful twice in 18.
   Documentation only.
+- **Fix:** the benchmark's third round names the output contract changes it reported as unknown, and
+  reads constants a module only adds as no change, designed from the 90 development cases. A changed
+  condition, comparison, assignment, loop, context, or call that the rules leave unknown, and that
+  feeds what its function returns or yields, is an `output_contract_change` under the new
+  `SDW-RULE-OUTPUT-FLOW`; a module's changed `__all__` is one under the new `SDW-RULE-EXPORTS`; and
+  a module whose code differs only in constants it adds, or private ones it removes, is a refactor
+  under the new `SDW-RULE-REFACTOR-CONSTANTS`, hidden by default like every refactor, never when a
+  constant could run code or shadow a name the code already read. On the development cases, behavior
+  changes given a finding in an expected category go from 46 to 70 of 120, and precision in an
+  expected category from 18.3% to 31.0%; no behavior change loses its finding or its category. A
+  finding whose condition joined its return's keeps that condition's obligation as a second one.
+  Measured once on the third held-out split, against a criterion committed before, it held and
+  improved: 32 of 37 behavior changes get a finding in an expected category where 30 did, precision
+  in an expected category rises from 51.4% to 63.5%, every behavior change keeps a finding, and no
+  unchanged symbol gets one. Schema 1.5 and every golden are unchanged; `docs/decisions.md` records
+  the decision, and `docs/benchmark.md` both splits' measurements.
 
 ## 0.19.4 - 2026-11-09
 

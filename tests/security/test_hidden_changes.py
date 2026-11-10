@@ -1,8 +1,9 @@
 """A hostile change cannot pass for one that changes no behavior.
 
 The comparison sets aside what only a type checker reads, imports in step with the code using them,
-reworded exception messages, and a release's version string. Each of these regressions is code that
-does run, or a literal that is code, written to look like one of them.
+reworded exception messages, a release's version string, and constants a module adds or privately
+removes. Each of these regressions is code that does run, or a literal that is code, written to look
+like one of them.
 """
 
 from __future__ import annotations
@@ -266,3 +267,56 @@ def test_an_annotation_that_runs_or_is_read_never_passes_for_typing(
 )
 def test_code_that_runs_never_passes_for_typing_or_a_version(old: str, new: str, name: str) -> None:
     assert not _passes_for_typing(_compare(old, new, name))
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        pytest.param(
+            "def size(x):\n    return len(x)\n",
+            "len = lambda x: 0\n\n\ndef size(x):\n    return len(x)\n",
+            id="a-lambda-shadowing-a-builtin",
+        ),
+        pytest.param(
+            "def size(x):\n    return len(x)\n",
+            "len = 0\n\n\ndef size(x):\n    return len(x)\n",
+            id="a-constant-shadowing-a-builtin",
+        ),
+        pytest.param(
+            "from .settings import LIMIT\n\n\ndef cap(x):\n    return min(x, LIMIT)\n",
+            "from .settings import LIMIT\nLIMIT = 10 ** 9\n\n\ndef cap(x):\n    return min(x, LIMIT)\n",
+            id="a-constant-shadowing-an-import",
+        ),
+        pytest.param(
+            "from .settings import *\n",
+            "from .settings import *\nLIMIT = 10 ** 9\n",
+            id="beside-a-star-import",
+        ),
+        pytest.param(
+            "_HOSTS = ('a.example',)\n\n\ndef allowed(h):\n    return h in _HOSTS\n",
+            "\n\ndef allowed(h):\n    return h in _HOSTS\n",
+            id="a-removed-constant-still-read",
+        ),
+        pytest.param("X = 1\n", "X = 1\nY = payload[0]\n", id="an-item-that-may-run-getitem"),
+        pytest.param(
+            "X = 1\n", "X = 1\nY = payload.attribute\n", id="an-attribute-that-may-run-a-property"
+        ),
+        pytest.param("X = 1\n", "X = 1\nY = payload | other\n", id="an-operator-that-may-run"),
+        pytest.param(
+            "import re\nX = 1\n",
+            "import re\nX = 1\nP = re.compile('a', __import__('os').system('sh'))\n",
+            id="a-pattern-flag-that-runs",
+        ),
+        pytest.param(
+            "import typing\nX = 1\n",
+            "import typing\nX = 1\nT = typing.TypeVar('T', bound=__import__('os').system('sh'))\n",
+            id="a-type-variable-argument-that-runs",
+        ),
+        pytest.param(
+            "X = 1\n", "X = 1\nY = frozenset(run_payload())\n", id="a-frozenset-of-a-call"
+        ),
+    ],
+)
+def test_code_that_runs_or_rebinds_never_passes_for_constants(old: str, new: str) -> None:
+    deltas = _compare(old, new)
+    assert not any(item.metadata.get("constants_only") for item in deltas)

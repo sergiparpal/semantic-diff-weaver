@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 from collections import Counter
 from collections.abc import Iterable, Sequence
 from pathlib import PurePosixPath
@@ -19,6 +20,9 @@ from .limits import (
 )
 from .match import symbol_similarity
 from .types import CategoryProbe, StructuralDelta, SymbolSnapshot
+
+# What a module-level name shadows when the module binds it.
+BUILTIN_NAMES = frozenset(dir(builtins))
 
 ORDER_SENSITIVE_KINDS = {
     "call_order_change",
@@ -343,6 +347,7 @@ def _append_call_delta(
     kind = "call_order_change" if sorted(old_names) == sorted(new_names) else "call_change"
     removed, added = _changed_sides(old_names, new_names)
     changed = sorted({item.split("(", 1)[0] for item in (*removed, *added)})
+    flow = {"reaches_output": True} if changes_output(old, new, "calls") else {}
     result.append(
         make_structural_delta(
             path,
@@ -360,6 +365,7 @@ def _append_call_delta(
             internal_calls=bool(changed)
             and all(is_internal_call(name, own_calls, first_party) for name in changed),
             **changed_value_metadata(removed, added),
+            **flow,
         )
     )
 
@@ -398,6 +404,26 @@ def _changed_assignment_targets(old: SymbolSnapshot, new: SymbolSnapshot) -> lis
     return sorted({name for _, names in changed for name in names})
 
 
+def _changed_lines(snapshot: SymbolSnapshot, other: SymbolSnapshot, feature: str) -> list[int]:
+    """The lines of the values of `feature` that `snapshot` holds more times than `other`."""
+    remaining = Counter(feature_texts(other, feature))
+    lines: list[int] = []
+    for text, line in snapshot.features[feature]:
+        if remaining[text]:
+            remaining[text] -= 1
+        else:
+            lines.append(line)
+    return lines
+
+
+def changes_output(old: SymbolSnapshot, new: SymbolSnapshot, feature: str) -> bool:
+    """Whether a value of `feature` that one side holds and the other does not sits on a line
+    that feeds what that side's function returns or yields (see `extract.output_lines`)."""
+    return any(line in old.output_lines for line in _changed_lines(old, new, feature)) or any(
+        line in new.output_lines for line in _changed_lines(new, old, feature)
+    )
+
+
 def _append_feature_deltas(
     result: list[StructuralDelta],
     path: str,
@@ -418,6 +444,8 @@ def _append_feature_deltas(
         metadata = changed_value_metadata(*_changed_sides(old_values, new_values))
         if feature == "assignments":
             metadata["assigned_names"] = _changed_assignment_targets(old, new)
+        if changes_output(old, new, feature):
+            metadata["reaches_output"] = True
         result.append(
             make_structural_delta(
                 path,
@@ -547,10 +575,40 @@ def only_version_changed(old: SymbolSnapshot, new: SymbolSnapshot) -> bool:
     )
 
 
+def only_constants_changed(old: SymbolSnapshot, new: SymbolSnapshot) -> bool:
+    """Whether a module's own code differs only in constants added to it, or private ones removed
+    from it (see `extract.module_constants`).
+
+    What reads them is a symbol of its own, and carries any change. A constant whose value
+    changed, or a public one removed, which code importing the module may read, is a change of
+    the module itself. So is a name added that the old file mentioned, or that names a builtin:
+    code that has not changed read something else by it, and now reads the constant. And so is
+    a private name removed that the new file still mentions: the code reading it now fails.
+    """
+    if (
+        old.fingerprint == new.fingerprint
+        or old.fingerprint_without_constants is None
+        or new.fingerprint_without_constants is None
+        or old.fingerprint_without_constants != new.fingerprint_without_constants
+    ):
+        return False
+    shared = old.constants.keys() & new.constants.keys()
+    if any(old.constants[name] != new.constants[name] for name in shared):
+        return False
+    added = new.constants.keys() - old.constants.keys()
+    removed = old.constants.keys() - new.constants.keys()
+    return (
+        all(name.startswith("_") for name in removed)
+        and not added & (old.names | BUILTIN_NAMES)
+        and not removed & new.names
+    )
+
+
 def _refactor_without_behavior(
     path: str, old: SymbolSnapshot, new: SymbolSnapshot, hunk_id: str | None
 ) -> StructuralDelta | None:
-    """The one delta of a symbol whose change only a type checker or a release reads, or None."""
+    """The one delta of a symbol whose change only a type checker or a release reads, or that
+    only adds constants or removes private ones, or None."""
     if only_parameter_typing_changed(old, new):
         return make_structural_delta(
             path,
@@ -586,6 +644,18 @@ def _refactor_without_behavior(
             f"__version__ = {new.version!r}",
             materiality=0.0,
             version_only=True,
+        )
+    if only_constants_changed(old, new):
+        return make_structural_delta(
+            path,
+            old,
+            new,
+            hunk_id,
+            "structural_refactor",
+            ", ".join(sorted(old.constants.keys() - new.constants.keys())) or None,
+            ", ".join(sorted(new.constants.keys() - old.constants.keys())) or None,
+            materiality=0.0,
+            constants_only=True,
         )
     return None
 

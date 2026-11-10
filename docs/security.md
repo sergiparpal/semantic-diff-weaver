@@ -50,8 +50,12 @@ import.
   another module; and only when no decorator, class decorator, metaclass, base from elsewhere, or
   `__init_subclass__` hook can read it. A type variable changes nothing only when typing defines
   its factory, its arguments run nothing, and only annotations read it, and dropping one is
-  always a change. A version string changes nothing only as a literal.
-  `tests/security/test_hidden_changes.py` holds the adversarial regressions.
+  always a change. A version string changes nothing only as a literal. A constant a module adds, or
+  a private one it removes, changes nothing only when evaluating it can run nothing and it can hold
+  no state, a literal, a tuple, a bare name, or a compiled pattern, frozenset, type expression, or
+  type variable built only from what runs nothing; when the old file never mentioned an added name
+  and it names no builtin, the new file never mentions a removed one, and neither file star-imports
+  another module. `tests/security/test_hidden_changes.py` holds the adversarial regressions.
 - Candidate-test indexing is bounded by per-file size and aggregate file/byte ceilings; reaching an
   aggregate ceiling marks mapping incomplete instead of silently claiming a complete index.
 - Model input separates trusted instructions from delimited untrusted evidence. Output may reference

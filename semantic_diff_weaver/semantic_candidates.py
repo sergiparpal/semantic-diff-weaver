@@ -293,6 +293,16 @@ def _classify_assignment(
 ) -> Classification | None:
     if delta.kind != "assignment_change":
         return None
+    if delta.symbol_kind == "module" and "__all__" in delta.metadata.get("assigned_names", ()):
+        return (
+            BehaviorCategory.OUTPUT_CONTRACT,
+            "The names the module lists in `__all__` changed.",
+            "Code that imports the module with `*`, or reads its `__all__`, now gets a different "
+            "set of names.",
+            0.86,
+            [],
+            "SDW-RULE-EXPORTS",
+        )
     if _contains(combined, STATE_TERMS):
         return (
             BehaviorCategory.STATE_TRANSITION,
@@ -556,6 +566,16 @@ def _classify_refactor(
             0.82,
             ["No code compares or branches on the version string's value."],
             "SDW-RULE-REFACTOR-VERSION",
+        )
+    if delta.metadata.get("constants_only"):
+        return (
+            BehaviorCategory.REFACTOR,
+            "Only constants were added to the module, or private ones removed from it.",
+            "The module's top-level code runs as before; the code that reads a new constant, or "
+            "stopped reading a removed one, is where behavior can change.",
+            0.82,
+            ["Nothing outside the module reads a private constant it removed."],
+            "SDW-RULE-REFACTOR-CONSTANTS",
         )
     materiality = float(delta.metadata.get("materiality", 0.0))
     if materiality > rules.refactor_materiality_threshold:
@@ -1154,6 +1174,25 @@ UNKNOWN_FALLBACK: Classification = (
 )
 
 
+# What an otherwise unknown change is when the values it changed feed what its function returns
+# or yields (see `extract.output_lines`): the value its callers get.
+OUTPUT_FLOW: Classification = (
+    BehaviorCategory.OUTPUT_CONTRACT,
+    "A changed line feeds the value the function returns.",
+    "Callers may now get a different value for the same input.",
+    0.75,
+    ["Which inputs reach the changed line is unavailable to static analysis."],
+    "SDW-RULE-OUTPUT-FLOW",
+)
+
+
+def _named_by_output(delta: StructuralDelta, result: Classification) -> Classification:
+    """An unknown change whose changed values feed its function's return value changes that."""
+    if result[0] is BehaviorCategory.UNKNOWN and delta.metadata.get("reaches_output"):
+        return OUTPUT_FLOW
+    return result
+
+
 def classify_delta(delta: StructuralDelta, rules: RulesConfig) -> Classification:
     # Keyword rules read the delta's probe, which leaves out the words of prose string
     # literals, so a changed message such as "Retry later" is not a retry change. A delta
@@ -1167,8 +1206,8 @@ def classify_delta(delta: StructuralDelta, rules: RulesConfig) -> Classification
     for classifier in CLASSIFIERS:
         result = classifier(delta, rules, combined)
         if result is not None:
-            return result
-    return UNKNOWN_FALLBACK
+            return _named_by_output(delta, result)
+    return _named_by_output(delta, UNKNOWN_FALLBACK)
 
 
 @dataclass

@@ -868,6 +868,288 @@ def top_level_imports(body: list[ast.stmt]) -> tuple[dict[str, tuple[str, ...]],
 
 # Scopes whose own names a function binds: what it reads of any other is a global or a builtin.
 _FUNCTION_SCOPES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)
+# Code a function defines but does not run itself: what it computes is not what the function
+# returns.
+_NESTED_SCOPES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)
+
+
+def _own_nodes(statements: list[ast.stmt]) -> list[ast.AST]:
+    """Every node of `statements`, none inside a function, class, or lambda they define."""
+    found: list[ast.AST] = []
+    pending: list[ast.AST] = list(statements)
+    while pending:
+        node = pending.pop()
+        if isinstance(node, _NESTED_SCOPES):
+            continue
+        found.append(node)
+        pending.extend(ast.iter_child_nodes(node))
+    return found
+
+
+def _chain(node: ast.AST) -> str | None:
+    """`a.b.c` for a name or an attribute chain rooted at one, else None."""
+    parts: list[str] = []
+    while isinstance(node, ast.Attribute):
+        parts.append(node.attr)
+        node = node.value
+    if isinstance(node, ast.Name):
+        return ".".join([node.id, *reversed(parts)])
+    return None
+
+
+def _read_chains(node: ast.AST) -> set[str]:
+    """The longest names and attribute chains an expression reads: `self.file.read`, and not
+    `self.file` or `self` on its account."""
+    found: set[str] = set()
+    pending: list[ast.AST] = [node]
+    while pending:
+        item = pending.pop()
+        if isinstance(item, (ast.Name, ast.Attribute)) and (chain := _chain(item)) is not None:
+            found.add(chain)
+            continue
+        pending.extend(ast.iter_child_nodes(item))
+    return found
+
+
+def _written_chains(target: ast.AST) -> set[str]:
+    """What an assignment target writes to: a name or an attribute chain, and for an item such
+    as `result[key]`, the container it changes."""
+    if isinstance(target, (ast.Tuple, ast.List)):
+        return set().union(*(_written_chains(item) for item in target.elts))
+    if isinstance(target, (ast.Starred, ast.Subscript)):
+        return _written_chains(target.value)
+    chain = _chain(target)
+    return {chain} if chain is not None else set()
+
+
+def _related(chain: str, chains: set[str]) -> bool:
+    """Whether writing `chain` changes what reading one of `chains` gives: the same name, an
+    attribute of it, or an object it is an attribute of."""
+    return any(
+        chain == other or other.startswith(f"{chain}.") or chain.startswith(f"{other}.")
+        for other in chains
+    )
+
+
+def _binding(node: ast.AST) -> tuple[set[str], list[ast.AST]] | None:
+    """What a statement or expression writes to, and the expressions those values come from."""
+    if isinstance(node, ast.Assign):
+        return set().union(*(_written_chains(item) for item in node.targets)), [node.value]
+    if isinstance(node, (ast.AugAssign, ast.NamedExpr)):
+        return _written_chains(node.target), [node.value]
+    if isinstance(node, ast.AnnAssign) and node.value is not None:
+        return _written_chains(node.target), [node.value]
+    if isinstance(node, (ast.For, ast.AsyncFor)):
+        return _written_chains(node.target), [node.iter]
+    if isinstance(node, (ast.With, ast.AsyncWith)):
+        written: set[str] = set()
+        values: list[ast.AST] = []
+        for item in node.items:
+            if item.optional_vars is not None:
+                written |= _written_chains(item.optional_vars)
+                values.append(item.context_expr)
+        return (written, values) if values else None
+    return None
+
+
+def _called_on(node: ast.AST) -> str | None:
+    """What a call statement such as `output.append(segment)` calls a method of, else None."""
+    if not isinstance(node, ast.Expr):
+        return None
+    call = node.value.value if isinstance(node.value, ast.Await) else node.value
+    if isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute):
+        return _chain(call.func.value)
+    return None
+
+
+def _span(first: ast.AST, last: ast.AST | None = None) -> range:
+    """The lines from `first`'s to `last`'s last one, or `first`'s own."""
+    start = int(getattr(first, "lineno", 0))
+    end = getattr(last if last is not None else first, "end_lineno", None) or start
+    return range(start, int(end) + 1)
+
+
+def _header(node: ast.AST) -> range:
+    """The lines of a compound statement's test or header, without its blocks."""
+    if isinstance(node, (ast.If, ast.While)):
+        return _span(node, node.test)
+    if isinstance(node, (ast.For, ast.AsyncFor)):
+        return _span(node, node.iter)
+    if isinstance(node, (ast.With, ast.AsyncWith)):
+        return _span(node, node.items[-1].optional_vars or node.items[-1].context_expr)
+    return _span(node)
+
+
+def output_lines(node: ast.FunctionDef | ast.AsyncFunctionDef) -> frozenset[int]:
+    """The lines of a function whose code feeds the value it returns or yields.
+
+    What a `return` or a `yield` gives reads some names and attribute chains; a statement that
+    writes one of those reads others, and so on (see `_related`). A line feeds the value when it
+    returns or yields one, writes such a name or calls a method of one, or holds the test of an
+    `if` or a `while`, or the header of a `for` or a `with`, whose blocks do. Nested functions,
+    classes, and lambdas are code of their own. Without a `return` or a `yield` that gives a
+    value, no line does.
+    """
+    nodes = _own_nodes(node.body)
+    given: list[ast.expr] = []
+    for item in nodes:
+        if isinstance(item, (ast.Return, ast.Yield, ast.YieldFrom)) and item.value is not None:
+            given.append(item.value)
+    if not given:
+        return frozenset()
+    reads: set[str] = set().union(*(_read_chains(value) for value in given))
+    bindings = [found for item in nodes if (found := _binding(item)) is not None]
+    grew = True
+    while grew:
+        grew = False
+        for written, values in bindings:
+            if any(_related(chain, reads) for chain in written):
+                more = set().union(*(_read_chains(value) for value in values)) - reads
+                if more:
+                    reads |= more
+                    grew = True
+
+    def feeds(item: ast.AST) -> bool:
+        if isinstance(item, (ast.Return, ast.Yield, ast.YieldFrom)):
+            return item.value is not None
+        found = _binding(item)
+        if found is not None and any(_related(chain, reads) for chain in found[0]):
+            return True
+        called = _called_on(item)
+        return called is not None and _related(called, reads)
+
+    lines: set[int] = set()
+    for item in nodes:
+        compound = isinstance(
+            item, (ast.If, ast.While, ast.For, ast.AsyncFor, ast.With, ast.AsyncWith)
+        )
+        if compound:
+            blocks: list[ast.stmt] = [*getattr(item, "body", []), *getattr(item, "orelse", [])]
+            if feeds(item) or any(feeds(inner) for inner in _own_nodes(blocks)):
+                lines.update(_header(item))
+        elif feeds(item):
+            lines.update(_span(item))
+    return frozenset(lines)
+
+
+def _literal(node: ast.expr) -> bool:
+    """A constant, or arithmetic and concatenation of constants: `2 ** 16`, `-1`, `'a' 'b'`."""
+    if isinstance(node, ast.Constant):
+        return True
+    if isinstance(node, ast.UnaryOp):
+        return _literal(node.operand)
+    if isinstance(node, ast.BinOp):
+        return _literal(node.left) and _literal(node.right)
+    return False
+
+
+def _constant_call(call: ast.Call, context: TypingContext) -> bool:
+    """A compiled pattern of a literal, a frozenset or a tuple of constants, or a type variable
+    whose arguments run nothing (see `runs_nothing`)."""
+    target = _resolve(call.func, context) or ""
+    arguments = [*call.args, *(keyword.value for keyword in call.keywords)]
+    if any(keyword.arg is None for keyword in call.keywords):
+        return False
+    if target == "re.compile":
+        return (
+            bool(call.args)
+            and isinstance(call.args[0], ast.Constant)
+            and isinstance(call.args[0].value, (str, bytes))
+            and all(runs_nothing(argument, context) for argument in arguments[1:])
+        )
+    if target in {"builtins.frozenset", "builtins.tuple"}:
+        if not arguments:
+            return True
+        items = call.args[0] if len(call.args) == 1 and not call.keywords else None
+        return isinstance(items, (ast.Tuple, ast.List, ast.Set)) and all(
+            _constant(item, context) for item in items.elts
+        )
+    module, _, factory = target.rpartition(".")
+    return (
+        module in TYPING_MODULES
+        and factory in TYPE_VARIABLE_FACTORIES
+        and all(runs_nothing(argument, context) for argument in arguments)
+    )
+
+
+def _constant(node: ast.expr, context: TypingContext) -> bool:
+    """Whether evaluating a module-level value runs nothing, and what it holds cannot change: a
+    literal or a tuple of constants, a bare name it aliases, a type expression that runs nothing
+    (see `runs_nothing`), or one of the calls `_constant_call` admits.
+
+    An attribute, an item, or an operator of anything else may run code as the module loads, a
+    property, a `__getitem__`, or an `__or__`; and a list, a dict, a set, or another call can hold
+    state the module's code changes later, as rich's `_id_generator = count()` does.
+    """
+    if _literal(node) or isinstance(node, ast.Name):
+        return True
+    if isinstance(node, ast.Tuple):
+        return all(_constant(item, context) for item in node.elts)
+    if isinstance(node, (ast.Attribute, ast.Subscript, ast.BinOp)):
+        return runs_nothing(node, context)
+    if isinstance(node, ast.Call):
+        return _constant_call(node, context)
+    return False
+
+
+def _star_imports(body: list[ast.stmt]) -> bool:
+    """Whether any of a module's top-level code imports `*` from another module."""
+    return any(
+        isinstance(node, ast.ImportFrom) and any(alias.name == "*" for alias in node.names)
+        for statement in body
+        for node in ast.walk(statement)
+    )
+
+
+def _top_level_binding(statement: ast.stmt) -> tuple[str, ast.expr] | None:
+    """The name and value of a plain `NAME = value`, or `NAME: annotation = value`."""
+    if (
+        isinstance(statement, ast.Assign)
+        and len(statement.targets) == 1
+        and isinstance(statement.targets[0], ast.Name)
+    ):
+        return statement.targets[0].id, statement.value
+    if (
+        isinstance(statement, ast.AnnAssign)
+        and isinstance(statement.target, ast.Name)
+        and statement.value is not None
+    ):
+        return statement.target.id, statement.value
+    return None
+
+
+def module_constants(
+    body: list[ast.stmt], context: TypingContext
+) -> tuple[dict[str, str], list[ast.stmt]]:
+    """A module's names bound once in its top-level code, to a constant (see `_constant`), each to
+    a digest of its value; and its other statements.
+
+    A dunder such as `__all__` or `__version__` is never one: a new `__all__` changes what
+    `import *` gives. What reads a constant is a symbol of its own, so a constant added, or a
+    private one removed, changes no behavior of the module itself.
+    """
+    stored = Counter(
+        item.id
+        for statement in body
+        for item in ast.walk(statement)
+        if isinstance(item, ast.Name) and isinstance(item.ctx, (ast.Store, ast.Del))
+    )
+    for statement in body:
+        if isinstance(statement, (ast.Import, ast.ImportFrom)):
+            stored.update(name for name, _ in _bound_by(statement))
+    constants: dict[str, str] = {}
+    others: list[ast.stmt] = []
+    for statement in body:
+        binding = _top_level_binding(statement)
+        if binding is not None:
+            name, value = binding
+            dunder = name.startswith("__") and name.endswith("__")
+            if stored[name] == 1 and not dunder and _constant(value, context):
+                dump = ast.dump(value, include_attributes=False)
+                constants[name] = hashlib.sha256(dump.encode("utf-8")).hexdigest()
+                continue
+        others.append(statement)
+    return constants, others
 
 
 def _parameters(node: ast.arguments) -> set[str]:
@@ -1217,6 +1499,9 @@ def snapshot_symbol(
     beyond_parameters: str | None = None
     annotated: tuple[tuple[str, str, bool], ...] = ()
     unread = False
+    outputs: frozenset[int] = frozenset()
+    constants: dict[str, str] = {}
+    without_constants: str | None = None
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
         signature = function_signature(node)
         parameters = function_parameters(node)
@@ -1224,6 +1509,7 @@ def snapshot_symbol(
         decorators = tuple(decorator_name(item) for item in node.decorator_list)
         display = signature
         beyond_parameters = typing_beyond_parameters(node)
+        outputs = output_lines(node)
         if typing is not None:
             annotated = parameter_typing(node, typing)
             unread = annotations_unread(node, qualified_name, kind, typing)
@@ -1246,6 +1532,10 @@ def snapshot_symbol(
         if typing is not None:
             kept, type_variables = without_typing(body, typing, module=True)
             without_typing_fingerprint = body_fingerprint(kept)
+            # A star import may bind any name: none of this module's is read as a constant.
+            if not _star_imports(body):
+                constants, others_than_constants = module_constants(body, typing)
+                without_constants = body_fingerprint(others_than_constants)
         versioned = without_version(body)
         if versioned is not None:
             version_fingerprint, version = body_fingerprint(versioned[0]), versioned[1]
@@ -1281,6 +1571,9 @@ def snapshot_symbol(
         typing_beyond_parameters=beyond_parameters,
         parameter_typing=annotated,
         annotations_unread=unread,
+        output_lines=outputs,
+        constants=constants,
+        fingerprint_without_constants=without_constants,
     )
 
 

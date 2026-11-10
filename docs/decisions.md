@@ -632,6 +632,97 @@ click#3764's real one, and they stayed at 17, as without a model. The 4 findings
 two above and two on httpx#3651's unlabeled `StreamClosed` and `URL`, and it added none. The replay
 with this code reproduced the live run's findings in all 60 cases.
 
+## Output-affecting corrections (2026-11-10, what a change feeds)
+
+The labeled benchmark's third round, designed from its 90 development cases alone, with the third
+held-out split unread. On those cases 134 of the 262 scored findings were unknown changes, a
+category no label expects, and 46 of the 74 behavior changes without a finding in an expected
+category were output contract changes, most of them reported as unknown changes of an assignment, a
+condition, or a comparison that decided what the function returned. The user chose three
+corrections.
+
+- **A change that feeds what its function returns changes that value.** `extract.output_lines` finds
+  the lines of a function whose code feeds the value it returns or yields: a `return` or a `yield`
+  itself; a statement that writes a name or an attribute one of them reads, and so on back through
+  the function (`a = x`, `b = a * 2`, `return b`); a call of a method on such a name
+  (`output.append(segment)`); and the test of an `if` or a `while`, or the header of a `for` or a
+  `with`, whose blocks do any of that. Nested functions, classes, and lambdas are code of their own.
+  A changed condition, comparison, assignment, loop, context, or call that the rules leave unknown,
+  with a changed value on such a line on either side, is an `output_contract_change` under the new
+  `SDW-RULE-OUTPUT-FLOW`. A change a rule names keeps its category: a boundary, a retry, a state, a
+  dependency. attrs#1593's `annot = getattr(annot, '__forward_arg__', annot)` decided what
+  `_is_class_var` returned, and is now reported so.
+- **The names a module exports are its output contract.** A module's changed assignment to
+  `__all__`, `+=` included, is an `output_contract_change` under the new `SDW-RULE-EXPORTS`: a star
+  import of it gives other names, as httpx#3699's `FunctionAuth` and attrs#1571's new validator
+  made it do.
+- **Constants a module only adds, or private ones it removes, are a refactor.** A module whose own
+  code differs only in names bound once at its top level to a constant, added, or removed when
+  private, is a refactor under the new `SDW-RULE-REFACTOR-CONSTANTS`: the code that reads them is a
+  symbol of its own, and its findings say what changed. A constant is a literal or a tuple of
+  constants, a bare name it aliases, a type expression or a compiled pattern of a literal whose
+  other parts run nothing, a frozenset of constants, or a type variable whose arguments run nothing
+  (see `runs_nothing`). A list, a dict, a set, any other call, and an attribute, an item, or an
+  operator of anything but the standard typing vocabulary are not, since each may run code as the
+  module loads or hold state: rich#3845's `_id_generator = count()` stays a change. So do a value
+  that changed, a public name removed, a name added that the old file mentioned or that names a
+  builtin, a private name removed that the new file still mentions, and every module that
+  star-imports another. starlette#3725's `PARAM_FORMAT_REGEX`, marshmallow#2937's
+  `_UNICODE_LETTERS`, and werkzeug#3338's removed `_mime_split_re` were findings on modules labeled
+  unchanged. marshmallow#2799's `types` and `fields` modules stay changes: their new alias and type
+  variable read the package's own names, which no typing vocabulary resolves.
+
+A symbol has one finding per category, so a condition that feeds the return now joins the return's
+finding. That finding keeps what was the condition's obligation as a second scenario, 10 lower in
+relevance, so the obligations stay those of before: on the development cases they go from 223 to
+222, the constants' modules losing 6 and a removed condition beside its return 1, and values that
+feed a return gaining 6. The 18 corpus goldens are unchanged, since no corpus case holds such a
+change.
+
+| Measure, 90 development cases | 0.19.4 | With the correction |
+| --- | --- | --- |
+| Findings on Python | 291 | 277 |
+| Precision, findings in an expected category | 48 of 262 (18.3%) | 77 of 248 (31.0%) |
+| Precision, findings naming a behavior category | 48 of 128 (37.5%) | 77 of 168 (45.8%) |
+| Recall, behavior changes given a finding | 120 of 120 | 120 of 120 |
+| Recall, behavior changes given one in an expected category | 46 of 120 (38.3%) | 70 of 120 (58.3%) |
+| Unchanged symbols given a finding | 31 of 100 (31.0%) | 28 of 100 (28.0%) |
+| Unchanged symbols given one naming a behavior category | 17 of 100 (17.0%) | 19 of 100 (19.0%) |
+
+No behavior change lost its finding or its category, and 24 more are in an expected one. No
+unchanged symbol gained a finding, and three lost theirs, the three modules above. Four unchanged
+symbols whose finding was unknown now name an output contract change: rewrites that return what they
+returned, click#3776's `get_pager_file`, werkzeug#3322's `_FileWrapper.__next__`, and
+packaging#1460's `VersionRange.difference` and #1471's `VersionRange.is_disjoint`. That is the
+rule's cost: what a function returns is read from its code, which cannot tell a rewrite that keeps
+the value from one that does not.
+
+**Measured once on the held-out split, against a criterion fixed before.** This entry and the
+correction were committed before the third held-out split was measured with it, and only its summary
+is read, as for its baseline. The correction holds on it if, against the reviewed labels, every
+behavior change keeps a finding (37 of 37), no fewer than 30 of 37 keep one in an expected category,
+precision in an expected category stays at or above 51.4% (37 of 72), and no unchanged symbol gains
+a finding (0 of 10). It improves on it if more behavior changes, or a greater share of findings, are
+in an expected category.
+
+**It held, and improved.** Measured once on 2026-11-10, after commit 20e6b53 had fixed the
+correction and the criterion, with 0.19.4 as it stands and with the correction, reading the summary
+alone and deleting the analyses unread. 0.19.4 gives the 0.19.0 baseline exactly.
+
+| Measure, 30 held-out cases | 0.19.4 | With the correction |
+| --- | --- | --- |
+| Findings on Python | 78 | 80 |
+| Precision, findings in an expected category | 37 of 72 (51.4%) | 47 of 74 (63.5%) |
+| Precision, findings naming a behavior category | 37 of 45 (82.2%) | 47 of 57 (82.5%) |
+| Recall, behavior changes given a finding | 37 of 37 | 37 of 37 |
+| Recall, behavior changes given one in an expected category | 30 of 37 (81.1%) | 32 of 37 (86.5%) |
+| Unchanged symbols given a finding | 0 of 10 | 0 of 10 |
+
+Ten more findings are in an expected category and two more behavior changes get one, while every
+behavior change keeps a finding and no unchanged symbol gains one. The held-out findings by category
+and by case, and their disagreements, stay unread; the split has measured this correction, so the
+next one waits for a new held-out sample.
+
 ## Output-affecting corrections (2026-11-04, typing and versions)
 
 The labeled benchmark's second round, designed from its 60 development cases alone: the first

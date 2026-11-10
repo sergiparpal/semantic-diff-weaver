@@ -337,21 +337,21 @@ def test_classification_reads_code_not_prose(
         pytest.param(
             "def width(text):\n    margin = 2\n    return len(text) + margin\n",
             "def width(text):\n    margin = 4\n    return len(text) + margin\n",
-            "unknown_semantic_change",
+            "output_contract_change",
             "state_transition_change",
             id="a-local-variable-is-not-state",
         ),
         pytest.param(
             "def explain(code):\n    message = 'Invalid state transition'\n    return message\n",
             "def explain(code):\n    message = 'Invalid transition'\n    return message\n",
-            "unknown_semantic_change",
+            "output_contract_change",
             "state_transition_change",
             id="prose-in-the-value-is-not-state",
         ),
         pytest.param(
             "def pick(items):\n    chooser = RandomState(1)\n    return chooser.choice(items)\n",
             "def pick(items):\n    chooser = RandomState(2)\n    return chooser.choice(items)\n",
-            "unknown_semantic_change",
+            "output_contract_change",
             "state_transition_change",
             id="a-value-naming-state-is-not-state",
         ),
@@ -372,7 +372,7 @@ def test_classification_reads_code_not_prose(
         pytest.param(
             "def close(order):\n    order.status = 'open'\n    count = 1\n    return count\n",
             "def close(order):\n    order.status = 'open'\n    count = 2\n    return count\n",
-            "unknown_semantic_change",
+            "output_contract_change",
             "state_transition_change",
             id="an-unchanged-state-assignment-beside-the-change",
         ),
@@ -384,7 +384,8 @@ def test_an_assignment_is_a_state_change_only_when_named_for_state(
     """A changed assignment used to be a state transition whatever it assigned.
 
     A module constant gaining an entry, `CODE_ROOTS` in a real project, became the top
-    obligations to test an allowed, an invalid, and a repeated transition.
+    obligations to test an allowed, an invalid, and a repeated transition. A local value that
+    feeds what its function returns is an output contract change (`SDW-RULE-OUTPUT-FLOW`).
     """
     categories = _categories(repo_factory, old, new)
     assert expected in categories
@@ -411,10 +412,10 @@ def _condition_evidence(repo_factory, old: str, new: str) -> tuple[str, dict]:
     ("old_test", "new_test", "expected"),
     [
         pytest.param(
-            "'<' in text", "'<=' in text", "unknown_semantic_change", id="literal-operator"
+            "'<' in text", "'<=' in text", "output_contract_change", id="literal-operator"
         ),
         pytest.param(
-            "mask & (1 << bit)", "mask & (1 << (bit + 1))", "unknown_semantic_change", id="shift"
+            "mask & (1 << bit)", "mask & (1 << (bit + 1))", "output_contract_change", id="shift"
         ),
         pytest.param("retries < 3", "retries <= 3", "retry_timeout_change", id="real-comparison"),
     ],
@@ -445,13 +446,13 @@ def test_a_comparison_redaction_erased_from_the_text_still_counts(repo_factory) 
         pytest.param(
             "token == expected",
             "token == expected.strip()",
-            "unknown_semantic_change",
+            "output_contract_change",
             id="equality-between-values",
         ),
         pytest.param(
             "request.method == 'GET'",
             "request.method != 'GET'",
-            "unknown_semantic_change",
+            "output_contract_change",
             id="equality-with-a-string",
         ),
         pytest.param(
@@ -532,7 +533,8 @@ def test_conditions_and_comparisons_are_read_from_what_changed(
     `row['valid']` would make it a validation guard.
     """
     findings = _findings(repo_factory, old, new)
-    assert [item["category"] for item in findings] == ["unknown_semantic_change"]
+    # Each guards what its function returns, so it changes that (`SDW-RULE-OUTPUT-FLOW`).
+    assert [item["category"] for item in findings] == ["output_contract_change"]
     kinds = {evidence["kind"] for evidence in findings[0]["evidence"]}
     assert "comparison_change" in kinds
 
@@ -608,7 +610,7 @@ def test_every_loop_site_records_its_probe(source: str, words: set[str]) -> None
             "        result += line.amount\n    return result\n",
             "def total(order):\n    result = 0\n    for line in order.paid_lines:\n"
             "        result += line.amount\n    return result\n",
-            "unknown_semantic_change",
+            "output_contract_change",
             id="a-loop-over-a-collection",
         ),
         pytest.param(
@@ -622,7 +624,7 @@ def test_every_loop_site_records_its_probe(source: str, words: set[str]) -> None
             "    return text\n",
             "def fit(text, limit):\n    while len(text) >= limit:\n        text = text[:-1]\n"
             "    return text\n",
-            "unknown_semantic_change",
+            "output_contract_change",
             id="a-loop-bounded-by-a-limit",
         ),
         pytest.param(
@@ -806,8 +808,14 @@ WORKER = (
         pytest.param(
             "    return self._old(x)\n",
             "    return self._new(x)\n",
-            "unknown_semantic_change",
+            "output_contract_change",
             id="own-method",
+        ),
+        pytest.param(
+            "    self._old(x)\n    return x\n",
+            "    self._new(x)\n    return x\n",
+            "unknown_semantic_change",
+            id="own-method-whose-result-goes-nowhere",
         ),
         pytest.param(
             "    return x.strip()\n",
@@ -818,11 +826,11 @@ WORKER = (
         pytest.param(
             "    return _clean(x)\n",
             "    return _clean(x, 10)\n",
-            "unknown_semantic_change",
+            "output_contract_change",
             id="module-function",
         ),
         pytest.param(
-            "    return len(x)\n", "    return sum(x)\n", "unknown_semantic_change", id="builtin"
+            "    return len(x)\n", "    return sum(x)\n", "output_contract_change", id="builtin"
         ),
         pytest.param(
             "    return self.client.fetch(x)\n",
@@ -857,7 +865,7 @@ WORKER = (
         pytest.param(
             "    self.save()\n    return self._old(x)\n",
             "    self.save()\n    return self._new(x)\n",
-            "unknown_semantic_change",
+            "output_contract_change",
             id="an-unchanged-side-effect-beside-the-change",
         ),
     ],
@@ -881,21 +889,22 @@ def test_the_call_rule_tells_the_module_s_own_code_from_a_dependency(
     assert calls == [expected]
 
 
-def test_an_internal_call_joins_an_unknown_condition_without_a_second_assumption(
+def test_an_internal_call_joins_its_condition_without_a_second_assumption(
     repo_factory,
 ) -> None:
     """Each distinct assumption costs a finding confidence, and a third one took six findings of
     a truncated range on adaptive-policy-compilation below the reporting threshold."""
     old = f"{WORKER}        if x is None:\n            return self._old(x)\n"
     new = f"{WORKER}        if x is not None:\n            return self._new(x)\n"
+    # Both feed what `run` returns, so both are the output contract's (`SDW-RULE-OUTPUT-FLOW`).
     [finding] = [
         item
         for item in _findings(repo_factory, old, new)
-        if item["category"] == "unknown_semantic_change"
+        if item["category"] == "output_contract_change"
     ]
     assert {"call_change", "condition_change"} <= {item["kind"] for item in finding["evidence"]}
     assert finding["assumptions"] == [
-        "The surrounding runtime contract is unavailable to static analysis."
+        "Which inputs reach the changed line is unavailable to static analysis."
     ]
 
 
@@ -903,7 +912,7 @@ def test_an_internal_call_joins_an_unknown_condition_without_a_second_assumption
     ("destination", "expected"),
     [
         pytest.param(
-            "def _new(x):\n    return x\n", "unknown_semantic_change", id="defined-where-it-moved"
+            "def _new(x):\n    return x\n", "output_contract_change", id="defined-where-it-moved"
         ),
         pytest.param(
             "from vendor.helpers import _new\n",
@@ -911,7 +920,7 @@ def test_an_internal_call_joins_an_unknown_condition_without_a_second_assumption
             id="imported-there",
         ),
         pytest.param(
-            "from .helpers import _new\n", "unknown_semantic_change", id="imported-from-its-package"
+            "from .helpers import _new\n", "output_contract_change", id="imported-from-its-package"
         ),
     ],
 )

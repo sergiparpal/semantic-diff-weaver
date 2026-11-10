@@ -179,7 +179,7 @@ def test_a_changed_condition_asks_for_both_of_its_outcomes() -> None:
     (scenario,) = _scenarios(
         "def f(x):\n    if x.flag:\n        return 1\n    return 0\n",
         "def f(x):\n    if x.other:\n        return 1\n    return 0\n",
-        BehaviorCategory.UNKNOWN,
+        BehaviorCategory.OUTPUT_CONTRACT,
     )
     assert scenario.title == "Exercise both outcomes of the changed condition in `f`"
     assert scenario.given == "`f` now tests `x.other` where it tested `x.flag`"
@@ -336,12 +336,15 @@ def test_a_changed_return_quotes_both_values() -> None:
 
 
 def test_a_value_removed_twice_is_quoted_once() -> None:
-    (scenario,) = _scenarios(
+    scenario, beside = _scenarios(
         "def f(x):\n    if x:\n        return None\n    return None\n",
         "def f(x):\n    return x\n",
         BehaviorCategory.OUTPUT_CONTRACT,
     )
     assert scenario.given == "`f` now returns `x` where it returned `None`"
+    # The removed condition fed the return, and joins its finding with its own scenario.
+    assert beside.title == "Exercise the cases the removed condition told apart in `f`"
+    assert beside.relevance == scenario.relevance - 10
 
 
 @pytest.mark.parametrize(
@@ -368,7 +371,7 @@ def test_a_value_removed_twice_is_quoted_once() -> None:
         (
             "def f():\n    x = 1\n    return x\n",
             "def f():\n    x = 2\n    return x\n",
-            BehaviorCategory.UNKNOWN,
+            BehaviorCategory.OUTPUT_CONTRACT,
             "Assert what `f` computes from its changed assignment",
         ),
     ],
@@ -410,7 +413,7 @@ def test_a_module_s_own_code_runs_as_the_module_is_imported() -> None:
         (
             "def f(p):\n    with open(p) as h:\n        return h.read()\n",
             "def f(p):\n    with open(p, 'rb') as h:\n        return h.read()\n",
-            BehaviorCategory.UNKNOWN,
+            BehaviorCategory.OUTPUT_CONTRACT,
             "Assert what `f` acquires and releases in its changed with block",
         ),
         (
