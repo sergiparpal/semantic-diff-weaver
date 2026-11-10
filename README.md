@@ -251,7 +251,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0        # required: the analyzer reads committed objects and never fetches
-      - uses: sergiparpal/semantic-diff-weaver@v0.19.4
+      - uses: sergiparpal/semantic-diff-weaver@v0.20.0
         with:
           fail-on: none
 ```
@@ -278,9 +278,9 @@ the diff and ran the code under review instead. Plugins are opt-in, so `--enable
 a separate `hermes plugins enable semantic-diff-weaver`. [`after-install.md`](after-install.md)
 walks through the first run.
 
-**Expect a `caution` verdict from the install-time scan.** Current Hermes releases (0.22.7 and
-0.23.0 are verified) scan every file of the clone before installing it, the test tree included, and
-lower each finding in a test tree by one severity, since test fixtures hold hostile strings on
+**Expect a `caution` verdict from the install-time scan.** Current Hermes releases (0.22.7, 0.23.0,
+and 0.23.1 are verified) scan every file of the clone before installing it, the test tree included,
+and lower each finding in a test tree by one severity, since test fixtures hold hostile strings on
 purpose. This plugin's security tests do: they prove that a hostile change cannot pass for one that
 changes no behavior, and one of their fixtures, in `tests/security/test_hidden_changes.py`, stays a
 high finding. A single high finding makes the verdict `caution`, which a plugin outside the Hermes

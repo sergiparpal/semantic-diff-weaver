@@ -12,10 +12,10 @@
    `HERMES_PLUGINS_DEBUG=1` and read the Hermes plugin logs.
 
 2. **Runtime dependencies.** The plugin needs Pydantic 2 and PyYAML 6, and Git on `PATH`: the
-   analyzer reads committed objects through Git plumbing. Current Hermes releases (0.22.7 and
-   0.23.0 are verified) read the two from this repository's `pyproject.toml` and install them into
-   an environment of their own as the plugin is installed, once you consent; `--yes-deps` consents
-   without a prompt. If the plugin still names one as missing, let Hermes rebuild that
+   analyzer reads committed objects through Git plumbing. Current Hermes releases (0.22.7, 0.23.0,
+   and 0.23.1 are verified) read the two from this repository's `pyproject.toml` and install them
+   into an environment of their own as the plugin is installed, once you consent; `--yes-deps`
+   consents without a prompt. If the plugin still names one as missing, let Hermes rebuild that
    environment, then restart Hermes:
 
    ```bash

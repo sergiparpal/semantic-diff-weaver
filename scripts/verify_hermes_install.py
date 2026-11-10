@@ -2,8 +2,8 @@
 
 `verify_hermes.py` checks the plugin against an installed Hermes runtime: entry-point and directory
 discovery, and the signatures the plugin calls. It never runs `hermes plugins install`, the path a
-user takes. On current releases that path does three things 0.19.0 did not (0.22.7 and 0.23.0 are
-verified):
+user takes. On current releases that path does three things 0.19.0 did not (0.22.7, 0.23.0, and
+0.23.1 are verified):
 
 - It scans every file of the clone before installing it. A `dangerous` verdict blocks the install
   outright. A `caution` verdict needs the user's confirmation in a terminal, or `--force` without
