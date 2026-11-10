@@ -21,7 +21,7 @@
       `pull-requests: write`.
 - [x] Run the full suite with no `ANTHROPIC_API_KEY` present; it must pass offline.
 - [x] Record the lowest real Hermes release passing discovery tests (0.14.0).
-- [x] Test the current Hermes release (v0.23.0) through `hermes plugins install` and through
+- [x] Test the current Hermes release (v0.23.1) through `hermes plugins install` and through
       entry-point and directory discovery: CI's `hermes-current` job, which builds it from its
       Git tag, since PyPI stops at 0.19.0. First compare the latest release of
       NousResearch/hermes-agent with the job's `HERMES_TAG`, using `python

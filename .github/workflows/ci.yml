@@ -126,9 +126,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      HERMES_TAG: "v0.23.0"
+      HERMES_TAG: "v0.23.1"
       # The commit the tag names when it was verified. A tag can be moved; this cannot.
-      HERMES_COMMIT: "2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19"
+      HERMES_COMMIT: "3b421578588243f920886e6fe79a6faa87ea026e"
       # The uv that Hermes's installer pins at that tag, in its scripts/install.sh.
       UV_VERSION: "0.13.5"
     steps:

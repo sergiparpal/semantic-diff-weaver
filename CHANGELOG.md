@@ -1,6 +1,19 @@
 # Changelog
 
-## Unreleased
+## 0.20.0 - 2026-11-10
+
+Output contract changes the rules left unknown, named, and constants a module only adds, read as no
+change: the benchmark's third correction round, designed from its 90 development cases. A change the
+structural rules cannot name, and that feeds what its function returns or yields, is an
+`output_contract_change`, as is a module's changed `__all__`, and a module that only adds constants,
+or removes private ones, is a refactor. On the development cases, behavior changes given a finding
+in an expected category go from 46 to 70 of 120. Measured once on the third held-out split, against
+a criterion committed before, they go from 30 to 32 of 37, precision in an expected category rises
+from 51.4% to 63.5%, and every behavior change keeps a finding. The release also records a batch's
+retry measured live and a fourth blind review of test obligations, and CI tests Hermes v0.23.1,
+released the same day. A minor release for the three new rules, `SDW-RULE-OUTPUT-FLOW`,
+`SDW-RULE-EXPORTS`, and `SDW-RULE-REFACTOR-CONSTANTS`; schema 1.5 and every golden are unchanged,
+and the decision is recorded in `docs/decisions.md`.
 
 - **Evaluation:** `docs/decisions.md` and `docs/benchmark.md` record a batch's retry measured live.
   deepseek-v4-flash ran the 90 development cases again with 0.19.4 and the options of its 0.19.2
@@ -31,6 +44,11 @@
   in an expected category rises from 51.4% to 63.5%, every behavior change keeps a finding, and no
   unchanged symbol gets one. Schema 1.5 and every golden are unchanged; `docs/decisions.md` records
   the decision, and `docs/benchmark.md` both splits' measurements.
+- **Tests:** CI tests Hermes v0.23.1, the current release, which came out on 2026-11-10. The
+  `hermes-current` job builds it from its tag, pinned to commit `3b421578`, with uv 0.13.5, which
+  its installer still pins. Rehearsed locally first, the plugin installs with the same `caution`
+  verdict, its one high finding in `tests/`, loads with both tools, and passes discovery; the
+  signatures the plugin calls are unchanged. `docs/decisions.md` records the compatibility snapshot.
 
 ## 0.19.4 - 2026-11-09
 
