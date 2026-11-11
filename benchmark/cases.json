@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "annotation": "One annotator, Claude Opus 5.5, labeled every Python symbol each of the first 90 pull requests changes outside its tests, from the diff and the files at its two commits, before reading the analyzer's output on it, and a reviewer, sergiparpal, then checked every label on a page that showed each symbol's diff and never the analyzer's findings, correcting 26 of the first 162 labels and 16 of the next 89. The first 60 cases came in two splits, the held_out ones labeled before the analyzer was changed against the development ones; once measured, those held_out cases joined development, as did the 30 cases of encode/django-rest-framework, jd/tenacity, urllib3/urllib3, agronholm/anyio, and pypa/packaging, labeled and reviewed before the analyzer's next change. The 30 held_out cases of django-guardian/django-guardian, jazzband/django-oauth-toolkit, redis/redis-py, more-itertools/more-itertools, and dateutil/dateutil were labeled by two annotators, Claude Opus 5.5 and gpt-6.1-terra, blind and apart, from each case's diff and the code of its changed symbols, before the analyzer's output on them was read; the reviewer then settled the label of every symbol that is not added, on a page that showed the two proposals as A and B without saying whose and never the analyzer's findings, and the 4 added symbols keep the empty list the rules give them. reviewed_by names whoever checked a case's labels after the annotators.",
+  "annotation": "One annotator, Claude Opus 5.5, labeled every Python symbol each of the first 90 pull requests changes outside its tests, from the diff and the files at its two commits, before reading the analyzer's output on it, and a reviewer, sergiparpal, then checked every label on a page that showed each symbol's diff and never the analyzer's findings, correcting 26 of the first 162 labels and 16 of the next 89. The first 60 cases came in two splits, the held_out ones labeled before the analyzer was changed against the development ones; once measured, those held_out cases joined development, as did the 30 cases of encode/django-rest-framework, jd/tenacity, urllib3/urllib3, agronholm/anyio, and pypa/packaging, labeled and reviewed before the analyzer's next change. The 30 cases of django-guardian/django-guardian, jazzband/django-oauth-toolkit, redis/redis-py, more-itertools/more-itertools, and dateutil/dateutil, which joined development once measured, and the 30 held_out cases of django-commons/django-axes, jpadilla/pyjwt, hynek/stamina, agronholm/apscheduler, and alisaifee/limits were labeled by two annotators, Claude Opus 5.5 and gpt-6.1-terra, blind and apart, from each case's diff and the code of its changed symbols, before the analyzer's output on them was read; the reviewer then settled the label of every symbol that is not added, on a page that showed the two proposals as A and B without saying whose and never the analyzer's findings, and the added symbols the review did not reach, 4 and 13, keep the empty list the rules give them. reviewed_by names whoever checked a case's labels after the annotators.",
   "sampled_from": {
     "psf/requests": "3c7baaa05ab4aa49cc819ce3a819d260de19c157",
     "pallets/click": "2247b35ea1c47c727d7a06e51fa280e12a863ff6",
@@ -21,7 +21,12 @@
     "jazzband/django-oauth-toolkit": "285ba9c38306bccf798cc4f9fe64fbbae8659e40",
     "redis/redis-py": "4fe8a8c18e289bdbd7a02f01def74aeaf8719b7d",
     "more-itertools/more-itertools": "f42daddf205f335fea6e200dad46049f33e71221",
-    "dateutil/dateutil": "a78cbd81d5d03b5f126eb36edb92bca78972c804"
+    "dateutil/dateutil": "a78cbd81d5d03b5f126eb36edb92bca78972c804",
+    "django-commons/django-axes": "ba9926171dd93e1006c23bb54cb6bfc274b21fd6",
+    "jpadilla/pyjwt": "16231abfd1d8eab4953e8779b3017b859c88565e",
+    "hynek/stamina": "e964216c0cf326ffaa087f1406566efe55532db0",
+    "agronholm/apscheduler": "05b4e2d69f89e3f8d87c6eec5df71ed1dd5705ec",
+    "alisaifee/limits": "0492c4fbef45c0f66c88c5feb00cb1270af238fa"
   },
   "cases": [
     {
@@ -3460,7 +3465,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "django-guardian/django-guardian#1054",
@@ -3492,7 +3497,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "django-guardian/django-guardian#1057",
@@ -3518,7 +3523,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "django-guardian/django-guardian#1058",
@@ -3544,7 +3549,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "django-guardian/django-guardian#1059",
@@ -3569,7 +3574,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "django-guardian/django-guardian#1056",
@@ -3596,7 +3601,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "jazzband/django-oauth-toolkit#1931",
@@ -3641,7 +3646,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "jazzband/django-oauth-toolkit#1939",
@@ -3671,7 +3676,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "jazzband/django-oauth-toolkit#1929",
@@ -3732,7 +3737,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "jazzband/django-oauth-toolkit#1942",
@@ -3765,7 +3770,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "jazzband/django-oauth-toolkit#1941",
@@ -3789,7 +3794,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "jazzband/django-oauth-toolkit#1930",
@@ -3824,7 +3829,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "redis/redis-py#4583",
@@ -3851,7 +3856,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "redis/redis-py#4582",
@@ -3887,7 +3892,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "redis/redis-py#4581",
@@ -3918,7 +3923,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "redis/redis-py#4580",
@@ -3995,7 +4000,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "redis/redis-py#4578",
@@ -4021,7 +4026,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "redis/redis-py#4574",
@@ -4046,7 +4051,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "more-itertools/more-itertools#1345",
@@ -4082,7 +4087,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "more-itertools/more-itertools#1342",
@@ -4110,7 +4115,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "more-itertools/more-itertools#1334",
@@ -4137,7 +4142,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "more-itertools/more-itertools#1322",
@@ -4164,7 +4169,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "more-itertools/more-itertools#1331",
@@ -4185,7 +4190,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "more-itertools/more-itertools#1314",
@@ -4235,7 +4240,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "dateutil/dateutil#1655",
@@ -4260,7 +4265,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "dateutil/dateutil#1600",
@@ -4288,7 +4293,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "dateutil/dateutil#1285",
@@ -4312,7 +4317,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "dateutil/dateutil#1248",
@@ -4333,7 +4338,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "dateutil/dateutil#1179",
@@ -4354,7 +4359,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "dateutil/dateutil#1148",
@@ -4370,6 +4375,1259 @@
           "change": "modified",
           "expected": [],
           "rationale": "A docstring typo is fixed, trough to through; the method still walks the recurrences when it needs their count."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "development"
+    },
+    {
+      "id": "django-commons/django-axes#1523",
+      "repository": "django-commons/django-axes",
+      "pull_request": 1523,
+      "base": "dc3c13e5babd06bb2e4acbcbdb0b203573e7e914",
+      "head": "ae7542d981a40b748e2fd02afb57dce6d2b037dc",
+      "subject": "Merge pull request #1523 from django-commons/codex/fix-oversized-usernames",
+      "labels": [
+        {
+          "path": "axes/helpers.py",
+          "symbol": "get_client_username",
+          "change": "modified",
+          "expected": [
+            "boundary_change",
+            "authorization_change",
+            "output_contract_change",
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Reads the model's length limit, truncates longer usernames, and logs a warning, which changes the value returned and the identity used in records and lockouts."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "django-commons/django-axes#1522",
+      "repository": "django-commons/django-axes",
+      "pull_request": 1522,
+      "base": "615d6560d6bcd6694fb0ec2171c551a70c968841",
+      "head": "b7d381849ce00f00aeb14de4dafdc2fea0b08119",
+      "subject": "Merge pull request #1522 from django-commons/codex/remove-unsupported-django-python",
+      "labels": [
+        {
+          "path": "axes/attempts.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Imports datetime from the standard library instead of through Django's re-export; it is the same class."
+        },
+        {
+          "path": "axes/handlers/database.py",
+          "symbol": "AxesDatabaseHandler",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The class's own body is unchanged; its methods are labeled on their own."
+        },
+        {
+          "path": "axes/handlers/database.py",
+          "symbol": "AxesDatabaseHandler.reset_failure_logs",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Uses the same timedelta class through a direct import; the age threshold and the deletion of failure logs are the same."
+        },
+        {
+          "path": "axes/handlers/database.py",
+          "symbol": "AxesDatabaseHandler.reset_logs",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Uses the same timedelta class through a direct import; the age threshold and the deletion of access logs are the same."
+        },
+        {
+          "path": "axes/handlers/database.py",
+          "symbol": "AxesDatabaseHandler.user_login_failed",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Only adds parentheses to split the same diagnostic string across lines."
+        },
+        {
+          "path": "setup.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [
+            "boundary_change",
+            "validation_change",
+            "output_contract_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Raises the installation floors to Python 3.11 and Django 5.2 and changes the published classifiers, which changes the package's requirements and metadata."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "django-commons/django-axes#1494",
+      "repository": "django-commons/django-axes",
+      "pull_request": 1494,
+      "base": "d1b705cff19d8601ccbf77efc1ddd06bbf5f230c",
+      "head": "bbba2d0b00c6f9de9aa02e333dd6e5e21bcd9e50",
+      "subject": "Merge pull request #1494 from MaxFreedomPollard/fix-async-middleware-lockout-arguments",
+      "labels": [
+        {
+          "path": "axes/middleware.py",
+          "symbol": "AxesMiddleware",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The class's own body is unchanged; only the async method's call changes."
+        },
+        {
+          "path": "axes/middleware.py",
+          "symbol": "AxesMiddleware.__acall__",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "output_contract_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Passes request, response, and credentials to the helper in their right positions, which fixes the lockout response and the failures the shifted arguments caused."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "django-commons/django-axes#1487",
+      "repository": "django-commons/django-axes",
+      "pull_request": 1487,
+      "base": "d1b705cff19d8601ccbf77efc1ddd06bbf5f230c",
+      "head": "57c59c1cf3808012613d876ff63a5f7da2b52a3a",
+      "subject": "Merge pull request #1487 from PeterW-LWL/fix/multipartparsererror",
+      "labels": [
+        {
+          "path": "axes/handlers/database.py",
+          "symbol": "AxesDatabaseHandler",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The class's own body is unchanged; the error handling is added in user_login_failed."
+        },
+        {
+          "path": "axes/handlers/database.py",
+          "symbol": "AxesDatabaseHandler.user_login_failed",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "state_transition_change",
+            "authorization_change",
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Catches MultiPartParserError and uses a diagnostic text instead, so recording the failure, the state updates, and the lockout logic go on."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "django-commons/django-axes#1485",
+      "repository": "django-commons/django-axes",
+      "pull_request": 1485,
+      "base": "068daf73f5669c6b340a06c6b5ea9fc0d6d64b10",
+      "head": "2f1b8d3f99e31683b3437e0b6111561470d4fab5",
+      "subject": "Merge pull request #1485 from aroh3006/fix/redact-prefixed-password-field",
+      "labels": [
+        {
+          "path": "axes/helpers.py",
+          "symbol": "cleanse_parameters",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "output_contract_change"
+          ],
+          "rationale": "Also masks keys that carry a prefix; and a key that is not a string and not sensitive can now raise AttributeError on endswith, which it did not before."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "django-commons/django-axes#1414",
+      "repository": "django-commons/django-axes",
+      "pull_request": 1414,
+      "base": "d4a17bf3aecfa0ef4662cd39d7dfaf41b7f1087f",
+      "head": "dd21e9d3e643b4c12bacd2cf1a6a4444bc156d62",
+      "subject": "Merge pull request #1414 from Dzhud/fix-1159-username-form-field-fallback",
+      "labels": [
+        {
+          "path": "axes/helpers.py",
+          "symbol": "get_client_username",
+          "change": "modified",
+          "expected": [
+            "authorization_change",
+            "output_contract_change",
+            "side_effect_change",
+            "default_behavior_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "When the configured field is missing or None, it reads the user model's USERNAME_FIELD and logs the fallback, which changes the username returned and the identity locked out."
+        },
+        {
+          "path": "axes/helpers.py",
+          "symbol": "get_username_from_data",
+          "change": "added",
+          "expected": [],
+          "rationale": "New helper: reads AXES_USERNAME_FORM_FIELD from a dict-like object and falls back, with a debug log, to the user model's USERNAME_FIELD."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "jpadilla/pyjwt#1216",
+      "repository": "jpadilla/pyjwt",
+      "pull_request": 1216,
+      "base": "1d41a6478e1562e68ff667fcd703356acf085f68",
+      "head": "7bf32526738fe837387bdedd4849a4a525c33a79",
+      "subject": "Accept canonical Base64URL padding in JWT segments (#1216)",
+      "labels": [
+        {
+          "path": "jwt/api_jws.py",
+          "symbol": "PyJWS",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The class's own body is unchanged; the decoding method changes."
+        },
+        {
+          "path": "jwt/api_jws.py",
+          "symbol": "PyJWS._decode_base64url_segment",
+          "change": "modified",
+          "expected": [
+            "boundary_change",
+            "validation_change",
+            "error_handling_change"
+          ],
+          "rationale": "Accepts one or two trailing = signs when the whole length is a multiple of four, still checking the segment is canonical; what it accepts and raises changes, not the bytes valid input decodes to."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "jpadilla/pyjwt#1173",
+      "repository": "jpadilla/pyjwt",
+      "pull_request": 1173,
+      "base": "c9d4d5375bf464ef363506fed9eb6e7f33217ab6",
+      "head": "171062d2d734315272a901100aa4b109f2fc3c19",
+      "subject": "utils: mention bytes in force_bytes type error (#1173)",
+      "labels": [
+        {
+          "path": "jwt/utils.py",
+          "symbol": "force_bytes",
+          "change": "modified",
+          "expected": [
+            "error_handling_change"
+          ],
+          "rationale": "The TypeError's message now says bytes are accepted as well as strings, which it did not say; the inputs accepted are the same."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "jpadilla/pyjwt#1174",
+      "repository": "jpadilla/pyjwt",
+      "pull_request": 1174,
+      "base": "2763752196113e1473b0ed7905aa6034aedfbe53",
+      "head": "c9d4d5375bf464ef363506fed9eb6e7f33217ab6",
+      "subject": "docs/conf: drop duplicate 'and' from read() docstring (#1174)",
+      "labels": [
+        {
+          "path": "docs/conf.py",
+          "symbol": "read",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Fixes a doubled word in the docstring; reading the file does not change."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "jpadilla/pyjwt#1201",
+      "repository": "jpadilla/pyjwt",
+      "pull_request": 1201,
+      "base": "9e501d993b4d3e7dba14bdb1722b1d993ac75097",
+      "head": "4adcd02722f5011c60079d3978dfc167b9a8eaa5",
+      "subject": "Catch http.client.HTTPException in PyJWKClient.fetch_data (#1201)",
+      "labels": [
+        {
+          "path": "jwt/jwks_client.py",
+          "symbol": "PyJWKClient",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The class's own body is unchanged; the change is in fetch_data."
+        },
+        {
+          "path": "jwt/jwks_client.py",
+          "symbol": "PyJWKClient.fetch_data",
+          "change": "modified",
+          "expected": [
+            "error_handling_change"
+          ],
+          "rationale": "Also catches HTTPException and raises PyJWKClientConnectionError from it, keeping the original exception as the cause."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "jpadilla/pyjwt#1179",
+      "repository": "jpadilla/pyjwt",
+      "pull_request": 1179,
+      "base": "4047c44d51950ffda15f40054508d3f17c43b1e2",
+      "head": "9e501d993b4d3e7dba14bdb1722b1d993ac75097",
+      "subject": "fix: correct docstring typo in _validate_jti (#1179)",
+      "labels": [
+        {
+          "path": "jwt/api_jwt.py",
+          "symbol": "PyJWT",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The class's own body is unchanged; its method changes only in documentation."
+        },
+        {
+          "path": "jwt/api_jwt.py",
+          "symbol": "PyJWT._validate_jti",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Only fixes a typo in the docstring; the jti checks are the same."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "jpadilla/pyjwt#1208",
+      "repository": "jpadilla/pyjwt",
+      "pull_request": 1208,
+      "base": "ea7267519f2be5ff031efabd692af7a4461f3d5e",
+      "head": "384c945065ad1f1d7e5a0331c7377c7f278532f5",
+      "subject": "fix: return a parsed PyJWKSet from the JWK Set cache (#1208)",
+      "labels": [
+        {
+          "path": "jwt/api_jwk.py",
+          "symbol": "PyJWK",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The class's own body is unchanged; the exceptions __init__ catches change."
+        },
+        {
+          "path": "jwt/api_jwk.py",
+          "symbol": "PyJWK.__init__",
+          "change": "modified",
+          "expected": [
+            "error_handling_change"
+          ],
+          "rationale": "Also turns a TypeError from Algorithm.from_jwk into InvalidKeyError, as it already did a ValueError."
+        },
+        {
+          "path": "jwt/api_jwk.py",
+          "symbol": "PyJWKSet",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The class's own body is unchanged; the check of the members in __init__ changes."
+        },
+        {
+          "path": "jwt/api_jwk.py",
+          "symbol": "PyJWKSet.__init__",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change"
+          ],
+          "rationale": "Skips members that are not dicts before building a PyJWK from them, so they raise no error, and still raises when no usable key is left."
+        },
+        {
+          "path": "jwt/jwk_set_cache.py",
+          "symbol": "JWKSetCache",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The class's own body is unchanged; normalizing the content is added in put."
+        },
+        {
+          "path": "jwt/jwk_set_cache.py",
+          "symbol": "JWKSetCache.put",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "state_transition_change"
+          ],
+          "rationale": "Validates a dict and turns it into a PyJWKSet before replacing the cache; an error leaves the previous state as it was, and put still returns None."
+        },
+        {
+          "path": "jwt/jwks_client.py",
+          "symbol": "PyJWKClient",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The class's own body is unchanged; the changes are in fetch_data, get_jwk_set, and the new helper."
+        },
+        {
+          "path": "jwt/jwks_client.py",
+          "symbol": "PyJWKClient._as_jwk_set_payload",
+          "change": "added",
+          "expected": [],
+          "rationale": "New static helper: returns data when it is a dict, else raises PyJWKClientError('The JWKS endpoint did not return a JSON object')."
+        },
+        {
+          "path": "jwt/jwks_client.py",
+          "symbol": "PyJWKClient.fetch_data",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "state_transition_change",
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Rejects JSON that is not an object before updating the cache and its timestamp; caching validates and stores a PyJWKSet, while a valid fetch_data still returns a dict."
+        },
+        {
+          "path": "jwt/jwks_client.py",
+          "symbol": "PyJWKClient.get_jwk_set",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "state_transition_change",
+            "output_contract_change",
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Accepts an already parsed PyJWKSet and returns it as is, and after a download caches the set actually returned, including any change a subclass makes."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "hynek/stamina#159",
+      "repository": "hynek/stamina",
+      "pull_request": 159,
+      "base": "08bd4678ab92166951a393f644b13821f6425627",
+      "head": "1dbd15fbe5a356a917a6b0660805072dad3698e4",
+      "subject": "Use lazy imports (#159)",
+      "labels": [
+        {
+          "path": "src/stamina/__init__.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [
+            "side_effect_change",
+            "ordering_change"
+          ],
+          "rationale": "On Python 3.15 with lazy imports enabled, __lazy_modules__ defers the listed imports and their effects until first use; on earlier versions it does nothing."
+        },
+        {
+          "path": "src/stamina/_config.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [
+            "side_effect_change",
+            "ordering_change"
+          ],
+          "rationale": "On Python 3.15 with lazy imports enabled, it defers the listed instrumentation and typing imports and their effects; on earlier versions it does nothing."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "hynek/stamina#157",
+      "repository": "hynek/stamina",
+      "pull_request": 157,
+      "base": "ee964eb09ed80f70ed397db7097b4cfe13561f86",
+      "head": "2575599dd31247127f83a2a73245e7a0c4070ab4",
+      "subject": "Fix retry hook context manager leak (#157)",
+      "labels": [
+        {
+          "path": "src/stamina/_core.py",
+          "symbol": "_RetryContextIterator",
+          "change": "modified",
+          "expected": [
+            "state_transition_change",
+            "output_contract_change"
+          ],
+          "rationale": "Drops the _cms_to_exit field and slot, which changes the instances' state and the signature and repr the dataclass generates."
+        },
+        {
+          "path": "src/stamina/_core.py",
+          "symbol": "_RetryContextIterator.__aiter__",
+          "change": "modified",
+          "expected": [
+            "state_transition_change",
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Each async run gets its own callbacks and contexts, and each context is removed as it is exited, so none is exited twice or shared between runs."
+        },
+        {
+          "path": "src/stamina/_core.py",
+          "symbol": "_RetryContextIterator.__iter__",
+          "change": "modified",
+          "expected": [
+            "state_transition_change",
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Each sync run gets its own callbacks and contexts, and each context is removed as it is exited, so none is exited twice or shared between runs."
+        },
+        {
+          "path": "src/stamina/_core.py",
+          "symbol": "_RetryContextIterator._apply_maybe_test_mode_to_tenacity_kw",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The method's code is the same text; applying the test mode to Tenacity's arguments does not change."
+        },
+        {
+          "path": "src/stamina/_core.py",
+          "symbol": "_RetryContextIterator._exit_cms",
+          "change": "removed",
+          "expected": [],
+          "rationale": "The private callback is replaced by before_attempt; the fix to exiting contexts is labeled on the iterators, with no other change of its own here."
+        },
+        {
+          "path": "src/stamina/_core.py",
+          "symbol": "_RetryContextIterator.from_params",
+          "change": "modified",
+          "expected": [
+            "state_transition_change",
+            "output_contract_change"
+          ],
+          "rationale": "No longer creates _cms_to_exit or gives it to the instance it returns, which changes that instance's state, with no new interaction with an outside dependency."
+        },
+        {
+          "path": "src/stamina/_core.py",
+          "symbol": "_make_before_sleep",
+          "change": "removed",
+          "expected": [],
+          "rationale": "The private factory is replaced by _make_hook_callbacks; the change to how contexts are handled is labeled on the iterators."
+        },
+        {
+          "path": "src/stamina/_core.py",
+          "symbol": "_make_hook_callbacks",
+          "change": "added",
+          "expected": [],
+          "rationale": "New: builds per-run before_attempt and before_sleep callbacks sharing a local list of hook context managers that before_sleep enters and before_attempt exits."
+        },
+        {
+          "path": "src/stamina/_core.py",
+          "symbol": "_make_hook_callbacks.before_attempt",
+          "change": "added",
+          "expected": [],
+          "rationale": "New: pops and exits every pending hook context manager before the next attempt."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "hynek/stamina#155",
+      "repository": "hynek/stamina",
+      "pull_request": 155,
+      "base": "7836f460e7740064f5fae5d22750eba1e05e74a9",
+      "head": "c02e2e6802fa5b5d1183500aa6c3afded716de2d",
+      "subject": "Switch `on` annotations to BaseException (#155)",
+      "labels": [
+        {
+          "path": "src/stamina/_core.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Only widens the type aliases from Exception to BaseException, matching runtime behavior that already accepted them."
+        },
+        {
+          "path": "src/stamina/_core.py",
+          "symbol": "retry",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Only adds a docstring note on the wider accepted types; the executable code does not change."
+        },
+        {
+          "path": "typing_tests/api.py",
+          "symbol": "backoff_hook",
+          "change": "added",
+          "expected": [],
+          "rationale": "New typing example: a backoff hook that takes a BaseException and returns a one-second timedelta."
+        },
+        {
+          "path": "typing_tests/api.py",
+          "symbol": "base_exc",
+          "change": "added",
+          "expected": [],
+          "rationale": "New typing example decorated with retry(on=KeyboardInterrupt)."
+        },
+        {
+          "path": "typing_tests/api.py",
+          "symbol": "exc_backoff_hook",
+          "change": "added",
+          "expected": [],
+          "rationale": "New typing example decorated with retry(on=backoff_hook)."
+        },
+        {
+          "path": "typing_tests/api.py",
+          "symbol": "exc_backoff_hook_lambda",
+          "change": "added",
+          "expected": [],
+          "rationale": "New typing example retried by a lambda hook that asserts its argument is a BaseException."
+        },
+        {
+          "path": "typing_tests/api.py",
+          "symbol": "exc_tuple_with_base_exc",
+          "change": "added",
+          "expected": [],
+          "rationale": "New typing example retried on (ValueError, KeyboardInterrupt)."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "hynek/stamina#137",
+      "repository": "hynek/stamina",
+      "pull_request": 137,
+      "base": "c5c6e848540d64e3e679c78ecf455ffcd9489f76",
+      "head": "b09d541fdff686970c166faac27f388b841aeca2",
+      "subject": "Fix OverflowError in _compute_backoff for high attempt numbers (#137)",
+      "labels": [
+        {
+          "path": "src/stamina/_core.py",
+          "symbol": "_compute_backoff",
+          "change": "modified",
+          "expected": [
+            "boundary_change",
+            "error_handling_change",
+            "retry_timeout_change",
+            "output_contract_change"
+          ],
+          "rationale": "When the exponential computation overflows, it returns max_backoff instead of raising OverflowError, so retrying goes on."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "hynek/stamina#109",
+      "repository": "hynek/stamina",
+      "pull_request": 109,
+      "base": "9b6cc112027b0838e11ec4552acaec3861671850",
+      "head": "9eb211c4d5e01f4ec15c0f3c3533a81dcdfeb846",
+      "subject": "Prevent unbounded stop condition when *attempts* and *timeout* are non-None falsy values (#109)",
+      "labels": [
+        {
+          "path": "src/stamina/_core.py",
+          "symbol": "_make_stop",
+          "change": "modified",
+          "expected": [
+            "boundary_change",
+            "retry_timeout_change",
+            "output_contract_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "A zero attempts or timeout is no longer ignored as if it were None and now sets a stop condition; every condition is wrapped in stop_any, and the API's defaults do not change."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "hynek/stamina#123",
+      "repository": "hynek/stamina",
+      "pull_request": 123,
+      "base": "d41d642cb4b39d5cc52a8182fb5ac297b3d15e93",
+      "head": "e2c9b1ebb94198b7e06e8d24aa3d392c02c8dcfd",
+      "subject": "Add support for decorating generator functions (#123)",
+      "labels": [
+        {
+          "path": "src/stamina/_core.py",
+          "symbol": "retry",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "retry_timeout_change",
+            "output_contract_change",
+            "side_effect_change",
+            "ordering_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "The decorator it returns retries failures raised while a generator is iterated, restarting the generator, which can repeat its values and effects; setting up waits until iteration starts."
+        },
+        {
+          "path": "src/stamina/_core.py",
+          "symbol": "retry.retry_decorator",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "retry_timeout_change",
+            "output_contract_change",
+            "side_effect_change",
+            "ordering_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Returns generator wrappers that retry the iteration and pass on send, throw, and close; a restart can repeat the generator's values and effects."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "agronholm/apscheduler#1158",
+      "repository": "agronholm/apscheduler",
+      "pull_request": 1158,
+      "base": "e3840d7c7eafbcb60f1bae0889cae5e942718e01",
+      "head": "bdaceb12792f104f25798dee2850d45f9e7d83f8",
+      "subject": "Return only active schedules from MemoryDataStore.get_next_schedule_run_time() (#1158)",
+      "labels": [
+        {
+          "path": "src/apscheduler/datastores/memory.py",
+          "symbol": "MemoryDataStore",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The class's own body is unchanged; the change is in get_next_schedule_run_time, labeled on its own."
+        },
+        {
+          "path": "src/apscheduler/datastores/memory.py",
+          "symbol": "MemoryDataStore.get_next_schedule_run_time",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "Returns the earliest run time of an active schedule, skipping paused and acquired ones; this filters the result and validates no input."
+        },
+        {
+          "path": "src/apscheduler/datastores/mongodb.py",
+          "symbol": "MongoDBDataStore",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The class's own body is unchanged; the change is in get_next_schedule_run_time, labeled on its own."
+        },
+        {
+          "path": "src/apscheduler/datastores/mongodb.py",
+          "symbol": "MongoDBDataStore.get_next_schedule_run_time",
+          "change": "modified",
+          "expected": [
+            "output_contract_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "The MongoDB query now leaves out paused or acquired schedules, which changes the run time returned; no input is validated."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "agronholm/apscheduler#1122",
+      "repository": "agronholm/apscheduler",
+      "pull_request": 1122,
+      "base": "2bc7fb4453d5ab29dc7a439501928ea766cefe1e",
+      "head": "e3840d7c7eafbcb60f1bae0889cae5e942718e01",
+      "subject": "Preserve the callable when configuring a task from a Task object (#1122)",
+      "labels": [
+        {
+          "path": "src/apscheduler/_schedulers/async_.py",
+          "symbol": "AsyncScheduler",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The class's own body is unchanged; the change is in configure_task."
+        },
+        {
+          "path": "src/apscheduler/_schedulers/async_.py",
+          "symbol": "AsyncScheduler.configure_task",
+          "change": "modified",
+          "expected": [
+            "output_contract_change",
+            "side_effect_change",
+            "default_behavior_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Configured from a Task, it keeps the task's function reference as the default fallback and includes it in the Task it returns and stores."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "agronholm/apscheduler#1155",
+      "repository": "agronholm/apscheduler",
+      "pull_request": 1155,
+      "base": "82ce29237ab6b3a9a6be2d24313bf94aa0b01e1c",
+      "head": "a660860d841c5426ec3b7ed2d4ada8fe168710f1",
+      "subject": "Keep trigger failures isolated to the affected schedule (#1155)",
+      "labels": [
+        {
+          "path": "src/apscheduler/_schedulers/async_.py",
+          "symbol": "AsyncScheduler",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The class's own body is unchanged; the change is in _process_schedules."
+        },
+        {
+          "path": "src/apscheduler/_schedulers/async_.py",
+          "symbol": "AsyncScheduler._process_schedules",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "state_transition_change",
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "When a trigger fails, that schedule is left without a next run time while jobs and results are still stored; initializing a local variable changes no default of the API."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "agronholm/apscheduler#1142",
+      "repository": "agronholm/apscheduler",
+      "pull_request": 1142,
+      "base": "b227d21fce2c8cca56dc421cbc07fa6eca7db541",
+      "head": "ac54784e5d3d2f94ab13ce993768244c9a9b8e26",
+      "subject": "Fix AsyncpgEventBroker not dispatching notifications in a task context (anyio >= 4.14) (#1142)",
+      "labels": [
+        {
+          "path": "src/apscheduler/eventbrokers/asyncpg.py",
+          "symbol": "AsyncpgEventBroker",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The class's own body is unchanged; the change is in the callback and how it is registered."
+        },
+        {
+          "path": "src/apscheduler/eventbrokers/asyncpg.py",
+          "symbol": "AsyncpgEventBroker._listen_notifications",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Registers an async listener that asyncpg runs as a task, so notifications are published without AnyIO's context error; no other relative order is shown."
+        },
+        {
+          "path": "src/apscheduler/eventbrokers/asyncpg.py",
+          "symbol": "AsyncpgEventBroker._listen_notifications.listen_callback",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "output_contract_change",
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "The callback now returns a coroutine that asyncpg runs as a task, from which local publishing can start without the context error."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "agronholm/apscheduler#1146",
+      "repository": "agronholm/apscheduler",
+      "pull_request": 1146,
+      "base": "81e9fdcaac8d6c72f4318cb7ff393c913c7f9440",
+      "head": "b227d21fce2c8cca56dc421cbc07fa6eca7db541",
+      "subject": "Use PyMongo AsyncCursor.to_list() instead of list comprehension (#1146)",
+      "labels": [
+        {
+          "path": "src/apscheduler/datastores/mongodb.py",
+          "symbol": "MongoDBDataStore",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The class's own body is unchanged; the acquisition methods change."
+        },
+        {
+          "path": "src/apscheduler/datastores/mongodb.py",
+          "symbol": "MongoDBDataStore.acquire_jobs",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Uses to_list instead of the cursor's context: the query and its results are the same, but the cursor is no longer closed explicitly on exit when collecting them fails."
+        },
+        {
+          "path": "src/apscheduler/datastores/mongodb.py",
+          "symbol": "MongoDBDataStore.acquire_schedules",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Uses to_list and drops the cursor's context and its explicit close on exit; the filter, the limit, and the ascending order are kept."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "agronholm/apscheduler#1130",
+      "repository": "agronholm/apscheduler",
+      "pull_request": 1130,
+      "base": "6a2a8851bafeb01dfe48e3b54be6dd3b3d4eae96",
+      "head": "81e9fdcaac8d6c72f4318cb7ff393c913c7f9440",
+      "subject": "Raise ValueError for out-of-range numeric day_of_week values (#1130)",
+      "labels": [
+        {
+          "path": "src/apscheduler/triggers/cron/fields.py",
+          "symbol": "DayOfWeekField",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The class's own body is unchanged; the validation changes in append_expression."
+        },
+        {
+          "path": "src/apscheduler/triggers/cron/fields.py",
+          "symbol": "DayOfWeekField.append_expression",
+          "change": "modified",
+          "expected": [
+            "boundary_change",
+            "validation_change",
+            "error_handling_change"
+          ],
+          "rationale": "Checks that both numeric ends lie between 0 and 7 and raises ValueError naming the invalid number before reading the table of days."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "alisaifee/limits#372",
+      "repository": "alisaifee/limits",
+      "pull_request": 372,
+      "base": "3d238f4d39a6eff85da03c615fa68321b5225189",
+      "head": "0492c4fbef45c0f66c88c5feb00cb1270af238fa",
+      "subject": "Fix #371 async coredis atomicity problem (#372)",
+      "labels": [
+        {
+          "path": "limits/aio/storage/redis/coredis.py",
+          "symbol": "CoredisBridge",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The class's own body is unchanged; the script was already declared, and the change is in incr."
+        },
+        {
+          "path": "limits/aio/storage/redis/coredis.py",
+          "symbol": "CoredisBridge.incr",
+          "change": "modified",
+          "expected": [
+            "side_effect_change",
+            "ordering_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "The increment and the expiry move from separate Redis commands to one atomic Lua script, so nothing can run between the two."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "alisaifee/limits#352",
+      "repository": "alisaifee/limits",
+      "pull_request": 352,
+      "base": "19d4574fce11056b76890d9726fb5d94d8a6153a",
+      "head": "f7d1eef524a55301956a21a07853423632605b80",
+      "subject": "Make memory storage threadsafe (#352)",
+      "labels": [
+        {
+          "path": "limits/storage/memory.py",
+          "symbol": "MemoryStorage",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The class's own body is unchanged; the changes are in its initialization, serialization, and timer methods."
+        },
+        {
+          "path": "limits/storage/memory.py",
+          "symbol": "MemoryStorage.__getstate__",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Leaves the new internal lock out of the pickled state, which keeps the keys it had before the lock was added."
+        },
+        {
+          "path": "limits/storage/memory.py",
+          "symbol": "MemoryStorage.__init__",
+          "change": "modified",
+          "expected": [
+            "state_transition_change"
+          ],
+          "rationale": "New instances get a _timer_lock, which synchronizes rescheduling the expiry timer."
+        },
+        {
+          "path": "limits/storage/memory.py",
+          "symbol": "MemoryStorage.__schedule_expiry",
+          "change": "modified",
+          "expected": [
+            "state_transition_change",
+            "side_effect_change",
+            "ordering_change"
+          ],
+          "rationale": "Serializes checking, replacing, and starting the timer, so concurrent calls cannot create duplicate timers."
+        },
+        {
+          "path": "limits/storage/memory.py",
+          "symbol": "MemoryStorage.__setstate__",
+          "change": "modified",
+          "expected": [
+            "state_transition_change"
+          ],
+          "rationale": "Restoring the state creates a fresh lock that synchronizes rescheduling the timer."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "alisaifee/limits#270",
+      "repository": "alisaifee/limits",
+      "pull_request": 270,
+      "base": "3eb5045eb8f48e38f2f5630c38837d6f5272ff1d",
+      "head": "4d106c42bb632ea36abbf2b1ae24693e7a0a81b9",
+      "subject": "doctest (#270)",
+      "labels": [
+        {
+          "path": "doc/source/conf.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [
+            "output_contract_change",
+            "default_behavior_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Configures sphinx-copybutton to leave console prompts and output out of the copied text, replacing the extension's default configuration."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "alisaifee/limits#249",
+      "repository": "alisaifee/limits",
+      "pull_request": 249,
+      "base": "f8c4539d039ab3225fff28e3a871a68afa36cac4",
+      "head": "59974ba0bdad7972981b97199ea2fe73f0c9dd94",
+      "subject": "Merge pull request #249 from alisaifee/sliding-window-mongodb",
+      "labels": [
+        {
+          "path": "limits/aio/storage/mongodb.py",
+          "symbol": "MongoDBStorage",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "Adds SlidingWindowCounterSupport to the bases, so the async storage is recognized as supporting that strategy."
+        },
+        {
+          "path": "limits/aio/storage/mongodb.py",
+          "symbol": "MongoDBStorage.__init__",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Only the documentation of window_collection_name changes; the initialization is the same."
+        },
+        {
+          "path": "limits/aio/storage/mongodb.py",
+          "symbol": "MongoDBStorage.acquire_entry",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The symbol's code is the same text; the sliding window comes in other symbols."
+        },
+        {
+          "path": "limits/aio/storage/mongodb.py",
+          "symbol": "MongoDBStorage.acquire_sliding_window_entry",
+          "change": "added",
+          "expected": [],
+          "rationale": "New: atomically rolls the key's sliding window in the windows collection and adds amount when the weighted count stays within limit, returning whether the entry was acquired."
+        },
+        {
+          "path": "limits/aio/storage/mongodb.py",
+          "symbol": "MongoDBStorage.get_sliding_window",
+          "change": "added",
+          "expected": [],
+          "rationale": "New: rolls the key's window if it is due and returns (previous count, previous TTL, current count, current TTL), or zeros when the key is absent."
+        },
+        {
+          "path": "limits/storage/mongodb.py",
+          "symbol": "MongoDBStorageBase",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "Adds SlidingWindowCounterSupport to the bases, so the sync storage is recognized as supporting that strategy."
+        },
+        {
+          "path": "limits/storage/mongodb.py",
+          "symbol": "MongoDBStorageBase.__init__",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Only the documentation of window_collection_name changes; the initialization is the same."
+        },
+        {
+          "path": "limits/storage/mongodb.py",
+          "symbol": "MongoDBStorageBase.acquire_entry",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The symbol's code is the same text; acquiring a moving-window entry does not change."
+        },
+        {
+          "path": "limits/storage/mongodb.py",
+          "symbol": "MongoDBStorageBase.acquire_sliding_window_entry",
+          "change": "added",
+          "expected": [],
+          "rationale": "New sync counterpart: atomically rolls the sliding window and adds amount when the weighted count stays within limit, returning whether the entry was acquired."
+        },
+        {
+          "path": "limits/storage/mongodb.py",
+          "symbol": "MongoDBStorageBase.get_sliding_window",
+          "change": "added",
+          "expected": [],
+          "rationale": "New sync counterpart: rolls the window if due and returns (previous count, previous TTL, current count, current TTL), or zeros when absent."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "alisaifee/limits#190",
+      "repository": "alisaifee/limits",
+      "pull_request": 190,
+      "base": "0946fdcd3b9509041a823d3bb1b63ea1de9ab6ee",
+      "head": "3409535404464bd7cf3eb1e8ec54bf1e1adcba7f",
+      "subject": "Merge pull request #190 from drygdryg/master",
+      "labels": [
+        {
+          "path": "limits/aio/storage/redis.py",
+          "symbol": "RedisStorage",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The class's own body is unchanged; only the constructor's documentation changes."
+        },
+        {
+          "path": "limits/aio/storage/redis.py",
+          "symbol": "RedisStorage.__init__",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Only corrects the Unix socket URI example in the docstring; parsing the URI does not change."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "alisaifee/limits#154",
+      "repository": "alisaifee/limits",
+      "pull_request": 154,
+      "base": "68ee7f6f5b8c32e7790fda6f0600c0c4782d91fe",
+      "head": "c06039bcbe5a4509b1b9253f3bb67d3964985c51",
+      "subject": "Merge pull request #154 from alisaifee/fix-cluster-auth-from-uri",
+      "labels": [
+        {
+          "path": "limits/aio/storage/redis.py",
+          "symbol": "RedisClusterStorage",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The class's own body is unchanged; the functional change is in __init__."
+        },
+        {
+          "path": "limits/aio/storage/redis.py",
+          "symbol": "RedisClusterStorage.__init__",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "authorization_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Splits the credentials from the hosts and passes them to coredis, accepting authenticated URIs that could fail before when host and port were split; options take precedence."
+        },
+        {
+          "path": "limits/storage/redis_cluster.py",
+          "symbol": "RedisClusterStorage",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The class's own body is unchanged; the functional change is in __init__."
+        },
+        {
+          "path": "limits/storage/redis_cluster.py",
+          "symbol": "RedisClusterStorage.__init__",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "authorization_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Splits the credentials from the hosts and passes them to the chosen Redis client, accepting authenticated URIs that could fail to parse before; options take precedence."
+        },
+        {
+          "path": "limits/storage/redis_cluster.py",
+          "symbol": "RedisClusterStorage.__use_legacy_cluster_implementation",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Only adds a trailing comma to the call; its arguments, result, and effects are the same."
         }
       ],
       "reviewed_by": [
