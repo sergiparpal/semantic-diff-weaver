@@ -12,17 +12,106 @@ the analyzer was changed against. The **held-out** cases, six each of `pallets/f
 `pallets/werkzeug`, `encode/starlette`, `Textualize/rich`, and `marshmallow-code/marshmallow`, were
 labeled before the first such change and measured it on code it was not designed from.
 
-Since then the first held-out cases have joined development, and so has a second held-out split of
-30 pull requests, from `encode/django-rest-framework`, `jd/tenacity`, `urllib3/urllib3`,
-`agronholm/anyio`, and `pypa/packaging`, labeled and reviewed before the second round's correction
-and measured with it. A third held-out split of 30, labeled by two models and reviewed, has measured
-the third round's correction, which comes first below, followed by how that split was labeled and
-the baseline it and the 90 development cases set. Then come the second split's baseline and the
-second round's correction, measured on it while it was held out, measurements of the development
-cases with models, and the first round's results.
+Since then the first held-out cases have joined development, and so have two more held-out splits of
+30 pull requests each. The second, from `encode/django-rest-framework`, `jd/tenacity`,
+`urllib3/urllib3`, `agronholm/anyio`, and `pypa/packaging`, was labeled and reviewed before the
+second round's correction and measured with it. The third, from `django-guardian/django-guardian`,
+`jazzband/django-oauth-toolkit`, `redis/redis-py`, `more-itertools/more-itertools`, and
+`dateutil/dateutil`, was labeled by two models and reviewed, and measured the third round's
+correction. A fourth held-out split of 30, labeled the same way and not measured yet, comes first
+below. Then come the third round's correction, how the third split was labeled, and the baseline it
+and the 90 development cases of the time set; the second split's baseline and the second round's
+correction, measured on it while it was held out; measurements of the development cases with models;
+and the first round's results.
 
 Unlike the 18-case corpus of `docs/evaluation.md`, whose cases were written to exercise the
 taxonomy, these are changes as maintainers made them.
+
+## Fourth held-out sample
+
+Labeled and reviewed 2026-11-11, and not measured yet: six pull requests each, drawn by
+`run_benchmark.py propose`, of `django-commons/django-axes`, `jpadilla/pyjwt`, `hynek/stamina`,
+`agronholm/apscheduler`, and `alisaifee/limits`. The reviewer chose these libraries for the
+categories the 120 cases before them named least: authorization 4 times, retry or timeout 10,
+ordering 15, and boundary 16. The pull requests change 95 Python symbols outside their tests, 80
+modified, 13 added, and 2 removed. `propose` analyzes each pull request it reads to count its
+symbols, and those analyses were deleted unread.
+
+Two annotators labeled every symbol alone, from a kit made as the third sample's was: the rules of
+`benchmark/README.md`, the category table of the specification, and each case's diff with the code
+of its changed symbols at both commits. Neither saw the other's labels or any output of the
+analyzer.
+
+- **Claude Opus 5.5** labeled as a fresh agent that could read only the kit. To tell which bodies
+  are the same text at both commits, it compared the kit's own code with `difflib`, in a folder of
+  its own.
+- **gpt-6.1-terra**, at medium reasoning, labeled one case per call through Hermes Agent's model
+  API. All 30 answers were valid at the first attempt, for 122,437 tokens in and 5,434 out.
+
+On the 82 symbols that are not added:
+
+| Measure | Result |
+| --- | --- |
+| Agree on whether the behavior changes | 77 of 82 (Cohen's kappa 0.88) |
+| Agree on the exact categories | 55 of 82 |
+| Both name a behavior change | 38, with the same categories in 16 (mean Jaccard 0.75) |
+| Name a behavior change | Claude Opus 5.5 41, gpt-6.1-terra 40 |
+
+Both annotators left the 13 added symbols empty, as their rule says.
+
+The reviewer then settled the label of all 82, agreements included, on a page like the third
+sample's: it showed the symbol's diff and the two proposals as A and B, in an order drawn per
+symbol, without saying whose and never with the analyzer's findings. The 13 added symbols keep the
+empty list their rule gives them.
+
+| Final label of the 82 scored symbols | Annotators agreed (55) | Annotators disagreed (27) |
+| --- | --- | --- |
+| Both annotators' label, kept | 55 | |
+| gpt-6.1-terra's proposal | | 11 |
+| Claude Opus 5.5's proposal | | 6 |
+| The two proposals together | | 5 |
+| The reviewer's own label | | 5 |
+
+- **Change or no change:** of the five disagreements on whether the behavior changes,
+  gpt-6.1-terra's side won three: `agronholm/apscheduler#1146`'s two acquisition methods change,
+  since they no longer close their cursor explicitly when collecting its results fails, and
+  `alisaifee/limits#352`'s `MemoryStorage.__getstate__` does not, since it pickles the keys it did
+  before. Claude Opus 5.5's side won the other two: the `__lazy_modules__` of `hynek/stamina#159`'s
+  two modules defer their imports, and the imports' effects, on Python 3.15 with lazy imports
+  enabled.
+- **The reviewer's own labels:** each of the five builds on the proposals and leaves out a category
+  for what the change keeps: an output contract where the value returned stays the same, in
+  `jpadilla/pyjwt#1216`'s `PyJWS._decode_base64url_segment` and `jpadilla/pyjwt#1208`'s
+  `JWKSetCache.put` and `PyJWKClient.fetch_data`; a default the API keeps, in `hynek/stamina#109`'s
+  `_make_stop`; and the order the query keeps, in `agronholm/apscheduler#1146`'s
+  `MongoDBDataStore.acquire_schedules`.
+
+Of the 42 behavior changes, 5 name `authorization_change`, 6 `boundary_change`, 6 `ordering_change`,
+and 4 `retry_timeout_change`. With them, the 150 cases name these categories 9, 22, 21, and 14
+times.
+
+| Labels | Categories per behavior change |
+| --- | --- |
+| First sample, 60 cases | 2.00 |
+| Second sample, 30 cases | 2.48 |
+| Third sample, 30 cases | 3.43 |
+| Development, the three samples together | 2.47 |
+| Fourth sample, as Claude Opus 5.5 labeled it | 2.66 |
+| Fourth sample, as gpt-6.1-terra labeled it | 3.00 |
+| Fourth sample, as reviewed | 3.00 |
+
+The reviewer settled on narrower labels than in the third sample, where gpt-6.1-terra's proposal won
+23 of the 28 disagreements, but the held-out labels still list more categories per behavior change
+than development's, so precision on the two splits does not compare. A change to the analyzer still
+compares each split with itself.
+
+The limits are the third sample's:
+
+- one reviewer read each symbol with both proposals in view, which may have favored the wider one;
+- a proposal's wording can betray whose it is;
+- the annotators saw the changed symbols and the diff, not whole files, which the page linked.
+
+The labels were committed before any measurement on them.
 
 ## Third round
 
@@ -57,18 +146,20 @@ rewrites that return what they returned, which the rule cannot tell from changes
 out, the 10 unchanged symbols still get no finding.
 
 The held-out split was measured once with the correction, reading its summary alone; its findings by
-category and by case, and its disagreements, stay unread. Having measured this correction, it is not
-the held-out split of the next one.
+category and by case, and its disagreements, stayed unread while it was held out. Having measured
+this correction, it has joined development, and the fourth sample is the held-out split of the next
+one.
 
 ## Third held-out sample
 
-Labeled and reviewed 2026-11-08, and not measured yet: six pull requests each, drawn by
-`run_benchmark.py propose`, of `django-guardian/django-guardian`, `jazzband/django-oauth-toolkit`,
-`redis/redis-py`, `more-itertools/more-itertools`, and `dateutil/dateutil`. The reviewer chose these
-libraries to reach the categories the earlier labels named least: authorization, which no label had
-named, boundary, ordering, and retry or timeout. The pull requests change 53 Python symbols outside
-their tests, 46 modified, 6 added, and 1 removed. `propose` analyzes each pull request it reads to
-count its symbols, and those analyses were deleted unread.
+Labeled and reviewed 2026-11-08, held out until the third round's correction was measured on it, and
+part of development since: six pull requests each, drawn by `run_benchmark.py propose`, of
+`django-guardian/django-guardian`, `jazzband/django-oauth-toolkit`, `redis/redis-py`,
+`more-itertools/more-itertools`, and `dateutil/dateutil`. The reviewer chose these libraries to
+reach the categories the earlier labels named least: authorization, which no label had named,
+boundary, ordering, and retry or timeout. The pull requests change 53 Python symbols outside their
+tests, 46 modified, 6 added, and 1 removed. `propose` analyzes each pull request it reads to count
+its symbols, and those analyses were deleted unread.
 
 Two annotators labeled every symbol alone, from the same kit: the rules of `benchmark/README.md`,
 the category table of the specification, and each case's diff with the code of its changed symbols
@@ -138,9 +229,9 @@ The labels were committed before any measurement on them.
 
 ## Baseline for the third round
 
-Measured 2026-11-08 with Semantic Diff Weaver 0.19.0 in deterministic mode, on the 90 development
-cases and the 30 held-out cases of the third split, before any correction is designed from the
-development ones.
+Measured 2026-11-08 with Semantic Diff Weaver 0.19.0 in deterministic mode, on the splits as they
+stood until the fourth sample: the 90 development cases and the 30 held-out cases of the third
+split, before any correction was designed from the development ones.
 
 | Measure | Development, 90 cases | Held-out, 30 cases |
 | --- | --- | --- |
@@ -176,8 +267,8 @@ strings, or docstrings, and none got a finding. A correction is to be judged by 
 moves, never by comparing one with the other.
 
 For the held-out split only these totals were computed. Its findings by category and by case, and
-each disagreement, stay unread until a correction designed from the development cases is measured
-on it, and the analyses written beside the clones were deleted unread.
+each disagreement, stayed unread while it was held out, and the analyses written beside the clones
+were deleted unread.
 
 ## Baseline for the second round
 
@@ -705,11 +796,11 @@ are neither right nor wrong: attrs#1571's two findings are one on `__all__` and 
 
 ## What the benchmark is not
 
-One model labeled its first 90 cases and two models its last 30, and one person reviewed every
+One model labeled its first 90 cases and two models its last 60, and one person reviewed every
 label, so a label is a model's reading that one reviewer accepted, chose, or corrected. A hundred
-and twenty pull requests of at most ten changed symbols each, sampled from twenty libraries' recent
-history, say nothing of large changes or of applications. Outside "With a model" the analyzer ran
-without one, as the MCP server always runs it and the CLI does without a provider; that section
+and fifty pull requests of at most ten changed symbols each, sampled from twenty-five libraries'
+recent history, say nothing of large changes or of applications. Outside "With a model" the analyzer
+ran without one, as the MCP server always runs it and the CLI does without a provider; that section
 measures runs of four models on the development cases, and one reviewer's reading of 177 test
 obligations in four reviews. A finding is matched to a label by the path and symbol of its first
 evidence, so two overloads of one name share a label.

@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- **Evaluation:** the benchmark has a fourth held-out split, 30 pull requests of
+  django-commons/django-axes, jpadilla/pyjwt, hynek/stamina, agronholm/apscheduler, and
+  alisaifee/limits, and the third split joins development, which now has 120 cases. Claude Opus 5.5
+  and gpt-6.1-terra labeled its 95 symbols blind and apart, as they did the third's. They agreed on
+  whether the behavior changes for 77 of the 82 scored symbols (kappa 0.88), and on the exact
+  categories for 55. The reviewer settled every scored label on a page that showed the two proposals
+  as A and B without saying whose: all 55 agreements were kept, and of the 27 disagreements 11 took
+  gpt-6.1-terra's proposal, 6 Claude Opus 5.5's, 5 both together, and 5 the reviewer's own label.
+  Its 42 behavior changes list 3.0 categories each, against development's 2.5, and name
+  authorization 5 times, boundary 6, ordering 6, and retry or timeout 4. `benchmark/README.md` gives
+  the protocol, and `docs/benchmark.md` the agreement and the review. No analyzer behavior changes,
+  and the split has not been measured yet.
+
 ## 0.20.1 - 2026-11-11
 
 A model's obligations of type `review`, discarded. With a model, the analysis no longer adds the

@@ -230,23 +230,24 @@ describe only the bounded synthetic corpus and are not a claim about arbitrary r
 
 ## Real pull requests
 
-`docs/benchmark.md` measures the analyzer on 120 real pull requests from twenty public
+`docs/benchmark.md` measures the analyzer on 150 real pull requests from twenty-five public
 repositories, against the labels of `benchmark/cases.json`. For the first 90, a model wrote one for
-every Python symbol they change before reading the analyzer's output, and a person reviewed all
-251, correcting 42. For the last 30, two models labeled each of their 53 symbols blind and apart,
-and the person settled every label that is scored. The 90 development cases are the ones the
-analyzer is changed against, and the 30 held-out cases, labeled and reviewed before its next
-change, will measure that change on code it was not designed from. Their baseline, in
-deterministic mode with 0.19.0 on 2026-11-08: every one of the 37 held-out behavior changes got a
-finding, 30 of them in an expected category, and none of the 10 unchanged symbols got one; 37 of
-the 72 scored findings, and 37 of the 45 that name a behavior category, are in an expected one.
-Their labels list more categories per behavior change than development's, 3.43 against 2.17, so
-these figures do not compare with development's 48 of 262 and 48 of 128. The third round's
-correction, designed from the development cases and measured once on these, names the output
+every Python symbol they change before reading the analyzer's output, and a person reviewed all 251,
+correcting 42. For the last 60, two models labeled each of their 148 symbols blind and apart, and
+the person settled every label that is scored. The 120 development cases are the ones the analyzer
+is changed against, and the 30 held-out cases, labeled and reviewed before its next change, will
+measure that change on code it was not designed from; they have not been measured yet. The held-out
+split before them, which has since joined development, gave the third round's baseline, in
+deterministic mode with 0.19.0 on 2026-11-08: every one of its 37 behavior changes got a finding, 30
+of them in an expected category, and none of its 10 unchanged symbols got one; 37 of the 72 scored
+findings, and 37 of the 45 that name a behavior category, are in an expected one. Its labels list
+more categories per behavior change than the development cases of the time, 3.43 against 2.17, so
+these figures do not compare with their 48 of 262 and 48 of 128. The third round's correction,
+designed from those 90 development cases and measured once on the held-out ones, names the output
 contract changes the rules had called unknown: held out, 32 of the 37 behavior changes get a finding
 in an expected category and 47 of 74 scored findings are in one, still with no unchanged symbol
-given a finding; in development, 70 of 120 and 77 of 248. The previous held-out
-split, which has since joined development, gave the second round's baseline, in deterministic mode
+given a finding; in development, 70 of 120 and 77 of 248. The second held-out split, which joined
+development before it, gave the second round's baseline, in deterministic mode
 with 0.16.0 on 2026-11-03: every one of its 44 behavior changes got a finding, 16 of them in an
 expected category, and 18 of its 29 unchanged symbols got one too; 16 of the 107 scored findings,
 and 16 of the 50 that name a behavior category, are in an expected one. The second round's
