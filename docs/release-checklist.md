@@ -31,7 +31,11 @@
       scripts/check_anthropic_sdk.py`, as the weekly `anthropic-sdk` workflow does: it must send
       the API version the adapter was checked against, and its `messages.create` must take every
       keyword the adapter passes. No CI job installs the extra, so nothing else checks it.
-- [x] Update changelog and evaluation measurements if behavior changed.
+- [x] Update changelog and evaluation measurements if behavior changed. `python
+      scripts/time_performance.py --runs 6 new=. old=<worktree of the previous tag>` re-times
+      the performance tests beside the previous release's code, the trees taking turns, and
+      `python scripts/check_coverage.py coverage.json --per-module` lists each critical module's
+      branch coverage.
 - [x] Bump the `uses: sergiparpal/semantic-diff-weaver@vX.Y.Z` examples in `README.md` and
       `docs/github-action.md` to the new tag. No moving major tag is published, so nothing
       re-points itself and a stale example is the only way a reader lands on an old release.
@@ -40,8 +44,10 @@
       release that was never pushed.
 - [x] Once the tag is pushed, create its GitHub Release under the same authorization: titled
       with the tag's one-line message, its notes the version's `CHANGELOG.md` section with each
-      paragraph on one line, and the wheel and source distribution the gate built and
-      `scripts/verify_wheel.py` checked attached; `gh release create --verify-tag` never makes
-      or moves a tag. No workflow runs on a release. The releases of v0.1.0 through v0.14.0 were
-      created on 2026-11-02 from their tags, with notes alone.
+      paragraph and list item on one line, as `python scripts/release_notes.py X.Y.Z` writes
+      them, and the wheel and source distribution attached, built from a clean worktree of the
+      tag and checked by `scripts/verify_wheel.py`; `gh release create --verify-tag` never makes
+      or moves a tag. Then `python scripts/check_release.py vX.Y.Z <dist>` checks the published
+      title, notes, and file digests. No workflow runs on a release. The releases of v0.1.0
+      through v0.14.0 were created on 2026-11-02 from their tags, with notes alone.
 - [x] Publish or push only with separate authorization.

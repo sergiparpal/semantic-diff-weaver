@@ -1,7 +1,15 @@
-"""Enforce the repository's overall and critical-module branch coverage policy."""
+"""Enforce the repository's overall and critical-module branch coverage policy.
+
+    python scripts/check_coverage.py coverage.json
+    python scripts/check_coverage.py coverage.json --per-module evidence_scenarios.py
+
+`--per-module` first prints each critical module's branch coverage, lowest first, and that of each
+module it names, as `docs/evaluation.md` reports them for a release.
+"""
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -80,12 +88,34 @@ def _branch_coverage(summaries: list[dict[str, Any]]) -> float:
     return 100.0 * covered / total
 
 
-def main() -> int:
-    if len(sys.argv) != 2:
-        print("usage: python scripts/check_coverage.py COVERAGE_JSON", file=sys.stderr)
-        return 2
-    report_path = Path(sys.argv[1])
-    report = json.loads(report_path.read_text(encoding="utf-8"))
+def per_module(files: dict[str, Any], modules: tuple[str, ...]) -> list[str]:
+    """Each module's branch coverage, lowest first, and the modules the report lacks last."""
+    found: list[tuple[float, str]] = []
+    missing: list[str] = []
+    for module in modules:
+        matches = _matching_summaries(files, module)
+        if matches:
+            found.append((_branch_coverage(matches), module))
+        else:
+            missing.append(module)
+    lines = [f"{value:6.2f}% {module}" for value, module in sorted(found)]
+    return lines + [f"missing {module}" for module in missing]
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
+    parser.add_argument("report", type=Path, help="coverage.py's JSON report")
+    parser.add_argument(
+        "--per-module",
+        nargs="*",
+        metavar="MODULE",
+        help="also print each critical module's branch coverage, and each MODULE's",
+    )
+    arguments = parser.parse_args(argv)
+    report = json.loads(arguments.report.read_text(encoding="utf-8"))
+    if arguments.per_module is not None:
+        named = tuple(m for m in arguments.per_module if m not in CRITICAL_MODULES)
+        print("\n".join(per_module(report["files"], (*CRITICAL_MODULES, *named))))
     failures: list[str] = []
     overall = float(report["totals"]["percent_covered"])
     if overall < OVERALL_MINIMUM:

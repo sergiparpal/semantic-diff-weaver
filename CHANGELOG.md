@@ -11,6 +11,18 @@
 
   On the 16 answers recorded so far, the graders agree with the judges' verdicts on every answer but
   the one the judge failed. `docs/evaluation.md` records the run, which cost 1.66 USD.
+- **Tests:** the release checklist's steps that were done by hand now have scripts.
+  - `scripts/release_notes.py` writes a GitHub Release's notes from the version's `CHANGELOG.md`
+    section. It reproduces the published notes of all 31 Releases, v0.1.0 through v0.20.0, byte
+    for byte. A nested list item now keeps its own line.
+  - `scripts/check_release.py` reads a published Release back and checks its title against the
+    tag's message, its notes against those, and each attached file's digest against the file
+    built for it.
+  - `scripts/time_performance.py` times `tests/performance` in several trees, taking turns, as
+    each release's timing run does.
+  - `scripts/check_coverage.py --per-module` lists each critical module's branch coverage.
+
+  No package code changes.
 
 ## 0.20.0 - 2026-11-10
 
