@@ -18,22 +18,22 @@ Since then the first held-out cases have joined development, and so have two mor
 second round's correction and measured with it. The third, from `django-guardian/django-guardian`,
 `jazzband/django-oauth-toolkit`, `redis/redis-py`, `more-itertools/more-itertools`, and
 `dateutil/dateutil`, was labeled by two models and reviewed, and measured the third round's
-correction. A fourth held-out split of 30, labeled the same way and not measured yet, comes first
-below. Then come the third round's correction, how the third split was labeled, and the baseline it
-and the 90 development cases of the time set; the second split's baseline and the second round's
-correction, measured on it while it was held out; measurements of the development cases with models;
-and the first round's results.
+correction. A fourth held-out split of 30, labeled the same way, comes first below, followed by the
+baseline it and the 120 development cases set. Then come the third round's correction, how the third
+split was labeled, and the baseline it and the 90 development cases of the time set; the second
+split's baseline and the second round's correction, measured on it while it was held out;
+measurements of the development cases with models; and the first round's results.
 
 Unlike the 18-case corpus of `docs/evaluation.md`, whose cases were written to exercise the
 taxonomy, these are changes as maintainers made them.
 
 ## Fourth held-out sample
 
-Labeled and reviewed 2026-11-11, and not measured yet: six pull requests each, drawn by
-`run_benchmark.py propose`, of `django-commons/django-axes`, `jpadilla/pyjwt`, `hynek/stamina`,
-`agronholm/apscheduler`, and `alisaifee/limits`. The reviewer chose these libraries for the
-categories the 120 cases before them named least: authorization 4 times, retry or timeout 10,
-ordering 15, and boundary 16. The pull requests change 95 Python symbols outside their tests, 80
+Labeled and reviewed 2026-11-11, and measured only for the baseline below: six pull requests each,
+drawn by `run_benchmark.py propose`, of `django-commons/django-axes`, `jpadilla/pyjwt`,
+`hynek/stamina`, `agronholm/apscheduler`, and `alisaifee/limits`. The reviewer chose these libraries
+for the categories the 120 cases before them named least: authorization 4 times, retry or timeout
+10, ordering 15, and boundary 16. The pull requests change 95 Python symbols outside their tests, 80
 modified, 13 added, and 2 removed. `propose` analyzes each pull request it reads to count its
 symbols, and those analyses were deleted unread.
 
@@ -112,6 +112,57 @@ The limits are the third sample's:
 - the annotators saw the changed symbols and the diff, not whole files, which the page linked.
 
 The labels were committed before any measurement on them.
+
+## Baseline for the fourth round
+
+Measured 2026-11-11 with Semantic Diff Weaver 0.20.1 in deterministic mode, on the 120 development
+cases and the 30 held-out cases of the fourth split, before any correction is designed from the
+development ones.
+
+| Measure | Development, 120 cases | Held-out, 30 cases |
+| --- | --- | --- |
+| Labeled symbols | 304 | 95 |
+| Behavior changes | 157 | 42 |
+| Unchanged symbols | 110 | 38 |
+| Findings on Python | 357 | 89 |
+| Precision, findings in an expected category | 124 of 322 (38.5%) | 32 of 74 (43.2%) |
+| Precision, findings naming a behavior category | 124 of 225 (55.1%) | 32 of 49 (65.3%) |
+| Recall, behavior changes given a finding | 157 of 157 | 41 of 42 |
+| Recall, behavior changes given one in an expected category | 102 of 157 (65.0%) | 22 of 42 (52.4%) |
+| Unchanged symbols given a finding | 28 of 110 (25.5%) | 5 of 38 (13.2%) |
+| Unchanged symbols given one naming a behavior category | 19 of 110 (17.3%) | 2 of 38 (5.3%) |
+
+Findings on an added or removed symbol without a category, 35 in development and 15 held out, are
+neither right nor wrong and are left out of precision. No finding fell on an unlabeled symbol, and
+development's one finding outside Python is not scored. The development column is the third round's
+two corrected columns added together: 0.20.1 changes nothing the deterministic mode reports.
+
+Held out, one behavior change gets no finding at all, the first on any split the benchmark has
+measured. Which one it is stays unread with the rest of the split's findings.
+
+The held-out labels list 3.00 categories per behavior change, against development's 2.47, so the
+columns still do not compare. Scored against each annotator's labels as given, before the review,
+the same held-out findings come out as follows:
+
+| Held-out findings scored against | Categories per change | Precision, expected category | Precision, naming a category | Recall in an expected category | Unchanged symbols with a finding |
+| --- | --- | --- | --- | --- | --- |
+| The reviewed labels | 3.00 | 32 of 74 (43.2%) | 32 of 49 (65.3%) | 22 of 42 (52.4%) | 5 of 38 |
+| gpt-6.1-terra's labels | 3.00 | 33 of 74 (44.6%) | 33 of 49 (67.3%) | 23 of 40 (57.5%) | 7 of 40 |
+| Claude Opus 5.5's labels | 2.66 | 31 of 74 (41.9%) | 31 of 49 (63.3%) | 22 of 41 (53.7%) | 6 of 39 |
+
+The three label sets move precision by less than three points. Unlike the third split, whose
+held-out precision stood at 51.4% against development's 18.3% before its correction, this one stands
+near development's, and its recall in an expected category below it. Its 38 unchanged symbols are 22
+classes whose own statements did not change, 6 docstrings or documentation, 3 imports, 3 bodies that
+read the same, and 4 others: a trailing comma, a string split across lines, widened type aliases,
+and a lock left out of the pickled state. A correction is to be judged by how each split moves,
+never by comparing one with the other.
+
+For the held-out split only these totals were computed. A script called the benchmark's own
+functions and printed the measures alone: no per-category or per-case table, and no disagreement,
+was rendered, and each analysis written beside the clones was deleted unread once its case was
+measured. The split's findings by category and by case, and each disagreement, stay unread until a
+correction designed from the development cases is measured on it.
 
 ## Third round
 
