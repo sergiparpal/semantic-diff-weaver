@@ -76,3 +76,45 @@ def test_coverage_policy_aggregates_package_branch_coverage(tmp_path: Path, monk
 
     # Package aggregate is 90% even though process.py alone is 85%.
     assert check_coverage.main() == 0
+
+
+def _report(tmp_path: Path) -> Path:
+    files = {
+        f"semantic_diff_weaver/{module}": _file_entry()
+        for module in check_coverage.CRITICAL_MODULES
+        if not module.endswith("/")
+    }
+    for module in check_coverage.CRITICAL_MODULES:
+        if module.endswith("/"):
+            files[f"semantic_diff_weaver/{module}a.py"] = _file_entry(covered=95, total=100)
+    files["semantic_diff_weaver/path_policy.py"] = _file_entry(covered=92, total=100)
+    files["semantic_diff_weaver/evidence_scenarios.py"] = _file_entry(covered=100, total=100)
+    report_path = tmp_path / "coverage.json"
+    report_path.write_text(
+        json.dumps({"totals": {"percent_covered": 98.0}, "files": files}), encoding="utf-8"
+    )
+    return report_path
+
+
+def test_per_module_lists_each_critical_module_lowest_first_and_the_ones_named(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    report = str(_report(tmp_path))
+
+    code = check_coverage.main([report, "--per-module", "evidence_scenarios.py", "absent.py"])
+
+    assert code == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0] == " 91.00% baseline.py"
+    assert " 92.00% path_policy.py" in lines
+    assert "100.00% evidence_scenarios.py" in lines
+    assert lines[-2] == "missing absent.py"
+    assert lines[-1].startswith("Coverage policy passed")
+    assert len(lines) == len(check_coverage.CRITICAL_MODULES) + 3
+
+
+def test_without_per_module_only_the_verdict_is_printed(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert check_coverage.main([str(_report(tmp_path))]) == 0
+    assert capsys.readouterr().out.startswith("Coverage policy passed")

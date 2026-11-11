@@ -31,6 +31,14 @@ Tests are grouped under `tests/unit`, `contract`, `integration`, `security`, `pe
   run the Claude Code skill's eval suite in `evals/` with the real server. Every run is a full Claude
   session billed to whoever runs it, so cap it, and run it when `SKILL.md` changes and before a
   release.
+- `python scripts/time_performance.py --runs 6 new=. old=<worktree of the previous tag>`: time
+  `tests/performance` in each tree, interleaved, and print each test's median call phase, as
+  `docs/evaluation.md` records them for a release.
+- `python scripts/check_coverage.py coverage.json --per-module evidence_scenarios.py`: also print
+  each critical module's branch coverage, lowest first.
+- `python scripts/release_notes.py X.Y.Z --out notes.md`: write a GitHub Release's notes from the
+  version's `CHANGELOG.md` section; `python scripts/check_release.py vX.Y.Z <dist>` then checks the
+  published Release's title, notes, and attached files against the tag, those notes, and `<dist>`.
 
 Use Python 3.11 or newer and install the exact development versions from `requirements-dev.lock`.
 
