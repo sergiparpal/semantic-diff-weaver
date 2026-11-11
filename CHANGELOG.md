@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Tests:** the prompt-injection harness's tests get two minutes each, where every test gets 30
+  seconds. They build repositories and analyze them, dozens of Git processes, about 4 seconds
+  locally. On 2026-11-11 the macOS leg's Intel runner ran the whole suite about 2.5 times slower than
+  an hour before, and they timed out in two runs in a row.
 - **Tests:** two of the Claude Code skill's eval graders failed right answers in the 0.20.0 run, and
   now pass them.
   - `triggers-in-spanish`: its judge, Haiku, failed a Spanish answer that met its two-claim
