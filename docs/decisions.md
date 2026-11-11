@@ -295,6 +295,12 @@ but two cases are the skill's guidance alone, since `git` is there either way. B
 `origin/main`, it named `origin/main` in none. A run cost about 0.16 USD with the plugin and 0.12
 without it, and 0.43 for the large diff's four calls.
 
+On 2026-11-11 the judge failed a third right answer. In `triggers-in-spanish`, a Spanish answer met
+both claims of `reports-the-boundary`, that five items are now allowed and that a test should check
+exactly that case. The judge failed it in two of three votes, so each claim is a regex now. The same
+run found the pattern of `says-unverified` too narrow: it missed "doesn't run any tests" and "a
+static guess", which that case's judge passed. The pattern now matches those words too.
+
 ## Repository-clone plugin install (2026-07-30)
 
 `hermes plugins install sergiparpal/semantic-diff-weaver --enable` is the documented install path,

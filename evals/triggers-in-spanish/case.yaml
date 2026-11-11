@@ -43,8 +43,10 @@ graders:
     type: regex
     pattern: '\b(?:rama|cambio|probar|prueba)\b'
     flags: i
-  - name: reports-the-boundary
-    type: llm
-    criteria: >-
-      The answer says that a basket of exactly MAX_ITEMS (5) items is now allowed, where before
-      the change it was not, and suggests a test for exactly that case.
+  - name: says-five-is-now-allowed
+    type: regex
+    pattern: 'exactamente\W{0,3}(?:5|MAX_ITEMS)\b[^.\n]{0,80}?(?:permit|acept|pasa|admit)'
+    flags: i
+  - name: suggests-testing-five
+    type: regex
+    pattern: 'allowed\(\s*(?:5|MAX_ITEMS)\s*\)'

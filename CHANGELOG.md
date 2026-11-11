@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- **Tests:** two of the Claude Code skill's eval graders failed right answers in the 0.20.0 run, and
+  now pass them.
+  - `triggers-in-spanish`: its judge, Haiku, failed a Spanish answer that met its two-claim
+    criterion. Two regexes replace it, one for each claim.
+  - `unverified-candidates`: the pattern of `says-unverified` missed "doesn't run" and "static
+    guess", and now matches them.
+
+  On the 16 answers recorded so far, the graders agree with the judges' verdicts on every answer but
+  the one the judge failed. `docs/evaluation.md` records the run, which cost 1.66 USD.
+
 ## 0.20.0 - 2026-11-10
 
 Output contract changes the rules left unknown, named, and constants a module only adds, read as no

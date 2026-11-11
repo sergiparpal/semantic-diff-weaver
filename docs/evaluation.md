@@ -378,3 +378,16 @@ The scores without the plugin are means of three runs, none of which passed. `un
 was run again, at 0.82 USD, after a judge's false failure turned one of its graders into a regex.
 Its first run had found that the skill did not load for "What does my change do?", which its
 description now covers. The suite cost 8.69 USD; see `docs/decisions.md`, 2026-11-07.
+
+On 2026-11-11, with release 0.20.0, the suite ran once a case with the plugin, for 1.66 USD. Seven
+cases passed every grader. The other two each failed one grader while the answer did what it asked:
+- `unverified-candidates` said "The tool doesn't run any tests, so its test-to-change matches are a
+  static guess", which the pattern of `says-unverified` did not match.
+- In `triggers-in-spanish`, the judge failed an answer in two of three votes. The answer said that
+  "una cesta de exactamente 5 artículos antes se rechazaba y ahora se acepta" and proposed checking
+  `allowed(5) is True`.
+
+The pattern now also matches "static", "doesn't run", and "without being run". Two regexes replace
+that judge, one for each claim: five items now allowed, and a test of `allowed(5)`. On the 16
+answers recorded so far, eight a case with and without the plugin, they agree with the judges'
+verdicts on every answer but the one the judge failed.
