@@ -4,9 +4,9 @@ from dataclasses import replace
 
 import pytest
 
-from semantic_diff_weaver.models import BehaviorCategory, Origin, WeaverConfig
+from semantic_diff_weaver.models import BehaviorCategory, ObligationType, Origin, WeaverConfig
 from semantic_diff_weaver.semantic_candidates import SemanticCandidate
-from semantic_diff_weaver.semantic_interpreter import interpret_candidates
+from semantic_diff_weaver.semantic_interpreter import REVIEW_WARNING, interpret_candidates
 from tests.contract.test_llm_call import (
     FakeLlm,
     Result,
@@ -161,6 +161,18 @@ def test_invalid_and_excess_per_behavior_obligations_are_discarded() -> None:
     assert len(result.suggestions) == 6
     assert any("per-behavior cap" in item for item in result.warnings)
     assert any("invalid behavior index" in item for item in result.warnings)
+
+
+def test_a_review_obligation_is_discarded_and_leaves_room_for_tests_under_the_cap() -> None:
+    """Six review obligations ahead of six that name a test: every test fits under the cap."""
+    payload = valid_payload()
+    review = {**payload["obligations"][0], "type": "review", "title": "Review the limit"}
+    payload["obligations"] = [review] * 6 + payload["obligations"] * 6
+    result = interpret_candidates([candidate()], FakeLlm([Result("json", payload)]), WeaverConfig())
+    assert len(result.suggestions) == 6
+    assert {item.type for item in result.suggestions} == {ObligationType.BOUNDARY}
+    assert REVIEW_WARNING in result.warnings
+    assert not any("per-behavior cap" in item for item in result.warnings)
 
 
 def test_provider_generated_prose_is_redacted_before_output() -> None:

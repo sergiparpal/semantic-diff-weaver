@@ -9,6 +9,7 @@ from semantic_diff_weaver.semantic_interpreter import (
     COPY_WARNING,
     INPUT_SUFFIX,
     INSTRUCTIONS,
+    REVIEW_WARNING,
     ShownText,
     interpret_candidates,
 )
@@ -70,6 +71,19 @@ def test_an_obligation_that_repeats_the_readme_is_discarded() -> None:
     assert f"Discarded an LLM obligation that {COPY_WARNING}" in result.warnings
     # The finding itself, which repeats nothing, still stands.
     assert result.candidates[0].origin == "llm_supported"
+
+
+def test_a_review_obligation_that_repeats_the_readme_is_reported_as_a_copy() -> None:
+    """The copy rule runs before review obligations are dropped, so that what a repository made a
+    model repeat is still reported, whatever the obligation's type."""
+    payload = valid_payload()
+    payload["obligations"] = [_obligation(type="review", title=COMMAND), _obligation()]
+
+    result = _interpret(payload, readme=README)
+
+    assert [item.title for item in result.suggestions] == ["Exercise five"]
+    assert f"Discarded an LLM obligation that {COPY_WARNING}" in result.warnings
+    assert REVIEW_WARNING not in result.warnings
 
 
 def test_an_obligation_that_repeats_the_model_instructions_is_discarded() -> None:

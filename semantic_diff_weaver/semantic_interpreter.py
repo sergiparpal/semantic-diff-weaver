@@ -167,6 +167,10 @@ class ShownText:
 
 NOTHING_SHOWN = ShownText(())
 COPY_WARNING = "copies the repository's text or the model's instructions."
+# A model's obligation of type `review` asks a person to look rather than naming a test to write:
+# in the fourth blind review, 2 of 18 were useful, against 7 of 19 of its other types. The schema
+# still offers the type, so that the replies recorded for the benchmark still replay.
+REVIEW_WARNING = "Discarded an LLM obligation of type review, which names no test to write."
 
 
 def _serialized_size(payload: dict[str, Any]) -> int:
@@ -667,6 +671,11 @@ def _accept_suggestions(
         texts = (suggestion.title, suggestion.given, suggestion.when, suggestion.then)
         if any(shown.copied(item) for item in texts):
             warnings.append(f"Discarded an LLM obligation that {COPY_WARNING}")
+            continue
+        if suggestion.type is ObligationType.REVIEW:
+            # After the copy rule, which still reports what a repository made a model repeat,
+            # and before the cap, so that it leaves room for the obligations that name a test.
+            warnings.append(REVIEW_WARNING)
             continue
         if suggestion_counts[suggestion.behavior_index] >= MAX_OBLIGATIONS_PER_BEHAVIOR:
             warnings.append("Discarded an LLM obligation above the per-behavior cap.")

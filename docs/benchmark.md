@@ -529,7 +529,8 @@ gpt-6.1-terra's 7 from 3 cases, leave each share wide: 3 of 10 lies between 11% 
 notes compare a card with another of its case; a model's obligations do come beside the
 deterministic ones, so a repeat costs the reader, but two of the six compare two models, which no
 analysis shows together. Whether to drop a model's `review` obligations is a question this sample
-raised, so another sample would have to answer it.
+raised, so another sample would have to answer it. The analysis drops them since 2026-11-11,
+before that answer; `docs/decisions.md` records why and what would reverse it.
 
 ## Results
 
