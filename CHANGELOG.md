@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Fix:** with a model, its obligations of type `review` are discarded, and the analysis says so
+  once. They ask a person to look rather than naming a test, and the fourth blind review found them
+  useful 2 times in 18, against 7 in 19 of the models' other types, a difference this sample cannot
+  settle. The four recorded runs of 2026-11-08, replayed, lose 141 of the 298 obligations the models
+  added: 39 of llama-3.1-8b-instruct's 48, 48 of deepseek-v4-flash's 88, 47 of gpt-oss-120b's 139,
+  and 7 of gpt-6.1-terra's 23. No finding changes. The copy rule still runs first and the cap of six
+  per behavior after, so review items no longer use up its room. Analyses without a model, schema
+  1.5, and every golden are unchanged; `docs/decisions.md` records the decision.
 - **Tests:** two of the Claude Code skill's eval graders failed right answers in the 0.20.0 run, and
   now pass them.
   - `triggers-in-spanish`: its judge, Haiku, failed a Spanish answer that met its two-claim

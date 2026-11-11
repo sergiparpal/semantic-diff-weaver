@@ -605,6 +605,40 @@ measure a batch's retry (2026-11-09, below), confirms it: the model added no fin
 with 0.19.2 had added 3, and findings in an expected category were 48 of 260 with the model and
 without it.
 
+## Output-affecting corrections (2026-11-11, a model's review obligations)
+
+With a model, each of its obligations that rests on evidence a finding holds goes beside the
+deterministic ones. The fourth blind review of obligations (`docs/benchmark.md`, 2026-11-10) found
+a model's obligations of type `review` useful 2 times in 18, against 7 in 19 of its other types
+(p = 0.12). A `review` obligation asks a person to look at something rather than naming a test to
+write. They were 44 of the 53 obligations llama-3.1-8b-instruct added on those cases, and 14 of the
+models' 27 noise obligations named no input and no expected result.
+
+The analysis now discards a model's obligation of type `review`, and says once that it did. This
+runs after the copy rule, which still reports what a repository made a model repeat, whatever the
+obligation's type. It runs before the cap of six obligations per behavior, so a model's review items
+no longer crowd out the obligations that name a test. The schema the model answers still offers the
+type, so that the replies recorded for the benchmark still replay. The deterministic layer's own
+review obligations, such as the unknown category's "Clarify and characterize", are unchanged.
+
+The decision runs ahead of its evidence. The difference is not significant at 18 and 19
+obligations, and the sample that raised the question cannot answer it, as `docs/benchmark.md` says.
+The maintainer chose to apply it now. A blind review of a model's obligations on cases outside those
+30 would settle it: the filter stays if what it drops proves no more useful than the 2 in 18 here.
+
+The four recorded runs of 2026-11-08 were replayed through the filter, with every reply whose
+request #107's rules left unchanged: 18 of gpt-6.1-terra's 21 calls, and 73 to 79 of about 120 for
+the others. Of the 298 obligations the models added, the filter removes 141, all of type `review`:
+
+| Model | Obligations added | Of type `review`, removed |
+| --- | --- | --- |
+| gpt-6.1-terra | 23 | 7 |
+| deepseek-v4-flash | 88 | 48 |
+| llama-3.1-8b-instruct | 48 | 39 |
+| gpt-oss-120b | 139 | 47 |
+
+No finding changes and no obligation is added. The analyses without a model are identical.
+
 ## Output-affecting corrections (2026-11-08, a merged finding's symbol)
 
 With a model, a claim whose evidence matches no finding's becomes a finding of its own, identified
