@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.20.1 - 2026-11-11
+
+A model's obligations of type `review`, discarded. With a model, the analysis no longer adds the
+model's obligations that ask a person to look rather than naming a test. The fourth blind review
+found them useful 2 times in 18, a difference from the models' other types that its sample cannot
+settle. Replayed, the four recorded runs of 2026-11-08 lose 141 of the 298 obligations the models
+added, every finding unchanged. The release also scripts the release checklist's steps that were
+done by hand, fixes two of the Claude Code skill's eval graders, and gives the prompt-injection
+harness's tests two minutes. A patch release; analyses without a model, schema 1.5, and every
+golden are unchanged.
 
 - **Fix:** with a model, its obligations of type `review` are discarded, and the analysis says so
   once. They ask a person to look rather than naming a test, and the fourth blind review found them
