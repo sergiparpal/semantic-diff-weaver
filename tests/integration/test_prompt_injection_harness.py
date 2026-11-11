@@ -30,6 +30,12 @@ from scripts.prompt_injection import (
 from scripts.run_benchmark import ReplayClient
 from semantic_diff_weaver.semantic_interpreter import INPUT_PREFIX, INPUT_SUFFIX
 
+# Each measurement builds the fixtures' repositories with Git and analyzes each, which runs Git
+# again: dozens of child processes. That takes about 4 seconds locally, but went past the default
+# 30 on the macOS leg twice on 2026-11-11, when its Intel runner ran the whole suite about 2.5 times
+# slower than an hour before.
+pytestmark = pytest.mark.timeout(120)
+
 ALL_CASES = load_cases()
 
 
