@@ -689,6 +689,108 @@ click#3764's real one, and they stayed at 17, as without a model. The 4 findings
 two above and two on httpx#3651's unlabeled `StreamClosed` and `URL`, and it added none. The replay
 with this code reproduced the live run's findings in all 60 cases.
 
+## Output-affecting corrections (2026-11-12, what an assignment writes and what a removal takes)
+
+The labeled benchmark's fourth round, designed from its 120 development cases alone, with the fourth
+held-out split unread. With 0.20.1, 55 of their 157 behavior changes got no finding in an expected
+category, and 97 of the 322 scored findings were unknown changes. Five removed symbols labeled
+output contract changes were unknown ones. Six tenacity changes to how long a retry sleeps were
+state transitions, the only six state findings and none of them right, while 34 behavior changes
+labeled state transitions got none. The attributes a class body sets, and those a method keeps on
+its instance, were unknown changes. The user chose five corrections.
+
+- **What a removed symbol's callers lose is an output contract change.** A symbol removed without a
+  near-equal one on the other side is an `output_contract_change` under the new
+  `SDW-RULE-SYMBOL-REMOVED`, as a removed API operation already was: code that still calls or
+  imports it fails instead of getting what it returned. flask#5899's `App.should_ignore_error`,
+  werkzeug#3322's three `_FileWrapper` methods, and redis-py#4580's `Pipeline._pack_commands` were
+  unknown changes, each labeled an output contract change. A removal that may be a rename stays
+  unknown, and so does an added symbol, which has no callers yet. The obligation is written from the
+  removal, as before.
+- **The names an assignment writes say when it is a retry's.** Each assignment now records the last
+  name each of its targets writes: the attribute it sets, `upcoming_sleep` for
+  `retry_state.upcoming_sleep = 0.0`, or the name it binds. A changed assignment that writes a name
+  meaning a retry, an attempt, a timeout, a sleep, a backoff, or a deadline is a
+  `retry_timeout_change` under the new `SDW-RULE-RETRY-ASSIGNMENT`, before the state rule reads
+  `state` in the variable written into, as it did in tenacity's `retry_state`. A limit is no retry
+  here, as for loops. The state rule is unchanged: a target or a symbol named for state still makes
+  a state transition.
+- **A class's own assignments are its attributes.** A changed assignment in a class body that no
+  rule above names is an `output_contract_change` under the new `SDW-RULE-CLASS-ATTRIBUTE`: the
+  class and its instances give the attribute to whoever reads it. black#5643's new `Preview` member,
+  flask#5899's `App.should_ignore_error = None`, werkzeug#3327's `Response.location`, and
+  anyio#1443's new `_waiters` fields were unknown changes, each labeled an output contract change.
+- **What a method keeps on its instance is its state.** A changed assignment of a method that sets
+  an attribute or an item of `self` or `cls`, however deep, and that no rule names, is a
+  `state_transition_change` under the new `SDW-RULE-INSTANCE-STATE`: later calls, and the object's
+  other methods, read it. anyio#1443's `close` now also empties `self._waiters`. The rule comes
+  after `SDW-RULE-OUTPUT-FLOW`, so what a method sets and then returns stays its output, and a
+  function that is not a method is never read by it.
+- **An assignment's whole value is compared.** A value is still shown cut at 250 characters, but one
+  cut there ends with `…#` and twelve hexadecimal digits of a digest of all of it
+  (`extract.unparse_whole`), so two values that differ past the cut no longer read the same.
+  httpx#3699's `__all__` gained `FunctionAuth` 355 characters in, and its module's change was one no
+  rule could name; it is now an export, under `SDW-RULE-EXPORTS`. The digest is taken of the
+  redacted text, so it tells no credential apart, as the text shown tells none apart.
+
+A symbol has one finding per category, so an assignment that sets what its method keeps leaves its
+symbol's unknown finding for a state finding of its own: on the development cases, findings on
+Python go from 357 to 365. Obligations go from 282 to 286. Of the 14 new ones, 13 are a state
+finding's; of the 10 gone, 6 are those the tenacity retries had as state transitions, which as
+retries are weakly anchored, and 4 are replaced on the same symbols. The 18 corpus goldens are
+unchanged, since no corpus case holds such a change.
+
+| Measure, 120 development cases | 0.20.1 | With the correction |
+| --- | --- | --- |
+| Findings on Python | 357 | 365 |
+| Precision, findings in an expected category | 124 of 322 (38.5%) | 152 of 330 (46.1%) |
+| Precision, findings naming a behavior category | 124 of 225 (55.1%) | 152 of 251 (60.6%) |
+| Recall, behavior changes given a finding | 157 of 157 | 157 of 157 |
+| Recall, behavior changes given one in an expected category | 102 of 157 (65.0%) | 124 of 157 (79.0%) |
+| Unchanged symbols given a finding | 28 of 110 (25.5%) | 28 of 110 (25.5%) |
+| Unchanged symbols given one naming a behavior category | 19 of 110 (17.3%) | 23 of 110 (20.9%) |
+
+No behavior change lost its finding or its category, and 22 more are in an expected one: 5 removed
+symbols, 6 retries, 5 classes, 5 methods' state, and httpx's exports. No unchanged symbol gained a
+finding, but four whose finding was unknown now name a category, which is the rules' cost: a
+`TypedDict` whose keys only a type checker reads and the `__slots__` of packaging#1372's
+`Specifier`, both class attributes, and that `Specifier`'s `__init__` and `__setstate__`, which
+start and reset a cache on the instance. The retries are one pattern of one project, `_run_wait` in
+three pull requests and two classes each.
+
+**Measured once on the held-out split, against a criterion fixed before.** This entry and the
+correction were committed before the fourth held-out split was measured with it, and only its
+summary is read, as for its baseline. The correction holds on it if, against the reviewed labels,
+every behavior change that has a finding keeps one (41 of 42), no fewer than 22 of 42 have one in an
+expected category, precision in an expected category stays at or above 43.2% (32 of 74), and no
+unchanged symbol gains a finding (5 of 38). It improves on it if more behavior changes, or a greater
+share of findings, are in an expected category. Unchanged symbols given a finding that names a
+behavior category, 2 of 38 at the baseline, are reported apart, and are no part of the criterion.
+
+**It held, and improved.** Measured once on 2026-11-12, after commit 5a5300f had fixed the
+correction and the criterion, reading the summary alone and deleting the analyses unread. The 0.20.1
+column is the baseline of 2026-11-11, whose analyzer `main` still ran: only documentation had
+changed since.
+
+| Measure, 30 held-out cases | 0.20.1 | With the correction |
+| --- | --- | --- |
+| Findings on Python | 89 | 88 |
+| Precision, findings in an expected category | 32 of 74 (43.2%) | 36 of 73 (49.3%) |
+| Precision, findings naming a behavior category | 32 of 49 (65.3%) | 36 of 53 (67.9%) |
+| Recall, behavior changes given a finding | 41 of 42 | 41 of 42 |
+| Recall, behavior changes given one in an expected category | 22 of 42 (52.4%) | 26 of 42 (61.9%) |
+| Unchanged symbols given a finding | 5 of 38 | 5 of 38 |
+| Unchanged symbols given one naming a behavior category | 2 of 38 | 3 of 38 |
+
+Held out, 26 of the 42 behavior changes get a finding in an expected category where 22 did, and 36
+of 73 scored findings are in one where 32 of 74 were, while every behavior change that had a finding
+keeps one and no unchanged symbol gains one: none of the five rules takes a symbol's last finding
+away, and neither total moved. One more unchanged symbol's finding now names a category, the cost
+the development cases showed. Scored against each annotator's labels as given, precision in an
+expected category rises from 44.6% to 50.7% with gpt-6.1-terra's and from 41.9% to 47.9% with Claude
+Opus 5.5's. The held-out findings by category and by case, and their disagreements, stay unread; the
+split has measured this correction, so the next one waits for a new held-out sample.
+
 ## Output-affecting corrections (2026-11-10, what a change feeds)
 
 The labeled benchmark's third round, designed from its 90 development cases alone, with the third

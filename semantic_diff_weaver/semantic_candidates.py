@@ -170,14 +170,16 @@ def _classify_symbol_lifecycle(
             ["The intended contract of new code is unavailable to static analysis."],
             "SDW-RULE-SYMBOL-LIFECYCLE",
         )
+    # What callers of a removed symbol lose is what it gave them, as an API operation removed is
+    # an output contract change: flask#5899's `App.should_ignore_error` and werkzeug#3322's
+    # `_FileWrapper.seek` were unknown changes, each labeled an output contract change.
     return (
-        BehaviorCategory.UNKNOWN,
+        BehaviorCategory.OUTPUT_CONTRACT,
         "A callable or structural symbol was removed.",
-        "Callers that still use it may fail or change behavior; the intended compatibility "
-        "contract needs review.",
-        0.58,
-        ["The runtime and caller contract is unavailable to static analysis."],
-        "SDW-RULE-SYMBOL-LIFECYCLE",
+        "Code that still calls or imports it now fails instead of getting what it returned.",
+        0.80,
+        ["Callers outside the repository are unavailable to static analysis."],
+        "SDW-RULE-SYMBOL-REMOVED",
     )
 
 
@@ -303,6 +305,19 @@ def _classify_assignment(
             [],
             "SDW-RULE-EXPORTS",
         )
+    # What an assignment writes to names what it holds, and a delay or a timeout is a retry's: the
+    # target `retry_state.upcoming_sleep` named a state by the variable it writes into, and the
+    # tenacity changes to how long it sleeps read as state transitions.
+    if _contains(" ".join(delta.metadata.get("stored_names", ())), LOOP_RETRY_TERMS):
+        return (
+            BehaviorCategory.RETRY_TIMEOUT,
+            "A retry, timeout, or delay value appears to have changed.",
+            "The operation may now wait, retry, or give up after a different delay or number of "
+            "attempts.",
+            0.80,
+            ["Retry meaning is inferred from the names the assignment writes."],
+            "SDW-RULE-RETRY-ASSIGNMENT",
+        )
     if _contains(combined, STATE_TERMS):
         return (
             BehaviorCategory.STATE_TRANSITION,
@@ -311,6 +326,18 @@ def _classify_assignment(
             0.82,
             [],
             "SDW-RULE-STATE",
+        )
+    if delta.symbol_kind == "class":
+        # A class's own assignments are its attributes, which the class and its instances give
+        # whoever reads them: an enum's members, a default, a property built by a call.
+        return (
+            BehaviorCategory.OUTPUT_CONTRACT,
+            "A class attribute's value changed.",
+            "Code that reads the attribute from the class or its instances now gets a different "
+            "value.",
+            0.78,
+            ["Which code reads the attribute is unavailable to static analysis."],
+            "SDW-RULE-CLASS-ATTRIBUTE",
         )
     # Most assignments hold configuration, data, or intermediate values. A module constant
     # that gained an entry is no transition to test as allowed, invalid, and repeated.
@@ -1193,6 +1220,41 @@ def _named_by_output(delta: StructuralDelta, result: Classification) -> Classifi
     return result
 
 
+# What an otherwise unknown assignment is when it sets an attribute or an item of its method's own
+# instance or class: state that later calls, and the object's other methods, read.
+INSTANCE_STATE: Classification = (
+    BehaviorCategory.STATE_TRANSITION,
+    "What a method keeps on its instance or class changed.",
+    "Later calls, and the object's other methods, may now find it in a different state.",
+    0.74,
+    ["Which later calls read what it keeps is unavailable to static analysis."],
+    "SDW-RULE-INSTANCE-STATE",
+)
+METHOD_KINDS = frozenset({"method", "async_method"})
+
+
+def _named_by_instance(delta: StructuralDelta, result: Classification) -> Classification:
+    """An unknown assignment of a method that sets what its instance or class keeps changes the
+    object's state: anyio#1443's `close` now also empties `self._waiters`.
+
+    Only after the value it returns: an attribute a method sets and then returns is its output.
+    """
+    if (
+        result[0] is BehaviorCategory.UNKNOWN
+        and delta.kind == "assignment_change"
+        and delta.symbol_kind in METHOD_KINDS
+        and delta.metadata.get("writes_instance")
+    ):
+        return INSTANCE_STATE
+    return result
+
+
+def _named_by_flow(delta: StructuralDelta, result: Classification) -> Classification:
+    """An unknown change named by where its values go: what its function returns, else what its
+    method keeps on its instance."""
+    return _named_by_instance(delta, _named_by_output(delta, result))
+
+
 def classify_delta(delta: StructuralDelta, rules: RulesConfig) -> Classification:
     # Keyword rules read the delta's probe, which leaves out the words of prose string
     # literals, so a changed message such as "Retry later" is not a retry change. A delta
@@ -1206,8 +1268,8 @@ def classify_delta(delta: StructuralDelta, rules: RulesConfig) -> Classification
     for classifier in CLASSIFIERS:
         result = classifier(delta, rules, combined)
         if result is not None:
-            return _named_by_output(delta, result)
-    return _named_by_output(delta, UNKNOWN_FALLBACK)
+            return _named_by_flow(delta, result)
+    return _named_by_flow(delta, UNKNOWN_FALLBACK)
 
 
 @dataclass

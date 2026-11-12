@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import builtins
 from collections import Counter
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Hashable, Iterable, Sequence
 from pathlib import PurePosixPath
-from typing import Any
+from typing import Any, TypeVar
 
 from ..models import LineRange
 from ..path_policy import redact_text
@@ -386,22 +386,56 @@ def _maybe_drop_return_when_call_explained(
     return result
 
 
-def _changed_assignment_targets(old: SymbolSnapshot, new: SymbolSnapshot) -> list[str]:
-    """The variables written by the assignments that differ between the two sides.
+_Written = TypeVar("_Written", bound=Hashable)
+
+
+def _changed_writes(
+    old: SymbolSnapshot,
+    new: SymbolSnapshot,
+    record: Callable[[SymbolSnapshot], tuple[_Written, ...]],
+) -> list[_Written]:
+    """What a per-assignment record, such as `assigned`, holds for each assignment that differs
+    between the two sides.
 
     A module's assignment delta shows every module-level assignment, so only this tells which
     changed: `CODE_ROOTS` when that tuple alone gained an entry. A snapshot built without the
-    targets it writes to names none.
+    record holds none.
     """
-    sides: list[Counter[tuple[str, frozenset[str]]]] = []
+    sides: list[Counter[tuple[str, _Written]]] = []
     for snapshot in (old, new):
         values = snapshot.features["assignments"]
-        if len(snapshot.assigned) != len(values):
+        written = record(snapshot)
+        if len(written) != len(values):
             return []
-        sides.append(Counter(zip((text for text, _ in values), snapshot.assigned, strict=True)))
+        sides.append(Counter(zip((text for text, _ in values), written, strict=True)))
     old_side, new_side = sides
     changed = (old_side - new_side) + (new_side - old_side)
-    return sorted({name for _, names in changed for name in names})
+    return [value for _, value in changed]
+
+
+def _changed_names(
+    old: SymbolSnapshot,
+    new: SymbolSnapshot,
+    record: Callable[[SymbolSnapshot], tuple[frozenset[str], ...]],
+) -> list[str]:
+    return sorted({name for names in _changed_writes(old, new, record) for name in names})
+
+
+def _changed_assignment_targets(old: SymbolSnapshot, new: SymbolSnapshot) -> list[str]:
+    """The variables written by the assignments that differ between the two sides."""
+    return _changed_names(old, new, lambda snapshot: snapshot.assigned)
+
+
+def _assignment_metadata(old: SymbolSnapshot, new: SymbolSnapshot) -> dict[str, Any]:
+    """What the changed assignments write, for the category rules: the variables, the last name
+    each target writes, and whether any sets an attribute or an item of `self` or `cls`."""
+    metadata: dict[str, Any] = {
+        "assigned_names": _changed_assignment_targets(old, new),
+        "stored_names": _changed_names(old, new, lambda snapshot: snapshot.stored),
+    }
+    if any(_changed_writes(old, new, lambda snapshot: snapshot.on_instance)):
+        metadata["writes_instance"] = True
+    return metadata
 
 
 def _changed_lines(snapshot: SymbolSnapshot, other: SymbolSnapshot, feature: str) -> list[int]:
@@ -443,7 +477,7 @@ def _append_feature_deltas(
         )
         metadata = changed_value_metadata(*_changed_sides(old_values, new_values))
         if feature == "assignments":
-            metadata["assigned_names"] = _changed_assignment_targets(old, new)
+            metadata.update(_assignment_metadata(old, new))
         if changes_output(old, new, feature):
             metadata["reaches_output"] = True
         result.append(

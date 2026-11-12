@@ -88,43 +88,55 @@ def test_complete_taxonomy_rules(change: StructuralDelta, category: BehaviorCate
 
 
 @pytest.mark.parametrize(
-    ("kind", "ambiguous", "summary", "impact"),
+    ("kind", "ambiguous", "category", "summary", "impact"),
     [
         (
             "symbol_added",
             False,
+            BehaviorCategory.UNKNOWN,
             "A callable or structural symbol was added.",
             "New behavior becomes reachable; its intended contract needs characterizing tests.",
         ),
         (
             "symbol_removed",
             False,
+            BehaviorCategory.OUTPUT_CONTRACT,
             "A callable or structural symbol was removed.",
-            "Callers that still use it may fail or change behavior; the intended compatibility "
-            "contract needs review.",
+            "Code that still calls or imports it now fails instead of getting what it returned.",
         ),
         (
             "symbol_added",
             True,
+            BehaviorCategory.UNKNOWN,
             "A callable or structural symbol was added without a reliable semantic match.",
+            "Callers or observable behavior may change; the intended compatibility contract needs "
+            "review.",
+        ),
+        (
+            "symbol_removed",
+            True,
+            BehaviorCategory.UNKNOWN,
+            "A callable or structural symbol was removed without a reliable semantic match.",
             "Callers or observable behavior may change; the intended compatibility contract needs "
             "review.",
         ),
     ],
 )
 def test_an_added_or_removed_symbol_is_worded_for_what_happened(
-    kind: str, ambiguous: bool, summary: str, impact: str
+    kind: str, ambiguous: bool, category: BehaviorCategory, summary: str, impact: str
 ) -> None:
     """Every added symbol, a new file's included, read as a failed rename that broke callers.
 
     Only a near-equal symbol on the other side makes it "without a reliable semantic match", and
-    only a removal, or a possible rename, has callers to break.
+    only a removal, or a possible rename, has callers to break. What a removal's callers lose is
+    what it gave them, an output contract change (`SDW-RULE-SYMBOL-REMOVED`), as a removed API
+    operation is; one that may be a rename stays unknown.
     """
     change = StructuralDelta(**{**delta(kind, None, "(x)").__dict__, "metadata": {}})
     if ambiguous:
         change.metadata["ambiguous_match"] = True
     [candidate] = build_candidates([change])
-    assert candidate.category is BehaviorCategory.UNKNOWN
+    assert candidate.category is category
     assert (candidate.summary, candidate.observable_impact) == (summary, impact)
     assert len(candidate.assumptions) == (2 if ambiguous else 1)
 

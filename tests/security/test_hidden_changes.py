@@ -320,3 +320,35 @@ def test_code_that_runs_never_passes_for_typing_or_a_version(old: str, new: str,
 def test_code_that_runs_or_rebinds_never_passes_for_constants(old: str, new: str) -> None:
     deltas = _compare(old, new)
     assert not any(item.metadata.get("constants_only") for item in deltas)
+
+
+def test_a_value_changed_past_where_it_is_cut_is_still_compared() -> None:
+    """An assignment's value is shown cut at 250 characters, and two values that differed only
+    past the cut read the same: a handler swapped at the end of a long table was no assignment
+    change, and the module's change one no rule could name."""
+    entries = ", ".join(f"'route_{index:02d}': handle_{index:02d}" for index in range(20))
+    old = f"HANDLERS = {{{entries}, 'run': run_checked}}\n"
+    new = f"HANDLERS = {{{entries}, 'run': run_unchecked}}\n"
+    assert len(old) > 300
+    (delta,) = _compare(old, new)
+    assert delta.kind == "assignment_change"
+    assert delta.metadata["assigned_names"] == ["HANDLERS"]
+    assert delta.old != delta.new
+
+
+def test_a_credential_past_the_cut_neither_shows_nor_moves_the_digest() -> None:
+    """The digest a cut value ends with is taken of the redacted text: it tells no credential
+    apart, as the text shown tells none apart."""
+    mirrors = ", ".join(repr(f"https://mirror-{index:02d}.example/simple") for index in range(12))
+    tokens = ("ghp_" + "Q" * 36, "ghp_" + "R" * 36)
+    texts = [
+        symbol.features["assignments"][0][0]
+        for token in tokens
+        for symbol in extract_symbols(
+            f"MIRRORS = [{mirrors}, 'https://ci:{token}@pypi.example/simple']\n"
+        )
+        if symbol.qualified_name == "<module>"
+    ]
+    assert texts[0] == texts[1]
+    assert "…#" in texts[0]
+    assert not any(token[4:] in text for token in tokens for text in texts)

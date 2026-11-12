@@ -235,12 +235,16 @@ repositories, against the labels of `benchmark/cases.json`. For the first 90, a 
 every Python symbol they change before reading the analyzer's output, and a person reviewed all 251,
 correcting 42. For the last 60, two models labeled each of their 148 symbols blind and apart, and
 the person settled every label that is scored. The 120 development cases are the ones the analyzer
-is changed against, and the 30 held-out cases, labeled and reviewed before its next change, will
-measure that change on code it was not designed from. Their baseline, in deterministic mode with
+is changed against, and the 30 held-out cases, labeled and reviewed before its next change,
+measured that change on code it was not designed from. Their baseline, in deterministic mode with
 0.20.1 on 2026-11-11: 41 of the 42 held-out behavior changes got a finding, 22 of them in an
 expected category, and 5 of the 38 unchanged symbols got one; 32 of the 74 scored findings, and 32
 of the 49 that name a behavior category, are in an expected one, against development's 124 of 322
-and 124 of 225. The held-out
+and 124 of 225. The fourth round's correction, designed from those 120 development cases and
+measured once on the held-out ones, names what assignments write and what removed symbols took: held
+out, 26 of the 42 behavior changes get a finding in an expected category and 36 of 73 scored
+findings are in one, still with 5 of the 38 unchanged symbols given a finding; in development, 124
+of 157 and 152 of 330. The held-out
 split before them, which has since joined development, gave the third round's baseline, in
 deterministic mode with 0.19.0 on 2026-11-08: every one of its 37 behavior changes got a finding, 30
 of them in an expected category, and none of its 10 unchanged symbols got one; 37 of the 72 scored

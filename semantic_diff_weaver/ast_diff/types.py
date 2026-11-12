@@ -60,6 +60,13 @@ class SymbolSnapshot:
     probes: dict[str, tuple[CategoryProbe, ...]] = field(default_factory=dict)
     # Per assignment, in the order of `features["assignments"]`, the variables it writes to.
     assigned: tuple[frozenset[str], ...] = ()
+    # Per assignment, in the same order, the last name each target writes: the attribute it sets,
+    # `upcoming_sleep` for `retry_state.upcoming_sleep = 0.0`, where `assigned` names
+    # `retry_state`. A snapshot built without them names none.
+    stored: tuple[frozenset[str], ...] = ()
+    # Per assignment, in the same order, whether it sets an attribute or an item of `self` or
+    # `cls`: what a method keeps on its instance or class for later calls to read.
+    on_instance: tuple[bool, ...] = ()
     # Whether its body holds nothing but a docstring, or nothing at all. A module's body is its
     # top-level code without its definitions, which are symbols of their own.
     docstring_only: bool = False

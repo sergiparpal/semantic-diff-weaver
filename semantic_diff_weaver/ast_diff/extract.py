@@ -6,6 +6,7 @@ import ast
 import builtins
 import copy
 import hashlib
+import sys
 import warnings
 from collections import Counter, defaultdict
 from collections.abc import Iterator, Mapping
@@ -28,6 +29,30 @@ def unparse_redacted(node: ast.AST | None, limit: int = 500) -> str:
         return redact_text(ast.unparse(node), max_chars=limit)
     except (AttributeError, RecursionError, ValueError):
         return type(node).__name__
+
+
+# How many hexadecimal digits of a cut value's digest its text ends with.
+VALUE_DIGEST_CHARS = 12
+
+
+def unparse_whole(node: ast.AST | None, limit: int) -> str:
+    """`unparse_redacted`, but a value cut at `limit` ends with a digest of all of it.
+
+    Cut alone, two values that differ only past `limit` read the same, and so did their
+    assignments: httpx's `__all__` gained `FunctionAuth` 355 characters in, and no assignment
+    changed. The digest is taken of the redacted text, so a credential moves it no more than it
+    moves the text shown, and it tells only whether two values are the same.
+    """
+    if node is None:
+        return "None"
+    try:
+        whole = redact_text(ast.unparse(node), max_chars=sys.maxsize)
+    except (AttributeError, RecursionError, ValueError):
+        return type(node).__name__
+    if len(whole) <= limit:
+        return whole
+    digest = hashlib.sha256(whole.encode("utf-8", "surrogatepass")).hexdigest()
+    return f"{whole[:limit]}…#{digest[:VALUE_DIGEST_CHARS]}"
 
 
 # A boundary is what has a just-below, an exact, and a just-above case to test: an ordering, or an
@@ -117,6 +142,52 @@ def _assigned_variables(*targets: ast.expr) -> frozenset[str]:
         elif isinstance(target, (ast.Starred, ast.Attribute, ast.Subscript)):
             pending.append(target.value)
     return frozenset(names)
+
+
+def _stored_names(*targets: ast.expr) -> frozenset[str]:
+    """The last name each assignment target writes: the attribute it sets, `upcoming_sleep` for
+    `retry_state.upcoming_sleep = ...`, the variable whose item it sets, `HANDLERS` for
+    `HANDLERS["run"] = ...`, or the name it binds.
+
+    What an assignment writes to names what it holds. The variable it writes into may name
+    something else: `retry_state` is a retry's state, and its `upcoming_sleep` the delay.
+    """
+    names: set[str] = set()
+    pending = list(targets)
+    while pending:
+        target = pending.pop()
+        if isinstance(target, ast.Name):
+            names.add(target.id)
+        elif isinstance(target, ast.Attribute):
+            names.add(target.attr)
+        elif isinstance(target, (ast.Tuple, ast.List)):
+            pending.extend(target.elts)
+        elif isinstance(target, (ast.Starred, ast.Subscript)):
+            pending.append(target.value)
+    return frozenset(names)
+
+
+# The names a method's first parameter has by convention: its instance, or its class.
+INSTANCE_NAMES = frozenset({"self", "cls"})
+
+
+def _writes_on_instance(*targets: ast.expr) -> bool:
+    """Whether an assignment target sets an attribute or an item of `self` or `cls`, however
+    deep: `self._waiters = ...`, `self._state.waiting[key] = ...`, `cls.registry[name] = ...`."""
+    pending = list(targets)
+    while pending:
+        target = pending.pop()
+        if isinstance(target, (ast.Tuple, ast.List)):
+            pending.extend(target.elts)
+        elif isinstance(target, ast.Starred):
+            pending.append(target.value)
+        elif isinstance(target, (ast.Attribute, ast.Subscript)):
+            root = target.value
+            while isinstance(root, (ast.Attribute, ast.Subscript)):
+                root = root.value
+            if isinstance(root, ast.Name) and root.id in INSTANCE_NAMES:
+                return True
+    return False
 
 
 def parse_python(source: str, *, type_comments: bool = False) -> ast.Module:
@@ -1324,6 +1395,8 @@ class FeatureVisitor(ast.NodeVisitor):
         self.statement_order: list[str] = []
         self.probes: dict[str, list[CategoryProbe]] = {name: [] for name in limits.PROBED_FEATURES}
         self.assigned: list[frozenset[str]] = []
+        self.stored: list[frozenset[str]] = []
+        self.on_instance: list[bool] = []
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         if node is self.root:
@@ -1398,17 +1471,21 @@ class FeatureVisitor(ast.NodeVisitor):
         self.assignments.append((text, lineno))
         self.probes["assignments"].append(category_probe(*targets))
         self.assigned.append(_assigned_variables(*targets))
+        self.stored.append(_stored_names(*targets))
+        self.on_instance.append(_writes_on_instance(*targets))
 
     def visit_Assign(self, node: ast.Assign) -> None:
         targets = ", ".join(unparse_redacted(item, 100) for item in node.targets)
-        self._record_assignment(
-            f"{targets} = {unparse_redacted(node.value, 250)}", node.lineno, *node.targets
-        )
+        value = unparse_whole(node.value, limits.MAX_ASSIGNED_VALUE_CHARS)
+        self._record_assignment(f"{targets} = {value}", node.lineno, *node.targets)
         self.statement_order.append(f"assign:{targets}")
         self.generic_visit(node)
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
-        value = f"{unparse_redacted(node.target, 100)} = {unparse_redacted(node.value, 250)}"
+        value = (
+            f"{unparse_redacted(node.target, 100)} = "
+            f"{unparse_whole(node.value, limits.MAX_ASSIGNED_VALUE_CHARS)}"
+        )
         self._record_assignment(value, node.lineno, node.target)
         self.statement_order.append(f"assign:{unparse_redacted(node.target, 100)}")
         self.generic_visit(node)
@@ -1416,7 +1493,7 @@ class FeatureVisitor(ast.NodeVisitor):
     def visit_AugAssign(self, node: ast.AugAssign) -> None:
         value = (
             f"{unparse_redacted(node.target, 100)} {type(node.op).__name__}= "
-            f"{unparse_redacted(node.value, 250)}"
+            f"{unparse_whole(node.value, limits.MAX_ASSIGNED_VALUE_CHARS)}"
         )
         self._record_assignment(value, node.lineno, node.target)
         self.statement_order.append(f"assign:{unparse_redacted(node.target, 100)}")
@@ -1595,6 +1672,8 @@ def snapshot_symbol(
         node_inventory=inventory,
         probes={name: tuple(values) for name, values in visitor.probes.items()},
         assigned=tuple(visitor.assigned),
+        stored=tuple(visitor.stored),
+        on_instance=tuple(visitor.on_instance),
         docstring_only=not body_without_docstring(body),
         display=display,
         parameters=parameters,
