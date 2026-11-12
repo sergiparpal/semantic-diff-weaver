@@ -220,7 +220,8 @@ def test_a_model_s_claim_on_two_symbols_leaves_the_finding_on_its_own(repo_facto
     assigned = ids[("App", "assignment_change")]
     assert assigned < removed
     claim = {
-        "category": "unknown_semantic_change",
+        # The removed method's own category (`SDW-RULE-SYMBOL-REMOVED`), which a claim supports.
+        "category": "output_contract_change",
         "summary": "The method is gone.",
         "observable_impact": "Code that calls it fails.",
         "evidence_ids": [removed, assigned],

@@ -71,12 +71,18 @@ state meaning. For comparisons, conditions, calls, assignments, and loops they r
 from the AST at extraction rather than the display text: identifiers, attribute and keyword
 names, and string literals without whitespace (keys, headers, permission names), but not literals
 containing whitespace, whose words are prose about the code. An assignment's probe holds its
-targets only, so a changed assignment is a state transition when what it writes to, or its
-symbol, is named for state; any other is an unknown change for review. A probe covers exactly the
-values the delta's bounded display text shows, and only those of them the delta changed: an
-unchanged `order.status = ...` does not make a changed `count = ...` beside it a state
-transition. Reordered comparisons, assignments, or loops change no value and are read by their
-symbol's name; reordered conditions and calls are ordering changes. A changed loop is
+targets only. A changed assignment is a retry change when the last name it writes, the attribute it
+sets rather than the variable it sets it on, means a retry, a timeout, or a sleep, as
+`retry_state.upcoming_sleep` does, and otherwise a state transition when what it writes to, or its
+symbol, is named for state. A module's `__all__` is its exports and a class's own assignments its
+attributes, both output contract changes. Any other is an unknown change for review, unless it
+feeds what its function returns, an output contract change, or sets an attribute or an item of its
+method's `self` or `cls`, a state transition. A probe covers exactly the values the delta's bounded
+display text shows, and only those of them the delta changed: an unchanged `order.status = ...`
+does not make a changed `count = ...` beside it a state transition. An assignment's value is shown
+cut at 250 characters, and one cut there ends with a digest of all of it, so two values that differ
+past the cut still differ. Reordered comparisons, assignments, or loops change no value and are read
+by their symbol's name; reordered conditions and calls are ordering changes. A changed loop is
 a retry only when its own words, or its symbol's name, say so — `attempt`, `retry`, `timeout`,
 `sleep`, `backoff`, or `deadline`, but not `limit`, which every loop has — and is otherwise an
 unknown change. A changed call that no keyword explains is a dependency interaction unless every

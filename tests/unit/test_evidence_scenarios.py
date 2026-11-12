@@ -363,9 +363,11 @@ def test_a_value_removed_twice_is_quoted_once() -> None:
             "Clarify and characterize the code that reads `ROOTS`",
         ),
         (
+            # A class attribute is an output contract change (`SDW-RULE-CLASS-ATTRIBUTE`), and
+            # asks for its readers as an unknown one did.
             "class Preview:\n    a = 1\n",
             "class Preview:\n    a = 1\n    b = 2\n",
-            BehaviorCategory.UNKNOWN,
+            BehaviorCategory.OUTPUT_CONTRACT,
             "Clarify and characterize the code that reads `b`",
         ),
         (
@@ -445,7 +447,7 @@ def test_a_module_s_own_code_runs_as_the_module_is_imported() -> None:
         (
             "def f():\n    return 1\n\ndef g(x):\n    return x\n",
             "def f():\n    return 1\n",
-            BehaviorCategory.UNKNOWN,
+            BehaviorCategory.OUTPUT_CONTRACT,
             "Check what still depends on the removed `g`",
         ),
         (

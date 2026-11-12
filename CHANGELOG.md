@@ -22,6 +22,24 @@
   scored findings are in an expected category. Scored against each annotator's labels as given,
   before the review, the held-out precision is 44.6% and 41.9%. Only the held-out totals were
   computed. Documentation only.
+- **Fix:** the benchmark's fourth round names five kinds of change the rules reported as unknown, or
+  as a state transition they were not, designed from the 120 development cases. A symbol removed
+  without a near-equal one is an `output_contract_change` under the new `SDW-RULE-SYMBOL-REMOVED`,
+  as a removed API operation already was. A changed assignment that writes a name meaning a retry,
+  a timeout, or a sleep is a `retry_timeout_change` under the new `SDW-RULE-RETRY-ASSIGNMENT`,
+  before the state rule reads `state` in the variable it writes into, as in tenacity's
+  `retry_state.upcoming_sleep`. A class's own changed assignment is an `output_contract_change`
+  under the new `SDW-RULE-CLASS-ATTRIBUTE`, and an otherwise unknown assignment of a method that
+  sets an attribute or an item of `self` or `cls` is a `state_transition_change` under the new
+  `SDW-RULE-INSTANCE-STATE`. An assignment's value cut at 250 characters now ends with a digest of
+  all of it, taken of the redacted text, so two values that differ past the cut no longer read the
+  same: httpx's `__all__` gained a name there that no assignment showed. On the development cases,
+  behavior changes given a finding in an expected category go from 102 to 124 of 157, and precision
+  in an expected category from 38.5% to 46.1%; no behavior change loses its finding or its
+  category, and no unchanged symbol gains one, though four whose finding was unknown now name a
+  category. Schema 1.5 and every golden are unchanged; `docs/decisions.md` records the decision and
+  the criterion the fourth held-out split is measured against, and `docs/benchmark.md` the
+  measurements.
 
 ## 0.20.1 - 2026-11-11
 

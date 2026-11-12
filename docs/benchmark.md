@@ -18,14 +18,50 @@ Since then the first held-out cases have joined development, and so have two mor
 second round's correction and measured with it. The third, from `django-guardian/django-guardian`,
 `jazzband/django-oauth-toolkit`, `redis/redis-py`, `more-itertools/more-itertools`, and
 `dateutil/dateutil`, was labeled by two models and reviewed, and measured the third round's
-correction. A fourth held-out split of 30, labeled the same way, comes first below, followed by the
-baseline it and the 120 development cases set. Then come the third round's correction, how the third
-split was labeled, and the baseline it and the 90 development cases of the time set; the second
-split's baseline and the second round's correction, measured on it while it was held out;
-measurements of the development cases with models; and the first round's results.
+correction. The fourth round's correction, designed from the 120 development cases, comes first
+below; then the fourth held-out split of 30, labeled the same way, and the baseline it and the 120
+development cases set. Then come the third round's correction, how the third split was labeled, and
+the baseline it and the 90 development cases of the time set; the second split's baseline and the
+second round's correction, measured on it while it was held out; measurements of the development
+cases with models; and the first round's results.
 
 Unlike the 18-case corpus of `docs/evaluation.md`, whose cases were written to exercise the
 taxonomy, these are changes as maintainers made them.
+
+## Fourth round
+
+Designed from the 120 development cases alone, the fourth round names five kinds of change the rules
+reported as unknown, or as a state transition they were not (`docs/decisions.md`, 2026-11-12, what
+an assignment writes and what a removal takes). A symbol removed without a near-equal one on the
+other side is an output contract change, as a removed API operation already was. A changed
+assignment that writes a name meaning a retry, a timeout, or a sleep is a retry change, before the
+state rule reads `state` in the variable written into. A class's own changed assignments are its
+attributes, an output contract change, and what a method keeps on its instance, `self` or `cls`, is
+its state. And an assignment's value, cut at 250 characters for display, is compared whole, so
+httpx#3699's `__all__`, which gained `FunctionAuth` past the cut, is an export. Its criterion on the
+held-out split was committed before measuring it: every behavior change that has a finding keeps
+one (41 of 42), no fewer than 22 of 42 have one in an expected category, precision in an expected
+category stays at or above 43.2%, and no unchanged symbol gains a finding (5 of 38). Unchanged
+symbols given a finding that names a category, 2 of 38, are reported apart.
+
+| Measure | Development, 0.20.1 | Development, corrected |
+| --- | --- | --- |
+| Findings on Python | 357 | 365 |
+| Precision, findings in an expected category | 124 of 322 (38.5%) | 152 of 330 (46.1%) |
+| Precision, findings naming a behavior category | 124 of 225 (55.1%) | 152 of 251 (60.6%) |
+| Recall, behavior changes given a finding | 157 of 157 | 157 of 157 |
+| Recall, behavior changes given one in an expected category | 102 of 157 (65.0%) | 124 of 157 (79.0%) |
+| Unchanged symbols given a finding | 28 of 110 (25.5%) | 28 of 110 (25.5%) |
+| Unchanged symbols given one naming a behavior category | 19 of 110 (17.3%) | 23 of 110 (20.9%) |
+
+In development no behavior change loses its finding or its category, and 22 more get one in an
+expected category: five removed symbols, six of tenacity's retries, five classes' attributes, five
+methods' state, and httpx's exports. No unchanged symbol gains a finding, but four whose finding was
+unknown now name a category: a `TypedDict`'s keys and the `__slots__` of packaging#1372's
+`Specifier`, as class attributes, and the cache that `Specifier`'s `__init__` and `__setstate__`
+start and reset, as state.
+
+The held-out split is to be measured once with the correction, reading its summary alone.
 
 ## Fourth held-out sample
 
