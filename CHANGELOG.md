@@ -12,8 +12,16 @@
   gpt-6.1-terra's proposal, 6 Claude Opus 5.5's, 5 both together, and 5 the reviewer's own label.
   Its 42 behavior changes list 3.0 categories each, against development's 2.5, and name
   authorization 5 times, boundary 6, ordering 6, and retry or timeout 4. `benchmark/README.md` gives
-  the protocol, and `docs/benchmark.md` the agreement and the review. No analyzer behavior changes,
-  and the split has not been measured yet.
+  the protocol, and `docs/benchmark.md` the agreement and the review. No analyzer behavior changes.
+- **Evaluation:** `docs/benchmark.md` records the baseline that the fourth held-out split and the
+  120 development cases set with 0.20.1, in deterministic mode. Held out, 41 of the 42 behavior
+  changes get a finding, the first behavior change without one on any split measured so far, and 22
+  get one in an expected category; 5 of the 38 unchanged symbols get one, and 32 of the 74 scored
+  findings are in an expected category. In development, every one of the 157 behavior changes gets a
+  finding, 102 in an expected category, 28 of the 110 unchanged symbols get one, and 124 of the 322
+  scored findings are in an expected category. Scored against each annotator's labels as given,
+  before the review, the held-out precision is 44.6% and 41.9%. Only the held-out totals were
+  computed. Documentation only.
 
 ## 0.20.1 - 2026-11-11
 
