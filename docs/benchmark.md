@@ -18,60 +18,71 @@ Since then the first held-out cases have joined development, and so have two mor
 second round's correction and measured with it. The third, from `django-guardian/django-guardian`,
 `jazzband/django-oauth-toolkit`, `redis/redis-py`, `more-itertools/more-itertools`, and
 `dateutil/dateutil`, was labeled by two models and reviewed, and measured the third round's
-correction. The fourth round's correction, designed from the 120 development cases, comes first
-below; then the fourth held-out split of 30, labeled the same way, and the baseline it and the 120
-development cases set. Then come the third round's correction, how the third split was labeled, and
-the baseline it and the 90 development cases of the time set; the second split's baseline and the
-second round's correction, measured on it while it was held out; measurements of the development
-cases with models; and the first round's results.
+correction. The fourth round's correction, designed from the 120 development cases and measured on
+a fourth held-out split of 30, labeled the same way, comes first below; then how that split was
+labeled, and the baseline it and the 120 development cases set. Then come the third round's
+correction, how the third split was labeled, and the baseline it and the 90 development cases of
+the time set; the second split's baseline and the second round's correction, measured on it while
+it was held out; measurements of the development cases with models; and the first round's results.
 
 Unlike the 18-case corpus of `docs/evaluation.md`, whose cases were written to exercise the
 taxonomy, these are changes as maintainers made them.
 
 ## Fourth round
 
-Designed from the 120 development cases alone, the fourth round names five kinds of change the rules
-reported as unknown, or as a state transition they were not (`docs/decisions.md`, 2026-11-12, what
-an assignment writes and what a removal takes). A symbol removed without a near-equal one on the
-other side is an output contract change, as a removed API operation already was. A changed
-assignment that writes a name meaning a retry, a timeout, or a sleep is a retry change, before the
-state rule reads `state` in the variable written into. A class's own changed assignments are its
-attributes, an output contract change, and what a method keeps on its instance, `self` or `cls`, is
-its state. And an assignment's value, cut at 250 characters for display, is compared whole, so
-httpx#3699's `__all__`, which gained `FunctionAuth` past the cut, is an export. Its criterion on the
-held-out split was committed before measuring it: every behavior change that has a finding keeps
-one (41 of 42), no fewer than 22 of 42 have one in an expected category, precision in an expected
-category stays at or above 43.2%, and no unchanged symbol gains a finding (5 of 38). Unchanged
-symbols given a finding that names a category, 2 of 38, are reported apart.
+Designed from the 120 development cases alone, measured 2026-11-12 on both splits, the fourth round
+names five kinds of change the rules reported as unknown, or as a state transition they were not
+(`docs/decisions.md`, 2026-11-12, what an assignment writes and what a removal takes). A symbol
+removed without a near-equal one on the other side is an output contract change, as a removed API
+operation already was. A changed assignment that writes a name meaning a retry, a timeout, or a
+sleep is a retry change, before the state rule reads `state` in the variable written into. A
+class's own changed assignments are its attributes, an output contract change, and what a method
+keeps on its instance, `self` or `cls`, is its state. And an assignment's value, cut at 250
+characters for display, is compared whole, so httpx#3699's `__all__`, which gained `FunctionAuth`
+past the cut, is an export. Its criterion on the held-out split was committed before measuring it:
+every behavior change that has a finding keeps one (41 of 42), no fewer than 22 of 42 have one in an
+expected category, precision in an expected category stays at or above 43.2%, and no unchanged
+symbol gains a finding (5 of 38). Unchanged symbols given a finding that names a category, 2 of 38,
+are reported apart.
 
-| Measure | Development, 0.20.1 | Development, corrected |
-| --- | --- | --- |
-| Findings on Python | 357 | 365 |
-| Precision, findings in an expected category | 124 of 322 (38.5%) | 152 of 330 (46.1%) |
-| Precision, findings naming a behavior category | 124 of 225 (55.1%) | 152 of 251 (60.6%) |
-| Recall, behavior changes given a finding | 157 of 157 | 157 of 157 |
-| Recall, behavior changes given one in an expected category | 102 of 157 (65.0%) | 124 of 157 (79.0%) |
-| Unchanged symbols given a finding | 28 of 110 (25.5%) | 28 of 110 (25.5%) |
-| Unchanged symbols given one naming a behavior category | 19 of 110 (17.3%) | 23 of 110 (20.9%) |
+| Measure | Development, 0.20.1 | Development, corrected | Held-out, 0.20.1 | Held-out, corrected |
+| --- | --- | --- | --- | --- |
+| Findings on Python | 357 | 365 | 89 | 88 |
+| Precision, findings in an expected category | 124 of 322 (38.5%) | 152 of 330 (46.1%) | 32 of 74 (43.2%) | 36 of 73 (49.3%) |
+| Precision, findings naming a behavior category | 124 of 225 (55.1%) | 152 of 251 (60.6%) | 32 of 49 (65.3%) | 36 of 53 (67.9%) |
+| Recall, behavior changes given a finding | 157 of 157 | 157 of 157 | 41 of 42 | 41 of 42 |
+| Recall, behavior changes given one in an expected category | 102 of 157 (65.0%) | 124 of 157 (79.0%) | 22 of 42 (52.4%) | 26 of 42 (61.9%) |
+| Unchanged symbols given a finding | 28 of 110 (25.5%) | 28 of 110 (25.5%) | 5 of 38 (13.2%) | 5 of 38 (13.2%) |
+| Unchanged symbols given one naming a behavior category | 19 of 110 (17.3%) | 23 of 110 (20.9%) | 2 of 38 (5.3%) | 3 of 38 (7.9%) |
 
-In development no behavior change loses its finding or its category, and 22 more get one in an
-expected category: five removed symbols, six of tenacity's retries, five classes' attributes, five
-methods' state, and httpx's exports. No unchanged symbol gains a finding, but four whose finding was
-unknown now name a category: a `TypedDict`'s keys and the `__slots__` of packaging#1372's
-`Specifier`, as class attributes, and the cache that `Specifier`'s `__init__` and `__setstate__`
-start and reset, as state.
+**It met its criterion and moved both splits the same way.** No behavior change lost its finding on
+either split, and no unchanged symbol gained one: none of the five rules takes a symbol's last
+finding away, and neither total moved. In development, where each symbol is compared, no behavior
+change lost its category either, and 22 more get a finding in an expected category: five removed
+symbols, six of tenacity's retries, five classes' attributes, five methods' state, and httpx's
+exports. Held out, 26 of 42 get one where 22 did, and precision in an expected category rises by 7.6
+points in development and 6.1 held out. The cost shows on both: in development four unchanged
+symbols whose finding was unknown now name a category, a `TypedDict`'s keys and the `__slots__` of
+packaging#1372's `Specifier`, as class attributes, and the cache that `Specifier`'s `__init__` and
+`__setstate__` start and reset, as state; held out, one more does. Scored against each annotator's
+labels as given, the held-out precision in an expected category rises from 44.6% to 50.7% with
+gpt-6.1-terra's and from 41.9% to 47.9% with Claude Opus 5.5's.
 
-The held-out split is to be measured once with the correction, reading its summary alone.
+The held-out split was measured once with the correction, after commit 5a5300f had fixed it and the
+criterion, reading its summary alone and deleting each analysis unread. Its findings by category and
+by case, and its disagreements, stay unread; having measured this correction, it waits to join
+development, and the next round for a new held-out sample.
 
 ## Fourth held-out sample
 
-Labeled and reviewed 2026-11-11, and measured only for the baseline below: six pull requests each,
-drawn by `run_benchmark.py propose`, of `django-commons/django-axes`, `jpadilla/pyjwt`,
-`hynek/stamina`, `agronholm/apscheduler`, and `alisaifee/limits`. The reviewer chose these libraries
-for the categories the 120 cases before them named least: authorization 4 times, retry or timeout
-10, ordering 15, and boundary 16. The pull requests change 95 Python symbols outside their tests, 80
-modified, 13 added, and 2 removed. `propose` analyzes each pull request it reads to count its
-symbols, and those analyses were deleted unread.
+Labeled and reviewed 2026-11-11, and measured for the baseline below and once with the fourth
+round's correction above: six pull requests each, drawn by `run_benchmark.py propose`, of
+`django-commons/django-axes`, `jpadilla/pyjwt`, `hynek/stamina`, `agronholm/apscheduler`, and
+`alisaifee/limits`. The reviewer chose these libraries for the categories the 120 cases before them
+named least: authorization 4 times, retry or timeout 10, ordering 15, and boundary 16. The pull
+requests change 95 Python symbols outside their tests, 80 modified, 13 added, and 2 removed.
+`propose` analyzes each pull request it reads to count its symbols, and those analyses were deleted
+unread.
 
 Two annotators labeled every symbol alone, from a kit made as the third sample's was: the rules of
 `benchmark/README.md`, the category table of the specification, and each case's diff with the code
@@ -197,8 +208,8 @@ never by comparing one with the other.
 For the held-out split only these totals were computed. A script called the benchmark's own
 functions and printed the measures alone: no per-category or per-case table, and no disagreement,
 was rendered, and each analysis written beside the clones was deleted unread once its case was
-measured. The split's findings by category and by case, and each disagreement, stay unread until a
-correction designed from the development cases is measured on it.
+measured. The split's findings by category and by case, and each disagreement, stay unread: the
+fourth round's correction, designed from the development cases, was measured on it the same way.
 
 ## Third round
 

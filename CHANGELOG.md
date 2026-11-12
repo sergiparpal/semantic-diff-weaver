@@ -37,9 +37,11 @@
   behavior changes given a finding in an expected category go from 102 to 124 of 157, and precision
   in an expected category from 38.5% to 46.1%; no behavior change loses its finding or its
   category, and no unchanged symbol gains one, though four whose finding was unknown now name a
-  category. Schema 1.5 and every golden are unchanged; `docs/decisions.md` records the decision and
-  the criterion the fourth held-out split is measured against, and `docs/benchmark.md` the
-  measurements.
+  category. Measured once on the fourth held-out split, against a criterion committed before, it
+  held and improved: 26 of 42 behavior changes get a finding in an expected category where 22 did,
+  precision in an expected category rises from 43.2% to 49.3%, every behavior change that had a
+  finding keeps one, and no unchanged symbol gains one. Schema 1.5 and every golden are unchanged;
+  `docs/decisions.md` records the decision, and `docs/benchmark.md` both splits' measurements.
 
 ## 0.20.1 - 2026-11-11
 

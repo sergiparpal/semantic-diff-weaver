@@ -767,6 +767,30 @@ unchanged symbol gains a finding (5 of 38). It improves on it if more behavior c
 share of findings, are in an expected category. Unchanged symbols given a finding that names a
 behavior category, 2 of 38 at the baseline, are reported apart, and are no part of the criterion.
 
+**It held, and improved.** Measured once on 2026-11-12, after commit 5a5300f had fixed the
+correction and the criterion, reading the summary alone and deleting the analyses unread. The 0.20.1
+column is the baseline of 2026-11-11, whose analyzer `main` still ran: only documentation had
+changed since.
+
+| Measure, 30 held-out cases | 0.20.1 | With the correction |
+| --- | --- | --- |
+| Findings on Python | 89 | 88 |
+| Precision, findings in an expected category | 32 of 74 (43.2%) | 36 of 73 (49.3%) |
+| Precision, findings naming a behavior category | 32 of 49 (65.3%) | 36 of 53 (67.9%) |
+| Recall, behavior changes given a finding | 41 of 42 | 41 of 42 |
+| Recall, behavior changes given one in an expected category | 22 of 42 (52.4%) | 26 of 42 (61.9%) |
+| Unchanged symbols given a finding | 5 of 38 | 5 of 38 |
+| Unchanged symbols given one naming a behavior category | 2 of 38 | 3 of 38 |
+
+Held out, 26 of the 42 behavior changes get a finding in an expected category where 22 did, and 36
+of 73 scored findings are in one where 32 of 74 were, while every behavior change that had a finding
+keeps one and no unchanged symbol gains one: none of the five rules takes a symbol's last finding
+away, and neither total moved. One more unchanged symbol's finding now names a category, the cost
+the development cases showed. Scored against each annotator's labels as given, precision in an
+expected category rises from 44.6% to 50.7% with gpt-6.1-terra's and from 41.9% to 47.9% with Claude
+Opus 5.5's. The held-out findings by category and by case, and their disagreements, stay unread; the
+split has measured this correction, so the next one waits for a new held-out sample.
+
 ## Output-affecting corrections (2026-11-10, what a change feeds)
 
 The labeled benchmark's third round, designed from its 90 development cases alone, with the third
