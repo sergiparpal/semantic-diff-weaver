@@ -1,6 +1,20 @@
 # Changelog
 
-## Unreleased
+## 0.21.0 - 2026-11-12
+
+What an assignment writes, and what a removed symbol took away, named: the benchmark's fourth
+correction round, designed from its 120 development cases. A removed symbol is an
+`output_contract_change`; an assignment that writes a retry's delay or a timeout is a
+`retry_timeout_change`; a class's own assignments are its attributes, an output contract change;
+what a method keeps on its instance is its state; and an assignment's value is compared whole, not
+cut at 250 characters. On the development cases, behavior changes given a finding in an expected
+category go from 102 to 124 of 157. Measured once on a fourth held-out split of 30 pull requests,
+labeled blind by two models and reviewed, against a criterion committed before, they go from 22 to
+26 of 42, precision in an expected category rises from 43.2% to 49.3%, and every behavior change
+that had a finding keeps one. The third held-out split joins development. A minor release for the
+four new rules, `SDW-RULE-SYMBOL-REMOVED`, `SDW-RULE-RETRY-ASSIGNMENT`, `SDW-RULE-CLASS-ATTRIBUTE`,
+and `SDW-RULE-INSTANCE-STATE`; schema 1.5 and every golden are unchanged, and the decision is
+recorded in `docs/decisions.md`.
 
 - **Evaluation:** the benchmark has a fourth held-out split, 30 pull requests of
   django-commons/django-axes, jpadilla/pyjwt, hynek/stamina, agronholm/apscheduler, and
