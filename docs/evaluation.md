@@ -38,7 +38,8 @@ now emits no prediction outside its reviewed expected labels. The 2026-10-31 re-
 0.8.2, 0.9.0, 0.10.0, 0.11.0, 0.11.1, 0.12.0, and 0.13.0, and the 2026-11-02 ones for 0.14.0,
 0.15.0, and 0.16.0, the 2026-11-04 one for 0.17.0, the 2026-11-06 one for 0.18.0, the 2026-11-07
 one for 0.19.0, the 2026-11-08 ones for 0.19.1, 0.19.2, and 0.19.3, the 2026-11-09 one for 0.19.4,
-the 2026-11-10 one for 0.20.0, and the 2026-11-11 one for 0.20.1, found the same figures. Of 0.4.1's
+the 2026-11-10 one for 0.20.0, the 2026-11-11 one for 0.20.1, and the 2026-11-12 one for 0.21.0,
+found the same figures. Of 0.4.1's
 corrections only the output-contract one reaches the corpus: the `return annotation signature` case
 is now worded as a change to typing alone, at 0.80 confidence instead of 0.879, and keeps its
 category, risk, and obligations. 0.5.0 gives every case a
@@ -87,7 +88,10 @@ three rules name changes no case makes: no case changes `__all__` or only adds c
 `module constant` case changes a constant's value, and the change no rule names in the
 `ambiguous metaprogrammed syntax` case lies in a function without a `return`, so it feeds no
 returned value. Nor does 0.20.1, which discards a model's obligations of type `review`, since no
-case runs with a model.
+case runs with a model. Nor do 0.21.0's five rules: no case removes a symbol, sets a class's
+attribute or one a method keeps on its instance, or assigns a value longer than 250 characters, and
+the two cases that change an assignment write names that mean no retry, `ROOTS` and the
+`state assignment` case's `state`, which keeps its category.
 
 The previous measurement on this same corpus was 88.24% precision (15 of 17). The two surplus
 predictions were both `ordering_change` findings produced by comparing `statement_order` tuples for
@@ -110,8 +114,14 @@ a chain of calls on instances across a call graph at its module limit, a variabl
 read across a graph at its module limit, and a test selection following 999 test files through a
 chain of 999 modules at its file limit, with five-, two-, five-, and five-second ceilings for the
 first four, a one-second ceiling on grouping the fifth, and a five-second ceiling on the last. They
-completed in approximately 0.06, 0.66, 0.97, 1.25, 0.73, and 1.16 seconds in the 0.20.1 timing run,
-across six runs in which the third took 0.93 to 1.22 and the fourth 1.17 to 1.53, on a machine
+completed in approximately 0.07, 0.72, 1.06, 1.36, 0.81, and 1.32 seconds in the 0.21.0 timing run,
+across six runs in which the third took 0.96 to 1.20 and the fourth 1.20 to 1.43. 0.20.1's code,
+timed beside it, took 0.07, 0.76, 1.06, 1.24, 0.79, and 1.25, the third 0.99 to 1.12 and the fourth
+1.21 to 1.42. 0.21.0 records what each assignment writes and digests a value cut at 250 characters;
+the fourth and sixth medians differ within the runs' ranges, and the round's own pull request, timed
+beside 0.20.1's code the same morning, had them the other way, 1.39 and 1.38 against 1.42 and 1.49.
+0.20.1's own run, the day before, timed 0.06, 0.66, 0.97, 1.25, 0.73, and 1.16 seconds, across six
+runs in which the third took 0.93 to 1.22 and the fourth 1.17 to 1.53, on a machine
 about 1.5 times slower than the day before. 0.20.0's code, timed beside it, took 0.06, 0.66, 0.95,
 1.17, 0.74, and 1.15, the third 0.90 to 1.01 and the fourth 1.15 to 1.19: 0.20.1 changes no code a
 deterministic analysis runs. An earlier run, in which two of the third fixture's six took 1.90 and
@@ -198,7 +208,7 @@ closest, at half of its two-second ceiling, and no other reaches two fifths of i
 intervals leave out what each test builds before its clock starts, which the call-phase figures
 above include; on the Pi those were 0.05, 0.99, 0.97, 2.02, 1.11, and 1.91.
 
-The complete automated suite reports 98.30% overall branch-aware coverage across 2,311 passing tests
+The complete automated suite reports 98.32% overall branch-aware coverage across 2,337 passing tests
 and one skip, the real-Hermes discovery test, with at least 90% branch coverage in every critical
 module — the lowest is `path_policy.py` at 92.42%, followed by `git_diff/` at 93.16%,
 `semantic_interpreter.py`, which 0.19.2, 0.19.4, and 0.20.1 extend, at 94.23%, and `config.py` at
@@ -206,10 +216,11 @@ module — the lowest is `path_policy.py` at 92.42%, followed by `git_diff/` at 
 at 100%, as are `skeletons.py`, added with test skeletons, `change_groups.py`, added with connected
 changes, and `selection.py`, added with test selection. `schema_diff/`, added with API schemas and
 reading configuration files too, is at 98.91%, `mcp_server.py`, added on 2026-10-05, at 98.21%, and
-`ast_diff/`, whose comparison 0.16.0, 0.17.0, 0.19.0, and 0.20.0 extend, at 97.09%, up from 97.01%.
-`obligations.py`, which 0.19.0 writes from evidence, is at 98.61%, and `evidence_scenarios.py`, new
-in it and outside the critical set, at 100%. The suite ran with no `ANTHROPIC_API_KEY` in the
-environment: no live LLM call or credential was used, and none is required.
+`ast_diff/`, whose comparison 0.16.0, 0.17.0, 0.19.0, 0.20.0, and 0.21.0 extend, at 97.18%, up from
+97.09%. `obligations.py`, which 0.19.0 writes from evidence, is at 98.61%, and
+`evidence_scenarios.py`, new in it and outside the critical set, at 100%. The suite ran with no
+`ANTHROPIC_API_KEY` in the environment: no live LLM call or credential was used, and none is
+required.
 
 The 17-case figures, dated 2026-07-25, held after the 2026-07-26 review fixes:
 `tests/fixtures/golden/canonical_outputs.json` was byte-identical across them, and precision,
