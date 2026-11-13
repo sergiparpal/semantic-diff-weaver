@@ -13,6 +13,14 @@
   changes list 2.9 categories each, against development's 2.6, and name ordering 10 times, default
   behavior 5, boundary 4, authorization 2, and retry or timeout never. `benchmark/README.md` gives
   the protocol, and `docs/benchmark.md` the agreement and the review. No analyzer behavior changes.
+- **Evaluation:** `docs/benchmark.md` records the baseline that the fifth held-out split and the 150
+  development cases set with 0.21.0, in deterministic mode. Held out, every one of the 44 behavior
+  changes gets a finding, 36 in an expected category, 2 of the 43 unchanged symbols get one, and 44
+  of the 86 scored findings are in an expected category. In development, 198 of the 199 behavior
+  changes get a finding, 150 in an expected category, 33 of the 148 unchanged symbols get one, and
+  188 of the 403 scored findings are in an expected category: the fourth round's corrected columns
+  added together. Scored against each annotator's labels as given, before the review, the held-out
+  precision is 46.5% and 48.8%. Only the held-out totals were computed. Documentation only.
 
 ## 0.21.0 - 2026-11-12
 
