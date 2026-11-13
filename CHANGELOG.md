@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **Evaluation:** the README's limitation on categories quotes the fifth held-out split, measured
+  once with 0.22.0: every one of the 44 behavior changes gets a finding, 37 in an expected category,
+  45 of the 86 scored findings are in one and 17 name none, and 2 of the 43 unchanged symbols get a
+  finding. It quoted the second split, measured with 0.17.0, before three more correction rounds:
+  16 of 44, half the findings naming none, and 14 of 29. Documentation only.
+
 ## 0.22.1 - 2026-11-13
 
 A nested function's obligation, shared with the function around it. A function that changed only as
