@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.22.1 - 2026-11-13
+
+A nested function's obligation, shared with the function around it. A function that changed only as
+the functions nested in it did, which 0.22.0's `SDW-RULE-NESTED` gives their findings' categories,
+took those categories' general obligations, which named neither it nor them: 11 on the benchmark's
+development cases. It now shares, in each category, the nested function's obligation, or keeps one
+of its own that names the nested functions. On the development cases, obligations go from 374 to
+363 and every finding is unchanged. A patch release; schema 1.5 and every golden are unchanged.
 
 - **Fix:** a function that changed only as the functions nested in it did, which `SDW-RULE-NESTED`
   gives their findings' categories, no longer takes those categories' general obligations, which
