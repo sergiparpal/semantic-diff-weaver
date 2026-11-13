@@ -57,7 +57,7 @@ def _benchmark(*cases: dict[str, object]) -> dict[str, object]:
 
 def test_the_published_labels_are_valid() -> None:
     benchmark = load()
-    assert [case.split for case in benchmark.cases].count("development") == 120
+    assert [case.split for case in benchmark.cases].count("development") == 150
     assert [case.split for case in benchmark.cases].count("held_out") == 30
     assert {case.repository for case in benchmark.cases} == set(benchmark.sampled_from)
     for case in benchmark.cases:

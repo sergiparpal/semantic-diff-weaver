@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "annotation": "One annotator, Claude Opus 5.5, labeled every Python symbol each of the first 90 pull requests changes outside its tests, from the diff and the files at its two commits, before reading the analyzer's output on it, and a reviewer, sergiparpal, then checked every label on a page that showed each symbol's diff and never the analyzer's findings, correcting 26 of the first 162 labels and 16 of the next 89. The first 60 cases came in two splits, the held_out ones labeled before the analyzer was changed against the development ones; once measured, those held_out cases joined development, as did the 30 cases of encode/django-rest-framework, jd/tenacity, urllib3/urllib3, agronholm/anyio, and pypa/packaging, labeled and reviewed before the analyzer's next change. The 30 cases of django-guardian/django-guardian, jazzband/django-oauth-toolkit, redis/redis-py, more-itertools/more-itertools, and dateutil/dateutil, which joined development once measured, and the 30 held_out cases of django-commons/django-axes, jpadilla/pyjwt, hynek/stamina, agronholm/apscheduler, and alisaifee/limits were labeled by two annotators, Claude Opus 5.5 and gpt-6.1-terra, blind and apart, from each case's diff and the code of its changed symbols, before the analyzer's output on them was read; the reviewer then settled the label of every symbol that is not added, on a page that showed the two proposals as A and B without saying whose and never the analyzer's findings, and the added symbols the review did not reach, 4 and 13, keep the empty list the rules give them. reviewed_by names whoever checked a case's labels after the annotators.",
+  "annotation": "One annotator, Claude Opus 5.5, labeled every Python symbol each of the first 90 pull requests changes outside its tests, from the diff and the files at its two commits, before reading the analyzer's output on it, and a reviewer, sergiparpal, then checked every label on a page that showed each symbol's diff and never the analyzer's findings, correcting 26 of the first 162 labels and 16 of the next 89. The first 60 cases came in two splits, the held_out ones labeled before the analyzer was changed against the development ones; once measured, those held_out cases joined development, as did the 30 cases of encode/django-rest-framework, jd/tenacity, urllib3/urllib3, agronholm/anyio, and pypa/packaging, labeled and reviewed before the analyzer's next change. The 30 cases of django-guardian/django-guardian, jazzband/django-oauth-toolkit, redis/redis-py, more-itertools/more-itertools, and dateutil/dateutil and the 30 of django-commons/django-axes, jpadilla/pyjwt, hynek/stamina, agronholm/apscheduler, and alisaifee/limits, which joined development once measured, and the 30 held_out cases of casbin/pycasbin, rq/rq, pytest-dev/pluggy, lepture/authlib, and python-humanize/humanize were labeled by two annotators, Claude Opus 5.5 and gpt-6.1-terra, blind and apart, from each case's diff and the code of its changed symbols, before the analyzer's output on them was read; the reviewer then settled the label of every symbol that is not added, on a page that showed the two proposals as A and B without saying whose and never the analyzer's findings, and the added symbols the review did not reach, 4, 13, and 5, keep the empty list the rules give them. reviewed_by names whoever checked a case's labels after the annotators.",
   "sampled_from": {
     "psf/requests": "3c7baaa05ab4aa49cc819ce3a819d260de19c157",
     "pallets/click": "2247b35ea1c47c727d7a06e51fa280e12a863ff6",
@@ -26,7 +26,12 @@
     "jpadilla/pyjwt": "16231abfd1d8eab4953e8779b3017b859c88565e",
     "hynek/stamina": "e964216c0cf326ffaa087f1406566efe55532db0",
     "agronholm/apscheduler": "05b4e2d69f89e3f8d87c6eec5df71ed1dd5705ec",
-    "alisaifee/limits": "0492c4fbef45c0f66c88c5feb00cb1270af238fa"
+    "alisaifee/limits": "0492c4fbef45c0f66c88c5feb00cb1270af238fa",
+    "casbin/pycasbin": "b2a26f6f66ce91eb9bd51ee7671a69222d8b3926",
+    "rq/rq": "8bdb8426f8cbc4e0a2f77176135939055c9e5f39",
+    "pytest-dev/pluggy": "9d5cfafe1a476be5376449e653970733955533f2",
+    "lepture/authlib": "66afb6219eae3b81316532ba759b0d1786d714ca",
+    "python-humanize/humanize": "318888db38ac12e5aaf3144546a11b8ebe60555d"
   },
   "cases": [
     {
@@ -4407,7 +4412,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "django-commons/django-axes#1522",
@@ -4468,7 +4473,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "django-commons/django-axes#1494",
@@ -4500,7 +4505,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "django-commons/django-axes#1487",
@@ -4534,7 +4539,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "django-commons/django-axes#1485",
@@ -4558,7 +4563,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "django-commons/django-axes#1414",
@@ -4592,7 +4597,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "jpadilla/pyjwt#1216",
@@ -4624,7 +4629,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "jpadilla/pyjwt#1173",
@@ -4647,7 +4652,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "jpadilla/pyjwt#1174",
@@ -4668,7 +4673,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "jpadilla/pyjwt#1201",
@@ -4698,7 +4703,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "jpadilla/pyjwt#1179",
@@ -4726,7 +4731,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "jpadilla/pyjwt#1208",
@@ -4832,7 +4837,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "hynek/stamina#159",
@@ -4866,7 +4871,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "hynek/stamina#157",
@@ -4957,7 +4962,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "hynek/stamina#155",
@@ -5020,7 +5025,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "hynek/stamina#137",
@@ -5046,7 +5051,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "hynek/stamina#109",
@@ -5072,7 +5077,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "hynek/stamina#123",
@@ -5114,7 +5119,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "agronholm/apscheduler#1158",
@@ -5161,7 +5166,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "agronholm/apscheduler#1122",
@@ -5194,7 +5199,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "agronholm/apscheduler#1155",
@@ -5227,7 +5232,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "agronholm/apscheduler#1142",
@@ -5271,7 +5276,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "agronholm/apscheduler#1146",
@@ -5312,7 +5317,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "agronholm/apscheduler#1130",
@@ -5344,7 +5349,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "alisaifee/limits#372",
@@ -5376,7 +5381,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "alisaifee/limits#352",
@@ -5433,7 +5438,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "alisaifee/limits#270",
@@ -5458,7 +5463,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "alisaifee/limits#249",
@@ -5546,7 +5551,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "alisaifee/limits#190",
@@ -5574,7 +5579,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "alisaifee/limits#154",
@@ -5628,6 +5633,1241 @@
           "change": "modified",
           "expected": [],
           "rationale": "Only adds a trailing comma to the call; its arguments, result, and effects are the same."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "development"
+    },
+    {
+      "id": "casbin/pycasbin#423",
+      "repository": "casbin/pycasbin",
+      "pull_request": 423,
+      "base": "c5d45060d14bcb02990b1b11e902a9ae2a0bb22c",
+      "head": "17b2e8c244a1e52704819906216debb0950bca71",
+      "subject": "fix: add deepcopy to not clone rm and cond_rm (#423)",
+      "labels": [
+        {
+          "path": "casbin/model/assertion.py",
+          "symbol": "Assertion",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The diff adds only the marker of a new method; the logic that leaves rm and cond_rm as None belongs to __deepcopy__, a symbol of its own."
+        },
+        {
+          "path": "casbin/model/assertion.py",
+          "symbol": "Assertion.__deepcopy__",
+          "change": "added",
+          "expected": [],
+          "rationale": "New __deepcopy__ that deep-copies every attribute except rm and cond_rm, which it sets to None in the copy."
+        },
+        {
+          "path": "casbin/model/assertion.py",
+          "symbol": "Assertion.add_conditional_role_link",
+          "change": "modified",
+          "expected": [],
+          "rationale": "__deepcopy__ is added after this method, whose statements adding the conditional link are unchanged."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "casbin/pycasbin#421",
+      "repository": "casbin/pycasbin",
+      "pull_request": 421,
+      "base": "feccd9044272b98821d8d7d36aa707529eb41aae",
+      "head": "f858158e85eb9abdf308fd356d0246b89922b11b",
+      "subject": "feat: avoid expensive str() calls in enforce_ex when logging is disabled (#421)",
+      "labels": [
+        {
+          "path": "casbin/core_enforcer.py",
+          "symbol": "CoreEnforcer",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The change is in enforce_ex's logging; CoreEnforcer's own body is identical."
+        },
+        {
+          "path": "casbin/core_enforcer.py",
+          "symbol": "CoreEnforcer.enforce_ex",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "With logging disabled, the logger call and the str conversions of its arguments are skipped, and with them the effects or exceptions of a custom __str__."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "casbin/pycasbin#412",
+      "repository": "casbin/pycasbin",
+      "pull_request": 412,
+      "base": "785e3064fae0a2ab0b33bd3ac37fa70b1ce57f19",
+      "head": "dbd28b728c617c28f34478bd9dde3f712fc1c37e",
+      "subject": "feat: fix enforce_ex() API returning empty explanations for allow rules in deny models (#412)",
+      "labels": [
+        {
+          "path": "casbin/core_enforcer.py",
+          "symbol": "CoreEnforcer",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The assignment of explain_index belongs to enforce_ex, which has its own entry."
+        },
+        {
+          "path": "casbin/core_enforcer.py",
+          "symbol": "CoreEnforcer.enforce_ex",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "Every matching rule now updates explain_index, so the explanation names the last match even when the loop ends without an early decision."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "casbin/pycasbin#402",
+      "repository": "casbin/pycasbin",
+      "pull_request": 402,
+      "base": "97d8c8dfaa7def8efd78e0b3c2cb1c1aec1ce2ad",
+      "head": "0ff7cd86b6d5756a39e1a6ed37e4e505c81210d0",
+      "subject": "feat: use wcmatch.glob for glob_match with \"**\" support (#402)",
+      "labels": [
+        {
+          "path": "casbin/util/builtin_operators.py",
+          "symbol": "glob_match",
+          "change": "modified",
+          "expected": [
+            "authorization_change",
+            "output_contract_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Delegating to wcmatch, a policy using globMatch may authorize different paths: a rule ending in /** also matches the base path."
+        },
+        {
+          "path": "casbin/util/builtin_operators.py",
+          "symbol": "glob_match.doublestar_to_wcmatch",
+          "change": "added",
+          "expected": [],
+          "rationale": "New nested helper that keeps ** path segments, collapses runs of * inside other segments, and turns a trailing /** into a brace alternative that also matches the base path."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "casbin/pycasbin#398",
+      "repository": "casbin/pycasbin",
+      "pull_request": 398,
+      "base": "f3f130f389c51ea1099eea6ee8194bfc4ab40c23",
+      "head": "937b64936cdce128ebd9f967b263549f26f1f42f",
+      "subject": "feat: align add_policy API with Golang Casbin (#398)",
+      "labels": [
+        {
+          "path": "casbin/async_internal_enforcer.py",
+          "symbol": "AsyncInternalEnforcer",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The reordered writes belong to _add_policy and _add_policies; the class's own code is identical."
+        },
+        {
+          "path": "casbin/async_internal_enforcer.py",
+          "symbol": "AsyncInternalEnforcer._add_policies",
+          "change": "modified",
+          "expected": [
+            "state_transition_change",
+            "side_effect_change",
+            "ordering_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Checks the batch for duplicates and awaits the adapter before changing the model; the watcher sees the previous state, and a failure before the add leaves the rules out of memory."
+        },
+        {
+          "path": "casbin/async_internal_enforcer.py",
+          "symbol": "AsyncInternalEnforcer._add_policy",
+          "change": "modified",
+          "expected": [
+            "state_transition_change",
+            "side_effect_change",
+            "ordering_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Checks first whether the rule exists and adds it in memory only after the adapter and the watcher; an adapter's rejection leaves the model unchanged."
+        },
+        {
+          "path": "casbin/internal_enforcer.py",
+          "symbol": "InternalEnforcer",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The diff changes three add methods, each with its own entry; InternalEnforcer's own statements are identical."
+        },
+        {
+          "path": "casbin/internal_enforcer.py",
+          "symbol": "InternalEnforcer._add_policies",
+          "change": "modified",
+          "expected": [
+            "state_transition_change",
+            "side_effect_change",
+            "ordering_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Checks the batch's rules before persisting and notifying; the in-memory add comes last, so an adapter's rejection leaves the model as it was."
+        },
+        {
+          "path": "casbin/internal_enforcer.py",
+          "symbol": "InternalEnforcer._add_policies_ex",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "state_transition_change",
+            "side_effect_change",
+            "ordering_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "A batch already present used to return False at once; now it may call the adapter and the watcher, and propagate their exceptions, before updating the model."
+        },
+        {
+          "path": "casbin/internal_enforcer.py",
+          "symbol": "InternalEnforcer._add_policy",
+          "change": "modified",
+          "expected": [
+            "state_transition_change",
+            "side_effect_change",
+            "ordering_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Checks whether the rule exists and adds it in memory only after persisting and notifying; an earlier failure no longer leaves the rule added to the model."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "casbin/pycasbin#390",
+      "repository": "casbin/pycasbin",
+      "pull_request": 390,
+      "base": "61d9fb65a9f620dd8e6a6f80f6fa77d27d2c8b13",
+      "head": "c0c6065e038224bc9e06c89d0782a6bf01664d8e",
+      "subject": "feat: fix the bug that add_policies does not update policy_map (#390)",
+      "labels": [
+        {
+          "path": "casbin/model/policy.py",
+          "symbol": "Policy",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The batch-insert change is in Policy.add_policies; Policy's own body is identical."
+        },
+        {
+          "path": "casbin/model/policy.py",
+          "symbol": "Policy.add_policies",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "state_transition_change",
+            "side_effect_change",
+            "ordering_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Delegating to add_policy, rules are indexed, duplicates within the batch skipped, and the priority order applied; an error reading the priority can emit a diagnostic."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "rq/rq#2571",
+      "repository": "rq/rq",
+      "pull_request": 2571,
+      "base": "c26a4c787a8681c31da8b6e91718c92e02788675",
+      "head": "8bdb8426f8cbc4e0a2f77176135939055c9e5f39",
+      "subject": "Return None from get_expiration_time() for jobs that never expire (#2571)",
+      "labels": [
+        {
+          "path": "rq/registry.py",
+          "symbol": "BaseRegistry",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Jobs without expiry are handled in get_expiration_time, which has its own entry."
+        },
+        {
+          "path": "rq/registry.py",
+          "symbol": "BaseRegistry.get_expiration_time",
+          "change": "modified",
+          "expected": [
+            "boundary_change",
+            "error_handling_change",
+            "output_contract_change"
+          ],
+          "rationale": "Negative scores and positive infinity return None for a job that never expires, and are no longer converted to a datetime."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "rq/rq#2566",
+      "repository": "rq/rq",
+      "pull_request": 2566,
+      "base": "e672abe7305ee26a768df35a372f4adbb7ceb676",
+      "head": "4cb0f98cbbf29bf61ecb5aa471f291cda0f0bc5e",
+      "subject": "Pass the worker's job_class and queue_class to its scheduler (#2566)",
+      "labels": [
+        {
+          "path": "rq/scheduler.py",
+          "symbol": "RQScheduler",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Configuring and using custom classes is implemented in the scheduler's methods; its own body is identical."
+        },
+        {
+          "path": "rq/scheduler.py",
+          "symbol": "RQScheduler.__init__",
+          "change": "modified",
+          "expected": [
+            "state_transition_change",
+            "default_behavior_change"
+          ],
+          "rationale": "The constructor accepts job_class and queue_class, keeps them on the scheduler, and falls back to Job and Queue."
+        },
+        {
+          "path": "rq/scheduler.py",
+          "symbol": "RQScheduler.enqueue_scheduled_jobs",
+          "change": "modified",
+          "expected": [
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Fetches jobs with the configured class's fetch_many and enqueues them with the chosen queue class, which also gets the job class."
+        },
+        {
+          "path": "rq/scheduler.py",
+          "symbol": "RQScheduler.prepare_registries",
+          "change": "modified",
+          "expected": [
+            "state_transition_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Passes job_class to each ScheduledJobRegistry's constructor and keeps the registries so built in the scheduler's list."
+        },
+        {
+          "path": "rq/worker/base.py",
+          "symbol": "BaseWorker",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The worker's change is in _start_scheduler, which has its own entry; the class's own body is identical."
+        },
+        {
+          "path": "rq/worker/base.py",
+          "symbol": "BaseWorker._start_scheduler",
+          "change": "modified",
+          "expected": [
+            "dependency_interaction_change"
+          ],
+          "rationale": "When it creates the RQScheduler, the worker passes its job and queue classes so the scheduler uses the same implementations."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "rq/rq#2574",
+      "repository": "rq/rq",
+      "pull_request": 2574,
+      "base": "1cf2c3eab33a8eda95c6107720dc40c7e285dd2b",
+      "head": "e672abe7305ee26a768df35a372f4adbb7ceb676",
+      "subject": "Allow / in RQ_KEY_PREFIX (#2574)",
+      "labels": [
+        {
+          "path": "rq/defaults.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change"
+          ],
+          "rationale": "The validation run on import accepts a slash in RQ_KEY_PREFIX and includes it in the ValueError message for invalid prefixes."
+        },
+        {
+          "path": "rq/defaults.py",
+          "symbol": "validate_key_prefix",
+          "change": "added",
+          "expected": [],
+          "rationale": "New function that returns the prefix when it matches [A-Za-z0-9_.:/{}-]+ and raises ValueError otherwise."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "rq/rq#2563",
+      "repository": "rq/rq",
+      "pull_request": 2563,
+      "base": "fc82b37ba1963518c9d970d07beddfc90d3d94bb",
+      "head": "c15472599c8541dd5e15b236b4177b73e1d1efd1",
+      "subject": "Honor at_front in enqueue_many() for jobs whose dependencies are met (#2563)",
+      "labels": [
+        {
+          "path": "rq/queue.py",
+          "symbol": "Queue",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The batch checks and the queue position change in enqueue_many, scored separately."
+        },
+        {
+          "path": "rq/queue.py",
+          "symbol": "Queue.enqueue_many",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "side_effect_change",
+            "ordering_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "A duplicate explicit ID raises ValueError before the pipeline is prepared; for satisfied dependencies, _enqueue_job also gets the batch's at_front preference."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "rq/rq#2564",
+      "repository": "rq/rq",
+      "pull_request": 2564,
+      "base": "e309b7407cee72b5d8c222a997a44d86b9a7062f",
+      "head": "fc82b37ba1963518c9d970d07beddfc90d3d94bb",
+      "subject": "Fix docstring Args that do not match the signatures (#2564)",
+      "labels": [
+        {
+          "path": "rq/intermediate_queue.py",
+          "symbol": "IntermediateQueue",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The pull request corrects methods' documentation; IntermediateQueue's own code is identical."
+        },
+        {
+          "path": "rq/intermediate_queue.py",
+          "symbol": "IntermediateQueue.get_intermediate_queue_key",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The docstring now uses the argument's real name, queue_key; the expression building the key is the same."
+        },
+        {
+          "path": "rq/intermediate_queue.py",
+          "symbol": "IntermediateQueue.set_first_seen",
+          "change": "modified",
+          "expected": [],
+          "rationale": "A supposed timestamp parameter is dropped from the docstring; the method already took the time with now() when writing to Redis."
+        },
+        {
+          "path": "rq/queue.py",
+          "symbol": "Queue",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The correction is in create_job's docstring; Queue's own statements are identical."
+        },
+        {
+          "path": "rq/queue.py",
+          "symbol": "Queue.create_job",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The documentation no longer lists pipeline, which was not in the signature; the job is created by the same code."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "rq/rq#2554",
+      "repository": "rq/rq",
+      "pull_request": 2554,
+      "base": "987efddcad8b367bd2f8926b9e6f3ea0e9b9de63",
+      "head": "e309b7407cee72b5d8c222a997a44d86b9a7062f",
+      "subject": "Honor enqueue_at_front on a Retry returned by a job (#2554)",
+      "labels": [
+        {
+          "path": "rq/job.py",
+          "symbol": "Job",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The retry's priority change is in _handle_retry_result, scored separately."
+        },
+        {
+          "path": "rq/job.py",
+          "symbol": "Job._handle_retry_result",
+          "change": "modified",
+          "expected": [
+            "state_transition_change",
+            "side_effect_change",
+            "ordering_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Keeps the earlier preference or the returned Retry's and passes it to the queue when the retry is immediate, so the job can go back to the front."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "pytest-dev/pluggy#809",
+      "repository": "pytest-dev/pluggy",
+      "pull_request": 809,
+      "base": "0224f79fc75efadaafe24dbab9deee2ff616ecd7",
+      "head": "4d6b10d28b7af1b0a64e19cd2a709d519f2e06f4",
+      "subject": "Merge pull request #809 from SIBTAIN-ASAD/fix-entrypoint-declined-distributions",
+      "labels": [
+        {
+          "path": "src/pluggy/_manager.py",
+          "symbol": "PluginManager",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The change to the plugin count and metadata is in load_setuptools_entrypoints, with its own entry."
+        },
+        {
+          "path": "src/pluggy/_manager.py",
+          "symbol": "PluginManager.load_setuptools_entrypoints",
+          "change": "modified",
+          "expected": [
+            "state_transition_change",
+            "output_contract_change"
+          ],
+          "rationale": "When register returns None, the distribution is skipped and not counted; an accepted registration is keyed by the name register returns."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "pytest-dev/pluggy#799",
+      "repository": "pytest-dev/pluggy",
+      "pull_request": 799,
+      "base": "09fabb162b8f84af0292b827c94e0149b82d448a",
+      "head": "d57da1442a474789b2b7a09dfbcddeba3482aabc",
+      "subject": "Merge pull request #799 from RonnyPfannschmidt/fix-792-tracing-robust",
+      "labels": [
+        {
+          "path": "src/pluggy/_manager.py",
+          "symbol": "PluginManager",
+          "change": "modified",
+          "expected": [],
+          "rationale": "PluginManager's own statements are identical; the tracing change is in enable_tracing and its callback."
+        },
+        {
+          "path": "src/pluggy/_manager.py",
+          "symbol": "PluginManager.enable_tracing",
+          "change": "modified",
+          "expected": [
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "The installed monitor adds an empty dict when it emits the closing trace, so a dict result shows in the hook trace's message."
+        },
+        {
+          "path": "src/pluggy/_manager.py",
+          "symbol": "PluginManager.enable_tracing.after",
+          "change": "modified",
+          "expected": [
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "On successful calls, after appends {} to the hooktrace call so that a dict result is printed in the main message."
+        },
+        {
+          "path": "src/pluggy/_tracing.py",
+          "symbol": "TagTracer",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The formatting change belongs to _format_message, which has its own entry; TagTracer's own body is identical."
+        },
+        {
+          "path": "src/pluggy/_tracing.py",
+          "symbol": "TagTracer._format_message",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "output_contract_change"
+          ],
+          "rationale": "Recognizes the trailing dict by its real type and turns failures formatting its values into diagnostics inside the text returned."
+        },
+        {
+          "path": "src/pluggy/_tracing.py",
+          "symbol": "_render_value",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "output_contract_change"
+          ],
+          "rationale": "Chooses the format by the real type: an object posing as a str, such as a Mock with that spec, goes through _safe_str and avoids string operations that could fail."
+        },
+        {
+          "path": "src/pluggy/_tracing.py",
+          "symbol": "_safe",
+          "change": "added",
+          "expected": [],
+          "rationale": "New helper that renders obj with the given function, describes a failure under the given name instead of raising, and escapes lone surrogates."
+        },
+        {
+          "path": "src/pluggy/_tracing.py",
+          "symbol": "_safe_repr",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The shared helper still runs repr, describes the exception with the repr label, and escapes lone Unicode surrogates."
+        },
+        {
+          "path": "src/pluggy/_tracing.py",
+          "symbol": "_safe_str",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The shared helper keeps the str conversion, the diagnostic of its errors, and the escaping of lone Unicode surrogates."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "pytest-dev/pluggy#767",
+      "repository": "pytest-dev/pluggy",
+      "pull_request": 767,
+      "base": "78e3f45d6c18a6efe6c46a2a79b63073f45a44bd",
+      "head": "50585e07949e7d48f89a21e8e200fdcb2cfe8617",
+      "subject": "Merge pull request #767 from pytest-dev/claude/project-thread-p5dhgd",
+      "labels": [
+        {
+          "path": "src/pluggy/_manager.py",
+          "symbol": "PluginManager",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The new representation of distributions is in the constructor and the manager's methods; the class's own body is identical."
+        },
+        {
+          "path": "src/pluggy/_manager.py",
+          "symbol": "PluginManager.__init__",
+          "change": "modified",
+          "expected": [
+            "state_transition_change"
+          ],
+          "rationale": "Each new manager initializes the _name2dist dict, mapping names to distributions instead of collecting pairs in a list."
+        },
+        {
+          "path": "src/pluggy/_manager.py",
+          "symbol": "PluginManager.list_plugin_distinfo",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "output_contract_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Delegates to list_plugin_distributions and wraps each distribution in DistFacade; the listing reflects unregistrations and propagates KeyError when a name is missing from the plugin registry."
+        },
+        {
+          "path": "src/pluggy/_manager.py",
+          "symbol": "PluginManager.list_plugin_distributions",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "output_contract_change"
+          ],
+          "rationale": "Looks up the current plugin of each distribution name; an unregistration removes the pair from the listing, and an entry without a matching plugin raises KeyError."
+        },
+        {
+          "path": "src/pluggy/_manager.py",
+          "symbol": "PluginManager.load_setuptools_entrypoints",
+          "change": "modified",
+          "expected": [
+            "state_transition_change"
+          ],
+          "rationale": "Stores the distribution under the entry point's name, so a second write under that name replaces the earlier value."
+        },
+        {
+          "path": "src/pluggy/_manager.py",
+          "symbol": "PluginManager.unregister",
+          "change": "modified",
+          "expected": [
+            "state_transition_change"
+          ],
+          "rationale": "Unregistering a plugin also deletes its _name2dist entry; the method still returns the plugin, and later queries reflect the unregistration."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "pytest-dev/pluggy#752",
+      "repository": "pytest-dev/pluggy",
+      "pull_request": 752,
+      "base": "012fd24a1f2fba6dba63641097e9f489f132bee7",
+      "head": "2e3774328e26287780f0ae849e3cb5db2ba4e78b",
+      "subject": "Merge pull request #752 from bluetech/register-none-allow",
+      "labels": [
+        {
+          "path": "src/pluggy/_manager.py",
+          "symbol": "PluginManager",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The handling of None changes in register, which has its own entry; the class's own statements are identical."
+        },
+        {
+          "path": "src/pluggy/_manager.py",
+          "symbol": "PluginManager.register",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "output_contract_change"
+          ],
+          "rationale": "register(None) now returns None before registering anything, where the same input used to raise TypeError."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "pytest-dev/pluggy#755",
+      "repository": "pytest-dev/pluggy",
+      "pull_request": 755,
+      "base": "60b15251ee18560f781c557b6b9ef3de4d786bee",
+      "head": "e3e34d8120aac5abbc3ac247f52390fa8eaa00a0",
+      "subject": "Merge pull request #755 from harbinresearcher/codex/entrypoint-plugin-presence",
+      "labels": [
+        {
+          "path": "src/pluggy/_manager.py",
+          "symbol": "PluginManager",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The change to detecting registered names is in load_setuptools_entrypoints; the class's own body is identical."
+        },
+        {
+          "path": "src/pluggy/_manager.py",
+          "symbol": "PluginManager.load_setuptools_entrypoints",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "output_contract_change",
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "has_plugin finds a registered name even when its object is falsy, so ep.load and a duplicate registration that could raise ValueError are skipped and the count can finish."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "pytest-dev/pluggy#759",
+      "repository": "pytest-dev/pluggy",
+      "pull_request": 759,
+      "base": "86670ff63cccaaa61a234b3cab0a4f70abfbb66b",
+      "head": "b7ee9181dbe897573d03e8686833f931defd8874",
+      "subject": "Merge pull request #759 from pytest-dev/claude/project-thread-yz2zw2",
+      "labels": [
+        {
+          "path": "src/pluggy/_manager.py",
+          "symbol": "PluginManager",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The pull request changes load_setuptools_entrypoints and unregister, each with its own entry; the class's own statements are identical."
+        },
+        {
+          "path": "src/pluggy/_manager.py",
+          "symbol": "PluginManager.load_setuptools_entrypoints",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "output_contract_change",
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "has_plugin finds a registered name even when its object is falsy, so ep.load and a duplicate registration that could raise ValueError are skipped and the count can finish."
+        },
+        {
+          "path": "src/pluggy/_manager.py",
+          "symbol": "PluginManager.unregister",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "state_transition_change",
+            "side_effect_change"
+          ],
+          "rationale": "A registered name and plugin that contradict each other raise ValueError before any hook is removed or the registry touched, and a falsy plugin's entry is now removed too."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "lepture/authlib#1041",
+      "repository": "lepture/authlib",
+      "pull_request": 1041,
+      "base": "25cd29ced1a2ab0a4181f8e1bf3283a24b5cffe8",
+      "head": "cc78d41a43ae685efad9f09d92253ce695fd5883",
+      "subject": "Merge pull request #1041 from azmeuk/feat/revoke-reused-code-tokens",
+      "labels": [
+        {
+          "path": "authlib/oauth2/rfc6749/grants/authorization_code.py",
+          "symbol": "AuthorizationCodeGrant",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The new revocation has a method of its own and is called from validate_token_request; the class's own declarations are identical."
+        },
+        {
+          "path": "authlib/oauth2/rfc6749/grants/authorization_code.py",
+          "symbol": "AuthorizationCodeGrant.delete_authorization_code",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The new method is added after delete_authorization_code, which still leaves deletion to the subclass through NotImplementedError."
+        },
+        {
+          "path": "authlib/oauth2/rfc6749/grants/authorization_code.py",
+          "symbol": "AuthorizationCodeGrant.revoke_authorization_code_tokens",
+          "change": "added",
+          "expected": [],
+          "rationale": "New overridable hook, a no-op by default, meant to revoke the tokens issued with an authorization code that is presented again."
+        },
+        {
+          "path": "authlib/oauth2/rfc6749/grants/authorization_code.py",
+          "symbol": "AuthorizationCodeGrant.validate_token_request",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "authorization_change",
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "When the code lookup fails, it calls revoke_authorization_code_tokens before raising InvalidGrantError, so a hook implementation can revoke the tokens of a reused code."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "lepture/authlib#972",
+      "repository": "lepture/authlib",
+      "pull_request": 972,
+      "base": "72db57bdfa45fb8ae8d38bca7377068fa7438b78",
+      "head": "f2c775131ff8af6ea989ec34b77ed06b0662b63a",
+      "subject": "Merge pull request #972 from openforge-live/docs/jar-consent-retention",
+      "labels": [
+        {
+          "path": "authlib/oauth2/rfc9101/authorization_server.py",
+          "symbol": "JWTAuthenticationRequest",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The pull request changes get_request_object's documentation; the class's own body has no new statements."
+        },
+        {
+          "path": "authlib/oauth2/rfc9101/authorization_server.py",
+          "symbol": "JWTAuthenticationRequest.get_request_object",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The docstring explains how to keep the request object presented during consent; the base method still raises NotImplementedError."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "lepture/authlib#1037",
+      "repository": "lepture/authlib",
+      "pull_request": 1037,
+      "base": "b865b45821b831c726c0cdf8194440b4fff1225b",
+      "head": "1ee2dff30101edd846ad36ec4bd28a38e24af1fe",
+      "subject": "feat(client): accept headers in the requests clients (#1037)",
+      "labels": [
+        {
+          "path": "authlib/integrations/requests_client/assertion_session.py",
+          "symbol": "AssertionSession",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Its docstring now describes the headers parameter; applying the headers is update_session_configure's."
+        },
+        {
+          "path": "authlib/integrations/requests_client/oauth2_session.py",
+          "symbol": "OAuth2Session",
+          "change": "modified",
+          "expected": [],
+          "rationale": "It documents the session headers; the code applying them is in the configuration helper."
+        },
+        {
+          "path": "authlib/integrations/requests_client/utils.py",
+          "symbol": "update_session_configure",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "state_transition_change",
+            "side_effect_change",
+            "ordering_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Takes headers out of kwargs and merges them into the session before the other settings; if the update fails on an invalid value, those settings are left unapplied."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "lepture/authlib#1026",
+      "repository": "lepture/authlib",
+      "pull_request": 1026,
+      "base": "1e4fc1efe3f4632dd17172c781ed9c674cae4b2e",
+      "head": "b683acb45d545d96a9a25a3ade0db8807d0e4e65",
+      "subject": "Merge pull request #1026 from mohsinaliwork686-rgb/fix/keep-access-token-params-on-refetch",
+      "labels": [
+        {
+          "path": "authlib/integrations/base_client/async_app.py",
+          "symbol": "AsyncOAuth2Mixin",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The change to the asynchronous fetch_token call belongs to fetch_access_token; the mixin's own body is identical."
+        },
+        {
+          "path": "authlib/integrations/base_client/async_app.py",
+          "symbol": "AsyncOAuth2Mixin.fetch_access_token",
+          "change": "modified",
+          "expected": [
+            "dependency_interaction_change"
+          ],
+          "rationale": "The async client gets the configured parameters when it is built, and its fetch_token only the call's own arguments, a difference a custom client can observe."
+        },
+        {
+          "path": "authlib/integrations/base_client/sync_app.py",
+          "symbol": "OAuth2Base",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The client configuration change is in _get_oauth_client; OAuth2Base's own body is identical."
+        },
+        {
+          "path": "authlib/integrations/base_client/sync_app.py",
+          "symbol": "OAuth2Base._get_oauth_client",
+          "change": "modified",
+          "expected": [
+            "output_contract_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Passes access_token_params to the constructor whenever it is set, an empty dict included; the client returned keeps them for later token requests."
+        },
+        {
+          "path": "authlib/integrations/base_client/sync_app.py",
+          "symbol": "OAuth2Mixin",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The change in OAuth2Mixin is limited to fetch_access_token, scored on its own."
+        },
+        {
+          "path": "authlib/integrations/base_client/sync_app.py",
+          "symbol": "OAuth2Mixin.fetch_access_token",
+          "change": "modified",
+          "expected": [
+            "dependency_interaction_change"
+          ],
+          "rationale": "The sync client gets access_token_params when it is built and fetch_token the explicit arguments; a custom implementation can tell the two calls apart."
+        },
+        {
+          "path": "authlib/integrations/requests_client/oauth2_session.py",
+          "symbol": "OAuth2Session",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The docstring describes when access_token_params is sent; the class attributes and statements here are identical."
+        },
+        {
+          "path": "authlib/oauth2/client.py",
+          "symbol": "OAuth2Client",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Its own diff documents access_token_params and its precedence; the implementation is in the constructor's and fetch_token's entries."
+        },
+        {
+          "path": "authlib/oauth2/client.py",
+          "symbol": "OAuth2Client.__init__",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "state_transition_change",
+            "default_behavior_change"
+          ],
+          "rationale": "Takes access_token_params out of the metadata and keeps a dict copy, empty by default; a truthy value dict cannot convert makes construction fail."
+        },
+        {
+          "path": "authlib/oauth2/client.py",
+          "symbol": "OAuth2Client.fetch_token",
+          "change": "modified",
+          "expected": [
+            "state_transition_change",
+            "side_effect_change",
+            "ordering_change",
+            "default_behavior_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "The stored parameters complete the request, with explicit ones taking precedence; a grant_type configured as client_credentials can also end up recorded in the client's metadata."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "lepture/authlib#1031",
+      "repository": "lepture/authlib",
+      "pull_request": 1031,
+      "base": "8c8be91e64de78d50a7e112b4a32fbe034f68e64",
+      "head": "46ed1e7376efead07f343529426a3efaf1ced8b1",
+      "subject": "Merge pull request #1031 from Rajatendu1/oauth1-ipv6-base-string",
+      "labels": [
+        {
+          "path": "authlib/oauth1/rfc5849/signature.py",
+          "symbol": "normalize_base_string_uri",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "For an IPv6 authority such as [::1]:443 under HTTPS, splitting at the last colon lets the default port be dropped from the normalized URI."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "lepture/authlib#963",
+      "repository": "lepture/authlib",
+      "pull_request": 963,
+      "base": "1c601bfd02f295d21b08c88544b6b92c9aa0a3d3",
+      "head": "ea22a97260a07264309bc323c0779e8b10fb7038",
+      "subject": "Fix AsyncOAuth2Client.ensure_active_token using a stale token after the refresh lock (#963)",
+      "labels": [
+        {
+          "path": "authlib/integrations/httpx_client/oauth2_client.py",
+          "symbol": "AsyncOAuth2Client",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The token choice changes inside ensure_active_token; the class's own body is identical."
+        },
+        {
+          "path": "authlib/integrations/httpx_client/oauth2_client.py",
+          "symbol": "AsyncOAuth2Client.ensure_active_token",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "output_contract_change",
+            "side_effect_change",
+            "default_behavior_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Inside the lock it takes the client's current token, or the optional argument when there is none, checks its expiry, refreshes or updates it, and returns True on success."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "python-humanize/humanize#479",
+      "repository": "python-humanize/humanize",
+      "pull_request": 479,
+      "base": "d16e6352c9785c5ab86de0133222bd22e89b0db2",
+      "head": "318888db38ac12e5aaf3144546a11b8ebe60555d",
+      "subject": "Fix `OverflowError` in `naturaltime`/`precisedelta` for far-future dates (#479)",
+      "labels": [
+        {
+          "path": "src/humanize/time.py",
+          "symbol": "_abs_timedelta",
+          "change": "modified",
+          "expected": [
+            "boundary_change",
+            "error_handling_change",
+            "output_contract_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "abs(delta) gives the positive duration even where adding the negative delta to the current date would overflow the calendar; the clock lookup and that cause of OverflowError go."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "python-humanize/humanize#465",
+      "repository": "python-humanize/humanize",
+      "pull_request": 465,
+      "base": "b5ba01bf2301bfa834dce91fb0d3eab117471407",
+      "head": "a2006eabf832081cc60d8579d9d53789ed8d8d0b",
+      "subject": "Use Turkish numeric separators (#465)",
+      "labels": [
+        {
+          "path": "src/humanize/i18n.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [
+            "output_contract_change",
+            "default_behavior_change"
+          ],
+          "rationale": "With tr_TR active, the tables set the dot for thousands and the comma for decimals, replacing the fallback separators that language used to get."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "python-humanize/humanize#440",
+      "repository": "python-humanize/humanize",
+      "pull_request": 440,
+      "base": "1a04966d8dcc1a0b99154cd4e19130d0af58846b",
+      "head": "8bf85bbcbf3a9086639fdfa3faa0f269e99a63d2",
+      "subject": "Drop support for EOL Python 3.10 (#440)",
+      "labels": [
+        {
+          "path": "src/humanize/time.py",
+          "symbol": "_convert_aware_datetime",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The only addition is a DTZ006 lint directive on the line converting the timestamp."
+        },
+        {
+          "path": "src/humanize/time.py",
+          "symbol": "_now",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The comment documents that datetime.now() must return naive local time and silences the linter's warning."
+        },
+        {
+          "path": "src/humanize/time.py",
+          "symbol": "naturaldate",
+          "change": "modified",
+          "expected": [],
+          "rationale": "A lint directive is added to date.today(); the expression computing the reference date is the same."
+        },
+        {
+          "path": "src/humanize/time.py",
+          "symbol": "naturalday",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The line reading the local date gets a noqa DTZ011 comment; the comparison with the reference day runs the same statements."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "python-humanize/humanize#295",
+      "repository": "python-humanize/humanize",
+      "pull_request": 295,
+      "base": "ca892b368a535a79cc5e2181d052245b94fd6652",
+      "head": "392aef707c0e74341ab4a51420984e9ea6b566c5",
+      "subject": "Fix `naturaldelta` truncating years instead of rounding (#295)",
+      "labels": [
+        {
+          "path": "src/humanize/time.py",
+          "symbol": "naturaldelta",
+          "change": "modified",
+          "expected": [
+            "boundary_change",
+            "output_contract_change"
+          ],
+          "rationale": "In the branch for two years or more, the figure is rounded with round(days / 365), so two years and 200 days now show as three years."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "python-humanize/humanize#346",
+      "repository": "python-humanize/humanize",
+      "pull_request": 346,
+      "base": "f971127ce7e7770d3ff5be05cfc484bdf9302e04",
+      "head": "ca892b368a535a79cc5e2181d052245b94fd6652",
+      "subject": "Fix `intword()` rounding carry for very large numbers (#346)",
+      "labels": [
+        {
+          "path": "src/humanize/number.py",
+          "symbol": "intword",
+          "change": "modified",
+          "expected": [
+            "boundary_change",
+            "output_contract_change"
+          ],
+          "rationale": "Comparing with the integer ratio between powers fixes the step up to the next unit when a very large number rounds to the current unit's limit."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "python-humanize/humanize#402",
+      "repository": "python-humanize/humanize",
+      "pull_request": 402,
+      "base": "ffdf407fdfe1a5738159b989eb2df190ed780448",
+      "head": "f971127ce7e7770d3ff5be05cfc484bdf9302e04",
+      "subject": "Fix `naturaldelta` doctest (#402)",
+      "labels": [
+        {
+          "path": "src/humanize/time.py",
+          "symbol": "naturaldelta",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The doctest example is corrected to show the '30 minutes' the call produces; the executable body is identical."
         }
       ],
       "reviewed_by": [

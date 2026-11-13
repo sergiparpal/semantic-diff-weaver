@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- **Evaluation:** the benchmark has a fifth held-out split, 30 pull requests of casbin/pycasbin,
+  rq/rq, pytest-dev/pluggy, lepture/authlib, and python-humanize/humanize, and the fourth split
+  joins development, which now has 150 cases. Claude Opus 5.5 and gpt-6.1-terra labeled its 92
+  symbols blind and apart, as they did the fourth's. They agreed on whether the behavior changes for
+  84 of the 87 scored symbols (kappa 0.93), and on the exact categories for 55. The reviewer settled
+  every scored label on a page that showed the two proposals as A and B without saying whose: 54 of
+  the 55 agreements were kept and one gained three categories, and of the 32 disagreements 16 took
+  gpt-6.1-terra's proposal, 14 Claude Opus 5.5's, and 2 the reviewer's own label. Its 44 behavior
+  changes list 2.9 categories each, against development's 2.6, and name ordering 10 times, default
+  behavior 5, boundary 4, authorization 2, and retry or timeout never. `benchmark/README.md` gives
+  the protocol, and `docs/benchmark.md` the agreement and the review. No analyzer behavior changes.
+
 ## 0.21.0 - 2026-11-12
 
 What an assignment writes, and what a removed symbol took away, named: the benchmark's fourth
