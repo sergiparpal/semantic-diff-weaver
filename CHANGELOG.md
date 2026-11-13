@@ -1,6 +1,17 @@
 # Changelog
 
-## Unreleased
+## 0.22.0 - 2026-11-13
+
+A limit read as no retry, and a function as the functions nested in it change: the benchmark's fifth
+correction round, designed from its 150 development cases. `limit` no longer names a retry or
+timeout anywhere, and a function whose body changed only through a nested one takes the categories
+that one's findings name. On the development cases, behavior changes given a finding in an expected
+category go from 150 to 154 of 199. Measured once on a fifth held-out split of 30 pull requests,
+labeled blind by two models and reviewed, against a criterion committed before, they go from 36 to
+37 of 44, precision in an expected category rises from 51.2% to 52.3%, and every behavior change
+keeps its finding. The fourth held-out split joins development. A minor release for the new rule,
+`SDW-RULE-NESTED`; schema 1.5 and every golden are unchanged, and the decision is recorded in
+`docs/decisions.md`.
 
 - **Evaluation:** the benchmark has a fifth held-out split, 30 pull requests of casbin/pycasbin,
   rq/rq, pytest-dev/pluggy, lepture/authlib, and python-humanize/humanize, and the fourth split
