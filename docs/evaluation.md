@@ -38,8 +38,8 @@ now emits no prediction outside its reviewed expected labels. The 2026-10-31 re-
 0.8.2, 0.9.0, 0.10.0, 0.11.0, 0.11.1, 0.12.0, and 0.13.0, and the 2026-11-02 ones for 0.14.0,
 0.15.0, and 0.16.0, the 2026-11-04 one for 0.17.0, the 2026-11-06 one for 0.18.0, the 2026-11-07
 one for 0.19.0, the 2026-11-08 ones for 0.19.1, 0.19.2, and 0.19.3, the 2026-11-09 one for 0.19.4,
-the 2026-11-10 one for 0.20.0, the 2026-11-11 one for 0.20.1, and the 2026-11-12 one for 0.21.0,
-found the same figures. Of 0.4.1's
+the 2026-11-10 one for 0.20.0, the 2026-11-11 one for 0.20.1, the 2026-11-12 one for 0.21.0, and
+the 2026-11-13 one for 0.22.0, found the same figures. Of 0.4.1's
 corrections only the output-contract one reaches the corpus: the `return annotation signature` case
 is now worded as a change to typing alone, at 0.80 confidence instead of 0.879, and keeps its
 category, risk, and obligations. 0.5.0 gives every case a
@@ -91,7 +91,9 @@ returned value. Nor does 0.20.1, which discards a model's obligations of type `r
 case runs with a model. Nor do 0.21.0's five rules: no case removes a symbol, sets a class's
 attribute or one a method keeps on its instance, or assigns a value longer than 250 characters, and
 the two cases that change an assignment write names that mean no retry, `ROOTS` and the
-`state assignment` case's `state`, which keeps its category.
+`state assignment` case's `state`, which keeps its category. Nor do 0.22.0's two: the
+`retry predicate` case's own words, `retry` and `attempts`, name its retry without a `limit`, and
+no case changes a function only through one nested in it.
 
 The previous measurement on this same corpus was 88.24% precision (15 of 17). The two surplus
 predictions were both `ordering_change` findings produced by comparing `statement_order` tuples for
@@ -114,8 +116,13 @@ a chain of calls on instances across a call graph at its module limit, a variabl
 read across a graph at its module limit, and a test selection following 999 test files through a
 chain of 999 modules at its file limit, with five-, two-, five-, and five-second ceilings for the
 first four, a one-second ceiling on grouping the fifth, and a five-second ceiling on the last. They
-completed in approximately 0.07, 0.72, 1.06, 1.36, 0.81, and 1.32 seconds in the 0.21.0 timing run,
-across six runs in which the third took 0.96 to 1.20 and the fourth 1.20 to 1.43. 0.20.1's code,
+completed in approximately 0.04, 0.50, 0.67, 0.88, 0.55, and 0.83 seconds in the 0.22.0 timing run,
+across six runs in which the third took 0.64 to 0.75 and the fourth 0.85 to 1.02, on a machine
+about 1.5 times faster than the day before. 0.21.0's code, timed beside it, took 0.04, 0.47, 0.67,
+0.87, 0.56, and 0.88, the third 0.63 to 0.72 and the fourth 0.82 to 1.00: 0.22.0's two rules cost
+nothing the runs can tell. 0.21.0's own run, the day before, timed 0.07, 0.72, 1.06, 1.36, 0.81,
+and 1.32 seconds, across six runs in which the third took 0.96 to 1.20 and the fourth 1.20 to 1.43.
+0.20.1's code,
 timed beside it, took 0.07, 0.76, 1.06, 1.24, 0.79, and 1.25, the third 0.99 to 1.12 and the fourth
 1.21 to 1.42. 0.21.0 records what each assignment writes and digests a value cut at 250 characters;
 the fourth and sixth medians differ within the runs' ranges, and the round's own pull request, timed
@@ -208,7 +215,7 @@ closest, at half of its two-second ceiling, and no other reaches two fifths of i
 intervals leave out what each test builds before its clock starts, which the call-phase figures
 above include; on the Pi those were 0.05, 0.99, 0.97, 2.02, 1.11, and 1.91.
 
-The complete automated suite reports 98.32% overall branch-aware coverage across 2,337 passing tests
+The complete automated suite reports 98.32% overall branch-aware coverage across 2,345 passing tests
 and one skip, the real-Hermes discovery test, with at least 90% branch coverage in every critical
 module — the lowest is `path_policy.py` at 92.42%, followed by `git_diff/` at 93.16%,
 `semantic_interpreter.py`, which 0.19.2, 0.19.4, and 0.20.1 extend, at 94.23%, and `config.py` at
