@@ -6,7 +6,9 @@ writing as proposed (`docs/benchmark.md`, "With a model"), while the evidence he
 needed: the default that changed, the call whose arguments did, the condition a branch now tests.
 A finding's scenario quotes its evidence instead: what to run, what changed, and what to assert.
 The category's scenarios remain for a finding no Python delta describes, such as one on an API
-schema or a configuration file, or a change the parser could not read.
+schema or a configuration file, or a change the parser could not read. A function that changed
+only as the functions nested in it did has no line of its own to quote either, and its scenario
+names them, whose findings say what changed.
 
 Only what the evidence holds is quoted, already redacted and bounded, each fragment as a code
 span. The renderer keeps it one, so a repository's text never becomes Markdown of its own.
@@ -20,7 +22,7 @@ from typing import TYPE_CHECKING
 
 from .ast_diff import StructuralDelta
 from .models import BehaviorCategory, BehaviorChange, Evidence, ObligationType
-from .semantic_candidates import evidence_id, has_boundary_comparison
+from .semantic_candidates import NAMING_NOTHING, evidence_id, has_boundary_comparison
 from .taxonomy import CATEGORY_PROFILES, Scenario
 from .textutil import code_span
 
@@ -1028,6 +1030,10 @@ class Context:
     # own would say little: the code calling a private symbol it adds, the code that stopped
     # calling one it removes, and the other symbols of its class.
     related: tuple[tuple[str, str], ...] = ()
+    # For a function that changed only as the functions nested in it did, those of them whose
+    # findings are in its category, in its module: they say what changed, and a test reaches
+    # them only through it.
+    nested: tuple[str, ...] = ()
 
 
 NO_CONTEXT = Context()
@@ -1044,17 +1050,18 @@ def is_private(symbol: str) -> bool:
 def evidence_scenarios(
     behavior: BehaviorChange, changes: Mapping[str, Change], context: Context | None = None
 ) -> tuple[Scenario, ...]:
-    """The scenarios a finding's evidence supports: none when no Python delta describes it.
+    """The scenarios a finding's evidence supports: none when no Python delta describes it, but
+    for a function that changed only as the functions nested in it did, which has one naming them.
 
     One scenario says what to run, what changed, and what to assert. A changed default has a
     second, for the former value passed explicitly, and a changed boundary one for either side.
     """
-    picked = _primary(behavior, changes)
-    if picked is None:
-        return ()
-    evidence, change = picked
     context = context or NO_CONTEXT
     relevance = CATEGORY_PROFILES[behavior.category].scenarios[0].relevance
+    picked = _primary(behavior, changes)
+    if picked is None:
+        return (_nested_scenario(behavior, context.nested, relevance),) if context.nested else ()
+    evidence, change = picked
     scenarios = _scenarios_of(_found(behavior, evidence, change, relevance, context))
     beside = _beside_the_return(behavior, changes, evidence, change)
     if beside is None:
@@ -1106,6 +1113,27 @@ def _beside_the_return(
     return min(feeding, key=lambda pair: _GENERAL.index(pair[1].kind))
 
 
+def _nested_scenario(behavior: BehaviorChange, nested: Sequence[str], relevance: int) -> Scenario:
+    """A function that changed only as the functions nested in it did, which a test reaches only
+    through it: their findings say what changed, and its scenario where a test reaches it.
+
+    Its own code reads the same, so its evidence has nothing to quote, and its category's general
+    scenarios named neither it nor them. The title names the function alone, as the nested
+    functions' names could take it past its bound.
+    """
+    subject = _subject(behavior.evidence[0])
+    names = _quotes(nested, len(nested))
+    noun = "function" if len(nested) == 1 else "functions"
+    return _scenario(
+        ObligationType.REGRESSION,
+        f"Assert the outcome of {subject} that depends on its changed nested {noun}",
+        f"{subject} changed only as its nested {noun} {names} did",
+        f"{subject} runs with input that reaches {names}",
+        f"What changed in {names} is asserted in what {subject} returns, raises, or leaves",
+        relevance,
+    )
+
+
 def primary_kind(behavior: BehaviorChange, changes: Mapping[str, Change]) -> str | None:
     """The kind of the delta a finding's scenario is written from, or None for none."""
     picked = _primary(behavior, changes)
@@ -1126,13 +1154,14 @@ def weakly_anchored(
     A call that only computes a value, an assignment in a function, and a module-level one whose
     readers are unknown say where to look but not what to assert: the second blind review judged
     all six of the last two kinds noise. So, in the third, did a private symbol added or removed:
-    only its own module uses it, and what to assert is what its callers do. Another finding's
-    scenario, on the same symbol or a related one, speaks better, and `generate_obligations`
-    links the finding to it instead.
+    only its own module uses it, and what to assert is what its callers do. And a function that
+    changed only as the functions nested in it did says where a test reaches them, while their
+    findings say what changed. Another finding's scenario, on the same symbol or a related one,
+    speaks better, and `generate_obligations` links the finding to it instead.
     """
     picked = _primary(behavior, changes)
     if picked is None:
-        return False
+        return bool((context or NO_CONTEXT).nested)
     evidence, change = picked
     if change.kind == "call_change":
         calls = (*change.added, *change.removed)
@@ -1221,6 +1250,34 @@ def contexts_of(
                         and (node[1] == owner or node[1].startswith(f"{owner}."))
                     )
                 )
-        if readers or callers or related:
-            found[behavior.id] = Context(readers, callers, tuple(dict.fromkeys(related)))
+        nested = _nested_in(behavior, kind, behaviors, nodes)
+        if readers or callers or related or nested:
+            found[behavior.id] = Context(readers, callers, tuple(dict.fromkeys(related)), nested)
     return found
+
+
+def _nested_in(
+    behavior: BehaviorChange,
+    kind: str | None,
+    behaviors: Sequence[BehaviorChange],
+    nodes: Mapping[str, tuple[str, str]],
+) -> tuple[str, ...]:
+    """The nested functions whose findings in its category a function's finding took, as
+    `SDW-RULE-NESTED` makes one: a category over the unknown change "body changed" alone, with no
+    line of the function's own code to quote."""
+    if kind is not None or behavior.category in NAMING_NOTHING:
+        return ()
+    if any(item.kind != "unknown_structure" for item in behavior.evidence):
+        return ()
+    path, symbol = nodes[behavior.id]
+    return tuple(
+        sorted(
+            {
+                nodes[other.id][1]
+                for other in behaviors
+                if other.category is behavior.category
+                and nodes[other.id][0] == path
+                and nodes[other.id][1].startswith(f"{symbol}.")
+            }
+        )
+    )

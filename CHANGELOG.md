@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- **Fix:** a function that changed only as the functions nested in it did, which `SDW-RULE-NESTED`
+  gives their findings' categories, no longer takes those categories' general obligations, which
+  named neither it nor them. Its own code has nothing to quote, so in each category it shares the
+  first obligation of the nested function's finding, as a finding whose scenario says little already
+  shares one that says more, and its candidate tests join that obligation's. Where their coverage
+  status differs, or either is a review question, it keeps an obligation of its own that names the
+  nested functions. On the development cases, obligations go from 374 to 363, in werkzeug#3329 and
+  tenacity#696 and #679; no finding changes, and the summary's overall confidence moves where a
+  finding's number of obligations did. Schema 1.5 and every golden are unchanged;
+  `docs/decisions.md` records the decision.
+
 ## 0.22.0 - 2026-11-13
 
 A limit read as no retry, and a function as the functions nested in it change: the benchmark's fifth

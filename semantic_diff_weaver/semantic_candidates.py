@@ -1384,6 +1384,9 @@ def build_candidates(
 # The symbols whose nested functions are part of their body: a function is labeled with its whole
 # body, the functions nested in it included, as `benchmark/README.md` says.
 FUNCTION_KINDS = frozenset({"function", "async_function", "method", "async_method"})
+# The categories in which a nested function's finding names nothing for the function around it to
+# take.
+NAMING_NOTHING = frozenset({BehaviorCategory.UNKNOWN, BehaviorCategory.REFACTOR})
 
 
 def _named_by_nested(
@@ -1416,7 +1419,7 @@ def _named_by_nested(
                 for other in candidates
                 if other.path == item.path
                 and other.symbol.startswith(prefix)
-                and other.category not in {BehaviorCategory.UNKNOWN, BehaviorCategory.REFACTOR}
+                and other.category not in NAMING_NOTHING
             }
             if nested:
                 result.extend(
