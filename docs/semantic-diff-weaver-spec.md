@@ -961,7 +961,7 @@ plugin.
 - Verified source-to-test mapping. *Open by design:* every candidate test is reported as
   unverified.
 - Evaluation corpus and public benchmark. *Done:* the 18-case corpus of `docs/evaluation.md`,
-  and `benchmark/cases.json`, 150 real pull requests from twenty-five public repositories with
+  and `benchmark/cases.json`, 180 real pull requests from thirty public repositories with
   every Python symbol they change labeled by a model, or by two apart, and reviewed by a person, 30
   of them held out from the analyzer's next change, which `scripts/run_benchmark.py` measures in
   `docs/benchmark.md`.
@@ -1023,11 +1023,11 @@ All eight are answered by the shipped design, where shown.
    similarity matching that accepts at 0.82 and refuses near-ties within 0.03, moves between two
    files that both remain included (`ast_diff/match.py`).
 6. Which public repositories can form an evaluation corpus with human-labeled behavioral diffs?
-   *Answered:* twenty-five public Python libraries, six merged pull requests each, sampled without
+   *Answered:* thirty public Python libraries, six merged pull requests each, sampled without
    choosing them by hand and labeled symbol by symbol, 30 of them held out from the analyzer's next
    change (`benchmark/cases.json`, measured in `docs/benchmark.md`). A model, Claude Opus 5.5,
    wrote the first 251 labels and a person reviewed every one, correcting 42. Claude Opus 5.5 and
-   gpt-6.1-terra wrote the last 148 blind and apart, and the person settled every scored one
+   gpt-6.1-terra wrote the last 240 blind and apart, and the person settled every scored one
    between them, as `reviewed_by` records case by case.
 7. Should deterministic findings be emitted when the LLM is unavailable? *Answered:* yes, by
    default: with `rules.deterministic_fallback` on, a run without a model, or whose every model
