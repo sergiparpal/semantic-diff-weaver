@@ -20,25 +20,25 @@ second round's correction and measured with it. The third, from `django-guardian
 `dateutil/dateutil`, was labeled by two models and reviewed, and measured the third round's
 correction. The fourth, from `django-commons/django-axes`, `jpadilla/pyjwt`, `hynek/stamina`,
 `agronholm/apscheduler`, and `alisaifee/limits`, labeled the same way, measured the fourth round's.
-A fifth held-out split of 30, labeled the same way and not measured yet, comes first below. Then
-come the fourth round's correction, how the fourth split was labeled, and the baseline it and the
-120 development cases of the time set; the third round's correction, how the third split was
-labeled, and the baseline it and the 90 development cases of the time set; the second split's
-baseline and the second round's correction, measured on it while it was held out; measurements of
-the development cases with models; and the first round's results.
+A fifth held-out split of 30, labeled the same way, comes first below, followed by the baseline it
+and the 150 development cases set. Then come the fourth round's correction, how the fourth split was
+labeled, and the baseline it and the 120 development cases of the time set; the third round's
+correction, how the third split was labeled, and the baseline it and the 90 development cases of
+the time set; the second split's baseline and the second round's correction, measured on it while
+it was held out; measurements of the development cases with models; and the first round's results.
 
 Unlike the 18-case corpus of `docs/evaluation.md`, whose cases were written to exercise the
 taxonomy, these are changes as maintainers made them.
 
 ## Fifth held-out sample
 
-Labeled 2026-11-12 and reviewed 2026-11-13, and not measured yet: six pull requests each, drawn by
-`run_benchmark.py propose`, of `casbin/pycasbin`, `rq/rq`, `pytest-dev/pluggy`, `lepture/authlib`,
-and `python-humanize/humanize`. The reviewer chose these libraries for the categories the 150 cases
-before them named least: authorization 9 times, retry or timeout 14, ordering 21, boundary 22, and
-default behavior 29. The pull requests change 92 Python symbols outside their tests, 87 modified and
-5 added. `propose` analyzes each pull request it reads to count its symbols, and those analyses were
-deleted unread.
+Labeled 2026-11-12 and reviewed 2026-11-13, and measured only for the baseline below: six pull
+requests each, drawn by `run_benchmark.py propose`, of `casbin/pycasbin`, `rq/rq`,
+`pytest-dev/pluggy`, `lepture/authlib`, and `python-humanize/humanize`. The reviewer chose these
+libraries for the categories the 150 cases before them named least: authorization 9 times, retry or
+timeout 14, ordering 21, boundary 22, and default behavior 29. The pull requests change 92 Python
+symbols outside their tests, 87 modified and 5 added. `propose` analyzes each pull request it reads
+to count its symbols, and those analyses were deleted unread.
 
 Two annotators labeled every symbol alone, from a kit made as the fourth sample's was, with the same
 rules. Neither saw the other's labels or any output of the analyzer.
@@ -116,6 +116,55 @@ The limits are the third sample's:
 - the annotators saw the changed symbols and the diff, not whole files, which the page linked.
 
 The labels were committed before any measurement on them.
+
+## Baseline for the fifth round
+
+Measured 2026-11-13 with Semantic Diff Weaver 0.21.0 in deterministic mode, on the 150 development
+cases and the 30 held-out cases of the fifth split, before any correction is designed from the
+development ones.
+
+| Measure | Development, 150 cases | Held-out, 30 cases |
+| --- | --- | --- |
+| Labeled symbols | 399 | 92 |
+| Behavior changes | 199 | 44 |
+| Unchanged symbols | 148 | 43 |
+| Findings on Python | 453 | 91 |
+| Precision, findings in an expected category | 188 of 403 (46.7%) | 44 of 86 (51.2%) |
+| Precision, findings naming a behavior category | 188 of 304 (61.8%) | 44 of 68 (64.7%) |
+| Recall, behavior changes given a finding | 198 of 199 | 44 of 44 |
+| Recall, behavior changes given one in an expected category | 150 of 199 (75.4%) | 36 of 44 (81.8%) |
+| Unchanged symbols given a finding | 33 of 148 (22.3%) | 2 of 43 (4.7%) |
+| Unchanged symbols given one naming a behavior category | 26 of 148 (17.6%) | 2 of 43 (4.7%) |
+
+Findings on an added or removed symbol without a category, 50 in development and 5 held out, are
+neither right nor wrong and are left out of precision. No finding fell on an unlabeled symbol, and
+development's one finding outside Python is not scored. The development column is the fourth round's
+two corrected columns added together, since 0.21.0 is the analyzer that measured them, and its one
+behavior change without a finding is the fourth split's, which joined development with it and can
+now be read.
+
+The held-out labels list 2.89 categories per behavior change, against development's 2.58, so the
+columns still do not compare. Scored against each annotator's labels as given, before the review,
+the same held-out findings come out as follows:
+
+| Held-out findings scored against | Categories per change | Precision, expected category | Precision, naming a category | Recall in an expected category | Unchanged symbols with a finding |
+| --- | --- | --- | --- | --- | --- |
+| The reviewed labels | 2.89 | 44 of 86 (51.2%) | 44 of 68 (64.7%) | 36 of 44 (81.8%) | 2 of 43 |
+| gpt-6.1-terra's labels | 2.84 | 40 of 86 (46.5%) | 40 of 68 (58.8%) | 34 of 44 (77.3%) | 2 of 43 |
+| Claude Opus 5.5's labels | 2.81 | 42 of 86 (48.8%) | 42 of 68 (61.8%) | 34 of 43 (79.1%) | 4 of 44 |
+
+The label set moves precision by under five points, and the reviewed labels score above either
+annotator's, though the review never showed the analyzer's findings. Every held-out behavior change
+gets a finding, and only 2 of the 43 unchanged symbols do: 26 of them are classes whose own
+statements did not change, 9 docstrings or documentation, 4 lint comments, and 4 bodies that do the
+same, two methods beside which a new one was added and two helpers that now share a common one. A
+correction is to be judged by how each split moves, never by comparing one with the other.
+
+For the held-out split only these totals were computed. A script called the benchmark's own
+functions and printed the measures alone: no per-category or per-case table, and no disagreement,
+was rendered, and each analysis written beside the clones was deleted unread once its case was
+measured. The split's findings by category and by case, and each disagreement, stay unread until a
+correction designed from the development cases is measured on it.
 
 ## Fourth round
 
