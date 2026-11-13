@@ -20,15 +20,48 @@ second round's correction and measured with it. The third, from `django-guardian
 `dateutil/dateutil`, was labeled by two models and reviewed, and measured the third round's
 correction. The fourth, from `django-commons/django-axes`, `jpadilla/pyjwt`, `hynek/stamina`,
 `agronholm/apscheduler`, and `alisaifee/limits`, labeled the same way, measured the fourth round's.
-A fifth held-out split of 30, labeled the same way, comes first below, followed by the baseline it
-and the 150 development cases set. Then come the fourth round's correction, how the fourth split was
-labeled, and the baseline it and the 120 development cases of the time set; the third round's
-correction, how the third split was labeled, and the baseline it and the 90 development cases of
-the time set; the second split's baseline and the second round's correction, measured on it while
-it was held out; measurements of the development cases with models; and the first round's results.
+The fifth round's correction, designed from the 150 development cases and measured on a fifth
+held-out split of 30, labeled the same way, comes first below; then how that split was labeled, and
+the baseline it and the 150 development cases set. Then come the fourth round's correction, how the
+fourth split was labeled, and the baseline it and the 120 development cases of the time set; the
+third round's correction, how the third split was labeled, and the baseline it and the 90
+development cases of the time set; the second split's baseline and the second round's correction,
+measured on it while it was held out; measurements of the development cases with models; and the
+first round's results.
 
 Unlike the 18-case corpus of `docs/evaluation.md`, whose cases were written to exercise the
 taxonomy, these are changes as maintainers made them.
+
+## Fifth round
+
+Designed from the 150 development cases alone, the fifth round makes two narrow corrections
+(`docs/decisions.md`, 2026-11-13, a limit and a nested function). `limit` no longer names a retry
+or timeout anywhere, as it already did not for loops, so a query's `.limit(n)` is read as what else
+its code says. And a function whose own code reads the same, and whose body changed only as the
+functions nested in it did, takes every category their findings name, as the labels give a function
+its whole body. Its criterion on the held-out split was committed before measuring it: every
+behavior change that has a finding keeps one (44 of 44), no fewer than 36 of 44 have one in an
+expected category, precision in an expected category stays at or above 51.2%, and no unchanged
+symbol gains a finding (2 of 43). Unchanged symbols given a finding that names a category, 2 of 43,
+are reported apart.
+
+| Measure | Development, 0.21.0 | Development, corrected |
+| --- | --- | --- |
+| Findings on Python | 453 | 456 |
+| Precision, findings in an expected category | 188 of 403 (46.7%) | 193 of 406 (47.5%) |
+| Precision, findings naming a behavior category | 188 of 304 (61.8%) | 193 of 312 (61.9%) |
+| Recall, behavior changes given a finding | 198 of 199 | 198 of 199 |
+| Recall, behavior changes given one in an expected category | 150 of 199 (75.4%) | 154 of 199 (77.4%) |
+| Unchanged symbols given a finding | 33 of 148 (22.3%) | 33 of 148 (22.3%) |
+| Unchanged symbols given one naming a behavior category | 26 of 148 (17.6%) | 26 of 148 (17.6%) |
+
+In development no behavior change loses its finding or its category, and 4 more get one in an
+expected category: apscheduler#1146's two MongoDB cursors, black#5643's `_handle_regular_fmt_block`,
+and stamina#123's `retry`. No unchanged symbol gains a finding. Three functions whose nested change
+is not what their labels expect, werkzeug#3329's `run_wsgi` and tenacity's two `retry` functions,
+now name a category where they were unknown, and take its general obligations.
+
+The held-out split is to be measured once with the correction, reading its summary alone.
 
 ## Fifth held-out sample
 

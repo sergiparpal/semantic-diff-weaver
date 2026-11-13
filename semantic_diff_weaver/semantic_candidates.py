@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from .ast_diff import StructuralDelta
 from .models import BehaviorCategory, Evidence, Origin, RulesConfig, WeaverConfig
@@ -31,6 +31,9 @@ VALIDATION_TERMS = (
     "reject",
     "accept",
 )
+# A limit is no retry: every loop has one, `while len(payload) > limit` shrinks a payload until it
+# fits, and a query's `.limit(n)` caps how many rows come back, as apscheduler#1146's MongoDB
+# cursors do. A changed limit is read as what else its code says, a boundary when it compares one.
 RETRY_TERMS = (
     "retry",
     "retries",
@@ -40,11 +43,7 @@ RETRY_TERMS = (
     "sleep",
     "backoff",
     "deadline",
-    "limit",
 )
-# Every loop has a limit, so the word alone makes none a retry: `while len(payload) > limit`
-# shrinks a payload until it fits.
-LOOP_RETRY_TERMS = tuple(term for term in RETRY_TERMS if term != "limit")
 SIDE_EFFECT_TERMS = (
     # A warning reaches whoever runs the code, as `pytest.warns` observes; it depends on nothing.
     "warn",
@@ -308,7 +307,7 @@ def _classify_assignment(
     # What an assignment writes to names what it holds, and a delay or a timeout is a retry's: the
     # target `retry_state.upcoming_sleep` named a state by the variable it writes into, and the
     # tenacity changes to how long it sleeps read as state transitions.
-    if _contains(" ".join(delta.metadata.get("stored_names", ())), LOOP_RETRY_TERMS):
+    if _contains(" ".join(delta.metadata.get("stored_names", ())), RETRY_TERMS):
         return (
             BehaviorCategory.RETRY_TIMEOUT,
             "A retry, timeout, or delay value appears to have changed.",
@@ -356,7 +355,7 @@ def _classify_loop(
 ) -> Classification | None:
     if delta.kind != "loop_change":
         return None
-    if _contains(combined, LOOP_RETRY_TERMS):
+    if _contains(combined, RETRY_TERMS):
         return (
             BehaviorCategory.RETRY_TIMEOUT,
             "A loop, retry, or stop condition appears to have changed.",
@@ -1090,7 +1089,7 @@ def _classify_config(
             "SDW-RULE-CONFIG-AUTH",
         ),
         (
-            _contains(key, LOOP_RETRY_TERMS),
+            _contains(key, RETRY_TERMS),
             BehaviorCategory.RETRY_TIMEOUT,
             "retry or timeout setting",
             "How long the program waits, or how often it tries again, changes where it reads it.",
@@ -1378,4 +1377,66 @@ def build_candidates(
         accumulator.build(path, symbol, category)
         for (path, symbol, category), accumulator in grouped.items()
     ]
+    candidates = _named_by_nested(candidates, deltas)
     return sorted(candidates, key=lambda item: (item.path, item.symbol, item.category.value))
+
+
+# The symbols whose nested functions are part of their body: a function is labeled with its whole
+# body, the functions nested in it included, as `benchmark/README.md` says.
+FUNCTION_KINDS = frozenset({"function", "async_function", "method", "async_method"})
+
+
+def _named_by_nested(
+    candidates: list[SemanticCandidate], deltas: list[StructuralDelta]
+) -> list[SemanticCandidate]:
+    """A function whose own code reads the same, and whose body changed only as the functions nested
+    in it did, changes as they do: it takes each category their findings name.
+
+    Its body is the same once its nested functions are set aside, so its one delta says only "body
+    changed", an unknown change: black#5643's `_handle_regular_fmt_block` changed through its
+    nested `stringify_standalone_comment`, an output contract change, and stamina#123's `retry`
+    through the wrapper it returns. A nested finding that is unknown, or a refactor, names nothing
+    to take.
+    """
+    functions = {
+        (delta.path, delta.symbol)
+        for delta in deltas
+        if delta.kind == "unknown_structure" and delta.symbol_kind in FUNCTION_KINDS
+    }
+    result: list[SemanticCandidate] = []
+    for item in candidates:
+        if (
+            item.category is BehaviorCategory.UNKNOWN
+            and (item.path, item.symbol) in functions
+            and all(evidence.kind == "unknown_structure" for evidence in item.evidence)
+        ):
+            prefix = f"{item.symbol}."
+            nested = {
+                other.category
+                for other in candidates
+                if other.path == item.path
+                and other.symbol.startswith(prefix)
+                and other.category not in {BehaviorCategory.UNKNOWN, BehaviorCategory.REFACTOR}
+            }
+            if nested:
+                result.extend(
+                    replace(
+                        item,
+                        category=category,
+                        summary="Only a function nested in it changed.",
+                        observable_impact=(
+                            "Its callers reach the nested function's change; the nested "
+                            "function's finding says what changed."
+                        ),
+                        confidence_baseline=0.72,
+                        assumptions=(
+                            "Whether the function runs or returns the nested one is unavailable "
+                            "to static analysis.",
+                        ),
+                        rule_ids=("SDW-RULE-NESTED",),
+                    )
+                    for category in sorted(nested, key=lambda category: category.value)
+                )
+                continue
+        result.append(item)
+    return result

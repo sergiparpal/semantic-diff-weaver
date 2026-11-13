@@ -84,8 +84,11 @@ cut at 250 characters, and one cut there ends with a digest of all of it, so two
 past the cut still differ. Reordered comparisons, assignments, or loops change no value and are read
 by their symbol's name; reordered conditions and calls are ordering changes. A changed loop is
 a retry only when its own words, or its symbol's name, say so — `attempt`, `retry`, `timeout`,
-`sleep`, `backoff`, or `deadline`, but not `limit`, which every loop has — and is otherwise an
-unknown change. A changed call that no keyword explains is a dependency interaction unless every
+`sleep`, `backoff`, or `deadline`, but not `limit`, which every loop has and which names no retry
+anywhere, a query's `.limit(n)` included — and is otherwise an unknown change. A function whose
+own code reads the same, and whose body changed only as the functions nested in it did, takes
+every category their findings name. A changed call that no keyword explains is a dependency
+interaction unless every
 call that changed reaches the project's own code: a function or class the module defines, a method
 one of its classes defines, called through `self`, `cls`, or the class, a builtin that computes
 in-process, such as `len` or `isinstance`, or what an import of its own package binds, relative or
