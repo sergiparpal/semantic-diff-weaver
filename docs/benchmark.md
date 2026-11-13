@@ -62,9 +62,11 @@ change lost its category either, and 4 more get a finding in an expected categor
 apscheduler#1146's two MongoDB cursors, black#5643's `_handle_regular_fmt_block`, and stamina#123's
 `retry`. Held out, 37 of 44 get one where 36 did. Three development functions whose nested change
 is not what their labels expect, werkzeug#3329's `run_wsgi` and tenacity's two `retry` functions,
-now name a category where they were unknown, and take its general obligations. Scored against each
-annotator's labels as given, the held-out precision in an expected category rises from 46.5% to
-47.7% with gpt-6.1-terra's and from 48.8% to 50.0% with Claude Opus 5.5's.
+now name a category where they were unknown. They took its general obligations, and since share
+those of their nested function's findings (`docs/decisions.md`, 2026-11-13, a nested function's
+obligations). Scored against each annotator's labels as given, the held-out precision in an
+expected category rises from 46.5% to 47.7% with gpt-6.1-terra's and from 48.8% to 50.0% with
+Claude Opus 5.5's.
 
 The held-out split was measured once with the correction, after commit 56be036 had fixed it and the
 criterion, reading its summary alone and deleting each analysis unread. Its findings by category and

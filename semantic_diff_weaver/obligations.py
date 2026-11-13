@@ -16,6 +16,7 @@ from .evidence_scenarios import (
     weakly_anchored,
 )
 from .models import (
+    BehaviorCategory,
     BehaviorChange,
     CandidateTest,
     CoverageStatus,
@@ -178,18 +179,23 @@ def _folded(
     context's: the code calling an added private symbol, the code that stopped calling a removed
     one, the other symbols of its class. Without one, an assignment joins the symbol's call, whose
     scenario asks at least for the symbol's outcome, and a private symbol any behavior of a related
-    symbol. Only behaviors whose coverage status agrees are linked, so the obligation's status and
-    candidates stay true of each, and a review question keeps its own. An anchor that is linked in
-    turn hands the link on; behaviors that would link in a circle keep their own.
+    symbol. A function that changed only as the functions nested in it did joins the behavior of
+    its category on the first of them. Only behaviors whose coverage status agrees are linked, so
+    the obligation's status and candidates stay true of each, and a review question keeps its own.
+    An anchor that is linked in turn hands the link on; behaviors that would link in a circle keep
+    their own.
     """
     strong: dict[tuple[str, str], str] = {}
     calls: dict[tuple[str, str], str] = {}
     first: dict[tuple[str, str], str] = {}
+    # The first behavior of each symbol in each category.
+    alike: dict[tuple[tuple[str, str], BehaviorCategory], str] = {}
     for behavior in behaviors:
         if not quoting[behavior.id] or behavior.presentation is Presentation.REVIEW_QUESTION:
             continue
         symbol = _symbol(behavior)
         first.setdefault(symbol, behavior.id)
+        alike.setdefault((symbol, behavior.category), behavior.id)
         if behavior.id not in weak:
             strong.setdefault(symbol, behavior.id)
         elif kinds[behavior.id] == "call_change":
@@ -199,8 +205,13 @@ def _folded(
         if behavior.id not in weak or behavior.presentation is Presentation.REVIEW_QUESTION:
             continue
         symbol = _symbol(behavior)
-        related = contexts.get(behavior.id, NO_CONTEXT).related
-        candidates = [strong.get(symbol), *(strong.get(node) for node in related)]
+        context = contexts.get(behavior.id, NO_CONTEXT)
+        related = context.related
+        candidates = [
+            *(alike.get(((symbol[0], name), behavior.category)) for name in context.nested),
+            strong.get(symbol),
+            *(strong.get(node) for node in related),
+        ]
         if kinds[behavior.id] == "assignment_change":
             candidates.append(calls.get(symbol))
         if kinds[behavior.id] in LIFECYCLE_KINDS:

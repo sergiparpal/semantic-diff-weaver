@@ -689,6 +689,30 @@ click#3764's real one, and they stayed at 17, as without a model. The 4 findings
 two above and two on httpx#3651's unlabeled `StreamClosed` and `URL`, and it added none. The replay
 with this code reproduced the live run's findings in all 60 cases.
 
+## Output-affecting corrections (2026-11-13, a nested function's obligations)
+
+`SDW-RULE-NESTED` gives a function whose own code reads the same, and whose body changed only as the
+functions nested in it did, every category their findings name (the next entry). Its evidence,
+"body changed", has no line of the function's own code to quote, so each such finding took its
+category's general obligations, which name neither the function nor the nested one. On the
+development cases, werkzeug#3329's `run_wsgi` took three for its dependency change and two for its
+ordering change, and tenacity#696's and #679's `retry` three each for their retry change: 11 in all.
+
+Such a finding now shares, in each category, the first obligation of the nested function's finding,
+as a finding whose scenario says little already joins one that says more, and its candidate tests,
+which reach the nested function through it, join that obligation's. Where their coverage status
+differs, so that the shared obligation's would be false of one of them, or where either is a review
+question, it keeps an obligation of its own, which names the nested functions: what changed in them
+is asserted in what the function returns, raises, or leaves. A function whose own code also changed
+in a way no rule names keeps the scenario that quotes it, as stamina#123's `retry` quotes the
+comment its `def` line gained.
+
+On the 150 development cases, obligations go from 374 to 363, in those three cases alone: each
+function's findings join the obligation of `wrap`'s or `execute`'s. No finding changes, so neither
+do the benchmark's measures, and the summary's overall confidence moves where a finding's number of
+obligations did, since it weighs each finding by them. Schema 1.5 and the 18 corpus goldens are
+unchanged.
+
 ## Output-affecting corrections (2026-11-13, a limit and a nested function)
 
 The labeled benchmark's fifth round, designed from its 150 development cases alone, with the fifth
