@@ -689,6 +689,77 @@ click#3764's real one, and they stayed at 17, as without a model. The 4 findings
 two above and two on httpx#3651's unlabeled `StreamClosed` and `URL`, and it added none. The replay
 with this code reproduced the live run's findings in all 60 cases.
 
+## Output-affecting corrections (2026-11-13, a limit and a nested function)
+
+The labeled benchmark's fifth round, designed from its 150 development cases alone, with the fifth
+held-out split unread. With 0.21.0, 49 of their 199 behavior changes got no finding in an expected
+category. Most of what remains forms no group a rule could name: assignments whose labels spread
+over error handling, dependencies, side effects, and output; calls into the standard library labeled
+otherwise; and pyjwt#1173's `force_bytes`, whose message now says something new in other words. The
+user chose two narrow corrections.
+
+- **A limit is no retry.** `limit` left the words that name a retry or timeout, as it had already
+  left them for loops: apscheduler#1146 changed its MongoDB cursors' `.limit()` calls, labeled
+  dependency interactions, and each was a retry change. A changed limit is read as whatever else its
+  code says, a boundary when a comparison holds it.
+- **A function changes as the functions nested in it do.** A function or method whose own code reads
+  the same, and whose body changed only as its nested functions did, was one unknown change, "body
+  changed". It now takes every category its nested functions' findings name, under the new
+  `SDW-RULE-NESTED`, as `benchmark/README.md` labels a function with its whole body: black#5643's
+  `_handle_regular_fmt_block` changed through its nested `stringify_standalone_comment`, an output
+  contract change, and stamina#123's `retry` through the wrapper it builds. A class or a module
+  never takes them, and a nested finding that is unknown or a refactor names nothing to take.
+
+| Measure, 150 development cases | 0.21.0 | With the correction |
+| --- | --- | --- |
+| Findings on Python | 453 | 456 |
+| Precision, findings in an expected category | 188 of 403 (46.7%) | 193 of 406 (47.5%) |
+| Precision, findings naming a behavior category | 188 of 304 (61.8%) | 193 of 312 (61.9%) |
+| Recall, behavior changes given a finding | 198 of 199 | 198 of 199 |
+| Recall, behavior changes given one in an expected category | 150 of 199 (75.4%) | 154 of 199 (77.4%) |
+| Unchanged symbols given a finding | 33 of 148 (22.3%) | 33 of 148 (22.3%) |
+| Unchanged symbols given one naming a behavior category | 26 of 148 (17.6%) | 26 of 148 (17.6%) |
+
+No behavior change lost its finding or its category, and 4 more are in an expected one: the two
+cursors, black's function, and stamina's `retry`. No unchanged symbol gained a finding. The cost is
+the nested rule's: werkzeug#3329's `run_wsgi` takes its nested `execute`'s dependency and ordering
+changes, and tenacity#696's and #679's `retry` their `wrap`'s retry change, none of them expected,
+where each was one unknown finding. A nested function's change has no evidence of its own to quote
+in the function around it, so those findings take their categories' general obligations:
+obligations on the development cases go from 367 to 374, where one review obligation was. The 18
+corpus goldens are unchanged.
+
+**Measured once on the held-out split, against a criterion fixed before.** This entry and the
+correction were committed before the fifth held-out split was measured with it, and only its summary
+is read, as for its baseline. The correction holds on it if, against the reviewed labels, every
+behavior change that has a finding keeps one (44 of 44), no fewer than 36 of 44 have one in an
+expected category, precision in an expected category stays at or above 51.2% (44 of 86), and no
+unchanged symbol gains a finding (2 of 43). It improves on it if more behavior changes, or a greater
+share of findings, are in an expected category. Unchanged symbols given a finding that names a
+behavior category, 2 of 43 at the baseline, are reported apart, and are no part of the criterion.
+
+**It held, and improved slightly.** Measured once on 2026-11-13, after commit 56be036 had fixed the
+correction and the criterion, reading the summary alone and deleting the analyses unread. The 0.21.0
+column is the baseline of the same day, whose analyzer `main` still ran.
+
+| Measure, 30 held-out cases | 0.21.0 | With the correction |
+| --- | --- | --- |
+| Findings on Python | 91 | 91 |
+| Precision, findings in an expected category | 44 of 86 (51.2%) | 45 of 86 (52.3%) |
+| Precision, findings naming a behavior category | 44 of 68 (64.7%) | 45 of 69 (65.2%) |
+| Recall, behavior changes given a finding | 44 of 44 | 44 of 44 |
+| Recall, behavior changes given one in an expected category | 36 of 44 (81.8%) | 37 of 44 (84.1%) |
+| Unchanged symbols given a finding | 2 of 43 | 2 of 43 |
+| Unchanged symbols given one naming a behavior category | 2 of 43 | 2 of 43 |
+
+Held out, 37 of the 44 behavior changes get a finding in an expected category where 36 did, and 45
+of the 86 scored findings are in one where 44 were, while every behavior change keeps its finding
+and no unchanged symbol gains one: neither rule takes a symbol's last finding away, and neither
+total moved. Scored against each annotator's labels as given, precision in an expected category
+rises from 46.5% to 47.7% with gpt-6.1-terra's and from 48.8% to 50.0% with Claude Opus 5.5's. The
+held-out findings by category and by case, and their disagreements, stay unread; the split has
+measured this correction, so the next one waits for a new held-out sample.
+
 ## Output-affecting corrections (2026-11-12, what an assignment writes and what a removal takes)
 
 The labeled benchmark's fourth round, designed from its 120 development cases alone, with the fourth

@@ -21,6 +21,22 @@
   188 of the 403 scored findings are in an expected category: the fourth round's corrected columns
   added together. Scored against each annotator's labels as given, before the review, the held-out
   precision is 46.5% and 48.8%. Only the held-out totals were computed. Documentation only.
+- **Fix:** the benchmark's fifth round makes two narrow corrections, designed from the 150
+  development cases. `limit` no longer names a retry or timeout in a call, a condition, or a
+  comparison, as it already did not in a loop: apscheduler's MongoDB cursors changed their
+  `.limit()` calls, labeled dependency interactions, and each was a retry change. And a function or
+  method whose own code reads the same, and whose body changed only as the functions nested in it
+  did, takes every category their findings name, under the new `SDW-RULE-NESTED`, where it was one
+  unknown change. On the development cases, behavior changes given a finding in an expected
+  category go from 150 to 154 of 199, and precision in an expected category from 46.7% to 47.5%;
+  no behavior change loses its finding or its category, and no unchanged symbol gains one. A
+  function that takes its nested function's category has no evidence of its own to quote, so it
+  takes that category's general obligations: on the development cases they go from 367 to 374.
+  Measured once on the fifth held-out split, against a criterion committed before, it held and
+  improved slightly: 37 of 44 behavior changes get a finding in an expected category where 36 did,
+  precision in an expected category rises from 51.2% to 52.3%, every behavior change keeps its
+  finding, and no unchanged symbol gains one. Schema 1.5 and every golden are unchanged;
+  `docs/decisions.md` records the decision, and `docs/benchmark.md` both splits' measurements.
 
 ## 0.21.0 - 2026-11-12
 

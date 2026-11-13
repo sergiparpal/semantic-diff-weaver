@@ -20,25 +20,66 @@ second round's correction and measured with it. The third, from `django-guardian
 `dateutil/dateutil`, was labeled by two models and reviewed, and measured the third round's
 correction. The fourth, from `django-commons/django-axes`, `jpadilla/pyjwt`, `hynek/stamina`,
 `agronholm/apscheduler`, and `alisaifee/limits`, labeled the same way, measured the fourth round's.
-A fifth held-out split of 30, labeled the same way, comes first below, followed by the baseline it
-and the 150 development cases set. Then come the fourth round's correction, how the fourth split was
-labeled, and the baseline it and the 120 development cases of the time set; the third round's
-correction, how the third split was labeled, and the baseline it and the 90 development cases of
-the time set; the second split's baseline and the second round's correction, measured on it while
-it was held out; measurements of the development cases with models; and the first round's results.
+The fifth round's correction, designed from the 150 development cases and measured on a fifth
+held-out split of 30, labeled the same way, comes first below; then how that split was labeled, and
+the baseline it and the 150 development cases set. Then come the fourth round's correction, how the
+fourth split was labeled, and the baseline it and the 120 development cases of the time set; the
+third round's correction, how the third split was labeled, and the baseline it and the 90
+development cases of the time set; the second split's baseline and the second round's correction,
+measured on it while it was held out; measurements of the development cases with models; and the
+first round's results.
 
 Unlike the 18-case corpus of `docs/evaluation.md`, whose cases were written to exercise the
 taxonomy, these are changes as maintainers made them.
 
+## Fifth round
+
+Designed from the 150 development cases alone, the fifth round makes two narrow corrections
+(`docs/decisions.md`, 2026-11-13, a limit and a nested function). `limit` no longer names a retry
+or timeout anywhere, as it already did not for loops, so a query's `.limit(n)` is read as what else
+its code says. And a function whose own code reads the same, and whose body changed only as the
+functions nested in it did, takes every category their findings name, as the labels give a function
+its whole body. Its criterion on the held-out split was committed before measuring it: every
+behavior change that has a finding keeps one (44 of 44), no fewer than 36 of 44 have one in an
+expected category, precision in an expected category stays at or above 51.2%, and no unchanged
+symbol gains a finding (2 of 43). Unchanged symbols given a finding that names a category, 2 of 43,
+are reported apart.
+
+| Measure | Development, 0.21.0 | Development, corrected | Held-out, 0.21.0 | Held-out, corrected |
+| --- | --- | --- | --- | --- |
+| Findings on Python | 453 | 456 | 91 | 91 |
+| Precision, findings in an expected category | 188 of 403 (46.7%) | 193 of 406 (47.5%) | 44 of 86 (51.2%) | 45 of 86 (52.3%) |
+| Precision, findings naming a behavior category | 188 of 304 (61.8%) | 193 of 312 (61.9%) | 44 of 68 (64.7%) | 45 of 69 (65.2%) |
+| Recall, behavior changes given a finding | 198 of 199 | 198 of 199 | 44 of 44 | 44 of 44 |
+| Recall, behavior changes given one in an expected category | 150 of 199 (75.4%) | 154 of 199 (77.4%) | 36 of 44 (81.8%) | 37 of 44 (84.1%) |
+| Unchanged symbols given a finding | 33 of 148 (22.3%) | 33 of 148 (22.3%) | 2 of 43 (4.7%) | 2 of 43 (4.7%) |
+| Unchanged symbols given one naming a behavior category | 26 of 148 (17.6%) | 26 of 148 (17.6%) | 2 of 43 (4.7%) | 2 of 43 (4.7%) |
+
+**It met its criterion and moved both splits the same way, a little.** No behavior change lost its
+finding on either split, and no unchanged symbol gained one: neither rule takes a symbol's last
+finding away, and neither total moved. In development, where each symbol is compared, no behavior
+change lost its category either, and 4 more get a finding in an expected category:
+apscheduler#1146's two MongoDB cursors, black#5643's `_handle_regular_fmt_block`, and stamina#123's
+`retry`. Held out, 37 of 44 get one where 36 did. Three development functions whose nested change
+is not what their labels expect, werkzeug#3329's `run_wsgi` and tenacity's two `retry` functions,
+now name a category where they were unknown, and take its general obligations. Scored against each
+annotator's labels as given, the held-out precision in an expected category rises from 46.5% to
+47.7% with gpt-6.1-terra's and from 48.8% to 50.0% with Claude Opus 5.5's.
+
+The held-out split was measured once with the correction, after commit 56be036 had fixed it and the
+criterion, reading its summary alone and deleting each analysis unread. Its findings by category and
+by case, and its disagreements, stay unread; having measured this correction, it waits to join
+development, and the next round for a new held-out sample.
+
 ## Fifth held-out sample
 
-Labeled 2026-11-12 and reviewed 2026-11-13, and measured only for the baseline below: six pull
-requests each, drawn by `run_benchmark.py propose`, of `casbin/pycasbin`, `rq/rq`,
-`pytest-dev/pluggy`, `lepture/authlib`, and `python-humanize/humanize`. The reviewer chose these
-libraries for the categories the 150 cases before them named least: authorization 9 times, retry or
-timeout 14, ordering 21, boundary 22, and default behavior 29. The pull requests change 92 Python
-symbols outside their tests, 87 modified and 5 added. `propose` analyzes each pull request it reads
-to count its symbols, and those analyses were deleted unread.
+Labeled 2026-11-12 and reviewed 2026-11-13, and measured for the baseline below and once with the
+fifth round's correction above: six pull requests each, drawn by `run_benchmark.py propose`, of
+`casbin/pycasbin`, `rq/rq`, `pytest-dev/pluggy`, `lepture/authlib`, and `python-humanize/humanize`.
+The reviewer chose these libraries for the categories the 150 cases before them named least:
+authorization 9 times, retry or timeout 14, ordering 21, boundary 22, and default behavior 29. The
+pull requests change 92 Python symbols outside their tests, 87 modified and 5 added. `propose`
+analyzes each pull request it reads to count its symbols, and those analyses were deleted unread.
 
 Two annotators labeled every symbol alone, from a kit made as the fourth sample's was, with the same
 rules. Neither saw the other's labels or any output of the analyzer.
@@ -163,8 +204,8 @@ correction is to be judged by how each split moves, never by comparing one with 
 For the held-out split only these totals were computed. A script called the benchmark's own
 functions and printed the measures alone: no per-category or per-case table, and no disagreement,
 was rendered, and each analysis written beside the clones was deleted unread once its case was
-measured. The split's findings by category and by case, and each disagreement, stay unread until a
-correction designed from the development cases is measured on it.
+measured. The split's findings by category and by case, and each disagreement, stay unread: the
+fifth round's correction, designed from the development cases, was measured on it the same way.
 
 ## Fourth round
 
