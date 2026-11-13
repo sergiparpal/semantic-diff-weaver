@@ -738,6 +738,28 @@ unchanged symbol gains a finding (2 of 43). It improves on it if more behavior c
 share of findings, are in an expected category. Unchanged symbols given a finding that names a
 behavior category, 2 of 43 at the baseline, are reported apart, and are no part of the criterion.
 
+**It held, and improved slightly.** Measured once on 2026-11-13, after commit 56be036 had fixed the
+correction and the criterion, reading the summary alone and deleting the analyses unread. The 0.21.0
+column is the baseline of the same day, whose analyzer `main` still ran.
+
+| Measure, 30 held-out cases | 0.21.0 | With the correction |
+| --- | --- | --- |
+| Findings on Python | 91 | 91 |
+| Precision, findings in an expected category | 44 of 86 (51.2%) | 45 of 86 (52.3%) |
+| Precision, findings naming a behavior category | 44 of 68 (64.7%) | 45 of 69 (65.2%) |
+| Recall, behavior changes given a finding | 44 of 44 | 44 of 44 |
+| Recall, behavior changes given one in an expected category | 36 of 44 (81.8%) | 37 of 44 (84.1%) |
+| Unchanged symbols given a finding | 2 of 43 | 2 of 43 |
+| Unchanged symbols given one naming a behavior category | 2 of 43 | 2 of 43 |
+
+Held out, 37 of the 44 behavior changes get a finding in an expected category where 36 did, and 45
+of the 86 scored findings are in one where 44 were, while every behavior change keeps its finding
+and no unchanged symbol gains one: neither rule takes a symbol's last finding away, and neither
+total moved. Scored against each annotator's labels as given, precision in an expected category
+rises from 46.5% to 47.7% with gpt-6.1-terra's and from 48.8% to 50.0% with Claude Opus 5.5's. The
+held-out findings by category and by case, and their disagreements, stay unread; the split has
+measured this correction, so the next one waits for a new held-out sample.
+
 ## Output-affecting corrections (2026-11-12, what an assignment writes and what a removal takes)
 
 The labeled benchmark's fourth round, designed from its 120 development cases alone, with the fourth

@@ -32,9 +32,11 @@
   no behavior change loses its finding or its category, and no unchanged symbol gains one. A
   function that takes its nested function's category has no evidence of its own to quote, so it
   takes that category's general obligations: on the development cases they go from 367 to 374.
-  Schema 1.5 and every golden are unchanged; `docs/decisions.md` records the decision and the
-  criterion the fifth held-out split is measured against, and `docs/benchmark.md` the
-  measurements.
+  Measured once on the fifth held-out split, against a criterion committed before, it held and
+  improved slightly: 37 of 44 behavior changes get a finding in an expected category where 36 did,
+  precision in an expected category rises from 51.2% to 52.3%, every behavior change keeps its
+  finding, and no unchanged symbol gains one. Schema 1.5 and every golden are unchanged;
+  `docs/decisions.md` records the decision, and `docs/benchmark.md` both splits' measurements.
 
 ## 0.21.0 - 2026-11-12
 

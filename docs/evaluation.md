@@ -246,15 +246,19 @@ against the labels of `benchmark/cases.json`. For the first 90, a model wrote on
 symbol they change before reading the analyzer's output, and a person reviewed all 251, correcting
 42. For the last 90, two models labeled each of their 240 symbols blind and apart, and the person
 settled every label that is scored. The 150 development cases are the ones the analyzer is changed
-against, and the 30 held-out cases, labeled and reviewed before its next change, will measure that
+against, and the 30 held-out cases, labeled and reviewed before its next change, measured that
 change on code it was not designed from. Their baseline, in deterministic mode with 0.21.0 on
 2026-11-13: every one of the 44 held-out behavior changes got a finding, 36 of them in an expected
 category, and 2 of the 43 unchanged symbols got one; 44 of the 86 scored findings, and 44 of the 68
 that name a behavior category, are in an expected one, against development's 188 of 403 and 188 of
-304. The held-out split before them, which has since joined development, gave the fourth round's
-baseline, in deterministic mode with 0.20.1 on 2026-11-11: 41 of its 42 behavior changes got a
-finding, 22 of them in an
-expected category, and 5 of its 38 unchanged symbols got one; 32 of the 74 scored findings, and 32
+304. The fifth round's correction, designed from those 150 development cases and measured once on
+the held-out ones, reads no limit as a retry and a function as its nested functions change: held
+out, 37 of the 44 behavior changes get a finding in an expected category and 45 of 86 scored
+findings are in one, still with 2 of the 43 unchanged symbols given a finding; in development, 154
+of 199 and 193 of 406. The held-out split before them, which has since joined development, gave
+the fourth round's baseline, in deterministic mode with 0.20.1 on 2026-11-11: 41 of its 42 behavior
+changes got a finding, 22 of them in an expected category, and 5 of its 38 unchanged symbols got
+one; 32 of the 74 scored findings, and 32
 of the 49 that name a behavior category, are in an expected one, against the development cases' of
 the time 124 of 322 and 124 of 225. The fourth round's correction, designed from those 120
 development cases and measured once on the held-out ones, names what assignments write and what
