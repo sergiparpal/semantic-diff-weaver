@@ -180,6 +180,12 @@ class SymbolReferences:
     # The names its code binds itself — parameters, assignment targets, and caught exceptions —
     # unless it declares them `global`: a local `config` is no module's `config`.
     bound: frozenset[str] = frozenset()
+    # Of those names and attributes, the ones its code calls: `f(...)`, `x.f(...)`, and, for a
+    # method, `self.f(...)`. A name it only hands on, `register(f)`, runs where whatever it is
+    # handed to calls it, which need not be this code.
+    called_names: frozenset[str] = frozenset()
+    called_attributes: frozenset[str] = frozenset()
+    called_own_attributes: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
