@@ -39,6 +39,8 @@ from .config import load_config
 from .errors import ErrorCode, WeaverError
 from .git_diff import GitRepository, GitTreeEntry
 from .models import (
+    MAX_OBLIGATION_TEXT_CHARS,
+    MAX_OBLIGATION_TITLE_CHARS,
     MAX_PATH_CHARS,
     MAX_PATH_PATTERNS,
     MAX_REF_CHARS,
@@ -190,10 +192,10 @@ class _Obligation(_Read):
     behavior_change_ids: list[BehaviorId] = Field(min_length=1, max_length=MAX_BASELINE_FINDINGS)
     type: ObligationType
     priority: int = Field(ge=0, le=100)
-    title: str = Field(min_length=1, max_length=300)
-    given: str = Field(min_length=1, max_length=1000)
-    when: str = Field(min_length=1, max_length=1000)
-    then: str = Field(min_length=1, max_length=1000)
+    title: str = Field(min_length=1, max_length=MAX_OBLIGATION_TITLE_CHARS)
+    given: str = Field(min_length=1, max_length=MAX_OBLIGATION_TEXT_CHARS)
+    when: str = Field(min_length=1, max_length=MAX_OBLIGATION_TEXT_CHARS)
+    then: str = Field(min_length=1, max_length=MAX_OBLIGATION_TEXT_CHARS)
     candidate_existing_tests: list[_Candidate] = Field(
         default_factory=list, max_length=MAX_CANDIDATES
     )
