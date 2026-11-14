@@ -54,9 +54,11 @@ MAX_CHANGED_VALUES = 4
 MAX_CHANGED_VALUE_CHARS = 200
 # How many exits of a callable's own code, each a `return` or a `raise`, its snapshot records,
 # beside how many it has, and how much of each value and branch test. An added callable's test
-# obligation lists them (see `extract.function_exits`).
+# obligation lists them (see `extract.function_exits`). An exit on a path through more conditions
+# than `MAX_EXIT_CONDITIONS` records how many there are instead.
 MAX_FUNCTION_EXITS = 12
 MAX_EXIT_CHARS = 200
+MAX_EXIT_CONDITIONS = 4
 # How much of an added or removed class or module its display text names.
 MAX_DISPLAY_CLASS_FIELDS = 20
 MAX_DISPLAY_MODULE_STATEMENTS = 5

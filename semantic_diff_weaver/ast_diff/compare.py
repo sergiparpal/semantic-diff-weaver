@@ -808,9 +808,15 @@ def compare_symbol(
             # like an empty `__init__.py`, whose diff has no hunk to report. Its definitions
             # are symbols of their own, and a removed module still breaks what imported it.
             return []
-        # What its code returns and raises, and on which branch: what a test of it asserts.
+        # What its code returns and raises, and on which path: what a test of it asserts.
         exits: dict[str, Any] = (
-            {"exits": [list(item) for item in new.exits], "exits_total": new.exits_total}
+            {
+                "exits": [
+                    [kind, value, [list(condition) for condition in conditions]]
+                    for kind, value, conditions in new.exits
+                ],
+                "exits_total": new.exits_total,
+            }
             if new.exits
             else {}
         )

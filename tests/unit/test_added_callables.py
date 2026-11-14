@@ -15,9 +15,15 @@ import pytest
 
 from semantic_diff_weaver.ast_diff import analyze_ast, limits
 from semantic_diff_weaver.ast_diff.extract import extract_symbols, function_exits
+from semantic_diff_weaver.ast_diff.types import FunctionExit, StructuralDelta
 from semantic_diff_weaver.config import WeaverConfig
-from semantic_diff_weaver.evidence_scenarios import changes_by_evidence, contexts_of
+from semantic_diff_weaver.evidence_scenarios import (
+    changes_by_evidence,
+    contexts_of,
+    describe_change,
+)
 from semantic_diff_weaver.models import (
+    MAX_OBLIGATION_TEXT_CHARS,
     BehaviorChange,
     ObligationType,
     Origin,
@@ -32,13 +38,13 @@ from semantic_diff_weaver.source import SourceHunk, SourceRevisionPair
 WIDE_HUNK = SourceHunk(id="hunk-001", old_start=1, old_count=400, new_start=1, new_count=400)
 
 
-def _exits(source: str) -> tuple[tuple[tuple[str, str, str, str], ...], int]:
+def _exits(source: str) -> tuple[tuple[FunctionExit, ...], int]:
     function = ast.parse(source).body[0]
     assert isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef))
     return function_exits(function)
 
 
-def test_each_return_and_raise_is_recorded_with_the_branch_leading_there() -> None:
+def test_each_return_and_raise_is_recorded_with_every_branch_on_its_path() -> None:
     source = (
         "def pick(x):\n"
         "    if x < 0:\n"
@@ -55,12 +61,40 @@ def test_each_return_and_raise_is_recorded_with_the_branch_leading_there() -> No
     )
     assert _exits(source) == (
         (
-            ("raise", "ValueError(x)", "if", "x < 0"),
-            ("return", "None", "if", "x == 0"),
-            ("return", "item", "if", "item > 3"),
-            ("return", "-1", "", ""),
+            ("raise", "ValueError(x)", (("if", "x < 0"),)),
+            # An `elif` is reached only where the `if` before it failed.
+            ("return", "None", (("else", "x < 0"), ("if", "x == 0"))),
+            ("return", "item", (("if", "item > 3"),)),
+            ("return", "-1", ()),
         ),
         4,
+    )
+
+
+def test_an_exit_inside_two_branches_records_both() -> None:
+    source = (
+        "def disjoint(left, right):\n"
+        "    while left and right:\n"
+        "        if empty(left, right):\n"
+        "            right.pop()\n"
+        "        elif empty(right, left):\n"
+        "            left.pop()\n"
+        "        else:\n"
+        "            return False\n"
+        "    if left:\n"
+        "        if right:\n"
+        "            return None\n"
+        "    return True\n"
+    )
+    assert _exits(source)[0] == (
+        # The `else` of an `elif`: both tests failed. A branch makes the loop's test unneeded.
+        (
+            "return",
+            "False",
+            (("else", "empty(left, right)"), ("else", "empty(right, left)")),
+        ),
+        ("return", "None", (("if", "left"), ("if", "right"))),
+        ("return", "True", ()),
     )
 
 
@@ -77,17 +111,18 @@ def test_a_handler_a_bare_raise_and_an_else_are_branches_of_their_own() -> None:
         "        close()\n"
     )
     assert _exits(source)[0] == (
-        ("return", "int(value)", "", ""),
-        ("return", "None", "except", "ValueError"),
-        ("raise", "", "except", ""),
+        # The body returns where no handler's exception is raised before it.
+        ("return", "int(value)", (("try", "ValueError"), ("try", ""))),
+        ("return", "None", (("except", "ValueError"),)),
+        ("raise", "", (("except", ""),)),
     )
     assert _exits("def f(x):\n    if x:\n        return 1\n    else:\n        return 2\n")[0] == (
-        ("return", "1", "if", "x"),
-        ("return", "2", "else", "x"),
+        ("return", "1", (("if", "x"),)),
+        ("return", "2", (("else", "x"),)),
     )
 
 
-def test_a_match_case_is_a_branch_and_a_case_matching_anything_is_none() -> None:
+def test_a_match_case_is_a_branch_and_a_case_matching_anything_follows_the_others() -> None:
     source = (
         "def name(x):\n"
         "    match x:\n"
@@ -100,12 +135,53 @@ def test_a_match_case_is_a_branch_and_a_case_matching_anything_is_none() -> None
     )
     assert _exits(source) == (
         (
-            ("return", "'zero'", "case", "0"),
-            ("return", "'pair'", "case", "[a, b] if a > b"),
-            ("return", "'other'", "", ""),
+            ("return", "'zero'", (("case", "0"),)),
+            ("return", "'pair'", (("case", "[a, b] if a > b"),)),
+            ("return", "'other'", (("other", "0"), ("other", "[a, b] if a > b"))),
         ),
         3,
     )
+
+
+@pytest.mark.parametrize(
+    ("body", "conditions"),
+    [
+        pytest.param("    for x in xs:\n        return x\n", (("for", "xs"),), id="a-for"),
+        pytest.param(
+            "    while queue:\n        return queue.pop()\n", (("while", "queue"),), id="a-while"
+        ),
+        pytest.param("    while True:\n        return 1\n", (), id="an-endless-while"),
+        pytest.param(
+            "    for x in xs:\n        try:\n            return f(x)\n        except E:\n"
+            "            pass\n",
+            (("for", "xs"), ("try", "E")),
+            id="a-try-in-a-loop",
+        ),
+        pytest.param(
+            "    try:\n        x()\n    except E:\n        pass\n    else:\n        return 1\n",
+            (("try", "E"),),
+            id="a-try-s-else",
+        ),
+        pytest.param("    try:\n        x()\n    finally:\n        return 1\n", (), id="a-finally"),
+        pytest.param("    with lock:\n        return 1\n", (), id="a-with-block"),
+    ],
+)
+def test_an_exit_on_no_branch_records_what_the_loops_and_try_statements_around_it_need(
+    body: str, conditions: tuple[tuple[str, str], ...]
+) -> None:
+    exits, _ = _exits(f"def f(xs):\n{body}")
+    assert exits[0][2] == conditions
+
+
+def test_a_path_through_more_branches_than_are_recorded_says_how_many() -> None:
+    depth = limits.MAX_EXIT_CONDITIONS + 1
+    body = "".join(f"{'    ' * (level + 1)}if x > {level}:\n" for level in range(depth))
+    exits, _ = _exits(f"def f(x):\n{body}{'    ' * (depth + 1)}return x\n")
+    assert exits[0] == ("return", "x", (("deep", str(depth)),))
+    loops = "".join(f"{'    ' * (level + 1)}for x{level} in x:\n" for level in range(depth))
+    exits, _ = _exits(f"def f(x):\n{loops}{'    ' * (depth + 1)}return x\n")
+    # Too many loops to name, and none of them a branch: no condition.
+    assert exits[0] == ("return", "x", ())
 
 
 @pytest.mark.parametrize(
@@ -132,7 +208,7 @@ def test_a_match_case_is_a_branch_and_a_case_matching_anything_is_none() -> None
 )
 def test_a_body_whose_every_path_exits_returns_no_none_of_its_own(body: str) -> None:
     exits, _ = _exits(f"def f(x):\n{body}")
-    assert ("return", "None", "", "") not in exits
+    assert ("return", "None", ()) not in exits
 
 
 @pytest.mark.parametrize(
@@ -151,13 +227,13 @@ def test_a_body_whose_every_path_exits_returns_no_none_of_its_own(body: str) -> 
 )
 def test_a_body_that_can_run_past_its_end_returns_none_there(body: str) -> None:
     exits, _ = _exits(f"def f(x):\n{body}")
-    assert exits[-1] == ("return", "None", "", "")
+    assert exits[-1] == ("return", "None", ())
 
 
 def test_a_generator_and_nested_code_give_no_exits_of_their_own() -> None:
     assert _exits("def f(x):\n    yield x\n    return 1\n") == ((), 0)
     nested = "def f(x):\n    def g():\n        return 2\n    return g\n"
-    assert _exits(nested)[0] == (("return", "g", "", ""),)
+    assert _exits(nested)[0] == (("return", "g", ()),)
     # A nested generator does not make the function one.
     assert _exits("def f(x):\n    def g():\n        yield 1\n    return g\n")[1] == 1
 
@@ -174,14 +250,17 @@ def test_a_function_s_snapshot_keeps_its_exits_and_a_class_has_none() -> None:
         item.qualified_name: item
         for item in extract_symbols("class C:\n    def m(self):\n        return 1\n")
     }
-    assert symbols["C.m"].exits == (("return", "1", "", ""),)
+    assert symbols["C.m"].exits == (("return", "1", ()),)
     assert symbols["C"].exits == ()
 
 
 def test_a_snapshot_s_exits_reuse_the_texts_its_features_hold() -> None:
     source = "def load(path):\n    try:\n        return read(path)\n    except:\n        raise\n"
     function = {item.qualified_name: item for item in extract_symbols(source)}["load"]
-    assert function.exits == (("return", "read(path)", "", ""), ("raise", "", "except", ""))
+    assert function.exits == (
+        ("return", "read(path)", (("try", ""),)),
+        ("raise", "", (("except", ""),)),
+    )
     assert function.features["returns"][0][0] == "read(path)"
 
 
@@ -364,3 +443,144 @@ def test_an_added_function_with_more_outcomes_than_are_named_says_how_many_exits
 def test_each_branch_reads_as_what_leads_to_it(added: str, given: str, when: str) -> None:
     ((_, _, found_given, found_when, _),) = _obligations(BASE, BASE + added)
     assert (found_given, found_when) == (given, when)
+
+
+@pytest.mark.parametrize(
+    ("added", "given"),
+    [
+        pytest.param(
+            # packaging#1471's `ranges_are_disjoint`: the first branch returns nothing, so its
+            # test was missing from where the second one's `else` returns.
+            "def disjoint(left, right):\n    while left and right:\n"
+            "        if empty(left, right):\n            right.pop()\n"
+            "        elif empty(right, left):\n            left.pop()\n"
+            "        else:\n            return False\n    return True\n",
+            "`disjoint` is new: `(left, right)`; it returns `False` unless `empty(left, right)` "
+            "or `empty(right, left)`, or returns `True` otherwise",
+            id="an-elif-s-else",
+        ),
+        pytest.param(
+            "def pick(a, b):\n    if a:\n        if b:\n            return 1\n    return 2\n",
+            "`pick` is new: `(a, b)`; it returns `1` when `a` and `b`, or returns `2` otherwise",
+            id="an-if-inside-an-if",
+        ),
+        pytest.param(
+            "def pick(a, b):\n    if a:\n        log()\n    elif b:\n        return 1\n"
+            "    return 2\n",
+            "`pick` is new: `(a, b)`; it returns `1` when `b` unless `a`, or returns `2` otherwise",
+            id="an-elif",
+        ),
+        pytest.param(
+            "def first(xs):\n    for x in xs:\n        return x\n",
+            "`first` is new: `(xs)`; it returns `x` for an item of `xs`, or returns `None` "
+            "otherwise",
+            id="the-first-item-of-a-loop",
+        ),
+        pytest.param(
+            "def fetch(f):\n    try:\n        return f()\n    except KeyError:\n        log()\n"
+            "    except ValueError:\n        log()\n",
+            "`fetch` is new: `(f)`; it returns `f()` unless `KeyError` or `ValueError` is raised, "
+            "or returns `None` otherwise",
+            id="a-try-whose-handlers-return-nothing",
+        ),
+        pytest.param(
+            "def kind(x):\n    match x:\n        case 0:\n            log()\n        case _:\n"
+            "            return 1\n",
+            "`kind` is new: `(x)`; it returns `1` in a case other than `0`, or returns `None` "
+            "otherwise",
+            id="a-case-after-one-that-returns-nothing",
+        ),
+        pytest.param(
+            "def first(xs):\n    for x in xs:\n        if x:\n            return x\n    return 0\n",
+            "`first` is new: `(xs)`; it returns `x` when `x`, or returns `0` otherwise",
+            id="a-branch-needs-no-loop",
+        ),
+        pytest.param(
+            "def last(x):\n    try:\n        return 1\n    finally:\n        return 2\n",
+            "`last` is new: `(x)`; it returns `1` on one of its paths, or returns `2` otherwise",
+            id="two-outcomes-with-nothing-to-tell-them-apart",
+        ),
+        pytest.param(
+            "def raw(flag):\n    if flag.startswith('--'):\n        if flag == '--all':\n"
+            "            return True\n    elif flag.startswith('-'):\n        if 'a' in flag:\n"
+            "            return True\n    return False\n",
+            # Alternatives whose conditions are joined with `and` are told apart with `or`.
+            "`raw` is new: `(flag)`; it returns `True` when `flag.startswith('--')` and "
+            "`flag == '--all'`, or when `flag.startswith('-')` and `'a' in flag` unless "
+            "`flag.startswith('--')`, or returns `False` otherwise",
+            id="two-paths-of-several-conditions",
+        ),
+    ],
+)
+def test_an_outcome_names_every_condition_on_the_path_to_it(added: str, given: str) -> None:
+    ((_, _, found, _, _),) = _obligations(BASE, BASE + added)
+    assert found == given
+    # Never "otherwise" twice, which would say that two outcomes both happen where nothing else does.
+    assert found.count("otherwise") <= 1
+
+
+def test_a_path_through_more_branches_than_are_named_says_how_many() -> None:
+    depth = limits.MAX_EXIT_CONDITIONS + 1
+    body = "".join(f"{'    ' * (level + 1)}if x > {level}:\n" for level in range(depth))
+    added = f"def deep(x):\n{body}{'    ' * (depth + 1)}return x\n    return 0\n"
+    ((_, _, given, _, _),) = _obligations(BASE, BASE + added)
+    assert given == (
+        f"`deep` is new: `(x)`; it returns `x` on a path through {depth} conditions, or returns "
+        "`0` otherwise"
+    )
+
+
+def _long(name: str) -> str:
+    return " + ".join(f"{name}{index}" for index in range(40))
+
+
+def test_an_outcome_list_too_long_for_its_obligation_names_less_of_it() -> None:
+    parameters = ", ".join(f"parameter_number_{index}: int = {index}" for index in range(30))
+    lines = [f"def wide({parameters}):"]
+    for value in "VWZ":
+        for test in (f"{value.lower()}a", f"{value.lower()}b"):
+            lines += [f"    if ({_long(test)}) > 0:", f"        return {_long(value)}"]
+    added = "\n".join([*lines, f"    return {_long('U')}"]) + "\n"
+    ((_, _, given, _, _),) = _obligations(BASE, BASE + added)
+    # Its whole list would take more than the 1000 characters an obligation's `given` holds,
+    # which failed the whole analysis; it names one path of each outcome instead.
+    assert len(given) <= MAX_OBLIGATION_TEXT_CHARS
+    assert "among its 7 exits, it returns `V0 + V1" in given
+    assert "and in 1 more case, returns `W0 + W1" in given
+    assert given.endswith("otherwise")
+
+
+def test_an_exit_with_a_part_out_of_shape_is_dropped_rather_than_read_without_it() -> None:
+    def added(exits: object) -> StructuralDelta:
+        return StructuralDelta(
+            path="m.py",
+            symbol="f",
+            kind="symbol_added",
+            old=None,
+            new="(x)",
+            old_lines=None,
+            new_lines=None,
+            hunk_id=None,
+            metadata={"exits": exits, "exits_total": 6},
+        )
+
+    change = describe_change(
+        added(
+            [
+                ["return", "1", [["if", "x"]]],
+                ["return", "2"],
+                ["return", 3, []],
+                # A condition missing its test, or one that is no pair, would leave the exit
+                # said to be reached on a path without it.
+                ["return", "4", [["if"]]],
+                ["return", "5", [["else", "x"], "y"]],
+                "junk",
+            ]
+        )
+    )
+    assert change is not None
+    assert change.exits == (("return", "1", (("if", "x"),)),)
+    assert change.exits_total == 6
+    unread = describe_change(added("junk"))
+    assert unread is not None
+    assert unread.exits == ()
