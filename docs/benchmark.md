@@ -20,9 +20,10 @@ second round's correction and measured with it. The third, from `django-guardian
 `dateutil/dateutil`, was labeled by two models and reviewed, and measured the third round's
 correction. The fourth, from `django-commons/django-axes`, `jpadilla/pyjwt`, `hynek/stamina`,
 `agronholm/apscheduler`, and `alisaifee/limits`, labeled the same way, measured the fourth round's.
-The fifth round's correction, designed from the 150 development cases and measured on a fifth
-held-out split of 30, labeled the same way, comes first below; then how that split was labeled, and
-the baseline it and the 150 development cases set. Then come the fourth round's correction, how the
+A blind review of the obligations that list what an added callable returns and raises comes first
+below. The fifth round's correction follows, designed from the 150 development cases and measured on
+a fifth held-out split of 30, labeled the same way; then how that split was labeled, and the
+baseline it and the 150 development cases set. Then come the fourth round's correction, how the
 fourth split was labeled, and the baseline it and the 120 development cases of the time set; the
 third round's correction, how the third split was labeled, and the baseline it and the 90
 development cases of the time set; the second split's baseline and the second round's correction,
@@ -31,6 +32,65 @@ first round's results.
 
 Unlike the 18-case corpus of `docs/evaluation.md`, whose cases were written to exercise the
 taxonomy, these are changes as maintainers made them.
+
+## Added callables' obligations, reviewed blind
+
+Listing what an added callable returns and raises (`docs/decisions.md`, 2026-11-14, an added
+callable's outcomes) changed the obligation of 34 findings in 25 of the 150 development cases, and a
+review finished the same day compared each with the one before it. In 20, a public callable's
+"Characterize the new" became a list of its outcomes; in 14, a private helper that had joined an
+obligation of the code calling it took one of its own. The reviewer saw each pair on one page: the
+callable's code at the pull request's head, its file's diff on demand, and the two obligations as A
+and B, in an order drawn with `random.Random(20261114)`. Which side was new stayed in a key kept
+apart until all 34 had a verdict. Each side was useful if the reviewer would write that test or one
+much like it, noise if it was generic, repeated, or beside the change, and unsure if the page did
+not show enough, and each pair came with a note. The criterion was committed before the review:
+over the 34 pairs, and again over the 14 helpers alone, the new obligation is useful more often than
+the old one, by a two-sided sign test on the pairs where exactly one side is, at p < 0.05, with
+unsure counted as not useful.
+
+| Pairs | Count | Old useful | New useful | Only the old useful | Only the new useful | Sign test |
+| --- | --- | --- | --- | --- | --- | --- |
+| Public callables | 20 | 0 | 13 | 0 | 13 | p = 0.0002 |
+| Private helpers | 14 | 3 | 12 | 0 | 9 | p = 0.004 |
+| All | 34 | 3 | 25 | 0 | 22 | p < 0.000001 |
+
+No side was judged unsure.
+
+**It met both criteria, and no old obligation was useful where the new one was not.** Every
+"Characterize the new" was noise, 20 of 20, as both of the fourth review's were. The three old ones
+judged useful are obligations of the callers, which keep them: a changed boundary in
+redis-py#4581's `_check_certificate`, a changed condition in click#3777's `_pipepager`, and an
+omitted `pre_load` in marshmallow#2799's `Field.__init__`. Each helper's own was useful too. The new
+ones were useful where the outcomes they list are what a test asserts: which relation two version
+ranges have, in packaging#1473; that `FileProxy.isatty` hands back its file's, in rich#4077; that
+`fetch_data` raises `PyJWKClientError` when the endpoint does not return a JSON object, in
+pyjwt#1208. At 95%, 25 of 34 lies between 57% and 85%, and 3 of 34 between 3% and 23%.
+
+**Most of the new noise lists an outcome that says little, and two obligations state something
+false.** Of the 9 new obligations judged noise:
+
+- Five return a local name, or an expression of one, whose value the code before the `return`
+  decides. werkzeug#3332's `wrap_file` returns `cls(file, buffer_size)`, where the behavior is the
+  choice of `cls` between the server's file wrapper and its own. django-axes#1414's
+  `get_username_from_data` returns `username`, which a fallback may reassign. dateutil#1600's
+  `__reduce_ex__` returns a tuple built from `state`, which a pickle round trip would test. And
+  limits#249's two `acquire_sliding_window_entry` return a flag a MongoDB pipeline computes.
+- One states a wrong branch. packaging#1471's `ranges_are_disjoint` returns `False` in the `else` of
+  an `if` and its `elif`, and its obligation says it does "unless" the `elif`'s test holds, leaving
+  out that the `if`'s must fail too. An exit records only its innermost branch, so a test written
+  from it could expect the wrong result.
+- One names as a caller attrs#1606's `_ClassBuilder.add_replace`, which defines a nested
+  `__replace__` and hands it to `_add_method_dunders`, but never calls it.
+- One returns the two callbacks it defines, stamina#157's `_make_hook_callbacks`, whose behavior is
+  what they do when the retry runs them.
+- One is a helper in stamina#155's `typing_tests`, a file for the type checker, which the analysis
+  reads as code; its old obligation was noise too.
+
+**The limits are the earlier reviews'.** One person judged all 34, on development cases whose
+obligations were read while the correction was measured, and 20 or 14 pairs leave each share wide.
+A and B hid which side was new but not the wording, and "Characterize the new" reads the same in
+every case.
 
 ## Fifth round
 

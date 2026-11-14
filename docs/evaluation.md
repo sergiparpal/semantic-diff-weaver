@@ -306,7 +306,9 @@ The six findings the models added were unknown changes beside findings already o
 evidence, and another correction since adds none. A fourth blind review, of obligations on the 30
 development cases the obligations from evidence were not designed from, judged 10 of 20
 deterministic ones useful, and 9 of the 37 the four models added: 3 of 10 each of gpt-oss-120b's and
-deepseek-v4-flash's, 3 of gpt-6.1-terra's 7, and none of llama-3.1-8b-instruct's 10.
+deepseek-v4-flash's, 3 of gpt-6.1-terra's 7, and none of llama-3.1-8b-instruct's 10. A fifth
+compared each of the 34 obligations that listing an added callable's outcomes changed with the one
+before it, and judged the new ones useful 25 times and the old ones 3, never the old one alone.
 
 `docs/real-pr-validation.md` records what the analyzer says on other real merged pull requests,
 produced by the opt-in `scripts/validate_real_prs.py` harness. Those are **observations on
