@@ -777,6 +777,58 @@ blind"). The new ones were useful 25 times and the old ones 3, and never the old
 against none for the public callables, and 12 against 3 for the helpers, which therefore keep
 obligations of their own.
 
+## Output-affecting corrections (2026-11-14, an outcome's whole path and an obligation's length)
+
+The blind review of the added callables' obligations judged one noise for a wrong branch
+(`docs/benchmark.md`, "Added callables' obligations, reviewed blind"). packaging#1471's
+`ranges_are_disjoint` returns `False` in the `else` of an `if` and its `elif`, and its obligation
+said it does "unless" the `elif`'s test holds, which left out that the `if`'s must fail too: an
+exit recorded only its innermost branch. The same record misstated paths no case of the benchmark
+showed:
+
+- a return inside two `if` statements named only the inner test;
+- an exit no branch leads to read "otherwise" beside the `None` past it, as two outcomes that both
+  happen where nothing else does. That is the first item of a loop, or what a `try` returns before
+  a handler that returns nothing.
+
+Probing those found that the obligation's length was unbounded too. An added function with a long
+signature and long tests made its `given` longer than the 1000 characters the schema allows. A
+private helper called by long names made its title longer than the 300 a title holds. Either way
+the obligation failed to validate, and with it the whole analysis, so a pull request's own names
+could keep it from being reviewed. Neither was released: the outcome list came with the
+correction above, which also gave private helpers obligations of their own and their callers in
+the title.
+
+The correction has three parts:
+
+- **An exit's whole path.** Extraction records every branch on the path to an exit, outermost
+  first, rather than the innermost alone. An `elif`'s `else` holds both tests, and an `if` inside
+  another holds both. A path through no branch records instead what the loops and the `try`
+  statements around the exit need: an item of what a `for` iterates, a `while`'s test, no
+  exception a handler catches, or no earlier case of a `match`. The obligation names those only
+  where two outcomes would otherwise both read "otherwise". `ranges_are_disjoint`'s now returns
+  `False` "unless `range_is_empty(left_lower, right_upper)` or `range_is_empty(right_lower,
+  left_upper)`". A path through more than four branches says how many it has.
+- **An outcome list within its obligation.** Where two paths of each of three outcomes would make
+  the `given` too long, it names one path of each. If that is still too long, it names two
+  outcomes, and then says how many conditions a long path has. A helper's title names its first
+  caller and how many more where naming two would not fit.
+- **No text too long to validate.** Every scenario written from evidence is cut where it is still
+  too long. The cut falls at a space where no code span is open, and the text ends with "…".
+  `tests/security/test_obligation_lengths.py` holds both repositories that failed.
+
+Measured on the 150 development cases:
+
+- **Findings:** none changes, so neither do the benchmark's measures.
+- **Obligations:** they stay 377, and 4 in 3 cases name more of their paths. Two each gain the
+  outer test of an `if` inside another: packaging#1473's `VersionRange.relation` and
+  `_relate_bounds`. click#3777's `_less_uses_raw_mode` returns `True` "when
+  `token.startswith('--')` and `token.casefold() == '--raw-control-chars'`, or when
+  `token.startswith('-') and len(token) > 1` and `'r' in token[1:].casefold()` unless
+  `token.startswith('--')`": alternatives whose conditions are joined with `and` are joined
+  with `or`. No outcome list is too long for its obligation, so none names less of it.
+- **Unchanged:** no corpus golden changes, and schema 1.5 is unchanged.
+
 ## Output-affecting corrections (2026-11-14, a schema's descriptions and a repeated transition)
 
 Replayed with 0.22.1, the Action's field test on meal-manager's pull requests #40 and #43 kept the

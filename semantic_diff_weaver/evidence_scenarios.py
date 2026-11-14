@@ -9,9 +9,10 @@ The category's scenarios remain for a finding no Python delta describes, such as
 schema or a configuration file, or a change the parser could not read. A function that changed
 only as the functions nested in it did has no line of its own to quote either, and its scenario
 names them, whose findings say what changed. A callable added has no old code to quote, and its
-scenario lists what its own code returns and raises, each on the branch that leads there. A schema
-that changed only how it describes a tool changes nothing a test of the tool's code could tell
-apart, and its scenario asks what an agent given the tool does with the new text.
+scenario lists what its own code returns and raises, each with every condition on the path that
+leads there. A schema that changed only how it describes a tool changes nothing a test of the
+tool's code could tell apart, and its scenario asks what an agent given the tool does with the
+new text.
 
 Only what the evidence holds is quoted, already redacted and bounded, each fragment as a code
 span. The renderer keeps it one, so a repository's text never becomes Markdown of its own.
@@ -24,10 +25,18 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from .ast_diff import StructuralDelta
-from .models import BehaviorCategory, BehaviorChange, Evidence, ObligationType
+from .ast_diff.types import ENCLOSING_CONDITIONS, ExitPath, FunctionExit
+from .models import (
+    MAX_OBLIGATION_TEXT_CHARS,
+    MAX_OBLIGATION_TITLE_CHARS,
+    BehaviorCategory,
+    BehaviorChange,
+    Evidence,
+    ObligationType,
+)
 from .semantic_candidates import NAMING_NOTHING, evidence_id, has_boundary_comparison
 from .taxonomy import CATEGORY_PROFILES, Scenario
-from .textutil import code_span
+from .textutil import code_span, fit_text
 
 if TYPE_CHECKING:
     from .call_graph import CallGraph
@@ -230,8 +239,9 @@ class Change:
     # Whether its symbol changed nothing but the `description` texts of the schemas it holds.
     described_only: bool = False
     # An added callable's exits, as `ast_diff` records them: each a kind, `return` or `raise`, the
-    # value, and the branch leading there as a word and a test; and how many it has.
-    exits: tuple[tuple[str, str, str, str], ...] = ()
+    # value, and the conditions on the path leading there, each a word and a test; and how many
+    # it has.
+    exits: tuple[FunctionExit, ...] = ()
     exits_total: int = 0
 
     @property
@@ -302,17 +312,32 @@ def describe_change(delta: StructuralDelta) -> Change | None:
     )
 
 
-def _exits(value: object) -> tuple[tuple[str, str, str, str], ...]:
-    """The exits a delta's metadata records, each four strings; anything else is dropped."""
+def _exits(value: object) -> tuple[FunctionExit, ...]:
+    """The exits a delta's metadata records, each a kind, a value, and the conditions on its path,
+    each two strings. An exit any part of which is anything else is dropped, rather than said to
+    be reached on a path without that condition."""
     if not isinstance(value, (list, tuple)):
         return ()
-    return tuple(
-        (item[0], item[1], item[2], item[3])
-        for item in value
-        if isinstance(item, (list, tuple))
-        and len(item) == 4
-        and all(isinstance(part, str) for part in item)
-    )
+    found: list[FunctionExit] = []
+    for item in value:
+        if not (
+            isinstance(item, (list, tuple))
+            and len(item) == 3
+            and isinstance(item[0], str)
+            and isinstance(item[1], str)
+            and isinstance(item[2], (list, tuple))
+        ):
+            continue
+        conditions = tuple(
+            (condition[0], condition[1])
+            for condition in item[2]
+            if isinstance(condition, (list, tuple))
+            and len(condition) == 2
+            and all(isinstance(part, str) for part in condition)
+        )
+        if len(conditions) == len(item[2]):
+            found.append((item[0], item[1], conditions))
+    return tuple(found)
 
 
 def leaves_the_process(call: str) -> bool:
@@ -392,6 +417,15 @@ def _quotes(values: Sequence[str], total: int) -> str:
     if more > 0:
         shown.append(f"{more} more")
     return _series(shown)
+
+
+def _callers_within(callers: Sequence[str], room: int) -> str:
+    """The callers as `_quotes` names them, or the first and how many more where that takes more
+    than `room` characters: a title holds less than a `given` does."""
+    named = _quotes(callers, len(callers))
+    if len(named) > room and len(callers) > 1:
+        return f"{_quote(callers[0])} and {len(callers) - 1} more"
+    return named
 
 
 def _subject(evidence: Evidence) -> str:
@@ -475,8 +509,17 @@ def _what_changed(subject: str, evidence: Evidence, change: Change) -> str:
 def _scenario(
     kind: ObligationType, title: str, given: str, when: str, then: str, relevance: int
 ) -> Scenario:
+    """A scenario whose texts fit the obligation they become. Each scenario bounds what it
+    quotes, but names and code an analyzed repository chooses could still make one too long, and
+    an obligation that does not validate fails the whole analysis; so one is cut where that
+    happens, rather than a pull request's names deciding whether it can be reviewed."""
     return Scenario(
-        kind, _sentence(title), _sentence(given), _sentence(when), _sentence(then), relevance
+        kind,
+        fit_text(_sentence(title), MAX_OBLIGATION_TITLE_CHARS),
+        fit_text(_sentence(given), MAX_OBLIGATION_TEXT_CHARS),
+        fit_text(_sentence(when), MAX_OBLIGATION_TEXT_CHARS),
+        fit_text(_sentence(then), MAX_OBLIGATION_TEXT_CHARS),
+        relevance,
     )
 
 
@@ -820,34 +863,47 @@ def _order_scenario(found: _Finding) -> Scenario:
 
 @dataclass(frozen=True)
 class _Outcome:
-    """One thing an added callable returns or raises, and the branches that lead there: none
-    when its code reaches it with no branch."""
+    """One thing an added callable returns or raises, and the paths that lead there, each the
+    conditions on it: none when its code reaches it with no condition to name."""
 
     kind: str
     value: str
-    branches: tuple[tuple[str, str], ...]
+    paths: tuple[ExitPath, ...]
 
 
 def outcomes_of(change: Change) -> list[_Outcome]:
     """What an added callable returns or raises, each distinct value once, in the order its code
-    first reaches them and those it reaches with no branch last.
+    first reaches them and those it reaches with no condition last.
 
-    Empty when that says nothing a test could tell from a call that returned at all: every exit a
-    `return None`, or a stub's `raise NotImplementedError`.
+    A path names what the loops and the `try` statements around an exit need only when two
+    outcomes would otherwise both be reached with no condition, and both read "otherwise": the
+    first item of a loop and the `None` past it, or what a `try` returns and the `None` after a
+    handler that returns nothing. Empty when that says nothing a test could tell from a call that
+    returned at all: every exit a `return None`, or a stub's `raise NotImplementedError`.
     """
-    grouped: dict[tuple[str, str], list[tuple[str, str]]] = {}
-    plain: set[tuple[str, str]] = set()
-    for kind, value, branch, test in change.exits:
-        branches = grouped.setdefault((kind, value), [])
-        if branch:
-            branches.append((branch, test))
-        else:
-            plain.add((kind, value))
+    grouped: dict[tuple[str, str], list[ExitPath]] = {}
+    for kind, value, conditions in change.exits:
+        grouped.setdefault((kind, value), []).append(conditions)
+
+    def named(path: ExitPath, around: bool) -> ExitPath:
+        """The path's conditions, those of what is around the exit only when `around` asks."""
+        return path if around or not path or path[0][0] not in ENCLOSING_CONDITIONS else ()
+
+    def plain(paths: list[ExitPath], around: bool) -> bool:
+        return not all(named(path, around) for path in paths)
+
+    around = sum(plain(paths, False) for paths in grouped.values()) > 1
     outcomes = [
-        _Outcome(kind, value, () if (kind, value) in plain else tuple(branches))
-        for (kind, value), branches in grouped.items()
+        _Outcome(
+            kind,
+            value,
+            ()
+            if plain(paths, around)
+            else tuple(dict.fromkeys(named(path, around) for path in paths)),
+        )
+        for (kind, value), paths in grouped.items()
     ]
-    outcomes.sort(key=lambda item: not item.branches)
+    outcomes.sort(key=lambda item: not item.paths)
     if all(item.kind == "return" and item.value == "None" for item in outcomes):
         return []
     if all(
@@ -857,38 +913,115 @@ def outcomes_of(change: Change) -> list[_Outcome]:
     return outcomes
 
 
-def _branch(branch: str, test: str) -> str:
-    if branch == "if":
-        return f"when {_quote(test)}"
-    if branch == "else":
-        return f"unless {_quote(test)}"
-    if branch == "except":
-        return f"when {_quote(test)} is raised" if test else "when anything is raised"
-    return f"in the case {_quote(test)}"
+def _raised(caught: str) -> str:
+    return f"{_quote(caught)} is raised" if caught else "anything is raised"
 
 
-def _outcome_text(outcome: _Outcome, alone: bool) -> str:
+def _path_text(path: ExitPath, summary: bool) -> str:
+    """What leads along one path to an exit: `when `a` and `b` unless `c``, each test that holds
+    there and each that does not, the case it is in, or what a loop or a `try` around it needs.
+    A long path given in `summary` says how many conditions it has instead."""
+    if path[0][0] == "deep" or (summary and len(path) > 1):
+        count = path[0][1] if path[0][0] == "deep" else str(len(path))
+        return f"on a path through {count} conditions"
+    parts = [
+        f"for an item of {_quote(test)}" if word == "for" else f"while {_quote(test)}"
+        for word, test in path
+        if word in {"for", "while"}
+    ]
+    cases = [_quote(test) for word, test in path if word == "case"]
+    if cases:
+        parts.append(f"in the case {' and the case '.join(cases)}")
+    others = [_quote(test) for word, test in path if word == "other"]
+    if others:
+        parts.append(f"in a case other than {' or '.join(others)}")
+    holds = [
+        _quote(test) if word == "if" else _raised(test)
+        for word, test in path
+        if word in {"if", "except"}
+    ]
+    if holds:
+        parts.append(f"when {' and '.join(holds)}")
+    fails = [_quote(test) for word, test in path if word == "else"]
+    if caught := list(dict.fromkeys(test for word, test in path if word == "try")):
+        fails.append(
+            "anything is raised"
+            if "" in caught
+            else f"{' or '.join(_quote(item) for item in caught)} is raised"
+        )
+    if fails:
+        parts.append(f"unless {' or '.join(fails)}")
+    return " ".join(parts)
+
+
+def _outcome_text(
+    outcome: _Outcome, *, alone: bool, last: bool, branches: int, summary: bool
+) -> str:
     if outcome.kind == "raise":
         what = f"raises {_quote(outcome.value)}" if outcome.value else "raises again what it caught"
     else:
         what = f"returns {_quote(outcome.value)}"
-    if not outcome.branches:
-        return what if alone else f"{what} otherwise"
-    phrases = list(dict.fromkeys(_branch(*item) for item in outcome.branches))
-    shown = phrases[:MAX_QUOTED_VALUES]
+    if not outcome.paths:
+        if alone:
+            return what
+        # Only the last of the outcomes named is what happens where none before it does.
+        return f"{what} otherwise" if last else f"{what} on one of its paths"
+    # Each path's phrase, and how many conditions it names.
+    phrases: dict[str, int] = {}
+    for path in outcome.paths:
+        phrases.setdefault(_path_text(path, summary), 1 if summary else len(path))
+    shown = list(phrases)[:branches]
+    several = any(phrases[phrase] > 1 for phrase in shown)
     if more := len(phrases) - len(shown):
         shown.append(f"in {more} more case{'s' if more > 1 else ''}")
+    if several:
+        # A path that names several conditions joins them with `and`, so its alternatives are
+        # joined with `or`: `when `a` and `b`, or when `c``.
+        return f"{what} {', or '.join(shown)}"
     return f"{what} {_series(shown)}"
 
 
-def _outcomes_text(outcomes: Sequence[_Outcome], change: Change) -> str:
-    """`it returns `None` when `x < 0`, or returns `x` otherwise`: at most `MAX_OUTCOMES`, the one
-    reached with no branch kept, and how many exits there are when not all of them are named."""
+# How much of an added callable's outcomes its obligation names, from the most to the least: how
+# many outcomes, how many paths of each, and whether a path through several conditions says only
+# how many. The first that fits the obligation's text is taken.
+_OUTCOME_DETAIL = (
+    (MAX_OUTCOMES, MAX_QUOTED_VALUES, False),
+    (MAX_OUTCOMES, 1, False),
+    (2, 1, False),
+    (MAX_OUTCOMES, 1, True),
+    (1, 1, True),
+)
+
+
+def _outcomes_text(outcomes: Sequence[_Outcome], change: Change, room: int) -> str:
+    """`it returns `None` when `x < 0`, or returns `x` otherwise`, in at most `room` characters: at
+    most `MAX_OUTCOMES`, the one reached with no condition kept, and how many exits there are when
+    not all of them are named. Where that is longer, fewer paths and outcomes, and then how many
+    conditions a long path has, are named, as a long signature and long tests need. The least of
+    them, which fits what any signature leaves, is what `_scenario` cuts where it would not."""
+    texts = [_outcomes_at(outcomes, change, *detail) for detail in _OUTCOME_DETAIL]
+    fitting = [text for text in texts if len(text) <= room]
+    return fitting[0] if fitting else texts[-1]
+
+
+def _outcomes_at(
+    outcomes: Sequence[_Outcome], change: Change, count: int, branches: int, summary: bool
+) -> str:
+    """The outcomes at one of `_OUTCOME_DETAIL`'s levels."""
     shown = list(outcomes)
-    if len(shown) > MAX_OUTCOMES:
-        shown = [*outcomes[: MAX_OUTCOMES - 1], outcomes[-1]]
-    texts = [_outcome_text(item, len(outcomes) == 1) for item in shown]
-    # Each outcome lists its branches with commas, so a comma comes before the `or` of the next.
+    if len(shown) > count:
+        shown = [*outcomes[: count - 1], outcomes[-1]] if count > 1 else [outcomes[0]]
+    texts = [
+        _outcome_text(
+            item,
+            alone=len(outcomes) == 1,
+            last=0 < index == len(shown) - 1,
+            branches=branches,
+            summary=summary,
+        )
+        for index, item in enumerate(shown)
+    ]
+    # Each outcome lists its paths with commas, so a comma comes before the `or` of the next.
     joined = f"{', '.join(texts[:-1])}, or {texts[-1]}" if len(texts) > 1 else texts[0]
     if len(shown) < len(outcomes) or change.exits_total > len(change.exits):
         return f"among its {change.exits_total} exits, it {joined}"
@@ -916,20 +1049,22 @@ def _lifecycle_scenario(found: _Finding) -> Scenario:
         callers = _quotes(found.callers, len(found.callers))
         verb = "calls" if len(found.callers) == 1 else "call"
         caller = _quote(found.callers[0])
+        lead = f"Exercise {'each outcome of ' if many else ''}the new {found.subject} through "
+        title = lead + _callers_within(found.callers, MAX_OBLIGATION_TITLE_CHARS - len(lead))
         if outcomes:
+            given = f"{found.subject} is new: {shown}, and {callers} {verb} it; "
             return found.scenario(
                 ObligationType.REGRESSION,
-                f"Exercise {'each outcome of ' if many else ''}the new {found.subject} through "
-                f"{callers}",
-                f"{found.subject} is new: {shown}, and {callers} {verb} it; "
-                f"{_outcomes_text(outcomes, found.change)}",
+                title,
+                given
+                + _outcomes_text(outcomes, found.change, MAX_OBLIGATION_TEXT_CHARS - len(given)),
                 f"{caller} runs with input that "
                 f"{f'leads {found.subject} to each outcome' if many else f'reaches {found.subject}'}",
                 f"What {caller} returns, raises, or leaves is asserted{' for each' if many else ''}",
             )
         return found.scenario(
             ObligationType.REGRESSION,
-            f"Exercise the new {found.subject} through {callers}",
+            title,
             f"{found.subject} is new: {shown}, and {callers} {verb} it",
             f"{caller} runs with input that reaches {found.subject}",
             f"What {caller} returns, raises, or leaves is asserted",
@@ -947,14 +1082,15 @@ def _lifecycle_scenario(found: _Finding) -> Scenario:
             then = "What it returns is asserted exactly"
         if many:
             reached = "once for each outcome"
-        elif first.branches:
+        elif first.paths:
             reached = "with input that reaches it"
         else:
             reached = "with a representative input"
+        given = f"{found.subject} is new: {shown}; "
         return found.scenario(
             ObligationType.POSITIVE,
             title,
-            f"{found.subject} is new: {shown}; {_outcomes_text(outcomes, found.change)}",
+            given + _outcomes_text(outcomes, found.change, MAX_OBLIGATION_TEXT_CHARS - len(given)),
             f"{found.called} {reached}",
             then,
         )

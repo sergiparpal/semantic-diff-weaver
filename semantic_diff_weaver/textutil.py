@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -44,7 +44,24 @@ def split_code_spans(text: str) -> list[tuple[str, bool]]:
     with, so `split_code_spans(code_span(text))` gives back `text` for any text but the empty one.
     """
     parts: list[tuple[str, bool]] = []
-    prose_start = search = 0
+    prose_start = 0
+    for start, content_start, content_end, end in _code_spans(text):
+        if start > prose_start:
+            parts.append((text[prose_start:start], False))
+        content = text[content_start:content_end]
+        if len(content) > 1 and content[0] == " " and content[-1] == " " and content.strip():
+            content = content[1:-1]
+        parts.append((content, True))
+        prose_start = end
+    if prose_start < len(text):
+        parts.append((text[prose_start:], False))
+    return parts
+
+
+def _code_spans(text: str) -> Iterator[tuple[int, int, int, int]]:
+    """Where each code span of `text` opens and closes, as Markdown reads them: the start and the
+    end of its opening run of backticks, and of the run as long that closes it."""
+    search = 0
     while (opener := _BACKTICK_RUN_RE.search(text, search)) is not None:
         width = len(opener.group())
         closer = next(
@@ -58,16 +75,34 @@ def split_code_spans(text: str) -> list[tuple[str, bool]]:
         if closer is None:
             search = opener.end()
             continue
-        if opener.start() > prose_start:
-            parts.append((text[prose_start : opener.start()], False))
-        content = text[opener.end() : closer.start()]
-        if len(content) > 1 and content[0] == " " and content[-1] == " " and content.strip():
-            content = content[1:-1]
-        parts.append((content, True))
-        prose_start = search = closer.end()
-    if prose_start < len(text):
-        parts.append((text[prose_start:], False))
-    return parts
+        yield opener.start(), opener.end(), closer.start(), closer.end()
+        search = closer.end()
+
+
+def fit_text(text: str, limit: int) -> str:
+    """`text` in at most `limit` characters: whole when it fits, or else cut where no code span is
+    open, at the last space before the limit where one is, and ended with `…`.
+
+    A cut inside a span would leave its backticks open, and Markdown would read the rest of the
+    page as code; a cut inside a word would end it mid-name.
+    """
+    if len(text) <= limit:
+        return text
+    room = limit - 1
+    spans = [(start, end) for start, _, _, end in _code_spans(text)]
+
+    def open_at(position: int) -> int | None:
+        """Where the span that `position` cuts through starts, if one does."""
+        return next((start for start, end in spans if start < position < end), None)
+
+    cut = text.rfind(" ", 0, room + 1)
+    while cut > 0 and (start := open_at(cut)) is not None:
+        cut = text.rfind(" ", 0, start + 1)
+    if cut <= 0:
+        cut = room
+        while (start := open_at(cut)) is not None:
+            cut = start
+    return text[:cut].rstrip(" ,;:") + "…"
 
 
 def getattr_or_key(value: Any, name: str, default: Any = None) -> Any:

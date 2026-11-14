@@ -13,6 +13,26 @@
   cases no finding changes, and attrs#1606's obligation alone does: it asks what the new
   `__replace__` returns. The other 13 helpers the review judged keep the callers they named,
   and obligations stay 377. No golden changes; schema 1.5 is unchanged.
+- **Fix:** an added callable's obligation names every condition on the path to each outcome, not
+  the innermost branch alone. An `elif`'s `else` returns where both tests fail, and the obligation
+  said it did "unless" the second one held: packaging#1471's `ranges_are_disjoint`, which the
+  blind review of these obligations judged noise for it. A return inside two `if` statements names
+  both tests. An outcome no branch leads to, the first item of a loop or what a `try` returns
+  before a handler that returns nothing, says what the loop or the `try` needs where it read
+  "otherwise" beside the `None` past it, as two outcomes that both happen where nothing else does.
+  On the 150 development cases no finding changes, and 4 obligations in 3 cases name more of
+  their paths: packaging#1471's `ranges_are_disjoint`, packaging#1473's `VersionRange.relation`
+  and `_relate_bounds`, and click#3777's `_less_uses_raw_mode`. Obligations stay 377. No golden
+  changes; schema 1.5 is unchanged.
+- **Fix:** a repository's long names no longer make an obligation fail to validate, and with it
+  the whole analysis, which ended in `configuration_error`. An added function with a long
+  signature and long tests made its outcome list longer than the 1000 characters an obligation's
+  `given` holds, and a private helper called by long names made its title longer than 300. The
+  list now names fewer paths and outcomes where all of them would not fit, the title its first
+  caller and how many more, and any scenario text still too long is cut where no code span is
+  open, with `…`. Neither was released: both came with the outcome lists of added callables,
+  which also gave private helpers obligations of their own.
+  `tests/security/test_obligation_lengths.py` holds the two repositories.
 - **Fix:** an added callable's obligation lists what its own code returns and raises, each on
   the branch that leads there (the test of an `if`, its `else`, what an `except` clause catches,
   or a `match` case), and the `None` it returns where its body can run past its end. It replaces

@@ -15,7 +15,15 @@ from dataclasses import dataclass, field
 from ..path_policy import redact_text
 from . import limits
 from .limits import AstBudget
-from .types import CategoryProbe, ModuleReferences, SymbolReferences, SymbolSnapshot
+from .types import (
+    CategoryProbe,
+    ExitCondition,
+    ExitPath,
+    FunctionExit,
+    ModuleReferences,
+    SymbolReferences,
+    SymbolSnapshot,
+)
 
 
 class AstResourceLimit(ValueError):
@@ -1211,72 +1219,95 @@ def function_exits(
     *,
     inline: bool = True,
     texts: Mapping[int, str] | None = None,
-) -> tuple[tuple[tuple[str, str, str, str], ...], int]:
+) -> tuple[tuple[FunctionExit, ...], int]:
     """What each `return` and `raise` of a function's own code hands back or raises, and how many.
 
-    Each exit is its kind, `return` or `raise`; its value as code, empty for a bare `raise`; and the
-    innermost branch that leads there, as a word and a test: `if` and the test for an `if`'s body,
-    `else` and that test for its `else`, `except` and what a handler catches, empty for a bare one,
-    `case` and a `match` case's pattern, or two empty strings for none. Loops, `with` blocks, and a
-    `try`'s body are no branch of their own. A body that may run past its end returns `None` there,
-    with no branch. A generator has none: what it yields is what it gives. Nested functions and
-    classes are code of their own. A caller that knows the body holds no `yield` or `yield from`
-    passes `inline=False`, and one that has unparsed an expression already passes its text in
-    `texts`, by the node's identity, as `FeatureVisitor` does. At most `MAX_FUNCTION_EXITS` are kept.
+    Each exit is its kind, `return` or `raise`; its value as code, empty for a bare `raise`; and
+    the conditions on the path that leads there, outermost first, each a word and a test (see
+    `BRANCH_CONDITIONS`). They are every branch the path takes, not the innermost alone: an
+    `elif`'s `else` is reached only where both tests fail, and an `if` inside another only where
+    both hold. `if` and the test stand for an `if`'s body, `else` and that test for its `else`,
+    `except` and what a handler catches, empty for a bare one, and `case` and a `match` case's
+    pattern. A path that takes no branch records instead what the loops and the `try` statements
+    around the exit need: `for` and what a `for` iterates, `while` and a `while`'s test, `try` and
+    what each handler of a `try` catches, for its body and its `else`, and `other` and each
+    earlier pattern, for a case matching anything. A `while True`, a `with` block, and a
+    `finally` need nothing. A path through more branches than `MAX_EXIT_CONDITIONS` records `deep`
+    and how many; one through more loops and `try` statements records none. A body that may run
+    past its end returns `None` there, with no condition. A generator has no exits: what it yields
+    is what it gives. Nested functions and classes are code of their own. A caller that knows the
+    body holds no `yield` or `yield from` passes `inline=False`, and one that has unparsed an
+    expression already passes its text in `texts`, by the node's identity, as `FeatureVisitor`
+    does. At most `MAX_FUNCTION_EXITS` are kept.
     """
     if inline and any(
         isinstance(item, (ast.Yield, ast.YieldFrom)) for item, _ in _own_code(node.body)
     ):
         return (), 0
-    found: list[tuple[str, str, str, str]] = []
+    found: list[FunctionExit] = []
     total = 0
     known = texts or {}
 
     def code(expression: ast.AST) -> str:
         return known.get(id(expression)) or unparse_redacted(expression, limits.MAX_EXIT_CHARS)
 
-    def record(kind: str, value: str, branch: str, test: str) -> None:
+    def caught(handler: ast.ExceptHandler) -> str:
+        return code(handler.type) if handler.type else ""
+
+    def record(kind: str, value: str, branches: ExitPath, around: ExitPath) -> None:
         nonlocal total
         total += 1
-        if len(found) < limits.MAX_FUNCTION_EXITS:
-            found.append((kind, value, branch, test))
+        if len(found) >= limits.MAX_FUNCTION_EXITS:
+            return
+        conditions = branches or around
+        if len(conditions) > limits.MAX_EXIT_CONDITIONS:
+            conditions = (("deep", str(len(branches))),) if branches else ()
+        found.append((kind, value, conditions))
 
-    def walk(statements: list[ast.stmt], branch: str, test: str) -> None:
+    def walk(statements: list[ast.stmt], branches: ExitPath, around: ExitPath) -> None:
         for statement in statements:
             if isinstance(statement, ast.Return):
                 value = "None" if statement.value is None else code(statement.value)
-                record("return", value, branch, test)
+                record("return", value, branches, around)
             elif isinstance(statement, ast.Raise):
-                record("raise", code(statement.exc) if statement.exc else "", branch, test)
+                record("raise", code(statement.exc) if statement.exc else "", branches, around)
             elif isinstance(statement, ast.If):
                 condition = code(statement.test)
-                walk(statement.body, "if", condition)
-                walk(statement.orelse, "else", condition)
-            elif isinstance(statement, (ast.For, ast.AsyncFor, ast.While)):
-                walk(statement.body, branch, test)
-                walk(statement.orelse, branch, test)
+                walk(statement.body, (*branches, ("if", condition)), around)
+                walk(statement.orelse, (*branches, ("else", condition)), around)
+            elif isinstance(statement, (ast.For, ast.AsyncFor)):
+                walk(statement.body, branches, (*around, ("for", code(statement.iter))))
+                walk(statement.orelse, branches, around)
+            elif isinstance(statement, ast.While):
+                endless = isinstance(statement.test, ast.Constant) and bool(statement.test.value)
+                inside = around if endless else (*around, ("while", code(statement.test)))
+                walk(statement.body, branches, inside)
+                walk(statement.orelse, branches, around)
             elif isinstance(statement, (ast.With, ast.AsyncWith)):
-                walk(statement.body, branch, test)
+                walk(statement.body, branches, around)
             elif isinstance(statement, (ast.Try, ast.TryStar)):
-                walk(statement.body, branch, test)
+                uncaught = (*around, *(("try", caught(item)) for item in statement.handlers))
+                walk(statement.body, branches, uncaught)
                 for handler in statement.handlers:
-                    walk(handler.body, "except", code(handler.type) if handler.type else "")
-                walk(statement.orelse, branch, test)
-                walk(statement.finalbody, branch, test)
+                    walk(handler.body, (*branches, ("except", caught(handler))), around)
+                walk(statement.orelse, branches, uncaught)
+                walk(statement.finalbody, branches, around)
             elif isinstance(statement, ast.Match):
+                earlier: list[ExitCondition] = []
                 for case in statement.cases:
                     if _matches_anything(case):
-                        # `case _:` is what happens otherwise, as an `else` with nothing to test.
-                        walk(case.body, branch, test)
+                        # `case _:` is reached where no case before it matched.
+                        walk(case.body, branches, (*around, *earlier))
                         continue
                     pattern = unparse_redacted(case.pattern, limits.MAX_EXIT_CHARS)
                     if case.guard is not None:
                         pattern += f" if {unparse_redacted(case.guard, limits.MAX_EXIT_CHARS)}"
-                    walk(case.body, "case", pattern)
+                    walk(case.body, (*branches, ("case", pattern)), around)
+                    earlier.append(("other", pattern))
 
-    walk(node.body, "", "")
+    walk(node.body, (), ())
     if not _always_exits(node.body):
-        record("return", "None", "", "")
+        record("return", "None", (), ())
     return tuple(found), total
 
 
@@ -1827,7 +1858,7 @@ def snapshot_symbol(
     outputs: frozenset[int] = frozenset()
     constants: dict[str, str] = {}
     without_constants: str | None = None
-    exits: tuple[tuple[str, str, str, str], ...] = ()
+    exits: tuple[FunctionExit, ...] = ()
     exits_total = 0
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
         signature = function_signature(node)

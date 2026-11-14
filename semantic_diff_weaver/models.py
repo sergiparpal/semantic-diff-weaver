@@ -15,6 +15,9 @@ MAX_PATH_CHARS = 4096
 MAX_REF_CHARS = 1024
 MAX_PATTERN_CHARS = 512
 MAX_PATH_PATTERNS = 256
+# The most an obligation's title holds, and each of its given, when, and then.
+MAX_OBLIGATION_TITLE_CHARS = 300
+MAX_OBLIGATION_TEXT_CHARS = 1000
 RelativePattern = Annotated[str, Field(min_length=1, max_length=MAX_PATTERN_CHARS)]
 
 
@@ -332,10 +335,10 @@ class TestObligation(StrictModel):
     behavior_change_ids: list[str] = Field(min_length=1)
     type: ObligationType
     priority: int = Field(ge=0, le=100)
-    title: str = Field(min_length=1, max_length=300)
-    given: str = Field(min_length=1, max_length=1000)
-    when: str = Field(min_length=1, max_length=1000)
-    then: str = Field(min_length=1, max_length=1000)
+    title: str = Field(min_length=1, max_length=MAX_OBLIGATION_TITLE_CHARS)
+    given: str = Field(min_length=1, max_length=MAX_OBLIGATION_TEXT_CHARS)
+    when: str = Field(min_length=1, max_length=MAX_OBLIGATION_TEXT_CHARS)
+    then: str = Field(min_length=1, max_length=MAX_OBLIGATION_TEXT_CHARS)
     candidate_existing_tests: list[CandidateTest] = Field(default_factory=list)
     coverage_status: CoverageStatus
     origin: Origin
@@ -643,10 +646,10 @@ class LlmBehavior(StrictModel):
 class LlmObligation(StrictModel):
     behavior_index: int = Field(ge=0)
     type: ObligationType
-    title: str = Field(min_length=1, max_length=300)
-    given: str = Field(min_length=1, max_length=1000)
-    when: str = Field(min_length=1, max_length=1000)
-    then: str = Field(min_length=1, max_length=1000)
+    title: str = Field(min_length=1, max_length=MAX_OBLIGATION_TITLE_CHARS)
+    given: str = Field(min_length=1, max_length=MAX_OBLIGATION_TEXT_CHARS)
+    when: str = Field(min_length=1, max_length=MAX_OBLIGATION_TEXT_CHARS)
+    then: str = Field(min_length=1, max_length=MAX_OBLIGATION_TEXT_CHARS)
 
 
 class LlmBatchResponse(StrictModel):

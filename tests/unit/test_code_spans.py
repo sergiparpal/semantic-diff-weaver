@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from semantic_diff_weaver.renderer import _code, _inline
-from semantic_diff_weaver.textutil import code_span, split_code_spans
+from semantic_diff_weaver.textutil import code_span, fit_text, split_code_spans
 
 BACKSLASH = chr(92)
 
@@ -86,3 +86,30 @@ def test_backticks_that_open_no_span_are_prose(text: str, parts: list[tuple[str,
 def test_inline_text_escapes_its_prose_and_keeps_its_spans() -> None:
     text = f"Assert *this* in {code_span('a_b*[c](d)')}"
     assert _inline(text) == "Assert \\*this\\* in `a_b*[c](d)`"
+
+
+def test_text_that_fits_is_kept_whole() -> None:
+    text = "it returns `x` when `x > 0`"
+    assert fit_text(text, len(text)) == text
+
+
+@pytest.mark.parametrize(
+    ("text", "limit", "fitted"),
+    [
+        # At the last space before the limit, with an ellipsis, and a comma dropped before it.
+        ("it returns `a`, or returns `b` otherwise", 30, "it returns `a`, or returns…"),
+        # Never inside a span, which would leave its backticks open: before it instead.
+        ("it returns `a long value` otherwise", 20, "it returns…"),
+        ("it returns ``a`b c`` otherwise", 21, "it returns ``a`b c``…"),
+        ("it returns ``a`b c`` otherwise", 19, "it returns…"),
+        # A space inside a span is no place to cut, whichever its fence.
+        ("x ``a b c d e f g h`` y", 18, "x…"),
+        # With no space outside a span before the limit, just before the span.
+        ("abcdef`g h i`", 10, "abcdef…"),
+        ("`a b c d e f`", 8, "…"),
+    ],
+)
+def test_text_too_long_is_cut_where_no_span_is_open(text: str, limit: int, fitted: str) -> None:
+    assert fit_text(text, limit) == fitted
+    assert len(fitted) <= limit
+    assert not any("`" in part for part, code in split_code_spans(fitted) if not code)

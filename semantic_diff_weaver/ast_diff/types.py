@@ -7,6 +7,21 @@ from typing import Any
 
 from ..models import LineRange
 
+# A condition on the path to an exit of a callable, as a word and a test (see
+# `extract.function_exits`), and an exit: its kind, its value as code, and the conditions on the
+# path to it, outermost first.
+ExitCondition = tuple[str, str]
+ExitPath = tuple[ExitCondition, ...]
+FunctionExit = tuple[str, str, ExitPath]
+# The words of a condition. A branch the path takes: an `if`'s test for its body (`if`) or for its
+# `else` (`else`), what a handler catches (`except`), a `match` case's pattern (`case`), or, for
+# more of them than an exit records, how many (`deep`). Or what a loop or a `try` around the exit
+# needs, recorded only where no branch leads there: an iteration of a `for` (`for`) or of a
+# `while` (`while`), no exception a handler of a `try` catches (`try`), or no earlier case of a
+# `match` (`other`).
+BRANCH_CONDITIONS = frozenset({"if", "else", "except", "case", "deep"})
+ENCLOSING_CONDITIONS = frozenset({"for", "while", "try", "other"})
+
 
 def reparameterize(signature: str) -> str:
     """Normalize identifiers while preserving argument structure for rename matching."""
@@ -81,9 +96,9 @@ class SymbolSnapshot:
     # snapshot built without it, which is never read as reworded.
     fingerprint_without_messages: str | None = None
     # A callable's exits, at most `MAX_FUNCTION_EXITS` of them, as `function_exits` records them:
-    # what each `return` and `raise` of its own code hands back or raises, and the innermost branch
-    # leading there. And how many it has. None for a generator or any other symbol.
-    exits: tuple[tuple[str, str, str, str], ...] = ()
+    # what each `return` and `raise` of its own code hands back or raises, and the conditions on
+    # the path leading there. And how many it has. None for a generator or any other symbol.
+    exits: tuple[FunctionExit, ...] = ()
     exits_total: int = 0
     # The fingerprint with the `description` texts of the schemas its body holds blanked: equal to
     # another's while the fingerprints differ, the two differ only in how a schema describes a
