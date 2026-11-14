@@ -2074,6 +2074,19 @@ def _receiver(node: ast.AST, kind: str) -> str | None:
     return parameters[0].arg if parameters else None
 
 
+# The nodes `symbol_references` reads. Most of a symbol's nodes are none of them, contexts,
+# constants, and operators above all, and one lookup of a node's type skips each such node where
+# a test of each type would make six.
+_REFERENCE_NODES = frozenset(
+    {ast.Name, ast.Attribute, ast.Call, ast.arg, ast.ExceptHandler, ast.Global}
+)
+
+
+# What a symbol that calls nothing of a kind shares, rather than an empty set of its own: most
+# of a call graph's symbols are small, and building their references is most of building it.
+_NONE: frozenset[str] = frozenset()
+
+
 def symbol_references(node: ast.AST, kind: str) -> SymbolReferences:
     """What a symbol's code uses — every name and attribute, called or not — and its chains, and
     which of those names and attributes it calls."""
@@ -2088,16 +2101,12 @@ def symbol_references(node: ast.AST, kind: str) -> SymbolReferences:
     called_own_attributes: set[str] = set()
     receiver = _receiver(node, kind)
     for child in ast.walk(node):
+        if type(child) not in _REFERENCE_NODES:
+            continue
         if isinstance(child, ast.Name):
             names.add(child.id)
             if isinstance(child.ctx, ast.Store):
                 bound.add(child.id)
-        elif isinstance(child, ast.arg):
-            bound.add(child.arg)
-        elif isinstance(child, ast.ExceptHandler) and child.name:
-            bound.add(child.name)
-        elif isinstance(child, ast.Global):
-            declared.update(child.names)
         elif isinstance(child, ast.Attribute):
             if isinstance(child.value, ast.Name) and child.value.id == receiver:
                 own_attributes.add(child.attr)
@@ -2105,6 +2114,12 @@ def symbol_references(node: ast.AST, kind: str) -> SymbolReferences:
                 attributes.add(child.attr)
             if chain := _dotted(child):
                 dotted.add(chain)
+        elif isinstance(child, ast.arg):
+            bound.add(child.arg)
+        elif isinstance(child, ast.ExceptHandler) and child.name:
+            bound.add(child.name)
+        elif isinstance(child, ast.Global):
+            declared.update(child.names)
         elif isinstance(child, ast.Call):
             function = child.func
             if isinstance(function, ast.Name):
@@ -2125,9 +2140,9 @@ def symbol_references(node: ast.AST, kind: str) -> SymbolReferences:
         bases=_bases(node) if isinstance(node, ast.ClassDef) else (),
         returns=_written_names(returns) if isinstance(returns, ast.expr) else frozenset(),
         bound=frozenset(bound - declared),
-        called_names=frozenset(called_names),
-        called_attributes=frozenset(called_attributes),
-        called_own_attributes=frozenset(called_own_attributes),
+        called_names=frozenset(called_names) if called_names else _NONE,
+        called_attributes=frozenset(called_attributes) if called_attributes else _NONE,
+        called_own_attributes=frozenset(called_own_attributes) if called_own_attributes else _NONE,
     )
 
 
