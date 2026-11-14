@@ -80,6 +80,10 @@ class SymbolSnapshot:
     # while the fingerprints differ, the two differ only in how a message is worded. None for a
     # snapshot built without it, which is never read as reworded.
     fingerprint_without_messages: str | None = None
+    # The fingerprint with the `description` texts of the schemas its body holds blanked: equal to
+    # another's while the fingerprints differ, the two differ only in how a schema describes a
+    # tool or its properties. None for a snapshot built without it, never read as redescribed.
+    fingerprint_without_descriptions: str | None = None
     # A module's own top-level imports as they run: each name one binds, to what it imports as
     # written, `._types` for `from . import _types`.
     imports: dict[str, tuple[str, ...]] = field(default_factory=dict)

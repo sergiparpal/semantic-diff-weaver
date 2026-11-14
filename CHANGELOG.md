@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **Fix:** a schema whose `description` texts alone changed, a dict literal with JSON Schema's
+  `type` or `properties` or a tool's `parameters`, `input_schema`, or `inputSchema`, no longer
+  takes an obligation to call the code that reads it, which is handed the same arguments: its
+  obligation asks what an agent given the tool tells the user, asks before it acts, and calls
+  under the new text. Its finding and category are unchanged. A state transition's obligation no
+  longer says a repeated call keeps the state stable, which a handler that counts what it is
+  handed never does: it asks for the state that call leaves to be asserted. Both were found
+  replaying with 0.22.1 the Action's field test on meal-manager's pull requests #40 and #43. On
+  the 150 development cases no finding changes, and 16 transition obligations in 10 cases change
+  their wording; no case changes only a description. The `state assignment` golden changes in
+  that wording alone; schema 1.5 is unchanged.
 - **Evaluation:** the README's limitation on categories quotes the fifth held-out split, measured
   once with 0.22.0: every one of the 44 behavior changes gets a finding, 37 in an expected category,
   45 of the 86 scored findings are in one and 17 name none, and 2 of the 43 unchanged symbols get a

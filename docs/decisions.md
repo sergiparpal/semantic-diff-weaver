@@ -689,6 +689,35 @@ click#3764's real one, and they stayed at 17, as without a model. The 4 findings
 two above and two on httpx#3651's unlabeled `StreamClosed` and `URL`, and it added none. The replay
 with this code reproduced the live run's findings in all 60 cases.
 
+## Output-affecting corrections (2026-11-14, a schema's descriptions and a repeated transition)
+
+Replayed with 0.22.1, the Action's field test on meal-manager's pull requests #40 and #43 kept the
+obligations 0.19.0 and 0.19.3 had written, and two kinds of them say something false.
+
+- **A schema's descriptions.** Three findings were on a tool's `SCHEMA` whose `description` texts
+  alone changed: `clear_fridge`'s came to say that it empties the pantry staples too, and that it
+  runs only after the user says yes. Each obligation asked to call `HANDLER`, which reads the
+  changed `SCHEMA`, with input the changed value decides. `HANDLER` does read it, through its
+  decorator `tool_handler(NAME, SCHEMA)`, which checks each call's arguments against the schema's
+  `properties`, but nothing reads a description except an agent given the tool: the handler returns
+  what it returned, and what changed is what the agent tells the user and when it calls the tool.
+  A symbol whose body differs only in the `description` texts of the schemas it holds now marks its
+  deltas `described_only`, and the obligation of their finding asks what an agent given the tool
+  tells the user, asks before it acts, and calls under the new text. A schema is a dict literal
+  with JSON Schema's `properties`, or a `type` that names a JSON Schema type, or a tool's
+  `parameters`, `input_schema`, or `inputSchema`. A record such as `{"name": ..., "description":
+  ...}` is none, and a description held in a variable is that variable's change. The finding and
+  its category are as they were. A read through a decorator still counts as the decorated
+  function's, since a changed `properties` is what calling `HANDLER` tests.
+- **A repeated transition.** A state transition's obligation ended "and a repeated call keeps it
+  stable". `register_cooked_meal`'s `HANDLER` counts each meal it is handed, so a second call
+  moves its state. The obligation now asks for the state a repeated call leaves to be asserted.
+
+On the 150 development cases no finding changes, so neither do the benchmark's measures. 16
+state-transition obligations in 10 cases change their wording alone, and obligations stay at 363:
+no case changes only a schema's descriptions. The `state assignment` golden changes in that wording;
+schema 1.5 is unchanged. The performance tests take as long as on main.
+
 ## Output-affecting corrections (2026-11-13, a nested function's obligations)
 
 `SDW-RULE-NESTED` gives a function whose own code reads the same, and whose body changed only as the

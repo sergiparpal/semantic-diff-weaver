@@ -394,6 +394,69 @@ def fingerprint_without_messages(body: list[ast.stmt], fingerprint: str) -> str:
             literal.value = text
 
 
+# JSON Schema's type names, and the keys under which a schema lists its properties or a tool's
+# definition the schema of its arguments: a dict literal holding one is a schema.
+SCHEMA_TYPES = frozenset({"array", "boolean", "integer", "null", "number", "object", "string"})
+SCHEMA_KEYS = frozenset({"inputSchema", "input_schema", "parameters", "properties"})
+
+
+def _text(node: ast.expr | None) -> str | None:
+    """The string a literal holds, or None for any other expression."""
+    return node.value if isinstance(node, ast.Constant) and isinstance(node.value, str) else None
+
+
+def is_schema(node: ast.Dict) -> bool:
+    """Whether a dict literal reads as a JSON Schema or a tool's definition: it has a key of
+    `SCHEMA_KEYS`, or a `type` that names a JSON Schema type."""
+    for key, value in zip(node.keys, node.values, strict=True):
+        name = _text(key)
+        if name in SCHEMA_KEYS or (name == "type" and _text(value) in SCHEMA_TYPES):
+            return True
+    return False
+
+
+def description_literals(statement: ast.AST) -> list[ast.Constant]:
+    """The `description` texts of the schemas a statement holds, each a string literal.
+
+    A tool's schema, `{"description": "Empty the fridge…", "type": "object", ...}`, tells an agent
+    what the tool does and when to call it, and the descriptions of its properties what to pass.
+    A validator reads none of them.
+    """
+    literals: list[ast.Constant] = []
+    for node in ast.walk(statement):
+        if not isinstance(node, ast.Dict) or not is_schema(node):
+            continue
+        for key, value in zip(node.keys, node.values, strict=True):
+            if _text(key) == "description" and isinstance(value, ast.Constant) and _text(value):
+                literals.append(value)
+    return literals
+
+
+def fingerprint_without_descriptions(body: list[ast.stmt], fingerprint: str) -> str:
+    """The body's fingerprint, `fingerprint`, with the `description` texts of its schemas blanked.
+
+    Two bodies with the same fingerprint here hold the same schemas, and differ at most in how
+    those describe a tool or its properties (see `description_literals`): text for whoever reads
+    the schema, an agent given the tool among them, that no code computes with.
+    """
+    literals = [
+        literal
+        for statement in body_without_docstring(body)
+        for literal in description_literals(statement)
+    ]
+    if not literals:
+        return fingerprint
+    # Blanked in place for one dump and restored, as `fingerprint_without_messages` does.
+    wording = [literal.value for literal in literals]
+    try:
+        for literal in literals:
+            literal.value = ""
+        return body_fingerprint(body)
+    finally:
+        for literal, text in zip(literals, wording, strict=True):
+            literal.value = text
+
+
 TYPING_MODULES = frozenset({"typing", "typing_extensions"})
 
 
@@ -1681,6 +1744,12 @@ def snapshot_symbol(
         fingerprint_without_messages=(
             fingerprint_without_messages(body, fingerprint)
             if any(name == "Raise" for name, _ in inventory)
+            else fingerprint
+        ),
+        # Only a body with a dict literal can hold a schema.
+        fingerprint_without_descriptions=(
+            fingerprint_without_descriptions(body, fingerprint)
+            if any(name == "Dict" for name, _ in inventory)
             else fingerprint
         ),
         imports=imports,
