@@ -2192,7 +2192,7 @@
         "id": "to-001",
         "origin": "deterministic_fallback",
         "priority": 71,
-        "then": "The resulting state is asserted, and a repeated call keeps it stable",
+        "then": "The resulting state is asserted, and so is the state a repeated call leaves",
         "title": "Verify the allowed transition `move` now makes",
         "type": "state",
         "when": "`move` runs from a state that permits the transition"

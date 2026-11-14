@@ -509,6 +509,20 @@ def is_reworded(old: SymbolSnapshot, new: SymbolSnapshot) -> bool:
     )
 
 
+def is_redescribed(old: SymbolSnapshot, new: SymbolSnapshot) -> bool:
+    """Whether two bodies differ in nothing but the `description` texts of the schemas they hold.
+
+    A tool's description that comes to say what else its call clears, or to ask for a yes before
+    it runs, changes what an agent given the tool tells the user and when it calls it. The schema
+    validates what it validated before, and the tool's handler is handed the same arguments.
+    """
+    return (
+        old.fingerprint != new.fingerprint
+        and old.fingerprint_without_descriptions is not None
+        and old.fingerprint_without_descriptions == new.fingerprint_without_descriptions
+    )
+
+
 def _changed_raises(snapshot: SymbolSnapshot, other: SymbolSnapshot) -> str | None:
     """The raises of `snapshot` that `other` does not hold as many times, as a delta shows them."""
     changed = Counter(feature_texts(snapshot, "raises")) - Counter(feature_texts(other, "raises"))
@@ -881,6 +895,11 @@ def compare_symbol(
         )
     if not result:
         result.append(_delta_without_features(path, old, new, hunk_id, reworded=reworded))
+    if is_redescribed(old, new):
+        # What the descriptions say is for an agent given the tool, whose obligation is a test of
+        # what it then tells the user and calls; no code computes with them.
+        for item in result:
+            item.metadata["described_only"] = True
     if effective_old_path != effective_new_path:
         for item in result:
             item.metadata.update(old_path=effective_old_path, new_path=effective_new_path)

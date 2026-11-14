@@ -8,7 +8,9 @@ A finding's scenario quotes its evidence instead: what to run, what changed, and
 The category's scenarios remain for a finding no Python delta describes, such as one on an API
 schema or a configuration file, or a change the parser could not read. A function that changed
 only as the functions nested in it did has no line of its own to quote either, and its scenario
-names them, whose findings say what changed.
+names them, whose findings say what changed. A schema that changed only how it describes a tool
+changes nothing a test of the tool's code could tell apart, and its scenario asks what an agent
+given the tool does with the new text.
 
 Only what the evidence holds is quoted, already redacted and bounded, each fragment as a code
 span. The renderer keeps it one, so a repository's text never becomes Markdown of its own.
@@ -222,6 +224,8 @@ class Change:
     assigned_names: tuple[str, ...] = ()
     # As extraction labels the symbol: `function`, `method`, `class`, `module`, and so on.
     symbol_kind: str | None = None
+    # Whether its symbol changed nothing but the `description` texts of the schemas it holds.
+    described_only: bool = False
 
     @property
     def removed_only(self) -> bool:
@@ -285,6 +289,7 @@ def describe_change(delta: StructuralDelta) -> Change | None:
         ambiguous=bool(metadata.get("ambiguous_match")),
         assigned_names=_strings(metadata.get("assigned_names")),
         symbol_kind=delta.symbol_kind,
+        described_only=bool(metadata.get("described_only")),
     )
 
 
@@ -731,7 +736,8 @@ def _assignment_scenario(found: _Finding) -> Scenario:
             f"Verify the allowed transition {found.subject} now makes",
             found.changed,
             f"{found.runs} from a state that permits the transition",
-            "The resulting state is asserted, and a repeated call keeps it stable",
+            # Not "keeps it stable": a handler that counts what it is handed moves on each call.
+            "The resulting state is asserted, and so is the state a repeated call leaves",
         )
     module = (found.evidence.symbol or "<module>") == "<module>"
     if module and found.change.assigned_names and found.readers:
@@ -942,8 +948,30 @@ def _unnamed_scenario(found: _Finding) -> Scenario:
     )
 
 
+def _described_scenario(found: _Finding) -> Scenario:
+    """What an agent does with a tool whose schema changed only how it describes the tool.
+
+    No code computes with a description, so asserting what the tool's handler returns tests what
+    it returned before: the schema's agent reads the new text before it calls the tool, and what
+    it then tells the user, waits for, and calls is what changed.
+    """
+    names = found.change.assigned_names
+    described = _quotes(names, len(names)) if names else found.subject
+    return found.scenario(
+        ObligationType.INTERACTION,
+        f"Check that an agent follows the changed description in {described}",
+        f"{found.changed}: only schema descriptions changed, which an agent given the tool reads "
+        "before it calls it, and no code computes with",
+        "An agent is given the tool under the new description, with a request the changed text "
+        "speaks to",
+        "What the agent tells the user, asks before it acts, and calls follows the new text",
+    )
+
+
 def _scenarios_of(found: _Finding) -> tuple[Scenario, ...]:
     kind, change = found.change.kind, found.change
+    if change.described_only:
+        return (_described_scenario(found),)
     if kind == "signature_change":
         return _default_scenarios(found) if change.defaults else (_signature_scenario(found),)
     if kind in {"comparison_change", "condition_change"}:

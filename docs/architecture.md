@@ -81,7 +81,11 @@ method's `self` or `cls`, a state transition. A probe covers exactly the values 
 display text shows, and only those of them the delta changed: an unchanged `order.status = ...`
 does not make a changed `count = ...` beside it a state transition. An assignment's value is shown
 cut at 250 characters, and one cut there ends with a digest of all of it, so two values that differ
-past the cut still differ. Reordered comparisons, assignments, or loops change no value and are read
+past the cut still differ. A schema whose `description` texts alone changed, a dict literal with
+JSON Schema's `type` or `properties` or a tool's `parameters`, `input_schema`, or `inputSchema`,
+keeps its category, and its obligation asks what an agent given the tool tells the user and calls
+under the new text: no code computes with a description. Reordered comparisons, assignments, or
+loops change no value and are read
 by their symbol's name; reordered conditions and calls are ordering changes. A changed loop is
 a retry only when its own words, or its symbol's name, say so — `attempt`, `retry`, `timeout`,
 `sleep`, `backoff`, or `deadline`, but not `limit`, which every loop has and which names no retry
