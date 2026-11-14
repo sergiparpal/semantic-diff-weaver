@@ -442,7 +442,7 @@ def test_a_module_s_own_code_runs_as_the_module_is_imported() -> None:
             "def f():\n    return 1\n",
             "def f():\n    return 1\n\ndef g(x):\n    return x\n",
             BehaviorCategory.UNKNOWN,
-            "Characterize the new `g`",
+            "Assert what the new `g` returns",
         ),
         (
             "def f():\n    return 1\n\ndef g(x):\n    return x\n",

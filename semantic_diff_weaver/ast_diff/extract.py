@@ -1149,6 +1149,137 @@ def _header(node: ast.AST) -> range:
     return _span(node)
 
 
+def _always_exits(statements: list[ast.stmt]) -> bool:
+    """Whether every path through `statements` ends in a `return` or a `raise` of their own.
+
+    Read from the last statement: an `if` whose two blocks both exit, a `with` whose block does, a
+    `try` whose body or `else`, and every handler, exit, or whose `finally` does, a `while True`
+    with no `break` of its own, and a `match` whose last case matches anything and whose every
+    case exits. Anything else may run past the end.
+    """
+    if not statements:
+        return False
+    last = statements[-1]
+    if isinstance(last, (ast.Return, ast.Raise)):
+        return True
+    if isinstance(last, ast.If):
+        return _always_exits(last.body) and _always_exits(last.orelse)
+    if isinstance(last, (ast.With, ast.AsyncWith)):
+        return _always_exits(last.body)
+    if isinstance(last, (ast.Try, ast.TryStar)):
+        if _always_exits(last.finalbody):
+            return True
+        return (_always_exits(last.body) or _always_exits(last.orelse)) and all(
+            _always_exits(handler.body) for handler in last.handlers
+        )
+    if isinstance(last, ast.While):
+        endless = isinstance(last.test, ast.Constant) and last.test.value is True
+        return endless and not _breaks(last.body)
+    if isinstance(last, ast.Match):
+        return (
+            bool(last.cases)
+            and _matches_anything(last.cases[-1])
+            and all(_always_exits(case.body) for case in last.cases)
+        )
+    return False
+
+
+def _matches_anything(case: ast.match_case) -> bool:
+    """Whether a `match` case matches every value: `case _:` or `case name:`, with no guard."""
+    return (
+        case.guard is None
+        and isinstance(case.pattern, ast.MatchAs)
+        and case.pattern.pattern is None
+    )
+
+
+def _breaks(statements: list[ast.stmt]) -> bool:
+    """Whether a `break` in `statements`, outside the loops and scopes they hold, ends their loop."""
+    pending: list[ast.AST] = list(statements)
+    while pending:
+        node = pending.pop()
+        if isinstance(node, ast.Break):
+            return True
+        if isinstance(node, (*_NESTED_SCOPES, ast.For, ast.AsyncFor, ast.While)):
+            continue
+        pending.extend(child for field in _STATEMENT_FIELDS for child in getattr(node, field, ()))
+    return False
+
+
+def function_exits(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+    *,
+    inline: bool = True,
+    texts: Mapping[int, str] | None = None,
+) -> tuple[tuple[tuple[str, str, str, str], ...], int]:
+    """What each `return` and `raise` of a function's own code hands back or raises, and how many.
+
+    Each exit is its kind, `return` or `raise`; its value as code, empty for a bare `raise`; and the
+    innermost branch that leads there, as a word and a test: `if` and the test for an `if`'s body,
+    `else` and that test for its `else`, `except` and what a handler catches, empty for a bare one,
+    `case` and a `match` case's pattern, or two empty strings for none. Loops, `with` blocks, and a
+    `try`'s body are no branch of their own. A body that may run past its end returns `None` there,
+    with no branch. A generator has none: what it yields is what it gives. Nested functions and
+    classes are code of their own. A caller that knows the body holds no `yield` or `yield from`
+    passes `inline=False`, and one that has unparsed an expression already passes its text in
+    `texts`, by the node's identity, as `FeatureVisitor` does. At most `MAX_FUNCTION_EXITS` are kept.
+    """
+    if inline and any(
+        isinstance(item, (ast.Yield, ast.YieldFrom)) for item, _ in _own_code(node.body)
+    ):
+        return (), 0
+    found: list[tuple[str, str, str, str]] = []
+    total = 0
+    known = texts or {}
+
+    def code(expression: ast.AST) -> str:
+        return known.get(id(expression)) or unparse_redacted(expression, limits.MAX_EXIT_CHARS)
+
+    def record(kind: str, value: str, branch: str, test: str) -> None:
+        nonlocal total
+        total += 1
+        if len(found) < limits.MAX_FUNCTION_EXITS:
+            found.append((kind, value, branch, test))
+
+    def walk(statements: list[ast.stmt], branch: str, test: str) -> None:
+        for statement in statements:
+            if isinstance(statement, ast.Return):
+                value = "None" if statement.value is None else code(statement.value)
+                record("return", value, branch, test)
+            elif isinstance(statement, ast.Raise):
+                record("raise", code(statement.exc) if statement.exc else "", branch, test)
+            elif isinstance(statement, ast.If):
+                condition = code(statement.test)
+                walk(statement.body, "if", condition)
+                walk(statement.orelse, "else", condition)
+            elif isinstance(statement, (ast.For, ast.AsyncFor, ast.While)):
+                walk(statement.body, branch, test)
+                walk(statement.orelse, branch, test)
+            elif isinstance(statement, (ast.With, ast.AsyncWith)):
+                walk(statement.body, branch, test)
+            elif isinstance(statement, (ast.Try, ast.TryStar)):
+                walk(statement.body, branch, test)
+                for handler in statement.handlers:
+                    walk(handler.body, "except", code(handler.type) if handler.type else "")
+                walk(statement.orelse, branch, test)
+                walk(statement.finalbody, branch, test)
+            elif isinstance(statement, ast.Match):
+                for case in statement.cases:
+                    if _matches_anything(case):
+                        # `case _:` is what happens otherwise, as an `else` with nothing to test.
+                        walk(case.body, branch, test)
+                        continue
+                    pattern = unparse_redacted(case.pattern, limits.MAX_EXIT_CHARS)
+                    if case.guard is not None:
+                        pattern += f" if {unparse_redacted(case.guard, limits.MAX_EXIT_CHARS)}"
+                    walk(case.body, "case", pattern)
+
+    walk(node.body, "", "")
+    if not _always_exits(node.body):
+        record("return", "None", "", "")
+    return tuple(found), total
+
+
 def output_lines(
     node: ast.FunctionDef | ast.AsyncFunctionDef, *, inline: bool = True
 ) -> frozenset[int]:
@@ -1460,6 +1591,9 @@ class FeatureVisitor(ast.NodeVisitor):
         self.assigned: list[frozenset[str]] = []
         self.stored: list[frozenset[str]] = []
         self.on_instance: list[bool] = []
+        # The text of each test, returned value, raised exception, and caught type it recorded,
+        # by the node's identity, for `function_exits` to reuse rather than unparse again.
+        self.texts: dict[int, str] = {}
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         if node is self.root:
@@ -1485,7 +1619,9 @@ class FeatureVisitor(ast.NodeVisitor):
         self.generic_visit(node)
 
     def _record_condition(self, test: ast.expr, lineno: int) -> None:
-        self.conditions.append((unparse_redacted(test), lineno))
+        text = unparse_redacted(test)
+        self.texts[id(test)] = text
+        self.conditions.append((text, lineno))
         self.probes["conditions"].append(category_probe(test))
 
     def visit_If(self, node: ast.If) -> None:
@@ -1502,12 +1638,18 @@ class FeatureVisitor(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_Raise(self, node: ast.Raise) -> None:
-        self.raises.append((unparse_redacted(node.exc), node.lineno))
+        text = unparse_redacted(node.exc)
+        if node.exc is not None:
+            self.texts[id(node.exc)] = text
+        self.raises.append((text, node.lineno))
         self.statement_order.append(f"raise:{unparse_redacted(node.exc, 120)}")
         self.generic_visit(node)
 
     def visit_ExceptHandler(self, node: ast.ExceptHandler) -> None:
-        self.handlers.append((unparse_redacted(node.type), node.lineno))
+        text = unparse_redacted(node.type)
+        if node.type is not None:
+            self.texts[id(node.type)] = text
+        self.handlers.append((text, node.lineno))
         self.generic_visit(node)
 
     def visit_Call(self, node: ast.Call) -> None:
@@ -1523,7 +1665,10 @@ class FeatureVisitor(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_Return(self, node: ast.Return) -> None:
-        self.returns.append((unparse_redacted(node.value), node.lineno))
+        text = unparse_redacted(node.value)
+        if node.value is not None:
+            self.texts[id(node.value)] = text
+        self.returns.append((text, node.lineno))
         self.statement_order.append(f"return:{unparse_redacted(node.value, 120)}")
         self.generic_visit(node)
 
@@ -1682,6 +1827,8 @@ def snapshot_symbol(
     outputs: frozenset[int] = frozenset()
     constants: dict[str, str] = {}
     without_constants: str | None = None
+    exits: tuple[tuple[str, str, str, str], ...] = ()
+    exits_total = 0
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
         signature = function_signature(node)
         parameters = function_parameters(node)
@@ -1691,7 +1838,9 @@ def snapshot_symbol(
         beyond_parameters = typing_beyond_parameters(node)
         # Without an assignment expression or a `yield` anywhere in it, a body's statements
         # alone say what feeds its value.
-        outputs = output_lines(node, inline=any(name in _INLINE_NAMES for name, _ in inventory))
+        inline = any(name in _INLINE_NAMES for name, _ in inventory)
+        outputs = output_lines(node, inline=inline)
+        exits, exits_total = function_exits(node, inline=inline, texts=visitor.texts)
         if typing is not None:
             annotated = parameter_typing(node, typing)
             unread = annotations_unread(node, qualified_name, kind, typing)
@@ -1737,6 +1886,8 @@ def snapshot_symbol(
         assigned=tuple(visitor.assigned),
         stored=tuple(visitor.stored),
         on_instance=tuple(visitor.on_instance),
+        exits=exits,
+        exits_total=exits_total,
         docstring_only=not body_without_docstring(body),
         display=display,
         parameters=parameters,

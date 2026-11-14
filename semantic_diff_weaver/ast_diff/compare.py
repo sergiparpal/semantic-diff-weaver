@@ -808,6 +808,12 @@ def compare_symbol(
             # like an empty `__init__.py`, whose diff has no hunk to report. Its definitions
             # are symbols of their own, and a removed module still breaks what imported it.
             return []
+        # What its code returns and raises, and on which branch: what a test of it asserts.
+        exits: dict[str, Any] = (
+            {"exits": [list(item) for item in new.exits], "exits_total": new.exits_total}
+            if new.exits
+            else {}
+        )
         return [
             make_structural_delta(
                 path,
@@ -818,6 +824,7 @@ def compare_symbol(
                 None,
                 new.display or new.signature,
                 ambiguous_match=new.match_ambiguous,
+                **exits,
             )
         ]
     if new is None:

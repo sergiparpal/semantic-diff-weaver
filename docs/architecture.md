@@ -270,7 +270,9 @@ between behaviors with the same coverage status, so one obligation can stand for
 behaviors while its status and candidate tests hold for each of them. Their candidates are pooled
 and cut to the per-obligation cap, and among equal scores the test files take turns, so one file's
 tests cannot fill every place. The obligation that groups high-risk overflow past the global cap
-reports its least-tested behavior's status.
+reports its least-tested behavior's status. An added callable's obligation lists what its own code
+returns and raises on each branch, which extraction records for every callable, and a private one
+with something to list keeps that obligation rather than joining its callers'.
 
 **Candidate tests.** A run measured with per-test contexts also says which test executed each line:
 the coverage.py data file, `.coverage`, that `coverage_map.load_coverage_data` reads beside the
