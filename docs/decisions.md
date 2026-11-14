@@ -725,7 +725,14 @@ The correction has three parts:
   `last_change`". The obligation it joined said nothing of what it returns: `_blend`'s joined the
   handler's, which asserts the handler's own result. Naming the helper is not enough for one to
   speak for the other: `'blend': _blend(weight)` in a caller's return names the call, not what it
-  returns. A helper with nothing to list still joins.
+  returns. A helper with nothing to list still joins. The callers its obligation names are those
+  whose code spells its name as it is, which the call graph's new `calling` keeps. For a
+  function, that is `_clean(name)` or `text._clean`. For a method, it is `box._clean()`, or
+  `self._clean()` in a method of its class or of one inheriting from it. The call graph also
+  reaches a helper from any name that reads alike, so a variable `branch` reaches `_branch`, and a
+  method's `self._label()` reaches a function `_label`. That serves the search for candidate
+  tests, but on this change's own diff it made the obligation say that `outcomes_of` calls
+  `_branch`.
 
 Measured on the 150 development cases:
 

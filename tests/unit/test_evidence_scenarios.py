@@ -1180,6 +1180,9 @@ class _Graph:
     def users(self, node):
         return frozenset(self._users.get(node, ()))
 
+    def calling(self, node):
+        return self.users(node)
+
 
 def test_the_context_of_a_finding_names_its_readers_callers_and_related_symbols() -> None:
     assignment = _evidence_behavior(

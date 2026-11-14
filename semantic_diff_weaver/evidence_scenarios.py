@@ -1397,7 +1397,10 @@ def contexts_of(
         related: list[tuple[str, str]] = []
         if kind == "symbol_added" and graph is not None:
             users = sorted(graph.users((path, symbol)), key=lambda node: (node[0] != path, node))
-            callers = tuple(dict.fromkeys(qualified for _, qualified in users))
+            # The code an obligation says calls it spells its name: `users` reaches it from any
+            # name that reads alike, which serves the candidate tests but no such claim.
+            spelled = graph.calling((path, symbol))
+            callers = tuple(dict.fromkeys(node[1] for node in users if node in spelled))
             related.extend(users)
         if kind == "symbol_removed":
             owner, _, name = symbol.rpartition(".")

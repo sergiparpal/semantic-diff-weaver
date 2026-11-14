@@ -8,7 +8,8 @@
   "Characterize the new …", which asked for "a representative input" and "its intended
   contract". A private helper with something to return or raise keeps an obligation of its own,
   through the code calling it, rather than joining that code's, which said nothing of what the
-  helper returns; one with nothing to list, a generator, or a stub still joins it. Found replaying
+  helper returns; one with nothing to list, a generator, or a stub still joins it. The callers it
+  names are those that spell its name as it is, not any name that reads alike. Found replaying
   the Action's field test on meal-manager's pull request #43, whose new `last_change`,
   `note_deploy_change`, `_blend`, and `_is_iso_date` each had their tests in their code. On the
   150 development cases no finding changes: 20 "Characterize the new" obligations list outcomes

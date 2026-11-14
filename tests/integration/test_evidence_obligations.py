@@ -126,3 +126,23 @@ def test_a_removed_private_class_joins_the_code_that_stopped_calling_it(repo_fac
     titles = [item["title"] for item in obligations]
     assert not any("removed `_Handler" in title for title in titles)
     assert any("`log`" in title for title in titles)
+
+
+def test_a_new_helper_s_obligation_names_only_the_code_that_calls_it(repo_factory) -> None:
+    """The call graph reaches `_label` from a variable `label` as well, which calls nothing: a
+    test may reach the helper that way, but an obligation that says who calls it names `show`."""
+    old = "def show(x):\n    return x\n\n\ndef count(items):\n    return len(items)\n"
+    new = (
+        "def _label(x):\n    return str(x).strip()\n\n\n"
+        "def show(x):\n    return _label(x)\n\n\n"
+        "def count(items):\n    label = len(items)\n    return label\n"
+    )
+    test = "from show import count, show\n\n\ndef test_show():\n    assert show(1) and count([])\n"
+    obligations = _obligations(
+        repo_factory, {"show.py": old, "tests/test_show.py": test}, {"show.py": new}
+    )
+    (own,) = [item for item in obligations if item["title"].startswith("Exercise the new `_label`")]
+    assert own["title"] == "Exercise the new `_label` through `show`"
+    assert own["given"] == (
+        "`_label` is new: `(x)`, and `show` calls it; it returns `str(x).strip()`"
+    )
