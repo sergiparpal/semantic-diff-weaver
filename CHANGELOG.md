@@ -26,6 +26,14 @@
   the 150 development cases no finding changes, and 16 transition obligations in 10 cases change
   their wording; no case changes only a description. The `state assignment` golden changes in
   that wording alone; schema 1.5 is unchanged.
+- **Evaluation:** `docs/benchmark.md` records a blind review of the 34 obligations on the
+  development cases that listing an added callable's outcomes changed, each beside the one before
+  it, against a criterion committed beforehand. The new ones were useful 25 times and the old ones
+  3, and never the old one alone (sign test p < 0.000001): 13 of 20 against none for public
+  callables, and 12 of 14 against 3 for private helpers, which keep obligations of their own. Of
+  the 9 new ones judged noise, five return a local name whose value the code before the `return`
+  decides, one states only the innermost of two branches, and one names as a caller a method that
+  defines its nested function without calling it. Documentation only.
 - **Evaluation:** the README's limitation on categories quotes the fifth held-out split, measured
   once with 0.22.0: every one of the 44 behavior changes gets a finding, 37 in an expected category,
   45 of the 86 scored findings are in one and 17 name none, and 2 of the 43 unchanged symbols get a

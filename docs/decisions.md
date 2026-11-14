@@ -744,6 +744,12 @@ Measured on the 150 development cases:
 - **Speed:** the performance tests take as long as on main. Under a profiler, `function_exits`
   takes 11 ms of the six seconds the three heaviest take.
 
+A blind review since compared each of these 34 obligations with the one it replaced, against a
+criterion committed before it (`docs/benchmark.md`, "Added callables' obligations, reviewed
+blind"). The new ones were useful 25 times and the old ones 3, and never the old one alone: 13
+against none for the public callables, and 12 against 3 for the helpers, which therefore keep
+obligations of their own.
+
 ## Output-affecting corrections (2026-11-14, a schema's descriptions and a repeated transition)
 
 Replayed with 0.22.1, the Action's field test on meal-manager's pull requests #40 and #43 kept the
