@@ -1,6 +1,18 @@
 # Changelog
 
-## Unreleased
+## 0.23.0 - 2026-11-15
+
+What an added callable returns and raises, in its obligation. An added callable's obligation
+asked to call it "with a representative input" and assert "its intended contract". It now lists
+what the callable's own code returns and raises, each with every condition on the path that leads
+there, and a private helper with something to list keeps an obligation of its own, through the
+code that calls it. A schema whose descriptions alone changed asks what an agent given the tool
+does with the new text. A blind review of the 34 obligations the outcome lists changed on the
+benchmark's development cases judged the new ones useful 25 times and the old ones 3, never the
+old one alone; the two it found stating something false, a branch read from its innermost test
+and a caller that only hands its helper on, are corrected. On the 150 development cases no
+finding changes, and obligations go from 363 to 377. Schema 1.5 is unchanged; the
+`state assignment` golden changes in its wording alone.
 
 - **Fix:** a private helper's obligation names as its callers only the code that calls it, not
   code that only hands it on. attrs#1606's `add_replace` defines `__replace__` and hands it to
