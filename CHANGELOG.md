@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **Fix:** an added callable's obligation lists what its own code returns and raises, each on
+  the branch that leads there (the test of an `if`, its `else`, what an `except` clause catches,
+  or a `match` case), and the `None` it returns where its body can run past its end. It replaces
+  "Characterize the new …", which asked for "a representative input" and "its intended
+  contract". A private helper with something to return or raise keeps an obligation of its own,
+  through the code calling it, rather than joining that code's, which said nothing of what the
+  helper returns; one with nothing to list, a generator, or a stub still joins it. The callers it
+  names are those that spell its name as it is, not any name that reads alike. Found replaying
+  the Action's field test on meal-manager's pull request #43, whose new `last_change`,
+  `note_deploy_change`, `_blend`, and `_is_iso_date` each had their tests in their code. On the
+  150 development cases no finding changes: 20 "Characterize the new" obligations list outcomes
+  instead, 14 private helpers take obligations of their own, and obligations go from 363 to 377.
+  No golden changes; schema 1.5 is unchanged.
 - **Fix:** a schema whose `description` texts alone changed, a dict literal with JSON Schema's
   `type` or `properties` or a tool's `parameters`, `input_schema`, or `inputSchema`, no longer
   takes an obligation to call the code that reads it, which is handed the same arguments: its

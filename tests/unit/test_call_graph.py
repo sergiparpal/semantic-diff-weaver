@@ -615,3 +615,29 @@ def test_a_repository_listing_past_its_bound_yields_an_empty_incomplete_graph() 
     )
     assert graph.modules == {}
     assert graph.incomplete is True
+
+
+def test_the_code_calling_a_symbol_spells_its_name_and_a_name_that_reads_alike_does_not() -> None:
+    """`users` reaches the function `_label` from the variable `label` and from the method
+    `Box.name`'s `self._label()` too, as `self._helper()` reaching a method needs. `calling`
+    keeps the code that spells the name, `self.` only for a method of its own class."""
+    graph = graph_of(
+        {
+            "tools.py": (
+                "def _label(x):\n    return str(x)\n\n\n"
+                "def show(x):\n    return _label(x)\n\n\n"
+                "def count(items):\n    label = len(items)\n    return label\n\n\n"
+                "class Box:\n    def name(self):\n        return self._label()\n\n"
+                "    def _label(self):\n        return 'box'\n\n\n"
+                "class Crate(Box):\n    def tag(self):\n        return self._label()\n\n\n"
+                "class Other:\n    def name(self):\n        return self._label()\n\n"
+                "    def _label(self):\n        return 'other'\n"
+            ),
+        }
+    )
+    function, method = ("tools.py", "_label"), ("tools.py", "Box._label")
+    assert {("tools.py", "count"), ("tools.py", "Box.name")} <= graph.users(function)
+    assert graph.calling(function) == {("tools.py", "show")}
+    # `Other.name` reads its own `_label`, though `users` reaches `Box._label` from it too.
+    assert ("tools.py", "Other.name") in graph.users(method)
+    assert graph.calling(method) == {("tools.py", "Box.name"), ("tools.py", "Crate.tag")}

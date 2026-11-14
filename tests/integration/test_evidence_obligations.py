@@ -70,7 +70,29 @@ def test_an_assignment_inside_a_function_has_no_readers_to_name(repo_factory) ->
     assert obligation["title"] == "Assert what `scale` computes from its changed assignment"
 
 
-def test_a_new_private_helper_joins_the_obligation_of_the_code_calling_it(repo_factory) -> None:
+def test_a_new_private_helper_with_nothing_to_return_joins_the_code_calling_it(
+    repo_factory,
+) -> None:
+    old = "def label(name):\n    if name:\n        return name\n    return ''\n"
+    new = (
+        "def _note(name):\n    SEEN.append(name)\n\n\n"
+        "def label(name):\n    _note(name)\n    if name.strip():\n        return name\n"
+        "    return ''\n"
+    )
+    test = "from label import label\n\n\ndef test_label():\n    assert label('a')\n"
+    obligations = _obligations(
+        repo_factory, {"label.py": old, "tests/test_label.py": test}, {"label.py": new}
+    )
+    titles = [item["title"] for item in obligations]
+    assert "Exercise both outcomes of the changed condition in `label`" in titles
+    assert not any("_note" in title for title in titles)
+    (linked,) = [item for item in obligations if item["title"].startswith("Exercise both outcomes")]
+    assert len(linked["behavior_change_ids"]) >= 2
+
+
+def test_a_new_private_helper_s_own_obligation_says_what_it_returns(repo_factory) -> None:
+    """meal-manager's `_blend` returned `round(1 - match_weight, 4)`, which no obligation of the
+    handler calling it named: joined to them, its finding asked for nothing of its own."""
     old = "def label(name):\n    if name:\n        return name\n    return ''\n"
     new = (
         "def _clean(name):\n    return name.strip()\n\n\n"
@@ -82,9 +104,13 @@ def test_a_new_private_helper_joins_the_obligation_of_the_code_calling_it(repo_f
     )
     titles = [item["title"] for item in obligations]
     assert "Exercise both outcomes of the changed condition in `label`" in titles
-    assert not any("_clean" in title for title in titles)
-    (linked,) = [item for item in obligations if item["title"].startswith("Exercise both outcomes")]
-    assert len(linked["behavior_change_ids"]) == 2
+    (own,) = [item for item in obligations if "_clean" in item["title"]]
+    assert own["title"] == "Exercise the new `_clean` through `label`"
+    assert own["given"] == (
+        "`_clean` is new: `(name)`, and `label` calls it; it returns `name.strip()`"
+    )
+    assert own["when"] == "`label` runs with input that reaches `_clean`"
+    assert len(own["behavior_change_ids"]) == 1
 
 
 def test_a_removed_private_class_joins_the_code_that_stopped_calling_it(repo_factory) -> None:
@@ -100,3 +126,23 @@ def test_a_removed_private_class_joins_the_code_that_stopped_calling_it(repo_fac
     titles = [item["title"] for item in obligations]
     assert not any("removed `_Handler" in title for title in titles)
     assert any("`log`" in title for title in titles)
+
+
+def test_a_new_helper_s_obligation_names_only_the_code_that_calls_it(repo_factory) -> None:
+    """The call graph reaches `_label` from a variable `label` as well, which calls nothing: a
+    test may reach the helper that way, but an obligation that says who calls it names `show`."""
+    old = "def show(x):\n    return x\n\n\ndef count(items):\n    return len(items)\n"
+    new = (
+        "def _label(x):\n    return str(x).strip()\n\n\n"
+        "def show(x):\n    return _label(x)\n\n\n"
+        "def count(items):\n    label = len(items)\n    return label\n"
+    )
+    test = "from show import count, show\n\n\ndef test_show():\n    assert show(1) and count([])\n"
+    obligations = _obligations(
+        repo_factory, {"show.py": old, "tests/test_show.py": test}, {"show.py": new}
+    )
+    (own,) = [item for item in obligations if item["title"].startswith("Exercise the new `_label`")]
+    assert own["title"] == "Exercise the new `_label` through `show`"
+    assert own["given"] == (
+        "`_label` is new: `(x)`, and `show` calls it; it returns `str(x).strip()`"
+    )

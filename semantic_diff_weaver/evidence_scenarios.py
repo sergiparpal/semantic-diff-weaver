@@ -8,9 +8,10 @@ A finding's scenario quotes its evidence instead: what to run, what changed, and
 The category's scenarios remain for a finding no Python delta describes, such as one on an API
 schema or a configuration file, or a change the parser could not read. A function that changed
 only as the functions nested in it did has no line of its own to quote either, and its scenario
-names them, whose findings say what changed. A schema that changed only how it describes a tool
-changes nothing a test of the tool's code could tell apart, and its scenario asks what an agent
-given the tool does with the new text.
+names them, whose findings say what changed. A callable added has no old code to quote, and its
+scenario lists what its own code returns and raises, each on the branch that leads there. A schema
+that changed only how it describes a tool changes nothing a test of the tool's code could tell
+apart, and its scenario asks what an agent given the tool does with the new text.
 
 Only what the evidence holds is quoted, already redacted and bounded, each fragment as a code
 span. The renderer keeps it one, so a repository's text never becomes Markdown of its own.
@@ -35,6 +36,8 @@ if TYPE_CHECKING:
 # much of what two long versions of one value share it keeps around where they differ.
 MAX_QUOTE_CHARS = 120
 MAX_QUOTED_VALUES = 2
+# How many of the things an added callable returns or raises its scenario names.
+MAX_OUTCOMES = 3
 SHARED_CONTEXT_CHARS = 30
 # A second scenario of one finding, the former default passed explicitly or either side of a
 # boundary, follows the first. Relevance weighs a fifth of a priority, so a drop of 10 lowers it by
@@ -226,6 +229,10 @@ class Change:
     symbol_kind: str | None = None
     # Whether its symbol changed nothing but the `description` texts of the schemas it holds.
     described_only: bool = False
+    # An added callable's exits, as `ast_diff` records them: each a kind, `return` or `raise`, the
+    # value, and the branch leading there as a word and a test; and how many it has.
+    exits: tuple[tuple[str, str, str, str], ...] = ()
+    exits_total: int = 0
 
     @property
     def removed_only(self) -> bool:
@@ -290,6 +297,21 @@ def describe_change(delta: StructuralDelta) -> Change | None:
         assigned_names=_strings(metadata.get("assigned_names")),
         symbol_kind=delta.symbol_kind,
         described_only=bool(metadata.get("described_only")),
+        exits=(exits := _exits(metadata.get("exits"))),
+        exits_total=_count(metadata.get("exits_total"), len(exits)),
+    )
+
+
+def _exits(value: object) -> tuple[tuple[str, str, str, str], ...]:
+    """The exits a delta's metadata records, each four strings; anything else is dropped."""
+    if not isinstance(value, (list, tuple)):
+        return ()
+    return tuple(
+        (item[0], item[1], item[2], item[3])
+        for item in value
+        if isinstance(item, (list, tuple))
+        and len(item) == 4
+        and all(isinstance(part, str) for part in item)
     )
 
 
@@ -796,6 +818,83 @@ def _order_scenario(found: _Finding) -> Scenario:
     )
 
 
+@dataclass(frozen=True)
+class _Outcome:
+    """One thing an added callable returns or raises, and the branches that lead there: none
+    when its code reaches it with no branch."""
+
+    kind: str
+    value: str
+    branches: tuple[tuple[str, str], ...]
+
+
+def outcomes_of(change: Change) -> list[_Outcome]:
+    """What an added callable returns or raises, each distinct value once, in the order its code
+    first reaches them and those it reaches with no branch last.
+
+    Empty when that says nothing a test could tell from a call that returned at all: every exit a
+    `return None`, or a stub's `raise NotImplementedError`.
+    """
+    grouped: dict[tuple[str, str], list[tuple[str, str]]] = {}
+    plain: set[tuple[str, str]] = set()
+    for kind, value, branch, test in change.exits:
+        branches = grouped.setdefault((kind, value), [])
+        if branch:
+            branches.append((branch, test))
+        else:
+            plain.add((kind, value))
+    outcomes = [
+        _Outcome(kind, value, () if (kind, value) in plain else tuple(branches))
+        for (kind, value), branches in grouped.items()
+    ]
+    outcomes.sort(key=lambda item: not item.branches)
+    if all(item.kind == "return" and item.value == "None" for item in outcomes):
+        return []
+    if all(
+        item.kind == "raise" and item.value.startswith("NotImplementedError") for item in outcomes
+    ):
+        return []
+    return outcomes
+
+
+def _branch(branch: str, test: str) -> str:
+    if branch == "if":
+        return f"when {_quote(test)}"
+    if branch == "else":
+        return f"unless {_quote(test)}"
+    if branch == "except":
+        return f"when {_quote(test)} is raised" if test else "when anything is raised"
+    return f"in the case {_quote(test)}"
+
+
+def _outcome_text(outcome: _Outcome, alone: bool) -> str:
+    if outcome.kind == "raise":
+        what = f"raises {_quote(outcome.value)}" if outcome.value else "raises again what it caught"
+    else:
+        what = f"returns {_quote(outcome.value)}"
+    if not outcome.branches:
+        return what if alone else f"{what} otherwise"
+    phrases = list(dict.fromkeys(_branch(*item) for item in outcome.branches))
+    shown = phrases[:MAX_QUOTED_VALUES]
+    if more := len(phrases) - len(shown):
+        shown.append(f"in {more} more case{'s' if more > 1 else ''}")
+    return f"{what} {_series(shown)}"
+
+
+def _outcomes_text(outcomes: Sequence[_Outcome], change: Change) -> str:
+    """`it returns `None` when `x < 0`, or returns `x` otherwise`: at most `MAX_OUTCOMES`, the one
+    reached with no branch kept, and how many exits there are when not all of them are named."""
+    shown = list(outcomes)
+    if len(shown) > MAX_OUTCOMES:
+        shown = [*outcomes[: MAX_OUTCOMES - 1], outcomes[-1]]
+    texts = [_outcome_text(item, len(outcomes) == 1) for item in shown]
+    # Each outcome lists its branches with commas, so a comma comes before the `or` of the next.
+    joined = f"{', '.join(texts[:-1])}, or {texts[-1]}" if len(texts) > 1 else texts[0]
+    if len(shown) < len(outcomes) or change.exits_total > len(change.exits):
+        return f"among its {change.exits_total} exits, it {joined}"
+    return f"it {joined}"
+
+
 def _lifecycle_scenario(found: _Finding) -> Scenario:
     added = found.change.kind == "symbol_added"
     shown = _quote(found.evidence.new if added else found.evidence.old)
@@ -808,16 +907,56 @@ def _lifecycle_scenario(found: _Finding) -> Scenario:
             "The cases its callers rely on are reviewed",
             "Their expected outcomes are documented and tested",
         )
+    # What its own code returns and raises, and on which branch: what a test of it asserts. A
+    # field test judged noise every obligation that said only "with a representative input".
+    outcomes = outcomes_of(found.change) if added else []
+    many = len(outcomes) > 1
     if added and found.callers and is_private(found.evidence.symbol or ""):
         # A private helper is tested through the code that calls it, whose input a test chooses.
         callers = _quotes(found.callers, len(found.callers))
         verb = "calls" if len(found.callers) == 1 else "call"
+        caller = _quote(found.callers[0])
+        if outcomes:
+            return found.scenario(
+                ObligationType.REGRESSION,
+                f"Exercise {'each outcome of ' if many else ''}the new {found.subject} through "
+                f"{callers}",
+                f"{found.subject} is new: {shown}, and {callers} {verb} it; "
+                f"{_outcomes_text(outcomes, found.change)}",
+                f"{caller} runs with input that "
+                f"{f'leads {found.subject} to each outcome' if many else f'reaches {found.subject}'}",
+                f"What {caller} returns, raises, or leaves is asserted{' for each' if many else ''}",
+            )
         return found.scenario(
             ObligationType.REGRESSION,
             f"Exercise the new {found.subject} through {callers}",
             f"{found.subject} is new: {shown}, and {callers} {verb} it",
-            f"{_quote(found.callers[0])} runs with input that reaches {found.subject}",
-            f"What {_quote(found.callers[0])} returns, raises, or leaves is asserted",
+            f"{caller} runs with input that reaches {found.subject}",
+            f"What {caller} returns, raises, or leaves is asserted",
+        )
+    if added and outcomes:
+        first = outcomes[0]
+        if many:
+            title = f"Assert each outcome of the new {found.subject}"
+            then = "Each outcome is asserted for the input leading to it"
+        elif first.kind == "raise":
+            title = f"Assert what the new {found.subject} raises"
+            then = "The exception it raises is asserted"
+        else:
+            title = f"Assert what the new {found.subject} returns"
+            then = "What it returns is asserted exactly"
+        if many:
+            reached = "once for each outcome"
+        elif first.branches:
+            reached = "with input that reaches it"
+        else:
+            reached = "with a representative input"
+        return found.scenario(
+            ObligationType.POSITIVE,
+            title,
+            f"{found.subject} is new: {shown}; {_outcomes_text(outcomes, found.change)}",
+            f"{found.called} {reached}",
+            then,
         )
     if added:
         return found.scenario(
@@ -1182,7 +1321,9 @@ def weakly_anchored(
     A call that only computes a value, an assignment in a function, and a module-level one whose
     readers are unknown say where to look but not what to assert: the second blind review judged
     all six of the last two kinds noise. So, in the third, did a private symbol added or removed:
-    only its own module uses it, and what to assert is what its callers do. And a function that
+    only its own module uses it, and what to assert is what its callers do. A private callable
+    added with something to return or raise is the exception: its own obligation lists that (see
+    `outcomes_of`), which nothing its callers' say does. And a function that
     changed only as the functions nested in it did says where a test reaches them, while their
     findings say what changed. Another finding's scenario, on the same symbol or a related one,
     speaks better, and `generate_obligations` links the finding to it instead.
@@ -1202,7 +1343,13 @@ def weakly_anchored(
         return behavior.category is not BehaviorCategory.STATE_TRANSITION and not (
             module and change.assigned_names and readers
         )
-    return change.kind in LIFECYCLE_KINDS and is_private(evidence.symbol or "")
+    # A private callable added with something to assert keeps its own obligation, which lists
+    # it: the code calling it says nothing of what it returns, as the field test's `_blend` did.
+    return (
+        change.kind in LIFECYCLE_KINDS
+        and is_private(evidence.symbol or "")
+        and not outcomes_of(change)
+    )
 
 
 def _node(behavior: BehaviorChange) -> tuple[str, str]:
@@ -1250,7 +1397,10 @@ def contexts_of(
         related: list[tuple[str, str]] = []
         if kind == "symbol_added" and graph is not None:
             users = sorted(graph.users((path, symbol)), key=lambda node: (node[0] != path, node))
-            callers = tuple(dict.fromkeys(qualified for _, qualified in users))
+            # The code an obligation says calls it spells its name: `users` reaches it from any
+            # name that reads alike, which serves the candidate tests but no such claim.
+            spelled = graph.calling((path, symbol))
+            callers = tuple(dict.fromkeys(node[1] for node in users if node in spelled))
             related.extend(users)
         if kind == "symbol_removed":
             owner, _, name = symbol.rpartition(".")

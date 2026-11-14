@@ -625,6 +625,31 @@ class CallGraph:
         """The symbols whose own code calls or names `node`, top-level code left out."""
         return frozenset(self._calls().get(node, ()))
 
+    def calling(self, node: Node) -> frozenset[Node]:
+        """Those of `node`'s users whose own code spells its name as it is: a function's
+        `_clean(name)` or `text._clean`, and a method's `box._clean()`, or `self._clean()` in a
+        method of its class or of one inheriting from it.
+
+        `users` also counts every name that reads alike, as `self._helper()` reaching the method
+        needs, at the cost of a variable `branch` reaching `_branch`, an attribute `.exits`
+        reaching `_exits`, and a method's `self._label()` reaching a function `_label`: a test may
+        reach the symbol that way, but no call shows it.
+        """
+        owner, _, name = node[1].rpartition(".")
+        # A method is reached as an attribute, never by its bare name; a function by either.
+        cls = (node[0], owner) if owner and (node[0], owner) in self._bases else None
+        found: set[Node] = set()
+        for user in self.users(node):
+            # Every user is a symbol of an indexed module: `users` reads no other.
+            item = self.modules[user[0]].symbols[user[1]]
+            if name in item.attributes or (cls is None and name in item.names):
+                found.add(user)
+            elif cls is not None and name in item.own_attributes:
+                family = self._family(user)
+                if family is not None and cls in _closure(family, self._bases):
+                    found.add(user)
+        return frozenset(found)
+
     def reading(self, path: str, variable: str) -> frozenset[Node]:
         """Every symbol from which code reading a module-level variable is reached through calls,
         that code included, in one walk however many symbols read it."""

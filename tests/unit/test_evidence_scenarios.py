@@ -442,7 +442,7 @@ def test_a_module_s_own_code_runs_as_the_module_is_imported() -> None:
             "def f():\n    return 1\n",
             "def f():\n    return 1\n\ndef g(x):\n    return x\n",
             BehaviorCategory.UNKNOWN,
-            "Characterize the new `g`",
+            "Assert what the new `g` returns",
         ),
         (
             "def f():\n    return 1\n\ndef g(x):\n    return x\n",
@@ -1179,6 +1179,9 @@ class _Graph:
 
     def users(self, node):
         return frozenset(self._users.get(node, ()))
+
+    def calling(self, node):
+        return self.users(node)
 
 
 def test_the_context_of_a_finding_names_its_readers_callers_and_related_symbols() -> None:

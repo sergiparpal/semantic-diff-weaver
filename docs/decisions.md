@@ -689,6 +689,61 @@ click#3764's real one, and they stayed at 17, as without a model. The 4 findings
 two above and two on httpx#3651's unlabeled `StreamClosed` and `URL`, and it added none. The replay
 with this code reproduced the live run's findings in all 60 cases.
 
+## Output-affecting corrections (2026-11-14, an added callable's outcomes)
+
+An added callable's evidence held only its signature, so its obligation was "Characterize the new
+`X`": call it "with a representative input" and assert "its intended contract". The fourth blind
+review met two and judged both noise (`docs/benchmark.md`, "The deterministic obligations held on
+cases they were not designed from"). Replaying the Action's field test on meal-manager's pull
+request #43 met four more new functions whose code said what a test should check:
+
+- `last_change` returned `None` for each malformed record and the record otherwise;
+- `_is_iso_date` returned `False` when `date.fromisoformat` raised `ValueError`;
+- `note_deploy_change` returned `state` itself when the weight did not move;
+- `_blend` returned `round(1 - match_weight, 4)`.
+
+The correction has three parts:
+
+- **What extraction records.** Each callable's snapshot now keeps its exits, at most 12. An exit is
+  what a `return` or `raise` of its own code hands back or raises, and the innermost branch leading
+  there: the test of an `if` for its body, the same test for its `else`, what an `except` clause
+  catches, or a `match` case's pattern. Where the body can run past its end, a `return None`
+  counts too. Loops, `with` blocks, a `try`'s body, and a `case _:` are no branch of their own. A
+  generator has no exits, and nested functions and classes keep their own. The texts are those
+  the feature visitor has already unparsed and redacted.
+- **What the obligation says.** An added callable's obligation lists each distinct outcome with its
+  branches, and the one reached with no branch last, as "otherwise". `last_change`'s is "Assert
+  each outcome of the new `last_change`", given that "it returns `None` when `not
+  isinstance(record, dict)`, when ..., and in 4 more cases, or returns `{...}` otherwise". At most
+  three outcomes are named, with two branches each and how many more there are. A callable whose
+  every exit returns `None`, or a stub that raises `NotImplementedError`, keeps "Characterize the
+  new".
+- **A private helper keeps its own obligation.** The third blind review had judged an added
+  private symbol's obligation noise, since it named no input of its own, so such a finding joined
+  an obligation of the code calling it. A private callable with outcomes to list now keeps its
+  own, through its callers: "Exercise each outcome of the new `_is_iso_date` through
+  `last_change`". The obligation it joined said nothing of what it returns: `_blend`'s joined the
+  handler's, which asserts the handler's own result. Naming the helper is not enough for one to
+  speak for the other: `'blend': _blend(weight)` in a caller's return names the call, not what it
+  returns. A helper with nothing to list still joins. The callers its obligation names are those
+  whose code spells its name as it is, which the call graph's new `calling` keeps. For a
+  function, that is `_clean(name)` or `text._clean`. For a method, it is `box._clean()`, or
+  `self._clean()` in a method of its class or of one inheriting from it. The call graph also
+  reaches a helper from any name that reads alike, so a variable `branch` reaches `_branch`, and a
+  method's `self._label()` reaches a function `_label`. That serves the search for candidate
+  tests, but on this change's own diff it made the obligation say that `outcomes_of` calls
+  `_branch`.
+
+Measured on the 150 development cases:
+
+- **Findings:** none changes, so neither do the benchmark's measures.
+- **Obligations:** they change in 25 cases and go from 363 to 377. 20 "Characterize the new"
+  obligations list outcomes instead, 13 of them one outcome and 7 several. 14 private helpers take
+  obligations of their own, and 12 obligations they had joined no longer link them.
+- **Unchanged:** no corpus golden changes, and schema 1.5 is unchanged.
+- **Speed:** the performance tests take as long as on main. Under a profiler, `function_exits`
+  takes 11 ms of the six seconds the three heaviest take.
+
 ## Output-affecting corrections (2026-11-14, a schema's descriptions and a repeated transition)
 
 Replayed with 0.22.1, the Action's field test on meal-manager's pull requests #40 and #43 kept the

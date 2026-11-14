@@ -80,6 +80,11 @@ class SymbolSnapshot:
     # while the fingerprints differ, the two differ only in how a message is worded. None for a
     # snapshot built without it, which is never read as reworded.
     fingerprint_without_messages: str | None = None
+    # A callable's exits, at most `MAX_FUNCTION_EXITS` of them, as `function_exits` records them:
+    # what each `return` and `raise` of its own code hands back or raises, and the innermost branch
+    # leading there. And how many it has. None for a generator or any other symbol.
+    exits: tuple[tuple[str, str, str, str], ...] = ()
+    exits_total: int = 0
     # The fingerprint with the `description` texts of the schemas its body holds blanked: equal to
     # another's while the fingerprints differ, the two differ only in how a schema describes a
     # tool or its properties. None for a snapshot built without it, never read as redescribed.
