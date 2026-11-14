@@ -689,6 +689,33 @@ click#3764's real one, and they stayed at 17, as without a model. The 4 findings
 two above and two on httpx#3651's unlabeled `StreamClosed` and `URL`, and it added none. The replay
 with this code reproduced the live run's findings in all 60 cases.
 
+## Output-affecting corrections (2026-11-14, a caller that calls)
+
+The blind review of the added callables' obligations judged one noise for naming a caller that
+never calls the helper (`docs/benchmark.md`, "Added callables' obligations, reviewed blind").
+attrs#1606's `_ClassBuilder.add_replace` came to define `__replace__` and hand it to
+`_add_method_dunders`, which stores it on the class. The helper's obligation said that
+`add_replace` calls it, and asked to run `add_replace` with input that reaches it, which no input
+does. The call graph's `calling` kept the users whose code spells the helper's name, and it read
+them from every name a symbol uses, called or not. The search for candidate tests needs that,
+since `type=pr_number` hands a function to argparse, which calls it later. A claim that the code
+calls the helper does not.
+
+Extraction now records, for each symbol, the names and attributes its code calls: `f(...)`,
+`x.f(...)`, and a method's `self.f(...)`. `calling` keeps the users that call the helper by its
+name. `users`, which the candidate tests follow, is unchanged. A helper no code calls has no
+caller to name, and keeps an obligation of its own, as a public callable does: attrs#1606's now
+asks what `__replace__` returns.
+
+Measured on the 150 development cases:
+
+- **Findings:** none changes, so neither do the benchmark's measures.
+- **Obligations:** they stay 377, and attrs#1606's alone changes, to "Assert what the new
+  `_ClassBuilder.add_replace.__replace__` returns" where it read "Exercise the new
+  `_ClassBuilder.add_replace.__replace__` through `_ClassBuilder.add_replace`". The other 13
+  helpers the review judged keep the callers they named.
+- **Unchanged:** no corpus golden changes, and schema 1.5 is unchanged.
+
 ## Output-affecting corrections (2026-11-14, an added callable's outcomes)
 
 An added callable's evidence held only its signature, so its obligation was "Characterize the new

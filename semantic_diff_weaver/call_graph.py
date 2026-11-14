@@ -626,14 +626,17 @@ class CallGraph:
         return frozenset(self._calls().get(node, ()))
 
     def calling(self, node: Node) -> frozenset[Node]:
-        """Those of `node`'s users whose own code spells its name as it is: a function's
-        `_clean(name)` or `text._clean`, and a method's `box._clean()`, or `self._clean()` in a
-        method of its class or of one inheriting from it.
+        """Those of `node`'s users whose own code calls it by its name as it is: a function's
+        `_clean(name)` or `text._clean(name)`, and a method's `box._clean()`, or `self._clean()`
+        in a method of its class or of one inheriting from it.
 
         `users` also counts every name that reads alike, as `self._helper()` reaching the method
         needs, at the cost of a variable `branch` reaching `_branch`, an attribute `.exits`
         reaching `_exits`, and a method's `self._label()` reaching a function `_label`: a test may
-        reach the symbol that way, but no call shows it.
+        reach the symbol that way, but no call shows it. And it counts a name the code only hands
+        on, as attrs's `add_replace` hands the `__replace__` it defines to `_add_method_dunders`,
+        which stores it on the class: what is handed on runs when something else calls it, so
+        running the code that hands it on need not reach it.
         """
         owner, _, name = node[1].rpartition(".")
         # A method is reached as an attribute, never by its bare name; a function by either.
@@ -642,9 +645,9 @@ class CallGraph:
         for user in self.users(node):
             # Every user is a symbol of an indexed module: `users` reads no other.
             item = self.modules[user[0]].symbols[user[1]]
-            if name in item.attributes or (cls is None and name in item.names):
+            if name in item.called_attributes or (cls is None and name in item.called_names):
                 found.add(user)
-            elif cls is not None and name in item.own_attributes:
+            elif cls is not None and name in item.called_own_attributes:
                 family = self._family(user)
                 if family is not None and cls in _closure(family, self._bases):
                     found.add(user)

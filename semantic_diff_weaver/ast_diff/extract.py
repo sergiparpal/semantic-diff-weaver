@@ -2044,13 +2044,17 @@ def _receiver(node: ast.AST, kind: str) -> str | None:
 
 
 def symbol_references(node: ast.AST, kind: str) -> SymbolReferences:
-    """What a symbol's code uses — every name and attribute, called or not — and its chains."""
+    """What a symbol's code uses — every name and attribute, called or not — and its chains, and
+    which of those names and attributes it calls."""
     names: set[str] = set()
     dotted: set[str] = set()
     attributes: set[str] = set()
     own_attributes: set[str] = set()
     bound: set[str] = set()
     declared: set[str] = set()
+    called_names: set[str] = set()
+    called_attributes: set[str] = set()
+    called_own_attributes: set[str] = set()
     receiver = _receiver(node, kind)
     for child in ast.walk(node):
         if isinstance(child, ast.Name):
@@ -2070,6 +2074,15 @@ def symbol_references(node: ast.AST, kind: str) -> SymbolReferences:
                 attributes.add(child.attr)
             if chain := _dotted(child):
                 dotted.add(chain)
+        elif isinstance(child, ast.Call):
+            function = child.func
+            if isinstance(function, ast.Name):
+                called_names.add(function.id)
+            elif isinstance(function, ast.Attribute):
+                if isinstance(function.value, ast.Name) and function.value.id == receiver:
+                    called_own_attributes.add(function.attr)
+                else:
+                    called_attributes.add(function.attr)
     returns = getattr(node, "returns", None)
     return SymbolReferences(
         names=frozenset(names),
@@ -2081,6 +2094,9 @@ def symbol_references(node: ast.AST, kind: str) -> SymbolReferences:
         bases=_bases(node) if isinstance(node, ast.ClassDef) else (),
         returns=_written_names(returns) if isinstance(returns, ast.expr) else frozenset(),
         bound=frozenset(bound - declared),
+        called_names=frozenset(called_names),
+        called_attributes=frozenset(called_attributes),
+        called_own_attributes=frozenset(called_own_attributes),
     )
 
 

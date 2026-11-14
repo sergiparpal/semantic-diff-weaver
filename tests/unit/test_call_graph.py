@@ -641,3 +641,32 @@ def test_the_code_calling_a_symbol_spells_its_name_and_a_name_that_reads_alike_d
     # `Other.name` reads its own `_label`, though `users` reaches `Box._label` from it too.
     assert ("tools.py", "Other.name") in graph.users(method)
     assert graph.calling(method) == {("tools.py", "Box.name"), ("tools.py", "Crate.tag")}
+
+
+def test_code_that_only_hands_a_symbol_on_does_not_call_it() -> None:
+    """attrs's `add_replace` defines `__replace__` and hands it to `_add_method_dunders`, which
+    stores it on the class: running `add_replace` never runs it. `users` keeps such code, since
+    a test may reach the symbol through it, but `calling` keeps only the code that calls it."""
+    graph = graph_of(
+        {
+            "tools.py": (
+                "import functools\n\n\n"
+                "def _label(x):\n    return str(x)\n\n\n"
+                "def show(x):\n    return _label(x)\n\n\n"
+                "def keep(registry):\n    registry.append(_label)\n    return registry\n\n\n"
+                "def wrap():\n    return functools.partial(_label, 1)\n\n\n"
+                # What a call returns, or a table holds, is called by no name of its own.
+                "def run(table):\n    return table[_label](1) or functools.partial(_label)()\n\n\n"
+                "class Box:\n    def name(self):\n        return self._label()\n\n"
+                "    def hook(self):\n        return self._label\n\n"
+                "    def _label(self):\n        return 'box'\n"
+            ),
+        }
+    )
+    function, method = ("tools.py", "_label"), ("tools.py", "Box._label")
+    assert {("tools.py", "keep"), ("tools.py", "wrap"), ("tools.py", "run")} <= graph.users(
+        function
+    )
+    assert graph.calling(function) == {("tools.py", "show")}
+    assert ("tools.py", "Box.hook") in graph.users(method)
+    assert graph.calling(method) == {("tools.py", "Box.name")}

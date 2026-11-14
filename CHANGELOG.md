@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **Fix:** a private helper's obligation names as its callers only the code that calls it, not
+  code that only hands it on. attrs#1606's `add_replace` defines `__replace__` and hands it to
+  `_add_method_dunders`, which stores it on the class, and the obligation said that `add_replace`
+  calls it and asked to run `add_replace` with input that reaches it, which none does: the blind
+  review of these obligations judged it noise for that. Extraction now records which names and
+  attributes a symbol's code calls, and the call graph names those as callers; it still reaches a
+  symbol from code that hands it on, which serves the search for candidate tests. A helper no
+  code calls keeps an obligation of its own, as a public callable does. On the 150 development
+  cases no finding changes, and attrs#1606's obligation alone does: it asks what the new
+  `__replace__` returns. The other 13 helpers the review judged keep the callers they named,
+  and obligations stay 377. No golden changes; schema 1.5 is unchanged.
 - **Fix:** an added callable's obligation lists what its own code returns and raises, each on
   the branch that leads there (the test of an `if`, its `else`, what an `except` clause catches,
   or a `match` case), and the `None` it returns where its body can run past its end. It replaces

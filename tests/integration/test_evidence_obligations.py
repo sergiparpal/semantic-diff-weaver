@@ -146,3 +146,27 @@ def test_a_new_helper_s_obligation_names_only_the_code_that_calls_it(repo_factor
     assert own["given"] == (
         "`_label` is new: `(x)`, and `show` calls it; it returns `str(x).strip()`"
     )
+
+
+def test_a_nested_function_handed_on_is_not_said_to_be_called_by_the_function_around_it(
+    repo_factory,
+) -> None:
+    """attrs#1606's `add_replace` came to define `__replace__` and hand it to
+    `_add_method_dunders`, which stores it on the class. Its obligation said that `add_replace`
+    calls it, and asked to run `add_replace` with input that reaches it, which none does."""
+    old = (
+        "class _Builder:\n    def add_replace(self):\n"
+        "        self._dict['__replace__'] = self._dunders(evolve)\n        return self\n"
+    )
+    new = (
+        "class _Builder:\n    def add_replace(self):\n"
+        "        def __replace__(*args, **changes):\n            return evolve(*args, **changes)\n\n"
+        "        self._dict['__replace__'] = self._dunders(__replace__)\n        return self\n"
+    )
+    test = "from make import _Builder\n\n\ndef test_builder():\n    assert _Builder\n"
+    obligations = _obligations(
+        repo_factory, {"make.py": old, "tests/test_make.py": test}, {"make.py": new}
+    )
+    (own,) = [item for item in obligations if "`_Builder.add_replace.__replace__`" in item["title"]]
+    assert own["title"] == "Assert what the new `_Builder.add_replace.__replace__` returns"
+    assert "calls it" not in own["given"]
