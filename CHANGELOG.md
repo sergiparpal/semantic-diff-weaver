@@ -1,6 +1,16 @@
 # Changelog
 
-## Unreleased
+## 0.24.0 - 2026-11-15
+
+What the local variables an added callable's outcomes read are assigned. A blind review of the
+obligations that list what an added callable returns and raises judged 5 of the 9 it found noise
+for one reason: the outcome was a local variable, or an expression of one, whose value the code
+before the `return` decides. Such an obligation now says, after its outcomes, what at most two of
+those variables are assigned, on which paths, and how the code then changes what they name. A
+second blind review, of the 16 obligations this changes on the benchmark's development cases, each
+beside its 0.23.0 version, judged 3 of those 5 useful with their definitions, and the other 11
+useful on both sides. On the 150 development cases no finding changes and obligations stay 377.
+No golden changes; schema 1.5 is unchanged.
 
 - **Fix:** an added callable's obligation says what the local variables its outcomes read are
   assigned, and how its code then changes what they name. The blind review of the obligations
