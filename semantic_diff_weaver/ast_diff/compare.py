@@ -816,6 +816,23 @@ def compare_symbol(
                     for kind, value, conditions in new.exits
                 ],
                 "exits_total": new.exits_total,
+                # And what the local variables those values read are assigned.
+                "definitions": [
+                    [
+                        name,
+                        [
+                            [how, code, [list(condition) for condition in conditions]]
+                            for how, code, conditions in assignments
+                        ],
+                        total,
+                        [
+                            [how, code, [list(condition) for condition in conditions]]
+                            for how, code, conditions in later
+                        ],
+                        changed,
+                    ]
+                    for name, assignments, total, later, changed in new.definitions
+                ],
             }
             if new.exits
             else {}

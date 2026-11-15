@@ -59,6 +59,11 @@ MAX_CHANGED_VALUE_CHARS = 200
 MAX_FUNCTION_EXITS = 12
 MAX_EXIT_CHARS = 200
 MAX_EXIT_CONDITIONS = 4
+# How many of the local variables an exit's value reads a callable's snapshot defines, and how
+# many assignments of each and later changes to what each names, beside how many there are.
+MAX_DEFINED_LOCALS = 4
+MAX_LOCAL_ASSIGNMENTS = 3
+MAX_LOCAL_CHANGES = 2
 # How much of an added or removed class or module its display text names.
 MAX_DISPLAY_CLASS_FIELDS = 20
 MAX_DISPLAY_MODULE_STATEMENTS = 5

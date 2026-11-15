@@ -13,6 +13,16 @@ from ..models import LineRange
 ExitCondition = tuple[str, str]
 ExitPath = tuple[ExitCondition, ...]
 FunctionExit = tuple[str, str, ExitPath]
+# A local variable an exit's value reads, as `callable_exits` records it: its name, each of its
+# assignments in the callable's own code, in order, and how many it has; and each statement of
+# that code that then changes the object it names in place, and how many. An assignment is how
+# it assigns, `value` for a whole expression and `item` for an item of one a `for` iterates or a
+# target unpacks, that expression as code, and the conditions on the path to it, as an exit's.
+# A change is how, `set` for an item or an attribute assigned, `delete` for one deleted, and
+# `call` for a method called for what it does, the target or the call as code, and its path.
+LocalAssignment = tuple[str, str, ExitPath]
+LocalChange = tuple[str, str, ExitPath]
+LocalDefinition = tuple[str, tuple[LocalAssignment, ...], int, tuple[LocalChange, ...], int]
 # The words of a condition. A branch the path takes: an `if`'s test for its body (`if`) or for its
 # `else` (`else`), what a handler catches (`except`), a `match` case's pattern (`case`), or, for
 # more of them than an exit records, how many (`deep`). Or what a loop or a `try` around the exit
@@ -100,6 +110,9 @@ class SymbolSnapshot:
     # the path leading there. And how many it has. None for a generator or any other symbol.
     exits: tuple[FunctionExit, ...] = ()
     exits_total: int = 0
+    # The local variables those exits' values read, at most `MAX_DEFINED_LOCALS`, with their
+    # assignments: what a test of the value needs to know a returned name stands for.
+    definitions: tuple[LocalDefinition, ...] = ()
     # The fingerprint with the `description` texts of the schemas its body holds blanked: equal to
     # another's while the fingerprints differ, the two differ only in how a schema describes a
     # tool or its properties. None for a snapshot built without it, never read as redescribed.

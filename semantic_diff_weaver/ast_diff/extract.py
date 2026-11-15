@@ -20,6 +20,7 @@ from .types import (
     ExitCondition,
     ExitPath,
     FunctionExit,
+    LocalDefinition,
     ModuleReferences,
     SymbolReferences,
     SymbolSnapshot,
@@ -1240,13 +1241,58 @@ def function_exits(
     expression already passes its text in `texts`, by the node's identity, as `FeatureVisitor`
     does. At most `MAX_FUNCTION_EXITS` are kept.
     """
+    found = callable_exits(node, inline=inline, texts=texts)
+    return found.exits, found.total
+
+
+@dataclass(frozen=True)
+class CallableExits:
+    """A callable's exits as `function_exits` records them, and the local variables they read."""
+
+    exits: tuple[FunctionExit, ...]
+    total: int
+    definitions: tuple[LocalDefinition, ...]
+
+
+def callable_exits(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+    *,
+    inline: bool = True,
+    texts: Mapping[int, str] | None = None,
+) -> CallableExits:
+    """`function_exits`'s exits, and the local variables their values read, in one walk.
+
+    A name an exit's value reads is a local variable where the callable's own code assigns it
+    and it is neither a parameter, which a test passes, nor a name the code declares `global` or
+    `nonlocal`; a comprehension's or a lambda's own names are none. `return cls(file, size)`
+    says little of what it returns until `cls = self.environ.get('wsgi.file_wrapper', Wrapper)`
+    does. Each such variable, at most `MAX_DEFINED_LOCALS` in the order the exits first read them,
+    keeps its assignments in the order of the code, at most `MAX_LOCAL_ASSIGNMENTS`, and how many
+    there are. An assignment is `value` and the expression assigned, by `=`, an annotated `=`, or
+    an augmented one as the operation it performs, `total + item`; or `item` and what a `for`
+    iterates, or a target unpacks into more than one name. Each carries the conditions on the
+    path to it, as an exit does. So does each statement that changes the object a variable names
+    in place, at most `MAX_LOCAL_CHANGES`: `new_state['last_change'] = record` after `new_state =
+    dict(state)` returns more than `dict(state)`. A change is `set` and an item or an attribute
+    assigned, `delete` and one deleted, or `call` and a call of one of its methods made for what
+    it does, its value unused.
+    """
     if inline and any(
         isinstance(item, (ast.Yield, ast.YieldFrom)) for item, _ in _own_code(node.body)
     ):
-        return (), 0
+        return CallableExits((), 0, ())
     found: list[FunctionExit] = []
     total = 0
     known = texts or {}
+    # The recorded exits' values, in order, and what the code assigns, changes, and declares.
+    values: list[ast.expr] = []
+    # Each kept as its node until it proves needed: most are of names no exit reads, and
+    # unparsing every assignment of every callable made extraction a seventh slower.
+    assigned: dict[str, list[tuple[str, ast.expr, ExitPath]]] = {}
+    assignments: dict[str, int] = {}
+    changed: dict[str, list[tuple[str, ast.expr, ExitPath]]] = {}
+    changes: dict[str, int] = {}
+    declared: set[str] = set()
 
     def code(expression: ast.AST) -> str:
         return known.get(id(expression)) or unparse_redacted(expression, limits.MAX_EXIT_CHARS)
@@ -1254,28 +1300,109 @@ def function_exits(
     def caught(handler: ast.ExceptHandler) -> str:
         return code(handler.type) if handler.type else ""
 
-    def record(kind: str, value: str, branches: ExitPath, around: ExitPath) -> None:
+    def conditions_of(branches: ExitPath, around: ExitPath) -> ExitPath:
+        conditions = branches or around
+        if len(conditions) > limits.MAX_EXIT_CONDITIONS:
+            return (("deep", str(len(branches))),) if branches else ()
+        return conditions
+
+    def record(
+        kind: str,
+        value: str,
+        expression: ast.expr | None,
+        branches: ExitPath,
+        around: ExitPath,
+    ) -> None:
         nonlocal total
         total += 1
         if len(found) >= limits.MAX_FUNCTION_EXITS:
             return
-        conditions = branches or around
-        if len(conditions) > limits.MAX_EXIT_CONDITIONS:
-            conditions = (("deep", str(len(branches))),) if branches else ()
-        found.append((kind, value, conditions))
+        found.append((kind, value, conditions_of(branches, around)))
+        if expression is not None:
+            values.append(expression)
+
+    def assign(target: ast.expr, value: ast.expr, how: str, path: ExitPath) -> None:
+        """Record each name `target` binds, to `value` whole or to an item of it."""
+        if isinstance(target, ast.Name):
+            assignments[target.id] = assignments.get(target.id, 0) + 1
+            kept = assigned.setdefault(target.id, [])
+            if len(kept) < limits.MAX_LOCAL_ASSIGNMENTS:
+                kept.append((how, value, path))
+        elif isinstance(target, ast.Starred):
+            assign(target.value, value, "item", path)
+        elif isinstance(target, (ast.Tuple, ast.List)):
+            items = value.elts if isinstance(value, (ast.Tuple, ast.List)) else None
+            whole = (
+                how == "value"
+                and items is not None
+                and len(items) == len(target.elts)
+                and not any(isinstance(item, ast.Starred) for item in (*items, *target.elts))
+            )
+            for index, element in enumerate(target.elts):
+                if whole and items is not None:
+                    assign(element, items[index], "value", path)
+                else:
+                    assign(element, value, "item", path)
+        # An attribute or a subscript binds no local name: it changes what one names.
+        elif isinstance(target, (ast.Attribute, ast.Subscript)):
+            change("set", target, target, path)
+
+    def change(how: str, target: ast.expr, shown: ast.expr, path: ExitPath) -> None:
+        """Record that a statement changes, in place, what the name `target` is rooted at names."""
+        root = target
+        while isinstance(root, (ast.Attribute, ast.Subscript)):
+            root = root.value
+        if isinstance(root, ast.Name):
+            changes[root.id] = changes.get(root.id, 0) + 1
+            kept = changed.setdefault(root.id, [])
+            if len(kept) < limits.MAX_LOCAL_CHANGES:
+                kept.append((how, shown, path))
 
     def walk(statements: list[ast.stmt], branches: ExitPath, around: ExitPath) -> None:
         for statement in statements:
             if isinstance(statement, ast.Return):
                 value = "None" if statement.value is None else code(statement.value)
-                record("return", value, branches, around)
+                record("return", value, statement.value, branches, around)
             elif isinstance(statement, ast.Raise):
-                record("raise", code(statement.exc) if statement.exc else "", branches, around)
+                exception = statement.exc
+                record("raise", code(exception) if exception else "", exception, branches, around)
+            elif isinstance(statement, ast.Assign):
+                for target in statement.targets:
+                    assign(target, statement.value, "value", conditions_of(branches, around))
+            elif isinstance(statement, ast.AnnAssign) and statement.value is not None:
+                assign(statement.target, statement.value, "value", conditions_of(branches, around))
+            elif isinstance(statement, ast.AugAssign) and isinstance(
+                statement.target, (ast.Attribute, ast.Subscript)
+            ):
+                change("set", statement.target, statement.target, conditions_of(branches, around))
+            elif isinstance(statement, ast.Delete):
+                for target in statement.targets:
+                    if isinstance(target, (ast.Attribute, ast.Subscript)):
+                        change("delete", target, target, conditions_of(branches, around))
+            elif (
+                isinstance(statement, ast.Expr)
+                and isinstance(statement.value, ast.Call)
+                and isinstance(statement.value.func, ast.Attribute)
+            ):
+                # A method called for what it does, its value unused: `state.pop('lock', None)`.
+                call = statement.value
+                change("call", call.func, call, conditions_of(branches, around))
+            elif isinstance(statement, ast.AugAssign) and isinstance(statement.target, ast.Name):
+                # `total += item` assigns what the operation gives: `total + item`.
+                operation = ast.BinOp(
+                    left=ast.Name(id=statement.target.id, ctx=ast.Load()),
+                    op=statement.op,
+                    right=statement.value,
+                )
+                assign(statement.target, operation, "value", conditions_of(branches, around))
+            elif isinstance(statement, (ast.Global, ast.Nonlocal)):
+                declared.update(statement.names)
             elif isinstance(statement, ast.If):
                 condition = code(statement.test)
                 walk(statement.body, (*branches, ("if", condition)), around)
                 walk(statement.orelse, (*branches, ("else", condition)), around)
             elif isinstance(statement, (ast.For, ast.AsyncFor)):
+                assign(statement.target, statement.iter, "item", conditions_of(branches, around))
                 walk(statement.body, branches, (*around, ("for", code(statement.iter))))
                 walk(statement.orelse, branches, around)
             elif isinstance(statement, ast.While):
@@ -1307,8 +1434,75 @@ def function_exits(
 
     walk(node.body, (), ())
     if not _always_exits(node.body):
-        record("return", "None", (), ())
-    return tuple(found), total
+        record("return", "None", None, (), ())
+    if not assigned:
+        # What the values read matters only for a name the code assigns: most callables have none.
+        return CallableExits(tuple(found), total, ())
+    reads = (name for value in values for name in _names_read(value))
+    read = [name for name in dict.fromkeys(reads) if name in assigned]
+    arguments = node.args
+    parameters = {
+        item.arg
+        for item in (
+            *arguments.posonlyargs,
+            *arguments.args,
+            *arguments.kwonlyargs,
+            arguments.vararg,
+            arguments.kwarg,
+        )
+        if item is not None
+    }
+    definitions: list[LocalDefinition] = []
+    for name in read:
+        if name not in parameters and name not in declared:
+            definitions.append(
+                (
+                    name,
+                    tuple((how, code(value), path) for how, value, path in assigned[name]),
+                    assignments[name],
+                    tuple((how, code(value), path) for how, value, path in changed.get(name, ())),
+                    changes.get(name, 0),
+                )
+            )
+            if len(definitions) == limits.MAX_DEFINED_LOCALS:
+                break
+    return CallableExits(tuple(found), total, tuple(definitions))
+
+
+def _names_read(expression: ast.expr) -> list[str]:
+    """The names an expression reads, in the order they appear, but for those its comprehensions
+    and lambdas bind for themselves."""
+    if isinstance(expression, ast.Name):
+        return [expression.id]
+    if isinstance(expression, ast.Constant):
+        return []
+    own: set[str] = set()
+    names: list[ast.Name] = []
+    for item in ast.walk(expression):
+        if isinstance(item, ast.Name):
+            if isinstance(item.ctx, ast.Load):
+                names.append(item)
+        elif isinstance(item, (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)):
+            for generator in item.generators:
+                own.update(
+                    name.id for name in ast.walk(generator.target) if isinstance(name, ast.Name)
+                )
+        elif isinstance(item, ast.Lambda):
+            arguments = item.args
+            own.update(
+                argument.arg
+                for argument in (
+                    *arguments.posonlyargs,
+                    *arguments.args,
+                    *arguments.kwonlyargs,
+                    arguments.vararg,
+                    arguments.kwarg,
+                )
+                if argument is not None
+            )
+    if len(names) > 1:
+        names.sort(key=lambda item: (item.lineno, item.col_offset))
+    return [item.id for item in names if item.id not in own]
 
 
 def output_lines(
@@ -1860,6 +2054,7 @@ def snapshot_symbol(
     without_constants: str | None = None
     exits: tuple[FunctionExit, ...] = ()
     exits_total = 0
+    definitions: tuple[LocalDefinition, ...] = ()
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
         signature = function_signature(node)
         parameters = function_parameters(node)
@@ -1871,7 +2066,8 @@ def snapshot_symbol(
         # alone say what feeds its value.
         inline = any(name in _INLINE_NAMES for name, _ in inventory)
         outputs = output_lines(node, inline=inline)
-        exits, exits_total = function_exits(node, inline=inline, texts=visitor.texts)
+        walked = callable_exits(node, inline=inline, texts=visitor.texts)
+        exits, exits_total, definitions = walked.exits, walked.total, walked.definitions
         if typing is not None:
             annotated = parameter_typing(node, typing)
             unread = annotations_unread(node, qualified_name, kind, typing)
@@ -1919,6 +2115,7 @@ def snapshot_symbol(
         on_instance=tuple(visitor.on_instance),
         exits=exits,
         exits_total=exits_total,
+        definitions=definitions,
         docstring_only=not body_without_docstring(body),
         display=display,
         parameters=parameters,

@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- **Fix:** an added callable's obligation says what the local variables its outcomes read are
+  assigned, and how its code then changes what they name. The blind review of the obligations
+  that list an added callable's outcomes judged 5 of its 9 noise for one reason: the outcome was
+  a local variable, or an expression of one, whose value the code before the `return` decides.
+  werkzeug#3332's `wrap_file` returned `cls(file, buffer_size)`, where what a test checks is the
+  choice of `cls` between the server's file wrapper and the library's own; it now adds that `cls`
+  is `self.environ.get('wsgi.file_wrapper', _FileWrapper)`. At most two variables are defined,
+  each with two of its assignments and the conditions on their paths, and the first change made
+  to it in place: meal-manager's `note_deploy_change` returns `new_state`, which `dict(state)`
+  assigns and `new_state['last_change']` then sets. Parameters, which a test passes, and a
+  comprehension's or a lambda's own names are not defined, and where the obligation's text would
+  be too long, the definitions give way before any outcome does. On the 150 development cases no
+  finding changes and obligations stay 377; 16 in 11 cases each gain definitions at the end of
+  their `given`. No golden changes; schema 1.5 is unchanged.
+
 ## 0.23.0 - 2026-11-15
 
 What an added callable returns and raises, in its obligation. An added callable's obligation

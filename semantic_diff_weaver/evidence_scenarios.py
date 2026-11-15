@@ -10,9 +10,9 @@ schema or a configuration file, or a change the parser could not read. A functio
 only as the functions nested in it did has no line of its own to quote either, and its scenario
 names them, whose findings say what changed. A callable added has no old code to quote, and its
 scenario lists what its own code returns and raises, each with every condition on the path that
-leads there. A schema that changed only how it describes a tool changes nothing a test of the
-tool's code could tell apart, and its scenario asks what an agent given the tool does with the
-new text.
+leads there, and what the local variables those values read are assigned. A schema that changed
+only how it describes a tool changes nothing a test of the tool's code could tell apart, and its
+scenario asks what an agent given the tool does with the new text.
 
 Only what the evidence holds is quoted, already redacted and bounded, each fragment as a code
 span. The renderer keeps it one, so a repository's text never becomes Markdown of its own.
@@ -25,7 +25,14 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from .ast_diff import StructuralDelta
-from .ast_diff.types import ENCLOSING_CONDITIONS, ExitPath, FunctionExit
+from .ast_diff.types import (
+    ENCLOSING_CONDITIONS,
+    ExitPath,
+    FunctionExit,
+    LocalAssignment,
+    LocalChange,
+    LocalDefinition,
+)
 from .models import (
     MAX_OBLIGATION_TEXT_CHARS,
     MAX_OBLIGATION_TITLE_CHARS,
@@ -243,6 +250,9 @@ class Change:
     # it has.
     exits: tuple[FunctionExit, ...] = ()
     exits_total: int = 0
+    # The local variables its exits' values read, each with its assignments, as `ast_diff`
+    # records them.
+    definitions: tuple[LocalDefinition, ...] = ()
 
     @property
     def removed_only(self) -> bool:
@@ -309,6 +319,7 @@ def describe_change(delta: StructuralDelta) -> Change | None:
         described_only=bool(metadata.get("described_only")),
         exits=(exits := _exits(metadata.get("exits"))),
         exits_total=_count(metadata.get("exits_total"), len(exits)),
+        definitions=_definitions(metadata.get("definitions")),
     )
 
 
@@ -337,6 +348,76 @@ def _exits(value: object) -> tuple[FunctionExit, ...]:
         )
         if len(conditions) == len(item[2]):
             found.append((item[0], item[1], conditions))
+    return tuple(found)
+
+
+def _path(value: object) -> ExitPath | None:
+    """Conditions as metadata records them, each two strings, or None if any is not."""
+    if not isinstance(value, (list, tuple)):
+        return None
+    conditions = tuple(
+        (condition[0], condition[1])
+        for condition in value
+        if isinstance(condition, (list, tuple))
+        and len(condition) == 2
+        and all(isinstance(part, str) for part in condition)
+    )
+    return conditions if len(conditions) == len(value) else None
+
+
+def _steps(value: object, kinds: frozenset[str]) -> list[tuple[str, str, ExitPath]] | None:
+    """Assignments or changes as metadata records them, each a kind of `kinds`, code, and a
+    path, or None if any is out of shape."""
+    if not isinstance(value, (list, tuple)):
+        return None
+    steps: list[tuple[str, str, ExitPath]] = []
+    for step in value:
+        if not (
+            isinstance(step, (list, tuple))
+            and len(step) == 3
+            and step[0] in kinds
+            and isinstance(step[1], str)
+        ):
+            return None
+        path = _path(step[2])
+        if path is None:
+            return None
+        steps.append((step[0], step[1], path))
+    return steps
+
+
+def _definitions(value: object) -> tuple[LocalDefinition, ...]:
+    """The local variables a delta's metadata defines, each a name, its assignments and how many
+    it has, and its later changes and how many. A variable any part of which is out of shape is
+    dropped whole, rather than said to hold less than it may."""
+    if not isinstance(value, (list, tuple)):
+        return ()
+    found: list[LocalDefinition] = []
+    for item in value:
+        if not (
+            isinstance(item, (list, tuple))
+            and len(item) == 5
+            and isinstance(item[0], str)
+            and all(
+                isinstance(count, int) and not isinstance(count, bool)
+                for count in (item[2], item[4])
+            )
+        ):
+            continue
+        assignments = _steps(item[1], frozenset({"value", "item"}))
+        later = _steps(item[3], frozenset({"set", "delete", "call"}))
+        if assignments and later is not None:
+            assigned: tuple[LocalAssignment, ...] = tuple(assignments)
+            changes: tuple[LocalChange, ...] = tuple(later)
+            found.append(
+                (
+                    item[0],
+                    assigned,
+                    max(item[2], len(assigned)),
+                    changes,
+                    max(item[4], len(changes)),
+                )
+            )
     return tuple(found)
 
 
@@ -999,9 +1080,62 @@ def _outcomes_text(outcomes: Sequence[_Outcome], change: Change, room: int) -> s
     not all of them are named. Where that is longer, fewer paths and outcomes, and then how many
     conditions a long path has, are named, as a long signature and long tests need. The least of
     them, which fits what any signature leaves, is what `_scenario` cuts where it would not."""
-    texts = [_outcomes_at(outcomes, change, *detail) for detail in _OUTCOME_DETAIL]
+    texts = [
+        listed + _definitions_text(change, *defined, listed)
+        for listed in (_outcomes_at(outcomes, change, *detail) for detail in _OUTCOME_DETAIL)
+        for defined in _DEFINITION_DETAIL
+    ]
     fitting = [text for text in texts if len(text) <= room]
     return fitting[0] if fitting else texts[-1]
+
+
+# How many of the local variables the outcomes read an obligation defines, and how many
+# assignments of each, from the most to the least. Each level of the outcomes' own detail tries
+# them all before naming less of the outcomes: what a value is comes after what it is.
+_DEFINITION_DETAIL = ((MAX_QUOTED_VALUES, MAX_QUOTED_VALUES), (1, 1), (0, 0))
+
+
+def _definitions_text(change: Change, count: int, assignments: int, listed: str) -> str:
+    """`; `cls` is `self.environ.get('wsgi.file_wrapper', _FileWrapper)``: what the first
+    `count` local variables the outcomes read are assigned, each with at most `assignments` of
+    its assignments and how many more it has, or nothing. A loop's variable whose outcome
+    already says it comes `for an item of` what it iterates is not defined again."""
+    defined = [
+        item
+        for item in change.definitions
+        if not (
+            len(item[1]) == item[2] == 1
+            and not item[4]
+            and item[1][0][0] == "item"
+            and f"for an item of {_quote(item[1][0][1])}" in listed
+        )
+    ]
+    return "".join(f"; {_definition_text(item, assignments)}" for item in defined[:count])
+
+
+def _definition_text(definition: LocalDefinition, shown: int) -> str:
+    """`` `x` is `0`, or `x + 1` when `y` ``. A variable assigned once is what that assignment
+    gives wherever an exit reads it, so only one assigned more than once says where."""
+    name, assignments, total, changes, changed = definition
+    texts = []
+    for how, code, conditions in assignments[:shown]:
+        value = f"an item of {_quote(code)}" if how == "item" else _quote(code)
+        if conditions and total > 1:
+            value = f"{value} {_path_text(conditions, False)}"
+        texts.append(value)
+    if more := total - len(texts):
+        texts.append(f"{more} more")
+    said = f"{_quote(name)} is {', or '.join(texts)}"
+    if changes:
+        # What it names is then changed in place: `dict(state)` is not what is returned.
+        how, code, conditions = changes[0]
+        done = {"set": "is set", "delete": "is deleted", "call": "runs"}[how]
+        said = f"{said}, then {_quote(code)} {done}"
+        if conditions:
+            said = f"{said} {_path_text(conditions, False)}"
+        if more := changed - 1:
+            said = f"{said}, and {more} more change{'s' if more > 1 else ''}"
+    return said
 
 
 def _outcomes_at(

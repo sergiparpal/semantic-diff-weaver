@@ -335,7 +335,8 @@ def test_an_added_function_s_obligation_lists_each_outcome_on_its_branch() -> No
     assert given == (
         "`last_change` is new: `(state) -> dict | None`; it returns `None` when "
         "`not isinstance(record, dict)`, when `not isinstance(record.get('on'), str)`, and in 1 "
-        "more case, or returns `{'on': record['on'], 'dish': record['dish']}` otherwise"
+        "more case, or returns `{'on': record['on'], 'dish': record['dish']}` otherwise; "
+        "`record` is `state.get('last_change')`"
     )
     assert when == "`last_change` is called once for each outcome"
     assert then == "Each outcome is asserted for the input leading to it"
@@ -492,7 +493,9 @@ def test_each_branch_reads_as_what_leads_to_it(added: str, given: str, when: str
         ),
         pytest.param(
             "def first(xs):\n    for x in xs:\n        if x:\n            return x\n    return 0\n",
-            "`first` is new: `(xs)`; it returns `x` when `x`, or returns `0` otherwise",
+            # What the loop's variable is the outcome alone does not say.
+            "`first` is new: `(xs)`; it returns `x` when `x`, or returns `0` otherwise; `x` is an "
+            "item of `xs`",
             id="a-branch-needs-no-loop",
         ),
         pytest.param(
