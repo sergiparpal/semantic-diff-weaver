@@ -829,6 +829,52 @@ Measured on the 150 development cases:
   with `or`. No outcome list is too long for its obligation, so none names less of it.
 - **Unchanged:** no corpus golden changes, and schema 1.5 is unchanged.
 
+## Output-affecting corrections (2026-11-15, what a returned local holds)
+
+The blind review of the added callables' obligations judged 9 of the new ones noise, 5 of them for
+one reason (`docs/benchmark.md`, "Added callables' obligations, reviewed blind"): the outcome was a
+local variable, or an expression of one, whose value the code before the `return` decides.
+
+- werkzeug#3332's `wrap_file` "returns `cls(file, buffer_size)`", where what a test checks is the
+  choice of `cls` between the server's file wrapper and the library's own.
+- django-axes#1414's `get_username_from_data` "returns `username`", which a fallback may reassign.
+- dateutil#1600's `__reduce_ex__` returns a tuple built from `state`.
+- limits#249's two `acquire_sliding_window_entry` return a flag a MongoDB pipeline computes.
+
+The correction has three parts:
+
+- **What extraction records.** With a callable's exits, its snapshot keeps the local variables
+  their values read, at most four, in the order the exits first read them. A local variable is a
+  name the callable's own code assigns that is neither a parameter, which a test passes, nor
+  declared `global` or `nonlocal`; a comprehension's or a lambda's own names are none. Each keeps
+  its assignments in the order of the code, at most three, and how many it has. An assignment is
+  the expression an `=` or an annotated `=` assigns, an augmented one's operation (`total + item`),
+  or an item of what a `for` iterates or a target unpacks into more than one name, each with the
+  conditions on its path, as an exit's. Each also keeps the statements that then change in place
+  what it names, at most two: an item or an attribute assigned or deleted, or a method called for
+  what it does.
+- **What the obligation says.** After the outcomes, it says what at most two of those variables
+  are, with two of their assignments, and the first change. `wrap_file`'s adds that "`cls` is
+  `self.environ.get('wsgi.file_wrapper', _FileWrapper)`". meal-manager#43's `note_deploy_change`
+  adds that "`new_state` is `dict(state)`, then `new_state['last_change']` is set", where
+  `dict(state)` alone would have said something false. A variable assigned once says nothing of
+  where, since an exit that reads it reads that value. A loop's variable whose outcome already says
+  it comes "for an item of" what the loop iterates is not defined again.
+- **Within the obligation's text.** The definitions give way first where the `given` would be too
+  long: each level of the outcomes' own detail tries two variables, one, and none, before naming
+  less of the outcomes.
+
+Measured on the 150 development cases:
+
+- **Findings:** none changes, so neither do the benchmark's measures.
+- **Obligations:** they stay 377, and 16 in 11 cases each gain definitions at the end of their
+  `given`; their `when` and `then` are unchanged. They are the 16 of the review's 34 whose outcomes
+  read a local variable, the 5 judged noise and 11 judged useful. limits#249's two gain only what
+  their MongoDB pipeline returns, cut at 120 characters, and dateutil#1600's `__reduce_ex__` names
+  the first of its changes to `state`. Whether the definitions make the obligations more useful
+  is not measured yet.
+- **Unchanged:** no corpus golden changes, and schema 1.5 is unchanged.
+
 ## Output-affecting corrections (2026-11-14, a schema's descriptions and a repeated transition)
 
 Replayed with 0.22.1, the Action's field test on meal-manager's pull requests #40 and #43 kept the

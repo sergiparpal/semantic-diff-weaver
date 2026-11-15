@@ -73,3 +73,19 @@ def test_a_helper_called_by_long_names_through_long_paths_is_still_analyzed(repo
     # the path to its first outcome has, where naming each would not fit.
     assert own["title"].endswith(f"through `{callers[0]}` and 3 more")
     assert "on a path through 4 conditions, or returns `U0 + U1" in own["given"]
+
+
+def test_a_helper_whose_outcome_reads_long_locals_is_still_analyzed(repo_factory) -> None:
+    helper = "_" + "h" * 115
+    callers = [f"caller_number_{index}_" + "c" * 100 for index in range(3)]
+    assigned = "".join(f"    local_{index} = {_long(f'v{index}')}\n" for index in range(4))
+    reads = " + ".join(f"local_{index}" for index in range(4))
+    added = f"def {helper}(x):\n{assigned}    if x:\n        return {reads}\n    return 0\n"
+    old = BASE + "".join(f"\n\ndef {name}(x):\n    return x + 1\n" for name in callers)
+    new = f"{BASE}\n\n{added}" + "".join(
+        f"\n\ndef {name}(x):\n    return {helper}(x) + 1\n" for name in callers
+    )
+    obligations = _obligations(repo_factory, old, new)
+    assert all(_fits(item) for item in obligations)
+    (own,) = [item for item in obligations if item["title"].startswith("Exercise")]
+    assert "`local_0` is `v00 + v01" in own["given"]
