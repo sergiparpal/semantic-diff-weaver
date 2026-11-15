@@ -871,8 +871,9 @@ Measured on the 150 development cases:
   `given`; their `when` and `then` are unchanged. They are the 16 of the review's 34 whose outcomes
   read a local variable, the 5 judged noise and 11 judged useful. limits#249's two gain only what
   their MongoDB pipeline returns, cut at 120 characters, and dateutil#1600's `__reduce_ex__` names
-  the first of its changes to `state`. Whether the definitions make the obligations more useful
-  is not measured yet.
+  the first of its changes to `state`. A blind review since judged 3 of the 5 formerly noise
+  useful with their definitions, and all 11 formerly useful still so; limits#249's two stayed
+  noise (`docs/benchmark.md`, "Returned locals' definitions, reviewed blind").
 - **Unchanged:** no corpus golden changes, and schema 1.5 is unchanged.
 
 ## Output-affecting corrections (2026-11-14, a schema's descriptions and a repeated transition)

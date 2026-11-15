@@ -16,6 +16,12 @@
   be too long, the definitions give way before any outcome does. On the 150 development cases no
   finding changes and obligations stay 377; 16 in 11 cases each gain definitions at the end of
   their `given`. No golden changes; schema 1.5 is unchanged.
+- **Evaluation:** `docs/benchmark.md` records a blind review of those 16 obligations, each
+  beside its 0.23.0 version, against a criterion committed beforehand. Of the 5 an earlier
+  review judged noise, 3 are useful with their definitions: `wrap_file`'s,
+  `get_username_from_data`'s, and `__reduce_ex__`'s. limits#249's two, whose definition is a
+  MongoDB pipeline cut short, stay noise, and all 11 judged useful stay useful. Documentation
+  only.
 
 ## 0.23.0 - 2026-11-15
 

@@ -20,8 +20,9 @@ second round's correction and measured with it. The third, from `django-guardian
 `dateutil/dateutil`, was labeled by two models and reviewed, and measured the third round's
 correction. The fourth, from `django-commons/django-axes`, `jpadilla/pyjwt`, `hynek/stamina`,
 `agronholm/apscheduler`, and `alisaifee/limits`, labeled the same way, measured the fourth round's.
-A blind review of the obligations that list what an added callable returns and raises comes first
-below. The fifth round's correction follows, designed from the 150 development cases and measured on
+Two blind reviews of an added callable's obligations come first below: of what the local variables
+its outcomes read are assigned, and before it of the outcomes themselves. The fifth round's
+correction follows, designed from the 150 development cases and measured on
 a fifth held-out split of 30, labeled the same way; then how that split was labeled, and the
 baseline it and the 150 development cases set. Then come the fourth round's correction, how the
 fourth split was labeled, and the baseline it and the 120 development cases of the time set; the
@@ -32,6 +33,47 @@ first round's results.
 
 Unlike the 18-case corpus of `docs/evaluation.md`, whose cases were written to exercise the
 taxonomy, these are changes as maintainers made them.
+
+## Returned locals' definitions, reviewed blind
+
+Saying what the local variables an added callable's outcomes read are assigned (`docs/decisions.md`,
+2026-11-15, what a returned local holds) changed 16 obligations in 11 of the 150 development cases.
+A review finished the same day compared each with its 0.23.0 version. They are the 16 of the review
+below whose outcomes read a local variable: 5 it had judged noise and 11 useful. The reviewer saw
+them as that review's pairs were shown, A and B in an order drawn with `random.Random(20261115)` and
+a key kept apart until all 16 had a verdict, on the same scale. The new obligation is the old one
+with text added at the end of its `given`, so the order hid which was new but not what changed. The
+criterion was committed before the review, with unsure counted as not useful:
+
+- in the 5 formerly noise, the new obligation is useful more often than the old;
+- in the 11 formerly useful, at most one has the old useful and the new not.
+
+| Pairs | Count | Old useful | New useful | Only the old useful | Only the new useful |
+| --- | --- | --- | --- | --- | --- |
+| Formerly noise | 5 | 0 | 3 | 0 | 3 |
+| Formerly useful | 11 | 11 | 11 | 0 | 0 |
+
+No side was judged unsure, and every verdict on an old obligation was the one the review below gave
+it.
+
+**It met both criteria.** Three of the five noise obligations became useful, each for what its
+definition says:
+
+- werkzeug#3332's `wrap_file`: `cls` is `self.environ.get('wsgi.file_wrapper', _FileWrapper)`, and
+  the choice of wrapper is what a test checks.
+- django-axes#1414's `get_username_from_data`: its second assignment, under `username is None`, is
+  the fallback.
+- dateutil#1600's `__reduce_ex__`: its change in place names the `_cache_lock` dropped when the rule
+  keeps a cache.
+
+limits#249's two `acquire_sliding_window_entry` stayed noise. Their definition is a MongoDB pipeline
+cut at 120 characters, which says nothing of when an acquisition is accepted. None of the eleven
+useful ones lost its use, and the notes on most said the definition made something clearer: where
+the requested resources come from, how a `__replace__` keeps the fields it is not given, which TTLs
+a sliding window returns.
+
+**The limits are the earlier reviews'.** One person judged all 16, and 3 of 5 lies between 23% and
+88% at 95%. The development cases are those the definitions were measured on.
 
 ## Added callables' obligations, reviewed blind
 
