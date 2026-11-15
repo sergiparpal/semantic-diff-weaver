@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **Tests:** four branches of 0.24.0's walk of an added callable's returned locals, which no test
+  took, are covered. A `del` of a plain name, and a change rooted at something other than a name,
+  such as `make().flag = True`, change no local. A target of none of the kinds an assignment can
+  have, which only a tree built by hand holds, binds nothing. A definition whose path is not a list
+  is dropped whole. `ast_diff/` goes from 97.32% to 97.60% branch coverage, and
+  `evidence_scenarios.py` from 99.62% to 100%. No code changes.
+
 ## 0.24.0 - 2026-11-15
 
 What the local variables an added callable's outcomes read are assigned. A blind review of the

@@ -159,6 +159,42 @@ def test_what_changes_a_local_in_place_after_its_assignment_is_recorded() -> Non
     assert total == limits.MAX_LOCAL_CHANGES + 2
 
 
+def test_a_change_rooted_at_no_name_and_a_deleted_name_change_no_local() -> None:
+    """Only a statement rooted at a local's name changes what that local names.
+
+    `make().flag = True` and `make().close()` change what a call returned, which no local holds,
+    and `del helper` unbinds a name rather than changing what it named.
+    """
+    source = (
+        "def note(make):\n"
+        "    state = dict()\n"
+        "    make().flag = True\n"
+        "    make().close()\n"
+        "    helper = state\n"
+        "    del helper\n"
+        "    del state['lock']\n"
+        "    return state\n"
+    )
+    assert _definitions(source) == (
+        ("state", (("value", "dict()", ()),), 1, (("delete", "state['lock']", ()),), 1),
+    )
+
+
+def test_a_target_of_a_kind_no_assignment_has_binds_no_local() -> None:
+    """A target of none of the kinds Python's grammar gives one binds nothing, and fails nothing.
+
+    The parser never makes one, but a tree another tool builds or rewrites may hold one.
+    """
+    function = ast.parse("def f():\n    x = 1\n    return x\n").body[0]
+    assert isinstance(function, ast.FunctionDef)
+    assignment = function.body[0]
+    assert isinstance(assignment, ast.Assign)
+    assignment.targets = [ast.Constant(value=1)]
+    walked = callable_exits(function)
+    assert walked.exits == (("return", "x", ()),)
+    assert walked.definitions == ()
+
+
 @pytest.mark.parametrize(
     ("added", "given"),
     [
@@ -289,6 +325,9 @@ def test_a_definition_out_of_shape_is_dropped_whole() -> None:
                 ["w", [["value", "2", [["if"]]]], 1, [], 0],
                 ["t", [["value", "{}", []]], 1, [["mutated", "t['k']", []]], 1],
                 ["s", [["value", "{}", []]], 1, "junk", 0],
+                # So would an assignment or a change whose path is not a list of conditions.
+                ["q", [["value", "4", "if x"]], 1, [], 0],
+                ["p", [["value", "5", []]], 1, [["set", "p.a", 7]], 1],
                 ["v", [], 0, [], 0],
                 ["u", [["value", "3", []]], True, [], 0],
                 ["r", [["value", "3", []]], 1],
