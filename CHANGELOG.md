@@ -15,6 +15,15 @@
   timeout 4 times, boundary 4, authorization 2, default behavior 2, and ordering never.
   `benchmark/README.md` gives the protocol, and `docs/benchmark.md` the agreement and the review.
   No analyzer behavior changes.
+- **Evaluation:** `docs/benchmark.md` records the baseline that the sixth held-out split and the 180
+  development cases set with 0.24.0, in deterministic mode. Held out, every one of the 44 behavior
+  changes gets a finding, 32 in an expected category, 4 of the 32 unchanged symbols get one, and 41
+  of the 93 scored findings are in an expected category. In development, 242 of the 243 behavior
+  changes get a finding, 191 in an expected category, 35 of the 191 unchanged symbols get one, and
+  238 of the 492 scored findings are in an expected category: the fifth round's corrected columns
+  added together. Scored against each annotator's labels as given, before the review, the held-out
+  precision is 51.6% with gpt-6.1-terra's and 38.7% with Claude Opus 5.5's, in the order of how many
+  categories each lists. Only the held-out totals were computed. Documentation only.
 - **Tests:** four branches of 0.24.0's walk of an added callable's returned locals, which no test
   took, are covered. A `del` of a plain name, and a change rooted at something other than a name,
   such as `make().flag = True`, change no local. A target of none of the kinds an assignment can

@@ -287,8 +287,12 @@ every Python symbol they change before reading the analyzer's output, and a pers
 correcting 42. For the last 120, two models labeled each of their 321 symbols blind and apart, and
 the person settled every label that is scored. The 180 development cases are the ones the analyzer
 is changed against, and the 30 held-out cases, labeled and reviewed before its next change, will
-measure that change on code it was not designed from; they have not been measured yet. The held-out
-split before them, which has since joined development, gave the fifth round's baseline, in
+measure that change on code it was not designed from. Their baseline, in deterministic mode with
+0.24.0 on 2026-11-16: every one of the 44 held-out behavior changes got a finding, 32 of them in an
+expected category, and 4 of the 32 unchanged symbols got one; 41 of the 93 scored findings, and 41
+of the 69 that name a behavior category, are in an expected one, against development's 238 of 492
+and 238 of 381. The held-out split before them, which has since joined development, gave the fifth
+round's baseline, in
 deterministic mode with 0.21.0 on 2026-11-13: every one of its 44 behavior changes got a finding,
 36 of them in an expected category, and 2 of its 43 unchanged symbols got one; 44 of the 86 scored
 findings, and 44 of the 68 that name a behavior category, are in an expected one, against the
