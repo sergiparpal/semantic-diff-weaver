@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **Evaluation:** the README's limitation on categories quotes the sixth held-out split, measured
+  once with 0.25.0: every one of the 44 behavior changes gets a finding, 32 in an expected category,
+  41 of the 74 scored findings are in one and 5 name none, and 4 of the 32 unchanged symbols get a
+  finding. It quoted the fifth split, measured with 0.22.0, whose labels and libraries differ:
+  37 of 44, 45 of 86 with 17 naming none, and 2 of 43. Documentation only.
+
 ## 0.25.0 - 2026-11-16
 
 An unknown finding joins the named finding of its symbol. The benchmark's sixth round, designed from
