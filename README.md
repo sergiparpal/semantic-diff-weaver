@@ -530,12 +530,12 @@ CI's `hermes-current` job does with the current release built from its Git tag.
   report is reported as unknown, never as uncovered.
 - Dynamic metaprogramming and external contracts may produce review questions or unknown semantic
   changes.
-- Categories are often wrong on real code. On the fifth held-out split of the labeled benchmark in
+- Categories are often wrong on real code. On the sixth held-out split of the labeled benchmark in
   [docs/benchmark.md](docs/benchmark.md), 30 real pull requests the analyzer was not changed
-  against, measured once with 0.22.0, every behavior change got a finding and 37 of 44 got one in
-  an expected category. But only 45 of the 86 findings scored against the labels are in an
-  expected category, and 17 of them name none; 2 of the 43 symbols whose behavior did not change
-  got a finding too.
+  against, measured once with 0.25.0, every behavior change got a finding and 32 of 44 got one in
+  an expected category. But only 41 of the 74 findings scored against the labels are in an
+  expected category, though just 5 of them name none; 4 of the 32 symbols whose behavior did not
+  change got a finding too.
 - Test selection follows imports, never runs: a test that reaches the code through an installed
   command, a process it starts other than Python, or a pytest plugin named only in pytest's
   configuration is not seen, nor one that reads a changed Python file as data, nor one failed by
