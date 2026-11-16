@@ -12,27 +12,126 @@ the analyzer was changed against. The **held-out** cases, six each of `pallets/f
 `pallets/werkzeug`, `encode/starlette`, `Textualize/rich`, and `marshmallow-code/marshmallow`, were
 labeled before the first such change and measured it on code it was not designed from.
 
-Since then the first held-out cases have joined development, and so have three more held-out splits
+Since then the first held-out cases have joined development, and so have four more held-out splits
 of 30 pull requests each. The second, from `encode/django-rest-framework`, `jd/tenacity`,
 `urllib3/urllib3`, `agronholm/anyio`, and `pypa/packaging`, was labeled and reviewed before the
 second round's correction and measured with it. The third, from `django-guardian/django-guardian`,
 `jazzband/django-oauth-toolkit`, `redis/redis-py`, `more-itertools/more-itertools`, and
 `dateutil/dateutil`, was labeled by two models and reviewed, and measured the third round's
 correction. The fourth, from `django-commons/django-axes`, `jpadilla/pyjwt`, `hynek/stamina`,
-`agronholm/apscheduler`, and `alisaifee/limits`, labeled the same way, measured the fourth round's.
-Two blind reviews of an added callable's obligations come first below: of what the local variables
-its outcomes read are assigned, and before it of the outcomes themselves. The fifth round's
-correction follows, designed from the 150 development cases and measured on
-a fifth held-out split of 30, labeled the same way; then how that split was labeled, and the
-baseline it and the 150 development cases set. Then come the fourth round's correction, how the
-fourth split was labeled, and the baseline it and the 120 development cases of the time set; the
-third round's correction, how the third split was labeled, and the baseline it and the 90
-development cases of the time set; the second split's baseline and the second round's correction,
-measured on it while it was held out; measurements of the development cases with models; and the
-first round's results.
+`agronholm/apscheduler`, and `alisaifee/limits`, labeled the same way, measured the fourth round's,
+and the fifth, from `casbin/pycasbin`, `rq/rq`, `pytest-dev/pluggy`, `lepture/authlib`, and
+`python-humanize/humanize`, the fifth round's. A sixth held-out split of 30, labeled the same way
+and not measured yet, comes first below. Two blind reviews of an added callable's obligations
+follow: of what the local variables its outcomes read are assigned, and before it of the outcomes
+themselves. Then come the fifth round's correction, designed from the 150 development cases of the
+time and measured on the fifth split, how that split was labeled, and the baseline it and those 150
+development cases set; the fourth round's correction, how the fourth split was labeled, and the
+baseline it and the 120 development cases of the time set; the third round's correction, how the
+third split was labeled, and the baseline it and the 90 development cases of the time set; the
+second split's baseline and the second round's correction, measured on it while it was held out;
+measurements of the development cases with models; and the first round's results.
 
 Unlike the 18-case corpus of `docs/evaluation.md`, whose cases were written to exercise the
 taxonomy, these are changes as maintainers made them.
+
+## Sixth held-out sample
+
+Labeled 2026-11-15, reviewed by 2026-11-16, and not measured yet: six pull requests each, drawn by
+`run_benchmark.py propose`, of `oauthlib/oauthlib`, `celery/kombu`, `python-trio/trio`,
+`python-semver/python-semver`, and `theskumar/python-dotenv`. The reviewer chose these libraries
+for the categories the 180 cases before them named least: authorization 11 times, retry or timeout
+14, boundary 26, ordering 31, and default behavior 34. Retry and timeout got two of them, kombu and
+trio, since the fifth sample, chosen the same way, added none. The pull requests change 81 Python
+symbols outside their tests, 76 modified and 5 added. `propose` analyzes each pull request it reads
+to count its symbols, and those analyses were deleted unread.
+
+Two annotators labeled every symbol alone, from a kit made as the fifth sample's was, with the same
+rules. Neither saw the other's labels or any output of the analyzer.
+
+- **Claude Opus 5.5** labeled as a fresh agent that could read only a copy of the kit, and opened
+  nothing outside it.
+- **gpt-6.1-terra**, at medium reasoning, labeled one case per call through Hermes Agent's model
+  API. All 30 answers were valid at the first attempt, for 134,158 tokens in and 5,196 out.
+
+On the 76 symbols that are not added:
+
+| Measure | Result |
+| --- | --- |
+| Agree on whether the behavior changes | 75 of 76 (Cohen's kappa 0.97) |
+| Agree on the exact categories | 41 of 76 |
+| Both name a behavior change | 44, with the same categories in 10 (mean Jaccard 0.68) |
+| Name a behavior change | Claude Opus 5.5 44, gpt-6.1-terra 45 |
+
+Both annotators left the 5 added symbols empty, as their rule says.
+
+The reviewer then settled the label of all 76, agreements included, on a page like the fifth
+sample's: it showed the symbol's diff and the two proposals as A and B, in an order drawn per
+symbol, without saying whose and never with the analyzer's findings. No item was left unsure. The 5
+added symbols keep the empty list their rule gives them.
+
+| Final label of the 76 scored symbols | Annotators agreed (41) | Annotators disagreed (35) |
+| --- | --- | --- |
+| Both annotators' label, kept | 40 | |
+| gpt-6.1-terra's proposal | | 8 |
+| Claude Opus 5.5's proposal | | 15 |
+| The reviewer's own label | 1 | 12 |
+
+- **Change or no change:** the one disagreement on whether the behavior changes went to Claude Opus
+  5.5's side. `python-semver/python-semver#511`'s `Version.compare` skips `_nat_cmp` when the
+  prereleases match or one is missing and keeps the comparison it gave, an internal optimization.
+- **Dependency interactions:** gpt-6.1-terra named `dependency_interaction_change` on 30 symbols,
+  Claude Opus 5.5 on 6, and the review kept it on 7. Of the 24 disagreements in which only
+  gpt-6.1-terra named it, the reviewer kept it once, in `oauthlib/oauthlib#1002`'s
+  `DeviceCodeGrant.validate_device_code`, which clears the request's scopes before calling the
+  validator and accepts only those the stored authorization restores.
+- **The reviewer's own labels:** 11 of the 12 written in a disagreement leave out a dependency
+  interaction gpt-6.1-terra proposed. Six take the rest of its proposal as it stood, as in
+  `theskumar/python-dotenv#615`'s `unset_key`, which can now remove a key from the file in the home
+  directory and fail on expanding `~`; three leave out one more category, as in
+  `celery/kombu#2823`'s `BaseExchangeTypes._callback`, whose comparisons were never asserted and so
+  validated nothing; and two take both proposals together without it, `python-trio/trio#3590`'s
+  `DTLSChannel.do_handshake` and `open_tcp_stream`, which reject a NaN timeout before any lock,
+  handshake, or connection. The twelfth, `DeviceCodeGrant.validate_device_code`, takes
+  gpt-6.1-terra's proposal without an output contract change. The one agreement corrected,
+  `python-trio/trio#3590`'s `MockClock.rate`, gains an error handling change, since the
+  `ValueError` it raises for NaN now carries another message.
+
+Of the 44 behavior changes, 2 name `authorization_change`, 4 `retry_timeout_change`, none
+`ordering_change`, 4 `boundary_change`, and 2 `default_behavior_change`. With them, the 210 cases
+name these categories 13, 18, 31, 30, and 36 times. A sample adds what its pull requests changed
+rather than what its libraries are about: three of the four retry or timeout labels are trio's, on
+a timeout or delay that now refuses NaN or replaces a value of another type, and the fourth is
+python-dotenv's, a cleanup that tries again after `chmod`. kombu's pull requests changed how its
+commits fail, which channel an entity is bound to, and which codecs it loads, rather than how it
+retries, and python-semver's `Version.compare`, above, orders versions as it did.
+
+| Labels | Categories per behavior change |
+| --- | --- |
+| First sample, 60 cases | 2.00 |
+| Second sample, 30 cases | 2.48 |
+| Third sample, 30 cases | 3.43 |
+| Fourth sample, 30 cases | 3.00 |
+| Fifth sample, 30 cases | 2.89 |
+| Development, the five samples together | 2.64 |
+| Sixth sample, as Claude Opus 5.5 labeled it | 2.55 |
+| Sixth sample, as gpt-6.1-terra labeled it | 3.27 |
+| Sixth sample, as reviewed | 2.68 |
+
+gpt-6.1-terra labeled more broadly than Claude Opus 5.5, mostly through dependency interactions,
+and the review came out close to Claude Opus 5.5's breadth, taking its proposal 15 times to
+gpt-6.1-terra's 8. For the first time the held-out labels list about as many categories per
+behavior change as development's, 2.68 against 2.64. The two splits still hold different
+libraries' changes, so a change to the analyzer is still judged by how each split moves, never by
+comparing one with the other.
+
+The limits are the third sample's:
+
+- one reviewer read each symbol with both proposals in view, which may have favored the wider one;
+- a proposal's wording can betray whose it is;
+- the annotators saw the changed symbols and the diff, not whole files, which the page linked.
+
+The labels were committed before any measurement on them.
 
 ## Returned locals' definitions, reviewed blind
 
@@ -172,8 +271,8 @@ Claude Opus 5.5's.
 
 The held-out split was measured once with the correction, after commit 56be036 had fixed it and the
 criterion, reading its summary alone and deleting each analysis unread. Its findings by category and
-by case, and its disagreements, stay unread; having measured this correction, it waits to join
-development, and the next round for a new held-out sample.
+by case, and its disagreements, stayed unread while it was held out. Having measured this
+correction, it has joined development, and the sixth sample is the held-out split of the next one.
 
 ## Fifth held-out sample
 
@@ -308,8 +407,8 @@ correction is to be judged by how each split moves, never by comparing one with 
 For the held-out split only these totals were computed. A script called the benchmark's own
 functions and printed the measures alone: no per-category or per-case table, and no disagreement,
 was rendered, and each analysis written beside the clones was deleted unread once its case was
-measured. The split's findings by category and by case, and each disagreement, stay unread: the
-fifth round's correction, designed from the development cases, was measured on it the same way.
+measured. The split's findings by category and by case, and each disagreement, stayed unread while
+it was held out, and the fifth round's correction was measured on it the same way.
 
 ## Fourth round
 
@@ -1177,9 +1276,9 @@ are neither right nor wrong: attrs#1571's two findings are one on `__all__` and 
 
 ## What the benchmark is not
 
-One model labeled its first 90 cases and two models its last 90, and one person reviewed every
-label, so a label is a model's reading that one reviewer accepted, chose, or corrected. A hundred
-and eighty pull requests of at most ten changed symbols each, sampled from thirty libraries'
+One model labeled its first 90 cases and two models its last 120, and one person reviewed every
+label, so a label is a model's reading that one reviewer accepted, chose, or corrected. Two hundred
+and ten pull requests of at most ten changed symbols each, sampled from thirty-five libraries'
 recent history, say nothing of large changes or of applications. Outside "With a model" the analyzer
 ran without one, as the MCP server always runs it and the CLI does without a provider; that section
 measures runs of four models on the development cases, and one reviewer's reading of 177 test
