@@ -964,6 +964,27 @@ unchanged symbol gains a finding (4 of 32). It improves on it if a greater share
 an expected category. Unchanged symbols given a finding that names a behavior category, 3 of 32 at
 the baseline, are reported apart, and are no part of the criterion.
 
+**It held, and improved.** Measured once on 2026-11-16, after commit e7dcd6d had fixed the
+correction and the criterion and been pushed, reading the summary alone and deleting the analyses
+unread. The 0.24.0 column is the baseline of the same day, whose analyzer `main` still ran.
+
+| Measure, 30 held-out cases | 0.24.0 | With the correction |
+| --- | --- | --- |
+| Findings on Python | 98 | 79 |
+| Precision, findings in an expected category | 41 of 93 (44.1%) | 41 of 74 (55.4%) |
+| Precision, findings naming a behavior category | 41 of 69 (59.4%) | 41 of 69 (59.4%) |
+| Recall, behavior changes given a finding | 44 of 44 | 44 of 44 |
+| Recall, behavior changes given one in an expected category | 32 of 44 (72.7%) | 32 of 44 (72.7%) |
+| Unchanged symbols given a finding | 4 of 32 | 4 of 32 |
+| Unchanged symbols given one naming a behavior category | 3 of 32 | 3 of 32 |
+
+Held out, 19 unknown findings join a named one, and precision in an expected category rises from
+44.1% to 55.4%, while every behavior change keeps its finding and its category and no unchanged
+symbol gains or loses one, as on the development cases. Scored against each annotator's labels as
+given, it rises from 51.6% to 64.9% with gpt-6.1-terra's and from 38.7% to 48.6% with Claude Opus
+5.5's. The held-out findings by category and by case, and their disagreements, stay unread; the
+split has measured this correction, so the next one waits for a new held-out sample.
+
 ## Output-affecting corrections (2026-11-13, a nested function's obligations)
 
 `SDW-RULE-NESTED` gives a function whose own code reads the same, and whose body changed only as the

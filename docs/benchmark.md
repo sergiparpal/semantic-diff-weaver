@@ -21,30 +21,69 @@ second round's correction and measured with it. The third, from `django-guardian
 correction. The fourth, from `django-commons/django-axes`, `jpadilla/pyjwt`, `hynek/stamina`,
 `agronholm/apscheduler`, and `alisaifee/limits`, labeled the same way, measured the fourth round's,
 and the fifth, from `casbin/pycasbin`, `rq/rq`, `pytest-dev/pluggy`, `lepture/authlib`, and
-`python-humanize/humanize`, the fifth round's. A sixth held-out split of 30, labeled the same way,
-comes first below, with the baseline it and the 180 development cases set. Two blind reviews of an
-added callable's obligations follow: of what the local variables its outcomes read are assigned, and
-before it of the outcomes themselves. Then come the fifth round's correction, designed from the 150
-development cases of the time and measured on the fifth split, how that split was labeled, and the
-baseline it and those 150 development cases set; the fourth round's correction, how the fourth split
-was labeled, and the baseline it and the 120 development cases of the time set; the third round's
-correction, how the third split was labeled, and the baseline it and the 90 development cases of the
-time set; the second split's baseline and the second round's correction, measured on it while it was
-held out; measurements of the development cases with models; and the first round's results.
+`python-humanize/humanize`, the fifth round's. The sixth round's correction, designed from the 180
+development cases and measured on a sixth held-out split of 30, labeled the same way, comes first
+below; then how that split was labeled, and the baseline it and the 180 development cases set. Two
+blind reviews of an added callable's obligations follow: of what the local variables its outcomes
+read are assigned, and before it of the outcomes themselves. Then come the fifth round's correction,
+designed from the 150 development cases of the time and measured on the fifth split, how that split
+was labeled, and the baseline it and those 150 development cases set; the fourth round's correction,
+how the fourth split was labeled, and the baseline it and the 120 development cases of the time set;
+the third round's correction, how the third split was labeled, and the baseline it and the 90
+development cases of the time set; the second split's baseline and the second round's correction,
+measured on it while it was held out; measurements of the development cases with models; and the
+first round's results.
 
 Unlike the 18-case corpus of `docs/evaluation.md`, whose cases were written to exercise the
 taxonomy, these are changes as maintainers made them.
 
+## Sixth round
+
+Designed from the 180 development cases alone, the sixth round makes one correction
+(`docs/decisions.md`, 2026-11-16, an unknown finding beside a named one). Once the obligations are
+written, an unknown finding beside one that names a category, on the same symbol, joins it: its
+evidence is appended to the named finding's, and its obligations, word for word, point to it. Its
+criterion on the held-out split was committed before measuring it: every behavior change that has a
+finding keeps one (44 of 44), no fewer than 32 of 44 have one in an expected category, precision in
+an expected category stays at or above 44.1%, and no unchanged symbol gains a finding (4 of 32).
+Unchanged symbols given a finding that names a category, 3 of 32, are reported apart.
+
+| Measure | Development, 0.24.0 | Development, corrected | Held-out, 0.24.0 | Held-out, corrected |
+| --- | --- | --- | --- | --- |
+| Findings on Python | 547 | 466 | 98 | 79 |
+| Precision, findings in an expected category | 238 of 492 (48.4%) | 238 of 411 (57.9%) | 41 of 93 (44.1%) | 41 of 74 (55.4%) |
+| Precision, findings naming a behavior category | 238 of 381 (62.5%) | 238 of 381 (62.5%) | 41 of 69 (59.4%) | 41 of 69 (59.4%) |
+| Recall, behavior changes given a finding | 242 of 243 | 242 of 243 | 44 of 44 | 44 of 44 |
+| Recall, behavior changes given one in an expected category | 191 of 243 (78.6%) | 191 of 243 (78.6%) | 32 of 44 (72.7%) | 32 of 44 (72.7%) |
+| Unchanged symbols given a finding | 35 of 191 (18.3%) | 35 of 191 (18.3%) | 4 of 32 (12.5%) | 4 of 32 (12.5%) |
+| Unchanged symbols given one naming a behavior category | 28 of 191 (14.7%) | 28 of 191 (14.7%) | 3 of 32 (9.4%) | 3 of 32 (9.4%) |
+
+**It met its criterion, and only precision moved, on both splits.** The join takes away unknown
+findings alone, and never a symbol's last one: 81 in development and 19 held out. Precision in an
+expected category rises from 48.4% to 57.9% in development and from 44.1% to 55.4% held out, and
+every other measure stays as it was. In development all 458 obligations stay word for word, linked
+to the same symbols, and the summary's risk score falls in black#5647 alone, 46 to 43, still medium.
+Joined where the rules build their findings instead, the same correction had cost 31 obligations,
+such as the one exercising both outcomes of a changed condition, and raised 47 risk scores. Scored
+against each annotator's labels as given, the held-out precision in an expected category rises from
+51.6% to 64.9% with gpt-6.1-terra's and from 38.7% to 48.6% with Claude Opus 5.5's.
+
+The held-out split was measured once with the correction, after commit e7dcd6d had fixed it and the
+criterion, reading its summary alone and deleting each analysis unread. Its findings by category and
+by case, and its disagreements, stay unread; having measured this correction, it waits to join
+development, and the next round for a new held-out sample.
+
 ## Sixth held-out sample
 
-Labeled 2026-11-15, reviewed by 2026-11-16, and measured only for the baseline below: six pull
-requests each, drawn by `run_benchmark.py propose`, of `oauthlib/oauthlib`, `celery/kombu`,
-`python-trio/trio`, `python-semver/python-semver`, and `theskumar/python-dotenv`. The reviewer
-chose these libraries for the categories the 180 cases before them named least: authorization 11
-times, retry or timeout 14, boundary 26, ordering 31, and default behavior 34. Retry and timeout
-got two of them, kombu and trio, since the fifth sample, chosen the same way, added none. The pull
-requests change 81 Python symbols outside their tests, 76 modified and 5 added. `propose` analyzes
-each pull request it reads to count its symbols, and those analyses were deleted unread.
+Labeled 2026-11-15, reviewed by 2026-11-16, and measured for the baseline below and once with the
+sixth round's correction above: six pull requests each, drawn by `run_benchmark.py propose`, of
+`oauthlib/oauthlib`, `celery/kombu`, `python-trio/trio`, `python-semver/python-semver`, and
+`theskumar/python-dotenv`. The reviewer chose these libraries for the categories the 180 cases
+before them named least: authorization 11 times, retry or timeout 14, boundary 26, ordering 31, and
+default behavior 34. Retry and timeout got two of them, kombu and trio, since the fifth sample,
+chosen the same way, added none. The pull requests change 81 Python symbols outside their tests, 76
+modified and 5 added. `propose` analyzes each pull request it reads to count its symbols, and those
+analyses were deleted unread.
 
 Two annotators labeled every symbol alone, from a kit made as the fifth sample's was, with the same
 rules. Neither saw the other's labels or any output of the analyzer.
@@ -181,7 +220,7 @@ For the held-out split only these totals were computed. A script called the benc
 functions and printed the measures alone: no per-category or per-case table, and no disagreement,
 was rendered, and each analysis written beside the clones was deleted unread once its case was
 measured. The split's findings by category and by case, and each disagreement, stay unread: the
-sixth round's correction, designed from the development cases, will be measured on it the same way.
+sixth round's correction, designed from the development cases, was measured on it the same way.
 
 ## Returned locals' definitions, reviewed blind
 
