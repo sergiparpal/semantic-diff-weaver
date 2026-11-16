@@ -1,6 +1,17 @@
 # Changelog
 
-## Unreleased
+## 0.25.0 - 2026-11-16
+
+An unknown finding joins the named finding of its symbol. The benchmark's sixth round, designed from
+its 180 development cases, found 81 unknown findings beside a finding naming a category on the same
+symbol, each in no expected category. Once the obligations are written, such a finding now joins the
+named one: its evidence is appended, its obligations point to it word for word, and the named
+finding keeps its summary, confidence, risk, and assumptions. Precision in an expected category
+rises from 48.4% to 57.9% on the development cases and, measured once against a criterion committed
+before, from 44.1% to 55.4% on a sixth held-out split of 30 pull requests of oauthlib, kombu, trio,
+python-semver, and python-dotenv, labeled blind by two models and settled by a reviewer. No behavior
+change loses its finding or its category, and every obligation stays. Schema 1.5 and every golden
+are unchanged.
 
 - **Evaluation:** the benchmark has a sixth held-out split, 30 pull requests of oauthlib/oauthlib,
   celery/kombu, python-trio/trio, python-semver/python-semver, and theskumar/python-dotenv, and the

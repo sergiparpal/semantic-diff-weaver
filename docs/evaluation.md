@@ -39,8 +39,8 @@ now emits no prediction outside its reviewed expected labels. The 2026-10-31 re-
 0.15.0, and 0.16.0, the 2026-11-04 one for 0.17.0, the 2026-11-06 one for 0.18.0, the 2026-11-07
 one for 0.19.0, the 2026-11-08 ones for 0.19.1, 0.19.2, and 0.19.3, the 2026-11-09 one for 0.19.4,
 the 2026-11-10 one for 0.20.0, the 2026-11-11 one for 0.20.1, the 2026-11-12 one for 0.21.0, the
-2026-11-13 ones for 0.22.0 and 0.22.1, the 2026-11-14 one for 0.23.0, and the 2026-11-15 one for
-0.24.0, found the same figures. Of 0.4.1's
+2026-11-13 ones for 0.22.0 and 0.22.1, the 2026-11-14 one for 0.23.0, the 2026-11-15 one for
+0.24.0, and the 2026-11-16 one for 0.25.0, found the same figures. Of 0.4.1's
 corrections only the output-contract one reaches the corpus: the `return annotation signature` case
 is now worded as a change to typing alone, at 0.80 confidence instead of 0.879, and keeps its
 category, risk, and obligations. 0.5.0 gives every case a
@@ -99,7 +99,8 @@ obligations of such a function alone. Nor does 0.23.0, which changes obligations
 case adds a callable with something to return or raise, or changes nothing but a schema's
 descriptions, and the `state assignment` case's transition obligation asks for the state a
 repeated call leaves, a change of its wording alone. Nor does 0.24.0, which defines the local
-variables an added callable's outcomes read, since no case adds such a callable.
+variables an added callable's outcomes read, since no case adds such a callable. Nor does
+0.25.0, which joins an unknown finding to a named one of its symbol, since no case has both.
 
 The previous measurement on this same corpus was 88.24% precision (15 of 17). The two surplus
 predictions were both `ordering_change` findings produced by comparing `statement_order` tuples for
@@ -122,16 +123,22 @@ a chain of calls on instances across a call graph at its module limit, a variabl
 read across a graph at its module limit, and a test selection following 999 test files through a
 chain of 999 modules at its file limit, with five-, two-, five-, and five-second ceilings for the
 first four, a one-second ceiling on grouping the fifth, and a five-second ceiling on the last. They
-completed in approximately 0.04, 0.43, 0.64, 0.77, 0.47, and 0.74 seconds in the 0.24.0 timing run,
-across six runs in which the third took 0.63 to 0.66 and the fourth 0.75 to 0.78. 0.23.0's code,
-timed beside it, took 0.04, 0.43, 0.62, 0.78, 0.48, and 0.74, the third 0.60 to 0.64 and the fourth
-0.77 to 0.81. The third fixture, each of whose 100 functions assigns fifteen variables and returns
-the last, took 0.02 seconds more in five of the six runs, and the fourth, whose code neither tree
-changes, 0.01 less. One of the full collections the session's garbage collector makes fell in the
-third instead of the fourth: the walk that now records what a function assigns leaves more for the
-collector, which made 144 young collections in the third fixture against 132. Collecting garbage
-before each test, so that where the full collections fall no longer depends on what the earlier
-tests left, the two trees took 0.03, 0.44, 0.63, 0.78, 0.47, and 0.75 seconds and 0.03, 0.43, 0.62,
+completed in approximately 0.07, 0.71, 1.06, 1.26, 0.80, and 1.23 seconds in the 0.25.0 timing run,
+across six runs in which the third took 1.00 to 1.24 and the fourth 1.23 to 1.31. 0.24.0's code,
+timed beside it, took 0.07, 0.76, 1.10, 1.25, 0.78, and 1.22, the third 1.06 to 1.15 and the fourth
+1.21 to 1.33. The machine ran about two thirds slower than for 0.24.0's run the day before, both
+trees alike, and no fixture was slower than 0.24.0's code in more than four of the six runs: the
+join of an unknown finding to a named one reads each finding once, after the obligations. 0.24.0's
+own run timed 0.04, 0.43, 0.64, 0.77, 0.47, and 0.74 seconds, across six runs in which the third
+took 0.63 to 0.66 and the fourth 0.75 to 0.78. 0.23.0's code, timed beside it, took 0.04, 0.43,
+0.62, 0.78, 0.48, and 0.74, the third 0.60 to 0.64 and the fourth 0.77 to 0.81. The third fixture,
+each of whose 100 functions assigns fifteen variables and returns the last, took 0.02 seconds more
+in five of the six runs, and the fourth, whose code neither tree changes, 0.01 less. One of the full
+collections the session's garbage collector makes fell in the third instead of the fourth: the walk
+that now records what a function assigns leaves more for the collector, which made 144 young
+collections in the third fixture against 132. Collecting garbage before each test, so that where the
+full collections fall no longer depends on what the earlier tests left, the two trees took 0.03,
+0.44, 0.63, 0.78, 0.47, and 0.75 seconds and 0.03, 0.43, 0.62,
 0.78, 0.46, and 0.75, within 0.01 of each other on every fixture. 0.23.0's own run, the day before,
 timed 0.04, 0.44, 0.63, 0.81, 0.50, and 0.78 seconds, across six runs in which the third took 0.61
 to 0.65 and the fourth 0.80 to 0.82. 0.22.1's code,
@@ -245,7 +252,7 @@ closest, at half of its two-second ceiling, and no other reaches two fifths of i
 intervals leave out what each test builds before its clock starts, which the call-phase figures
 above include; on the Pi those were 0.05, 0.99, 0.97, 2.02, 1.11, and 1.91.
 
-The complete automated suite reports 98.38% overall branch-aware coverage across 2,461 passing tests
+The complete automated suite reports 98.43% overall branch-aware coverage across 2,475 passing tests
 and one skip, the real-Hermes discovery test, with at least 90% branch coverage in every critical
 module — the lowest is `path_policy.py` at 92.42%, followed by `git_diff/` at 93.16%,
 `semantic_interpreter.py`, which 0.19.2, 0.19.4, and 0.20.1 extend, at 94.23%, and `config.py` at
@@ -254,11 +261,10 @@ at 100%, as are `skeletons.py`, added with test skeletons, `change_groups.py`, a
 changes, and `selection.py`, added with test selection. `schema_diff/`, added with API schemas and
 reading configuration files too, is at 98.91%, `mcp_server.py`, added on 2026-10-05, at 98.21%, and
 `ast_diff/`, whose comparison 0.16.0, 0.17.0, 0.19.0, 0.20.0, and 0.21.0 extend, and whose
-extraction 0.23.0 and 0.24.0 do, at 97.32%, down from 97.44%, for three branches of 0.24.0's walk
-that no test takes: a `del` of a plain name, an attribute set on something other than a name, and
-an assignment target of none of the kinds an assignment can have. `obligations.py`, which 0.19.0
-writes from evidence, is at 98.61%, and `evidence_scenarios.py`, new in it and outside the
-critical set, at 99.62%, down from 100%: no test hands it a definition whose path is not a list.
+extraction 0.23.0 and 0.24.0 do, at 97.60%, up from 97.32%, since tests now take the branches of
+0.24.0's walk that none took. `obligations.py`, which 0.19.0 writes from evidence, is at 98.61%,
+`evidence_scenarios.py`, new in it and outside the critical set, back at 100%, and `service.py`,
+where 0.25.0 joins an unknown finding to a named one, at 100%.
 The suite ran with no `ANTHROPIC_API_KEY` in the environment: no live LLM call or credential was
 used, and none is required.
 
