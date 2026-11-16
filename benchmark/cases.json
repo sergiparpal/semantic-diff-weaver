@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "annotation": "One annotator, Claude Opus 5.5, labeled every Python symbol each of the first 90 pull requests changes outside its tests, from the diff and the files at its two commits, before reading the analyzer's output on it, and a reviewer, sergiparpal, then checked every label on a page that showed each symbol's diff and never the analyzer's findings, correcting 26 of the first 162 labels and 16 of the next 89. The first 60 cases came in two splits, the held_out ones labeled before the analyzer was changed against the development ones; once measured, those held_out cases joined development, as did the 30 cases of encode/django-rest-framework, jd/tenacity, urllib3/urllib3, agronholm/anyio, and pypa/packaging, labeled and reviewed before the analyzer's next change. The 30 cases of django-guardian/django-guardian, jazzband/django-oauth-toolkit, redis/redis-py, more-itertools/more-itertools, and dateutil/dateutil and the 30 of django-commons/django-axes, jpadilla/pyjwt, hynek/stamina, agronholm/apscheduler, and alisaifee/limits, which joined development once measured, and the 30 held_out cases of casbin/pycasbin, rq/rq, pytest-dev/pluggy, lepture/authlib, and python-humanize/humanize were labeled by two annotators, Claude Opus 5.5 and gpt-6.1-terra, blind and apart, from each case's diff and the code of its changed symbols, before the analyzer's output on them was read; the reviewer then settled the label of every symbol that is not added, on a page that showed the two proposals as A and B without saying whose and never the analyzer's findings, and the added symbols the review did not reach, 4, 13, and 5, keep the empty list the rules give them. reviewed_by names whoever checked a case's labels after the annotators.",
+  "annotation": "One annotator, Claude Opus 5.5, labeled every Python symbol each of the first 90 pull requests changes outside its tests, from the diff and the files at its two commits, before reading the analyzer's output on it, and a reviewer, sergiparpal, then checked every label on a page that showed each symbol's diff and never the analyzer's findings, correcting 26 of the first 162 labels and 16 of the next 89. The first 60 cases came in two splits, the held_out ones labeled before the analyzer was changed against the development ones; once measured, those held_out cases joined development, as did the 30 cases of encode/django-rest-framework, jd/tenacity, urllib3/urllib3, agronholm/anyio, and pypa/packaging, labeled and reviewed before the analyzer's next change. The 30 cases of django-guardian/django-guardian, jazzband/django-oauth-toolkit, redis/redis-py, more-itertools/more-itertools, and dateutil/dateutil, the 30 of django-commons/django-axes, jpadilla/pyjwt, hynek/stamina, agronholm/apscheduler, and alisaifee/limits, and the 30 of casbin/pycasbin, rq/rq, pytest-dev/pluggy, lepture/authlib, and python-humanize/humanize, which joined development once measured, and the 30 held_out cases of oauthlib/oauthlib, celery/kombu, python-trio/trio, python-semver/python-semver, and theskumar/python-dotenv were labeled by two annotators, Claude Opus 5.5 and gpt-6.1-terra, blind and apart, from each case's diff and the code of its changed symbols, before the analyzer's output on them was read; the reviewer then settled the label of every symbol that is not added, on a page that showed the two proposals as A and B without saying whose and never the analyzer's findings, and the added symbols the review did not reach, 4, 13, 5, and 5, keep the empty list the rules give them. reviewed_by names whoever checked a case's labels after the annotators.",
   "sampled_from": {
     "psf/requests": "3c7baaa05ab4aa49cc819ce3a819d260de19c157",
     "pallets/click": "2247b35ea1c47c727d7a06e51fa280e12a863ff6",
@@ -31,7 +31,12 @@
     "rq/rq": "8bdb8426f8cbc4e0a2f77176135939055c9e5f39",
     "pytest-dev/pluggy": "9d5cfafe1a476be5376449e653970733955533f2",
     "lepture/authlib": "66afb6219eae3b81316532ba759b0d1786d714ca",
-    "python-humanize/humanize": "318888db38ac12e5aaf3144546a11b8ebe60555d"
+    "python-humanize/humanize": "318888db38ac12e5aaf3144546a11b8ebe60555d",
+    "oauthlib/oauthlib": "179287a5f9067aac7b1c0d71c4c5e083ccbf58f2",
+    "celery/kombu": "38fbf784791faa46c13c92a89c45a0c5c7bcd601",
+    "python-trio/trio": "7e0dc2d192f81a5033b740bba165de2fb243ab19",
+    "python-semver/python-semver": "b630316d69260cf10caaf7dec86db70137254161",
+    "theskumar/python-dotenv": "4fbc6ff07215367ece731006855e732d1405992c"
   },
   "cases": [
     {
@@ -5673,7 +5678,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "casbin/pycasbin#421",
@@ -5705,7 +5710,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "casbin/pycasbin#412",
@@ -5735,7 +5740,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "casbin/pycasbin#402",
@@ -5767,7 +5772,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "casbin/pycasbin#398",
@@ -5856,7 +5861,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "casbin/pycasbin#390",
@@ -5890,7 +5895,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "rq/rq#2571",
@@ -5922,7 +5927,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "rq/rq#2566",
@@ -5989,7 +5994,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "rq/rq#2574",
@@ -6020,7 +6025,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "rq/rq#2563",
@@ -6054,7 +6059,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "rq/rq#2564",
@@ -6103,7 +6108,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "rq/rq#2554",
@@ -6136,7 +6141,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "pytest-dev/pluggy#809",
@@ -6167,7 +6172,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "pytest-dev/pluggy#799",
@@ -6256,7 +6261,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "pytest-dev/pluggy#767",
@@ -6325,7 +6330,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "pytest-dev/pluggy#752",
@@ -6357,7 +6362,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "pytest-dev/pluggy#755",
@@ -6391,7 +6396,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "pytest-dev/pluggy#759",
@@ -6437,7 +6442,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "lepture/authlib#1041",
@@ -6484,7 +6489,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "lepture/authlib#972",
@@ -6512,7 +6517,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "lepture/authlib#1037",
@@ -6553,7 +6558,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "lepture/authlib#1026",
@@ -6655,7 +6660,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "lepture/authlib#1031",
@@ -6678,7 +6683,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "lepture/authlib#963",
@@ -6712,7 +6717,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "python-humanize/humanize#479",
@@ -6738,7 +6743,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "python-humanize/humanize#465",
@@ -6762,7 +6767,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "python-humanize/humanize#440",
@@ -6804,7 +6809,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "python-humanize/humanize#295",
@@ -6828,7 +6833,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "python-humanize/humanize#346",
@@ -6852,7 +6857,7 @@
       "reviewed_by": [
         "sergiparpal"
       ],
-      "split": "held_out"
+      "split": "development"
     },
     {
       "id": "python-humanize/humanize#402",
@@ -6868,6 +6873,1155 @@
           "change": "modified",
           "expected": [],
           "rationale": "The doctest example is corrected to show the '30 minutes' the call produces; the executable body is identical."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "development"
+    },
+    {
+      "id": "oauthlib/oauthlib#1002",
+      "repository": "oauthlib/oauthlib",
+      "pull_request": 1002,
+      "base": "b95650c2d605f1ff1562ca1d0ca0c0f29f181c32",
+      "head": "5edac41fb1164485582f4bc4d2abd9c50eb6df47",
+      "subject": "Merge pull request #1002 from oauthlib/vibe/device-grant-scope-integrity-2e5d59",
+      "labels": [
+        {
+          "path": "oauthlib/oauth2/rfc8628/clients/device.py",
+          "symbol": "DeviceClient",
+          "change": "modified",
+          "expected": [],
+          "rationale": "DeviceClient's own statements are unchanged; its method's change is documentation."
+        },
+        {
+          "path": "oauthlib/oauth2/rfc8628/clients/device.py",
+          "symbol": "DeviceClient.prepare_request_body",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Only the documentation of scope is clarified; the code that builds the request body is unchanged."
+        },
+        {
+          "path": "oauthlib/oauth2/rfc8628/grant_types/device_code.py",
+          "symbol": "DeviceCodeGrant",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The class's own body is unchanged; validate_device_code has an entry of its own."
+        },
+        {
+          "path": "oauthlib/oauth2/rfc8628/grant_types/device_code.py",
+          "symbol": "DeviceCodeGrant.validate_device_code",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "state_transition_change",
+            "authorization_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Clears request.scopes and request.scope before calling the validator and accepts only the scopes restored from the stored authorization; a result that authorizes while scopes is still None raises ServerError."
+        },
+        {
+          "path": "oauthlib/oauth2/rfc8628/request_validator.py",
+          "symbol": "RequestValidator",
+          "change": "modified",
+          "expected": [],
+          "rationale": "RequestValidator's own statements are unchanged; the method only gains documentation."
+        },
+        {
+          "path": "oauthlib/oauth2/rfc8628/request_validator.py",
+          "symbol": "RequestValidator.validate_device_code",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The change only documents the validator's contract; its base implementation is unchanged."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "oauthlib/oauthlib#1001",
+      "repository": "oauthlib/oauthlib",
+      "pull_request": 1001,
+      "base": "b95650c2d605f1ff1562ca1d0ca0c0f29f181c32",
+      "head": "a34239c84772fdb5cee2117c83ca824dbd76ce7e",
+      "subject": "Merge pull request #1001 from oauthlib/vibe/fix-host-from-uri-ipv6-6db8d9",
+      "labels": [
+        {
+          "path": "oauthlib/oauth2/rfc6749/utils.py",
+          "symbol": "host_from_uri",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "output_contract_change"
+          ],
+          "rationale": "Takes hostname and port from the parser, which drops credentials and IPv6 brackets, normalizes host and port, and rejects invalid ports with ValueError; an empty port, as in host:, now gets the scheme's default port."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "oauthlib/oauthlib#1000",
+      "repository": "oauthlib/oauthlib",
+      "pull_request": 1000,
+      "base": "1a2f01914f1e13e18ffeb85caf04cedb2ddda616",
+      "head": "ab6abc4356540ffb30eef0b3845323c11a04e28a",
+      "subject": "Merge pull request #1000 from oauthlib/vibe/sanitize-redos-linear-time-cf0361",
+      "labels": [
+        {
+          "path": "oauthlib/common.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "SANITIZE_PATTERN is gone and SANITIZE_KEY_PATTERN arrives with another pattern, which changes the module's reachable namespace."
+        },
+        {
+          "path": "oauthlib/common.py",
+          "symbol": "Request",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Request's own body is unchanged; __repr__ is labeled separately."
+        },
+        {
+          "path": "oauthlib/common.py",
+          "symbol": "Request.__repr__",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "In debug mode the representation sanitizes each parameter by its own name, so foo=mytoken=secret is no longer redacted as if foo were a sensitive key; the new helper avoids the regex's pathological backtracking."
+        },
+        {
+          "path": "oauthlib/common.py",
+          "symbol": "_sanitize_body",
+          "change": "added",
+          "expected": [],
+          "rationale": "New helper that splits a body on & and ; and replaces the value of each parameter whose name contains password or token with <SANITIZED>."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "oauthlib/oauthlib#992",
+      "repository": "oauthlib/oauthlib",
+      "pull_request": 992,
+      "base": "63c6104325c1697b0f64793ec9df589d7aa24d58",
+      "head": "4933ad1c880759ee5f93bc98fee0093e166b4d0a",
+      "subject": "Merge pull request #992 from oauthlib/vibe/safe-string-equals-30f38f",
+      "labels": [
+        {
+          "path": "oauthlib/common.py",
+          "symbol": "safe_string_equals",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "output_contract_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Encodes str as UTF-8 and compares SHA-256 digests with hmac.compare_digest: bytes and equivalent str and bytes pairs are accepted, lists and some unencodable Unicode can fail, and equality is now defined over the digests."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "oauthlib/oauthlib#999",
+      "repository": "oauthlib/oauthlib",
+      "pull_request": 999,
+      "base": "dc76e904ef23396d49c1bd1b12d22f746091f470",
+      "head": "e1a31853298333c65d739cd60c693d934db27d38",
+      "subject": "Merge pull request #999 from oauthlib/vibe/pkce-downgrade-reject-verifier-bb344c",
+      "labels": [
+        {
+          "path": "oauthlib/oauth2/rfc6749/grant_types/authorization_code.py",
+          "symbol": "AuthorizationCodeGrant",
+          "change": "modified",
+          "expected": [],
+          "rationale": "AuthorizationCodeGrant's own body is unchanged; the modified method is reviewed separately."
+        },
+        {
+          "path": "oauthlib/oauth2/rfc6749/grant_types/authorization_code.py",
+          "symbol": "AuthorizationCodeGrant.validate_token_request",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "authorization_change"
+          ],
+          "rationale": "Rejects with InvalidGrantError a code_verifier sent for a code without a code_challenge, even when PKCE is not required, which blocks that injection or downgrade."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "oauthlib/oauthlib#989",
+      "repository": "oauthlib/oauthlib",
+      "pull_request": 989,
+      "base": "63c6104325c1697b0f64793ec9df589d7aa24d58",
+      "head": "9a0979225a1bbdd924b534fc760032cdbcc10647",
+      "subject": "Merge pull request #989 from oauthlib/vibe/pkce-plain-compare-fix-b05f54",
+      "labels": [
+        {
+          "path": "oauthlib/oauth2/rfc6749/grant_types/authorization_code.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Adds private regular expressions and import re for new functions; on its own it changes no earlier module contract and no existing executable path."
+        },
+        {
+          "path": "oauthlib/oauth2/rfc6749/grant_types/authorization_code.py",
+          "symbol": "AuthorizationCodeGrant",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The class's own statements are unchanged; its two modified methods are reviewed separately."
+        },
+        {
+          "path": "oauthlib/oauth2/rfc6749/grant_types/authorization_code.py",
+          "symbol": "AuthorizationCodeGrant.validate_authorization_request",
+          "change": "modified",
+          "expected": [
+            "boundary_change",
+            "validation_change",
+            "error_handling_change"
+          ],
+          "rationale": "Now checks code_challenge's syntax: plain requires 43 to 128 allowed characters and S256 exactly 43, and a malformed challenge raises InvalidRequestError before going on."
+        },
+        {
+          "path": "oauthlib/oauth2/rfc6749/grant_types/authorization_code.py",
+          "symbol": "AuthorizationCodeGrant.validate_token_request",
+          "change": "modified",
+          "expected": [
+            "boundary_change",
+            "validation_change",
+            "error_handling_change"
+          ],
+          "rationale": "When a challenge exists, it requires a code_verifier of 43 to 128 allowed characters and raises InvalidGrantError for an invalid one before looking up the challenge method."
+        },
+        {
+          "path": "oauthlib/oauth2/rfc6749/grant_types/authorization_code.py",
+          "symbol": "code_challenge_method_plain",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "output_contract_change"
+          ],
+          "rationale": "Encodes both arguments before compare_digest: non-ASCII Unicode strings can now be compared, while bytes stop working because they have no encode(), so results and exceptions change for those inputs."
+        },
+        {
+          "path": "oauthlib/oauth2/rfc6749/grant_types/authorization_code.py",
+          "symbol": "code_challenge_method_s256",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "output_contract_change"
+          ],
+          "rationale": "Encodes expected and challenge as UTF-8 before comparing: a non-ASCII challenge returns False instead of raising TypeError, and a bytes challenge now fails looking up encode()."
+        },
+        {
+          "path": "oauthlib/oauth2/rfc6749/grant_types/authorization_code.py",
+          "symbol": "is_valid_code_challenge",
+          "change": "added",
+          "expected": [],
+          "rationale": "New check that a code_challenge is a str matching RFC 7636 syntax: exactly 43 unreserved characters for S256, 43-128 otherwise."
+        },
+        {
+          "path": "oauthlib/oauth2/rfc6749/grant_types/authorization_code.py",
+          "symbol": "is_valid_code_verifier",
+          "change": "added",
+          "expected": [],
+          "rationale": "New check that a code_verifier is a str of 43-128 unreserved characters."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "celery/kombu#2828",
+      "repository": "celery/kombu",
+      "pull_request": 2828,
+      "base": "44eb7b3d9789ad57dd9aadc5521aa6a863b2a40d",
+      "head": "445027e38e33bcfb13dbee11370725963952d708",
+      "subject": "Fix Redis transport import failing without the packaging package (#2828)",
+      "labels": [
+        {
+          "path": "kombu/transport/redis.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [
+            "boundary_change",
+            "error_handling_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "The import no longer needs packaging or Redis's distribution metadata, and comparing only major and minor also admits the 5.3.x pre-releases."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "celery/kombu#2823",
+      "repository": "celery/kombu",
+      "pull_request": 2823,
+      "base": "75c88b0322a57764fb9e5113766f1c946d5479c3",
+      "head": "44eb7b3d9789ad57dd9aadc5521aa6a863b2a40d",
+      "subject": "fix(tests): assert delivery_info checks in integration common (#2823)",
+      "labels": [
+        {
+          "path": "t/integration/common.py",
+          "symbol": "BaseExchangeTypes",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The class's own body is unchanged; the modified method is scored separately."
+        },
+        {
+          "path": "t/integration/common.py",
+          "symbol": "BaseExchangeTypes._callback",
+          "change": "modified",
+          "expected": [
+            "error_handling_change"
+          ],
+          "rationale": "Drops the delivery_info lookups that could raise KeyError; the comparisons were never asserted, so they validated no value."
+        },
+        {
+          "path": "t/integration/common.py",
+          "symbol": "BasicFunctionality",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The class's own body is unchanged; the test and its callback have entries of their own."
+        },
+        {
+          "path": "t/integration/common.py",
+          "symbol": "BasicFunctionality.test_publish_consume",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "side_effect_change"
+          ],
+          "rationale": "The callback now requires the right routing_key and exchange and fails with AssertionError before ack() when they are missing or differ; different values used to pass, and missing keys raised KeyError."
+        },
+        {
+          "path": "t/integration/common.py",
+          "symbol": "BasicFunctionality.test_publish_consume.callback",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "side_effect_change"
+          ],
+          "rationale": "The new asserts reject wrong values and turn a missing key's KeyError into AssertionError; either failure keeps message.ack() from running."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "celery/kombu#2811",
+      "repository": "celery/kombu",
+      "pull_request": 2811,
+      "base": "ed1366ddb455269e79846a528a9fedfbe163a56d",
+      "head": "1c8beafb10678547a5cf67798c29c821666c4386",
+      "subject": "fix(sqlalchemy): raise when a purge cannot be committed (#2811)",
+      "labels": [
+        {
+          "path": "kombu/transport/sqlalchemy/__init__.py",
+          "symbol": "Channel",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Channel's own statements are unchanged; the change is in _purge."
+        },
+        {
+          "path": "kombu/transport/sqlalchemy/__init__.py",
+          "symbol": "Channel._purge",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "output_contract_change"
+          ],
+          "rationale": "If commit() fails with OperationalError, it rolls back and propagates the error instead of returning a purge count that looked like success."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "celery/kombu#2797",
+      "repository": "celery/kombu",
+      "pull_request": 2797,
+      "base": "9e6277a706dfe8d710bab6ce250034c1fa4cd166",
+      "head": "da41469428594d1daf3ebc7421193fd60cdf2856",
+      "subject": "fix(common): publish(retry=True) fails after a reconnect with a named exchange (#2797)",
+      "labels": [
+        {
+          "path": "kombu/common.py",
+          "symbol": "_imaybe_declare",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "state_transition_change",
+            "side_effect_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "An entity bound to a closed channel is revived on the connected channel it receives, which changes its binding and lets the declaration go on instead of raising RecoverableConnectionError."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "celery/kombu#2793",
+      "repository": "celery/kombu",
+      "pull_request": 2793,
+      "base": "9d9094f8c4af00fd44d762b0dbe56d579faafecb",
+      "head": "b1905179e8921168713fedd9386c6f0f9a441e7f",
+      "subject": "fix(sqlalchemy): raise when a published message cannot be stored (#2793)",
+      "labels": [
+        {
+          "path": "kombu/transport/sqlalchemy/__init__.py",
+          "symbol": "Channel",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Channel's own statements are unchanged; _put is reviewed separately."
+        },
+        {
+          "path": "kombu/transport/sqlalchemy/__init__.py",
+          "symbol": "Channel._put",
+          "change": "modified",
+          "expected": [
+            "error_handling_change"
+          ],
+          "rationale": "An OperationalError from commit() is raised again after the rollback; it used to be hidden, and the publish seemed to succeed."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "celery/kombu#2805",
+      "repository": "celery/kombu",
+      "pull_request": 2805,
+      "base": "0945bd2508c1c76765f9c7b18d9ceb1d552faa65",
+      "head": "9d9094f8c4af00fd44d762b0dbe56d579faafecb",
+      "subject": "Replace brotlipy with brotlicffi for PyPy (#2805)",
+      "labels": [
+        {
+          "path": "kombu/compression.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "output_contract_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "Without brotli installed, it tries brotlicffi and registers its codec; when both are missing, brotli is defined as None, which this branch used to leave undefined."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "python-trio/trio#3590",
+      "repository": "python-trio/trio",
+      "pull_request": 3590,
+      "base": "6da4d428268c5ef8eeaf3a2b4c92c957cdc31ad8",
+      "head": "7e0dc2d192f81a5033b740bba165de2fb243ab19",
+      "subject": "Stop accepting nan as much. (#3590)",
+      "labels": [
+        {
+          "path": "src/trio/_core/_mock_clock.py",
+          "symbol": "MockClock",
+          "change": "modified",
+          "expected": [],
+          "rationale": "MockClock's own statements are unchanged; its setters and jump are scored separately."
+        },
+        {
+          "path": "src/trio/_core/_mock_clock.py",
+          "symbol": "MockClock.autojump_threshold",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "state_transition_change",
+            "output_contract_change"
+          ],
+          "rationale": "Rejects NaN with ValueError before changing the threshold and no longer converts to float: an accepted value keeps its value and type, and numeric strings no longer pass through float()."
+        },
+        {
+          "path": "src/trio/_core/_mock_clock.py",
+          "symbol": "MockClock.jump",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "state_transition_change"
+          ],
+          "rationale": "jump(NaN) raises ValueError and leaves _virtual_base alone; it used to be able to leave the time base as NaN."
+        },
+        {
+          "path": "src/trio/_core/_mock_clock.py",
+          "symbol": "MockClock.rate",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "state_transition_change",
+            "output_contract_change"
+          ],
+          "rationale": "Keeps new_rate's type in _rate instead of converting it to float; NaN is still rejected, but the ValueError's message changes."
+        },
+        {
+          "path": "src/trio/_core/_run.py",
+          "symbol": "Runner",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Runner's own body is unchanged; wait_all_tasks_blocked is scored separately."
+        },
+        {
+          "path": "src/trio/_core/_run.py",
+          "symbol": "Runner.wait_all_tasks_blocked",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "state_transition_change"
+          ],
+          "rationale": "A NaN cushion raises ValueError before the task is fetched and added to waiting_for_idle, which avoids that change of the waiting state."
+        },
+        {
+          "path": "src/trio/_dtls.py",
+          "symbol": "DTLSChannel",
+          "change": "modified",
+          "expected": [],
+          "rationale": "DTLSChannel's own body is unchanged; do_handshake has an entry of its own."
+        },
+        {
+          "path": "src/trio/_dtls.py",
+          "symbol": "DTLSChannel.do_handshake",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "retry_timeout_change",
+            "side_effect_change"
+          ],
+          "rationale": "Rejects a NaN initial timeout before acquiring the lock or starting the handshake, even one already completed, which changes the domain the retransmission parameter admits and avoids the later effects."
+        },
+        {
+          "path": "src/trio/_highlevel_open_tcp_stream.py",
+          "symbol": "open_tcp_stream",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "retry_timeout_change",
+            "side_effect_change"
+          ],
+          "rationale": "Rejects a NaN happy_eyeballs_delay with ValueError before resolving DNS or attempting connections, which changes the delay's allowed domain and avoids that call's network effects."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "python-trio/trio#3589",
+      "repository": "python-trio/trio",
+      "pull_request": 3589,
+      "base": "93e6b2e276652ed3f1912b253ad9cdeef7b2711a",
+      "head": "6da4d428268c5ef8eeaf3a2b4c92c957cdc31ad8",
+      "subject": "Don't allow None as happy_eyeballs_delay. (#3589)",
+      "labels": [
+        {
+          "path": "src/trio/_highlevel_open_tcp_stream.py",
+          "symbol": "open_tcp_stream",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "retry_timeout_change",
+            "side_effect_change",
+            "default_behavior_change"
+          ],
+          "rationale": "Any delay that is not an int or a float emits a deprecation warning and is replaced by DEFAULT_DELAY (0.25); None already used that value but now warns, and other types are no longer used as the delay."
+        },
+        {
+          "path": "src/trio/_highlevel_ssl_helpers.py",
+          "symbol": "open_ssl_over_tcp_stream",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Only the parameter's annotation changes; the wrapper still passes the value to open_tcp_stream with no logic of its own, and that callee's change has its own entry."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "python-trio/trio#3562",
+      "repository": "python-trio/trio",
+      "pull_request": 3562,
+      "base": "354708edcbd3f01cc8673bdf3ba3561c44bbb2ad",
+      "head": "f1c7da7a6c3c8502008f39c5c89f39132b5c4bee",
+      "subject": "Reject NaN as a MockClock rate (#3562)",
+      "labels": [
+        {
+          "path": "src/trio/_core/_mock_clock.py",
+          "symbol": "MockClock",
+          "change": "modified",
+          "expected": [],
+          "rationale": "MockClock's own statements are unchanged; the rate setter is scored separately."
+        },
+        {
+          "path": "src/trio/_core/_mock_clock.py",
+          "symbol": "MockClock.rate",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "state_transition_change"
+          ],
+          "rationale": "Setting rate to NaN is rejected with ValueError before the time bases and the rate change; NaN used to be accepted, and the message for rejected values changes too."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "python-trio/trio#3568",
+      "repository": "python-trio/trio",
+      "pull_request": 3568,
+      "base": "023d1e3d2f8d8db11074797c368f077cb2287d2f",
+      "head": "35f2c3753c51fd272d8a4794d208e62f341d2101",
+      "subject": "Merge pull request #3568 from A5rocks/release-0.35.0",
+      "labels": [
+        {
+          "path": "src/trio/_version.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Only bumps __version__ from 0.34.0+dev to 0.35.0+dev; excluded as version metadata, the convention both annotators follow."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "python-trio/trio#3566",
+      "repository": "python-trio/trio",
+      "pull_request": 3566,
+      "base": "9f2df4e0ed2b97b7d8065dd8652c6bbadc4a0946",
+      "head": "f71cbdab875758abc5478f983ed53cb3bbc0357d",
+      "subject": "Merge pull request #3566 from A5rocks/idna-consistently",
+      "labels": [
+        {
+          "path": "src/trio/_socket.py",
+          "symbol": "encode_hostname",
+          "change": "added",
+          "expected": [],
+          "rationale": "New public helper that returns an ASCII hostname as bytes and encodes a non-ASCII one with IDNA 2008 (UTS-46)."
+        },
+        {
+          "path": "src/trio/_socket.py",
+          "symbol": "getaddrinfo",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Moves the same sequence, ASCII and, failing that, IDNA with uts46=True, out to encode_hostname; normal inputs see no local functional change."
+        },
+        {
+          "path": "src/trio/_ssl.py",
+          "symbol": "SSLStream",
+          "change": "modified",
+          "expected": [],
+          "rationale": "SSLStream's own statements are unchanged; its constructor is scored separately."
+        },
+        {
+          "path": "src/trio/_ssl.py",
+          "symbol": "SSLStream.__init__",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change",
+            "output_contract_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "A str server_hostname is encoded with the IDNA 2008 helper before it reaches SSL, instead of leaving the encoding to the standard library, which can change the SNI, the exposed name, and the errors for Unicode names."
+        },
+        {
+          "path": "src/trio/lowlevel.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "trio.lowlevel now exports encode_hostname, which widens the module's public namespace."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "python-trio/trio#3563",
+      "repository": "python-trio/trio",
+      "pull_request": 3563,
+      "base": "354708edcbd3f01cc8673bdf3ba3561c44bbb2ad",
+      "head": "0d50d81a7915c464f8fd4cb98fcd98a049eadf43",
+      "subject": "Merge pull request #3563 from A5rocks/py3.15",
+      "labels": [
+        {
+          "path": "src/trio/socket.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The full diff adds SO_PASSRIGHTS inside TYPE_CHECKING, which changes neither the execution path nor the dynamic export of constants at run time."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "python-semver/python-semver#511",
+      "repository": "python-semver/python-semver",
+      "pull_request": 511,
+      "base": "e5f2c0fb238d788eee7383b683f4df4e33f72b23",
+      "head": "b630316d69260cf10caaf7dec86db70137254161",
+      "subject": "Skip prerelease comparison in Version.compare when the result is known (#511)",
+      "labels": [
+        {
+          "path": "src/semver/version.py",
+          "symbol": "Version",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Version's own body is unchanged; compare is scored separately."
+        },
+        {
+          "path": "src/semver/version.py",
+          "symbol": "Version.compare",
+          "change": "modified",
+          "expected": [],
+          "rationale": "For valid versions of the base class it skips _nat_cmp when the prereleases match or one is missing, keeping the expected comparison; an internal optimization."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "python-semver/python-semver#507",
+      "repository": "python-semver/python-semver",
+      "pull_request": 507,
+      "base": "b6e83e3e40d3a7570386e8d694ae8011477a55c1",
+      "head": "e5f2c0fb238d788eee7383b683f4df4e33f72b23",
+      "subject": "Deprecate cross-type Version equality in semver 3 (#507)",
+      "labels": [
+        {
+          "path": "src/semver/version.py",
+          "symbol": "_comparator",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "side_effect_change"
+          ],
+          "rationale": "The wrapper the decorator builds emits a DeprecationWarning for == or != against str, bytes, tuple, or list; with the warnings filter set to error, that stops the comparison before it gives a result."
+        },
+        {
+          "path": "src/semver/version.py",
+          "symbol": "_comparator.wrapper",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "side_effect_change"
+          ],
+          "rationale": "The wrapper warns before comparing equality or inequality with str, bytes, tuple, or list; the warning is observable, and the warnings filter can turn it into an exception."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "python-semver/python-semver#509",
+      "repository": "python-semver/python-semver",
+      "pull_request": 509,
+      "base": "9f6894daaf62d55fc37cece10948e7e1cc3dc369",
+      "head": "b6e83e3e40d3a7570386e8d694ae8011477a55c1",
+      "subject": "Bump version 3.1.0 -> 3.1.1 (#509)",
+      "labels": [
+        {
+          "path": "src/semver/__about__.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Only bumps __version__ from 3.1.0 to 3.1.1; excluded as version metadata, the convention both annotators follow."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "python-semver/python-semver#508",
+      "repository": "python-semver/python-semver",
+      "pull_request": 508,
+      "base": "f3c7138120d7f49e190bd7c555c6e7eb155b482d",
+      "head": "9f6894daaf62d55fc37cece10948e7e1cc3dc369",
+      "subject": "Fix Version subscripts to honor __index__ (#508)",
+      "labels": [
+        {
+          "path": "src/semver/version.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Adds supporting imports for the new __getitem__; under a supported Python version they do not by themselves change the behavior being labeled."
+        },
+        {
+          "path": "src/semver/version.py",
+          "symbol": "Version",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Version's own statements are unchanged; __getitem__ is reviewed separately."
+        },
+        {
+          "path": "src/semver/version.py",
+          "symbol": "Version.__getitem__",
+          "change": "modified",
+          "expected": [
+            "validation_change",
+            "error_handling_change"
+          ],
+          "rationale": "Converts indexes and slice bounds through operator.index: objects with __index__ are accepted and others rejected with TypeError, and negative bounds are still rejected."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "python-semver/python-semver#501",
+      "repository": "python-semver/python-semver",
+      "pull_request": 501,
+      "base": "15a42d0d5efaa04526e87cf5b0d485ca7883864e",
+      "head": "0bd62d4547c808233f6e033059a98218c9b637c1",
+      "subject": "Preserve constructor TypeError in Version.replace (#501)",
+      "labels": [
+        {
+          "path": "src/semver/version.py",
+          "symbol": "Version",
+          "change": "modified",
+          "expected": [],
+          "rationale": "The class's own body is unchanged; the change belongs to replace."
+        },
+        {
+          "path": "src/semver/version.py",
+          "symbol": "Version.replace",
+          "change": "modified",
+          "expected": [
+            "error_handling_change"
+          ],
+          "rationale": "When the constructor raises TypeError and the keys are known, it keeps that original error instead of replacing it with the misleading message about zero unknown arguments."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "python-semver/python-semver#500",
+      "repository": "python-semver/python-semver",
+      "pull_request": 500,
+      "base": "bcd151fa63df3053b9f30e698e9ae1020187be1a",
+      "head": "9ef41316dbe85f7d0fae6e396c45a1bbf69ebb29",
+      "subject": "Preserve version order when legacy prerelease counters roll over (#500)",
+      "labels": [
+        {
+          "path": "src/semver/version.py",
+          "symbol": "Version",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Version's own body is unchanged; next_version has its own entry."
+        },
+        {
+          "path": "src/semver/version.py",
+          "symbol": "Version.next_version",
+          "change": "modified",
+          "expected": [
+            "boundary_change",
+            "output_contract_change"
+          ],
+          "rationale": "When bumping an old counter such as rc9 to rc10 does not give a greater version, it bumps patch as well: 1.2.3-rc9 becomes 1.2.4-rc10."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "theskumar/python-dotenv#742",
+      "repository": "theskumar/python-dotenv",
+      "pull_request": 742,
+      "base": "555d78f76ebdb6621cd0774f457f64cf7c6ef0c0",
+      "head": "4fbc6ff07215367ece731006855e732d1405992c",
+      "subject": "dotenv run: Use PATH on Windows to find the command to run (#742)",
+      "labels": [
+        {
+          "path": "src/dotenv/cli.py",
+          "symbol": "run_command",
+          "change": "modified",
+          "expected": [
+            "side_effect_change",
+            "default_behavior_change",
+            "dependency_interaction_change"
+          ],
+          "rationale": "On Windows it resolves command[0] with shutil.which over the merged environment's PATH and passes the result to Popen as executable, which can change which program runs or find one that used to go unfound."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "theskumar/python-dotenv#669",
+      "repository": "theskumar/python-dotenv",
+      "pull_request": 669,
+      "base": "0b2880591780a426b0551436f47a17e7a76d954f",
+      "head": "bad5771ce54fd643538f177aab1465e4375e2039",
+      "subject": "Handle CRLF invalid lines in parser recovery (#669)",
+      "labels": [
+        {
+          "path": "src/dotenv/parser.py",
+          "symbol": "<module>",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "output_contract_change"
+          ],
+          "rationale": "Recovering from an invalid line consumes a whole CRLF instead of only the CR, which changes the original text recovered and the position or numbering of later lines; changing only the regex's priority is no ordering change."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "theskumar/python-dotenv#714",
+      "repository": "theskumar/python-dotenv",
+      "pull_request": 714,
+      "base": "791414804eff08a23f0b7970968e1717e3b28e66",
+      "head": "0b2880591780a426b0551436f47a17e7a76d954f",
+      "subject": "fix: expand ~ in find_dotenv and the %dotenv magic (#714)",
+      "labels": [
+        {
+          "path": "src/dotenv/main.py",
+          "symbol": "find_dotenv",
+          "change": "modified",
+          "expected": [
+            "output_contract_change"
+          ],
+          "rationale": "Expands ~ in filename before searching, so it may return the file in the home directory instead of searching a path with a literal ~ or finding nothing."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "theskumar/python-dotenv#615",
+      "repository": "theskumar/python-dotenv",
+      "pull_request": 615,
+      "base": "6bdf86adb2b8e3d9e3031b3a81f24851c8bfca0e",
+      "head": "791414804eff08a23f0b7970968e1717e3b28e66",
+      "subject": "fix: expand ~ in dotenv_path and the CLI --file option (#615)",
+      "labels": [
+        {
+          "path": "src/dotenv/cli.py",
+          "symbol": "cli",
+          "change": "modified",
+          "expected": [
+            "state_transition_change"
+          ],
+          "rationale": "Stores the ~-expanded path in ctx.obj[FILE]; the local change is the context's value, since this function neither opens nor writes the file itself."
+        },
+        {
+          "path": "src/dotenv/main.py",
+          "symbol": "DotEnv",
+          "change": "modified",
+          "expected": [],
+          "rationale": "DotEnv's own statements are unchanged; the constructor is scored separately."
+        },
+        {
+          "path": "src/dotenv/main.py",
+          "symbol": "DotEnv.__init__",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "state_transition_change",
+            "output_contract_change"
+          ],
+          "rationale": "Stores the expanded dotenv_path, building a pathlib.Path for inputs that are neither str nor None, which can change the attribute's type or raise conversion or expansion errors; the constructor shown does not read the file."
+        },
+        {
+          "path": "src/dotenv/main.py",
+          "symbol": "dotenv_values",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Only the documentation changes; the ~ expansion is implemented in DotEnv.__init__, not in this executable body."
+        },
+        {
+          "path": "src/dotenv/main.py",
+          "symbol": "load_dotenv",
+          "change": "modified",
+          "expected": [],
+          "rationale": "Only the parameter's documentation changes; the functional change to the path belongs to DotEnv.__init__."
+        },
+        {
+          "path": "src/dotenv/main.py",
+          "symbol": "set_key",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "side_effect_change"
+          ],
+          "rationale": "Expands ~ before checking quote_mode and rewriting the file, so it can write to another destination; converting to Path or expanding it can also fail before the check."
+        },
+        {
+          "path": "src/dotenv/main.py",
+          "symbol": "unset_key",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "output_contract_change",
+            "side_effect_change"
+          ],
+          "rationale": "Checks and modifies the expanded path, so it can remove the key from the file in the home directory and report success where it used to find no file; pathlib.Path's expansion can also fail."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "theskumar/python-dotenv#686",
+      "repository": "theskumar/python-dotenv",
+      "pull_request": 686,
+      "base": "6a49d6d88fd9bd99bef8d63b9eb6f2e46ecc7072",
+      "head": "6bdf86adb2b8e3d9e3031b3a81f24851c8bfca0e",
+      "subject": "fix: don't leak or mask errors when rewrite cleanup fails on Windows (#686)",
+      "labels": [
+        {
+          "path": "src/dotenv/main.py",
+          "symbol": "_discard_temp_file",
+          "change": "added",
+          "expected": [],
+          "rationale": "New helper that deletes rewrite's temporary file, retrying once after making it writable, and logs a warning instead of raising if it still fails."
+        },
+        {
+          "path": "src/dotenv/main.py",
+          "symbol": "rewrite",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "retry_timeout_change",
+            "side_effect_change"
+          ],
+          "rationale": "Cleanup uses the helper that tries unlink and, when that fails, runs chmod and tries again; if the OSError persists, it logs a warning and lets the original exception propagate, and the temporary file may remain when both attempts fail."
+        }
+      ],
+      "reviewed_by": [
+        "sergiparpal"
+      ],
+      "split": "held_out"
+    },
+    {
+      "id": "theskumar/python-dotenv#711",
+      "repository": "theskumar/python-dotenv",
+      "pull_request": 711,
+      "base": "828bdfe5ba91b736b545561ebb53326f1f88f6e5",
+      "head": "6a49d6d88fd9bd99bef8d63b9eb6f2e46ecc7072",
+      "subject": "fix: name the .env path in set_key and unset_key write errors (#711)",
+      "labels": [
+        {
+          "path": "src/dotenv/cli.py",
+          "symbol": "set_value",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "output_contract_change",
+            "side_effect_change"
+          ],
+          "rationale": "Catches set_key's OSError, writes a message to stderr, and exits with code 2 instead of propagating that OSError unhandled."
+        },
+        {
+          "path": "src/dotenv/cli.py",
+          "symbol": "unset",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "output_contract_change",
+            "side_effect_change"
+          ],
+          "rationale": "Catches unset_key's OSError, writes the error to stderr, and exits with code 2 instead of letting it propagate."
+        },
+        {
+          "path": "src/dotenv/main.py",
+          "symbol": "rewrite",
+          "change": "modified",
+          "expected": [
+            "error_handling_change",
+            "side_effect_change"
+          ],
+          "rationale": "If creating the temporary file fails with OSError, it closes source, replaces err.filename with the destination path, and raises the error again, which changes how the resource is closed and the error's diagnosis."
         }
       ],
       "reviewed_by": [

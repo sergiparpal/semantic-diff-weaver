@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **Evaluation:** the benchmark has a sixth held-out split, 30 pull requests of oauthlib/oauthlib,
+  celery/kombu, python-trio/trio, python-semver/python-semver, and theskumar/python-dotenv, and the
+  fifth split joins development, which now has 180 cases. Claude Opus 5.5 and gpt-6.1-terra labeled
+  its 81 symbols blind and apart, as they did the fifth's. They agreed on whether the behavior
+  changes for 75 of the 76 scored symbols (kappa 0.97), and on the exact categories for 41. The
+  reviewer settled every scored label on a page that showed the two proposals as A and B without
+  saying whose: 40 of the 41 agreements were kept and one gained a category, and of the 35
+  disagreements 15 took Claude Opus 5.5's proposal, 8 gpt-6.1-terra's, and 12 the reviewer's own
+  label, 11 of them leaving out a dependency interaction gpt-6.1-terra had proposed. Its 44
+  behavior changes list 2.7 categories each, about as many as development's 2.6, and name retry or
+  timeout 4 times, boundary 4, authorization 2, default behavior 2, and ordering never.
+  `benchmark/README.md` gives the protocol, and `docs/benchmark.md` the agreement and the review.
+  No analyzer behavior changes.
 - **Tests:** four branches of 0.24.0's walk of an added callable's returned locals, which no test
   took, are covered. A `del` of a plain name, and a change rooted at something other than a name,
   such as `make().flag = True`, change no local. A target of none of the kinds an assignment can
