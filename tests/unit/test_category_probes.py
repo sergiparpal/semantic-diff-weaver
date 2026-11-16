@@ -292,10 +292,18 @@ def _categories(repo_factory, old: str, new: str) -> set[str]:
         pytest.param(
             "def check(kinds):\n    assert 'boundary' in kinds('def run(limit=2): pass')\n",
             "def check(kinds):\n    assert 'boundary' in kinds('def run(limit=3): pass')\n",
-            # A membership test, which the comparison rule called a boundary until 2026-10-31.
-            "unknown_semantic_change",
+            # The membership test's unknown finding joins the changed call's.
+            "dependency_interaction_change",
             "retry_timeout_change",
             id="code-quoted-in-a-test-string-is-not-code",
+        ),
+        pytest.param(
+            "def check(kinds):\n    assert 'boundary' in kinds('def run(limit=2): pass')\n",
+            "def check(kinds):\n    assert 'boundary' in kinds('def run(limit=3): pass')\n",
+            # A membership test, which the comparison rule called a boundary until 2026-10-31.
+            "dependency_interaction_change",
+            "boundary_change",
+            id="a-membership-test-is-no-boundary",
         ),
         pytest.param(
             "def window(config):\n    return config.get('retry_limit', 3)\n",

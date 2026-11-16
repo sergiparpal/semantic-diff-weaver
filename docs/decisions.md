@@ -905,6 +905,65 @@ state-transition obligations in 10 cases change their wording alone, and obligat
 no case changes only a schema's descriptions. The `state assignment` golden changes in that wording;
 schema 1.5 is unchanged. The performance tests take as long as on main.
 
+## Output-affecting corrections (2026-11-16, an unknown finding beside a named one)
+
+The labeled benchmark's sixth round, designed from its 180 development cases alone, with the sixth
+held-out split unread. With 0.24.0, 254 of the findings on them were in no expected category: 138
+beside a finding of their symbol that was, 65 where the symbol had none, and 51 on symbols whose
+behavior did not change. 111 of them were unknown, and 81 of those stood beside a finding naming a
+category on the same symbol: the named finding already says how the symbol changed, and the unknown
+one only that something else in it did. The rest forms no group a rule could name, chiefly
+dependency interactions labeled otherwise (57) and output contract changes beside other categories
+(45). The fifth sample's 30 cases, read here for the first time, added errors of the same kinds.
+
+- **An unknown finding joins the named one.** Once the obligations are written, an unknown finding
+  beside one that names a category, on the same symbol, joins it: its evidence is appended to the
+  named finding's, its obligations point to the named finding, and findings and obligations are
+  numbered again. The named finding keeps its summary, confidence, risk, and assumptions; of
+  several, the one of the highest confidence takes it. An unknown finding beside a refactor alone
+  stays, as does a review question, which asks what static analysis cannot tell. A model, when one
+  runs, still sees the unknown finding apart and may name it; the join acts on what stays unknown.
+- **After the obligations, not where the rules build findings.** Simulated where the rules build
+  their findings, the join cost 31 of the development cases' 458 obligations. The unknown finding's
+  scenario, such as the one exercising both outcomes of a changed condition, had no finding left to
+  write it, and a finding of a call that only computes, which had joined that obligation, fell back
+  to its own weaker one. The named finding, scored again with the joined evidence, also rose in risk
+  in 47 cases, and limits#154's verdict went from warn to review_required. After the obligations,
+  every obligation stays word for word and only the finding it points to changes, each finding
+  keeps its risk, and the summary's risk score falls in one case alone, black#5647's, from 46 to 43,
+  still medium.
+- **Two candidates rejected.** Reading a call of a `str`, `list`, `dict`, or `set` method on a local
+  value, or of a pure standard-library function, as an internal call would have raised precision
+  further, but loses correct findings: behavior changes given one in an expected category go from
+  191 to 189 of 243, since the labels read value operations on external data, an environment
+  variable's `get` or a Redis response's `split`, as dependency interactions.
+
+| Measure, 180 development cases | 0.24.0 | With the correction |
+| --- | --- | --- |
+| Findings on Python | 547 | 466 |
+| Precision, findings in an expected category | 238 of 492 (48.4%) | 238 of 411 (57.9%) |
+| Precision, findings naming a behavior category | 238 of 381 (62.5%) | 238 of 381 (62.5%) |
+| Recall, behavior changes given a finding | 242 of 243 | 242 of 243 |
+| Recall, behavior changes given one in an expected category | 191 of 243 (78.6%) | 191 of 243 (78.6%) |
+| Unchanged symbols given a finding | 35 of 191 (18.3%) | 35 of 191 (18.3%) |
+| Unchanged symbols given one naming a behavior category | 28 of 191 (14.7%) | 28 of 191 (14.7%) |
+
+The join only takes away unknown findings, and never a symbol's last one, so no behavior change
+loses its finding or its category and no unchanged symbol gains or loses one: only precision in an
+expected category moves. Findings go from 548 to 467, every obligation stays word for word, linked
+to the same symbols, and every finding keeps one. The summary's overall confidence, weighted by
+obligations, rises in 63 cases, since fewer unknown findings enter it; no overall risk or verdict
+changes. The 18 corpus goldens are unchanged, and schema 1.5 with them.
+
+**Measured once on the held-out split, against a criterion fixed before.** This entry and the
+correction were committed before the sixth held-out split was measured with it, and only its summary
+is read, as for its baseline. The correction holds on it if, against the reviewed labels, every
+behavior change that has a finding keeps one (44 of 44), no fewer than 32 of 44 have one in an
+expected category, precision in an expected category stays at or above 44.1% (41 of 93), and no
+unchanged symbol gains a finding (4 of 32). It improves on it if a greater share of findings are in
+an expected category. Unchanged symbols given a finding that names a behavior category, 3 of 32 at
+the baseline, are reported apart, and are no part of the criterion.
+
 ## Output-affecting corrections (2026-11-13, a nested function's obligations)
 
 `SDW-RULE-NESTED` gives a function whose own code reads the same, and whose body changed only as the
