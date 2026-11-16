@@ -6,7 +6,8 @@ The plugin follows a typed, bounded pipeline:
 request/config -> repository + resolved refs -> changed paths -> test selection
 -> changed committed blobs -> AST deltas and API schema deltas -> deterministic evidence/candidates
 -> static candidate-test index -> optional structured LLM -> reconciliation
--> optional ingested coverage report -> risk/confidence -> obligations and change groups
+-> optional ingested coverage report -> risk/confidence -> obligations
+-> unknown findings joined to named ones -> change groups
 -> canonical JSON -> optional Markdown
 ```
 
@@ -277,7 +278,12 @@ changes what they name. A private one with something to list keeps that obligati
 joining its callers'. A scenario's texts fit the lengths the obligation's schema allows: a list
 too long for them defines fewer variables, then names fewer paths and outcomes, and any text still
 too long is cut where no code span is open, since an obligation that does not validate fails the
-whole analysis.
+whole analysis. Once the obligations are written, an unknown finding beside one that names a
+category, on the same symbol, joins it unless it is a review question: its evidence is appended to
+the named finding's, its obligations point to that finding, and findings and obligations are
+numbered again, so a scenario its evidence wrote stays word for word. The named finding keeps its
+summary, confidence, risk, and assumptions, and the summary, the change groups, and the baseline
+comparison read the joined findings.
 
 **Candidate tests.** A run measured with per-test contexts also says which test executed each line:
 the coverage.py data file, `.coverage`, that `coverage_map.load_coverage_data` reads beside the

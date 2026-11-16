@@ -41,6 +41,7 @@ from .models import (
     BehaviorChange,
     CandidateTest,
     CoverageSummary,
+    Evidence,
     LlmStatus,
     OmittedScope,
     Origin,
@@ -65,7 +66,12 @@ from .renderer import render_transport
 from .schema_diff import DocumentAnalysis, analyze_schemas, analyze_settings
 from .scoring import advisory_verdict, confidence_score, score_risk
 from .selection import select_tests
-from .semantic_candidates import SemanticCandidate, build_candidates, evidence_identity
+from .semantic_candidates import (
+    NAMING_NOTHING,
+    SemanticCandidate,
+    build_candidates,
+    evidence_identity,
+)
 from .semantic_interpreter import InterpreterResult, interpret_candidates
 from .test_mapper import (
     Executed,
@@ -609,6 +615,100 @@ def _materialize_behaviors(
     return behaviors, tests_by_behavior, coverage_states
 
 
+def _join_unknown_to_named(
+    behaviors: list[BehaviorChange],
+    obligations: list[TestObligation],
+    reportable: list[_ScoredCandidate],
+) -> tuple[list[BehaviorChange], list[TestObligation], list[_ScoredCandidate]]:
+    """An unknown finding beside one that names a category, on the same symbol, joins it.
+
+    The named finding already says how the symbol changed, and the unknown one only that something
+    else in it did: on the labeled benchmark's development cases, 81 unknown findings stood beside
+    a named one on their symbol, each a finding in no expected category. The unknown finding's
+    evidence is appended to the named one's, and its obligations, written before the join, now
+    point to it, so a changed condition keeps the scenario that exercises both its outcomes. The
+    named finding keeps its own summary, confidence, risk, and assumptions. Of several named
+    findings, the one of the highest confidence takes it. An unknown finding beside a refactor
+    alone stays, as does a review question, which asks what static analysis cannot tell.
+    Findings and obligations are numbered again in their order.
+    """
+    targets: dict[tuple[str, str], BehaviorChange] = {}
+    for behavior in behaviors:
+        if behavior.category in NAMING_NOTHING:
+            continue
+        symbol = evidence_identity(behavior.evidence)
+        current = targets.get(symbol)
+        if current is None or (behavior.confidence, behavior.category.value) > (
+            current.confidence,
+            current.category.value,
+        ):
+            targets[symbol] = behavior
+    joined: dict[str, str] = {}
+    for behavior in behaviors:
+        target = targets.get(evidence_identity(behavior.evidence))
+        if (
+            target is not None
+            and behavior.category is BehaviorCategory.UNKNOWN
+            and behavior.presentation is not Presentation.REVIEW_QUESTION
+        ):
+            joined[behavior.id] = target.id
+    if not joined:
+        return behaviors, obligations, reportable
+    by_id = {
+        behavior.id: (behavior, item) for behavior, item in zip(behaviors, reportable, strict=True)
+    }
+    added_evidence: dict[str, list[Evidence]] = defaultdict(list)
+    added_names: dict[str, set[str]] = defaultdict(set)
+    for unknown_id, target_id in joined.items():
+        unknown, item = by_id[unknown_id]
+        added_evidence[target_id].extend(unknown.evidence)
+        added_names[target_id].update(item.candidate.assigned_names)
+    numbered: dict[str, str] = {}
+    kept: list[BehaviorChange] = []
+    kept_items: list[_ScoredCandidate] = []
+    for behavior, item in zip(behaviors, reportable, strict=True):
+        if behavior.id in joined:
+            continue
+        numbered[behavior.id] = f"bc-{len(kept) + 1:03d}"
+        kept.append(
+            behavior.model_copy(
+                update={
+                    "id": numbered[behavior.id],
+                    "evidence": [*behavior.evidence, *added_evidence.get(behavior.id, [])],
+                }
+            )
+        )
+        # Change groups read the variables a finding's top-level code writes, the joined
+        # finding's among them.
+        names = added_names.get(behavior.id)
+        kept_items.append(
+            replace(
+                item,
+                candidate=replace(
+                    item.candidate, assigned_names=item.candidate.assigned_names | names
+                ),
+            )
+            if names
+            else item
+        )
+    for unknown_id, target_id in joined.items():
+        numbered[unknown_id] = numbered[target_id]
+    relinked = [
+        obligation.model_copy(
+            update={
+                "behavior_change_ids": sorted(
+                    {numbered[item] for item in obligation.behavior_change_ids}
+                )
+            }
+        )
+        for obligation in obligations
+    ]
+    relinked.sort(key=lambda item: (-item.priority, item.behavior_change_ids[0], item.title))
+    for index, obligation in enumerate(relinked, start=1):
+        obligation.id = f"to-{index:03d}"
+    return kept, relinked, kept_items
+
+
 def _summary_metrics(
     behaviors: list[BehaviorChange],
     obligations: list[TestObligation],
@@ -927,6 +1027,7 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
         contexts_of(behaviors, changes, call_graph),
     )
     coverage_summary = _coverage_summary(coverage, reportable, state, changed_lines)
+    behaviors, obligations, reportable = _join_unknown_to_named(behaviors, obligations, reportable)
     if omitted_obligations:
         state.record_omitted("global_obligation_limit", omitted_obligations, scope=True)
         state.warnings.append(

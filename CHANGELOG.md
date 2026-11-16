@@ -24,6 +24,21 @@
   added together. Scored against each annotator's labels as given, before the review, the held-out
   precision is 51.6% with gpt-6.1-terra's and 38.7% with Claude Opus 5.5's, in the order of how many
   categories each lists. Only the held-out totals were computed. Documentation only.
+- **Fix:** the benchmark's sixth round, designed from the 180 development cases: once the
+  obligations are written, an unknown finding beside one that names a category, on the same symbol,
+  joins it. Its evidence is appended to the named finding's, its obligations point to it word for
+  word, and the named finding keeps its summary, confidence, risk, and assumptions; an unknown
+  finding beside a refactor alone stays, as does a review question. On the development cases 81
+  unknown findings join a named one, and precision in an expected category rises from 48.4% to
+  57.9%: no behavior change loses its finding or its category, no unchanged symbol gains or loses
+  one, all 458 obligations stay word for word, and black#5647's risk score alone falls, from 46 to
+  43, while the summary's overall confidence, which unknown findings lowered, rises in 63 cases.
+  Joined where the rules build their findings, the same correction would have cost 31 obligations
+  and raised 47 risk scores. Measured once on the sixth held-out split, against a criterion
+  committed before, it held and improved: 19 unknown findings join, precision in an expected
+  category rises from 44.1% to 55.4%, and every other measure stays. Schema 1.5 and every golden are
+  unchanged; `docs/decisions.md` records the decision, and `docs/benchmark.md` both splits'
+  measurements.
 - **Tests:** four branches of 0.24.0's walk of an added callable's returned locals, which no test
   took, are covered. A `del` of a plain name, and a change rooted at something other than a name,
   such as `make().flag = True`, change no local. A target of none of the kinds an assignment can
