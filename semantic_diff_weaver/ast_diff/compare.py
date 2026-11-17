@@ -332,6 +332,29 @@ def is_internal_call(
     return name in own_calls or name in PURE_BUILTINS or name.split(".", 1)[0] in first_party
 
 
+def is_builtin_call(
+    name: str, own_calls: frozenset[str], first_party: frozenset[str] = frozenset()
+) -> bool:
+    """Whether a call reaches a pure builtin that the module neither defines nor binds by an
+    import of its own package: `round(x)` is Python's, unless the module defines its own `round`.
+    """
+    return (
+        name in PURE_BUILTINS and name not in own_calls and name.split(".", 1)[0] not in first_party
+    )
+
+
+def _internal_builtins(
+    changed: Sequence[str], own_calls: frozenset[str], first_party: frozenset[str]
+) -> dict[str, str]:
+    """Whether the changed calls of an internal call change are all Python's builtins, `all`, or
+    only some of them, `some`; nothing when none is. Its obligation then says the call is built
+    into Python rather than its own project's code: `round(delta.days / 365)` is not."""
+    builtins = sum(is_builtin_call(name, own_calls, first_party) for name in changed)
+    if not builtins:
+        return {}
+    return {"internal_builtins": "all" if builtins == len(changed) else "some"}
+
+
 def _append_call_delta(
     result: list[StructuralDelta],
     path: str,
@@ -349,6 +372,10 @@ def _append_call_delta(
     removed, added = _changed_sides(old_names, new_names)
     changed = sorted({item.split("(", 1)[0] for item in (*removed, *added)})
     flow = {"reaches_output": True} if changes_output(old, new, "calls") else {}
+    internal = bool(changed) and all(
+        is_internal_call(name, own_calls, first_party) for name in changed
+    )
+    builtins = _internal_builtins(changed, own_calls, first_party) if internal else {}
     result.append(
         make_structural_delta(
             path,
@@ -363,8 +390,8 @@ def _append_call_delta(
             new_calls=[item.split("(", 1)[0] for item in new_names],
             # Every call that changed reaches only this package's own code: the call rule tells
             # it from a dependency by this alone.
-            internal_calls=bool(changed)
-            and all(is_internal_call(name, own_calls, first_party) for name in changed),
+            internal_calls=internal,
+            **builtins,
             **changed_value_metadata(removed, added),
             **flow,
         )
