@@ -251,7 +251,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0        # required: the analyzer reads committed objects and never fetches
-      - uses: sergiparpal/semantic-diff-weaver@v0.25.0
+      - uses: sergiparpal/semantic-diff-weaver@v0.25.1
         with:
           fail-on: none
 ```
@@ -279,17 +279,17 @@ a separate `hermes plugins enable semantic-diff-weaver`. [`after-install.md`](af
 walks through the first run.
 
 **Expect a `caution` verdict from the install-time scan.** Current Hermes releases (0.22.7, 0.23.0,
-and 0.23.1 are verified) scan every file of the clone before installing it, the test tree included,
-and lower each finding in a test tree by one severity, since test fixtures hold hostile strings on
-purpose. This plugin's security tests do: they prove that a hostile change cannot pass for one that
-changes no behavior, and one of their fixtures, in `tests/security/test_hidden_changes.py`, stays a
-high finding. A single high finding makes the verdict `caution`, which a plugin outside the Hermes
-catalog needs you to accept. In a terminal Hermes lists the findings and asks `Install anyway?`;
-answer `y` once you have read them. An install without a terminal — a script, SSH automation, a
-container — is refused instead, and `--force` is how it accepts the verdict: it accepts `caution`
-only, never `dangerous`. CI installs the plugin this way on the current Hermes release for every
-pull request, and fails if the verdict turns `dangerous` or a high finding appears outside
-`tests/`.
+0.23.1, and 0.23.2 are verified) scan every file of the clone before installing it, the test tree
+included, and lower each finding in a test tree by one severity, since test fixtures hold hostile
+strings on purpose. This plugin's security tests do: they prove that a hostile change cannot pass
+for one that changes no behavior, and one of their fixtures, in
+`tests/security/test_hidden_changes.py`, stays a high finding. A single high finding makes the
+verdict `caution`, which a plugin outside the Hermes catalog needs you to accept. In a terminal
+Hermes lists the findings and asks `Install anyway?`; answer `y` once you have read them. An install
+without a terminal — a script, SSH automation, a container — is refused instead, and `--force` is
+how it accepts the verdict: it accepts `caution` only, never `dangerous`. CI installs the plugin
+this way on the current Hermes release for every pull request, and fails if the verdict turns
+`dangerous` or a high finding appears outside `tests/`.
 
 The same releases install the two runtime dependencies, Pydantic 2 and PyYAML 6, which they read
 from `pyproject.toml`, into an environment of their own once you consent, and `--yes-deps` consents

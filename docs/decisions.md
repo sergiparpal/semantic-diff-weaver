@@ -114,6 +114,21 @@ validate registration without requiring Hermes or a live model.
   dependency environment with both tools and analyzes a change with Pydantic 2.14.1 and PyYAML
   6.0.3, and entry-point and directory discovery pass.
 
+## Compatibility snapshot (2026-11-17)
+
+- Hermes v0.23.2 came out on 2026-11-16, 8,154 commits after v0.23.1 by GitHub's comparison, before
+  the weekly `hermes-release` check ran again. `hermes-current` moves to it before release 0.25.1:
+  tag `v0.23.2`, commit `ae2a81ccc00e9b7c06301523e5bb09608397149c`, and uv 0.13.5, which its
+  installer still pins.
+- `PluginContext.register_tool` and `PluginLlm.complete_structured` have the signatures they had,
+  and `agent/plugin_llm.py` is unchanged. `PluginContext` gains a mixin for idle tasks and a
+  `redact_text` method, neither of which the plugin calls.
+- The install-time scanner moves from `plugin-guard-v12` to `plugin-guard-v15`. Rehearsed locally
+  the way the job runs, the install's verdict is still `caution`: 0 critical findings, 1 high in
+  `tests/security/test_hidden_changes.py`, 140 medium, and 10 low. The plugin loads in Hermes's
+  dependency environment with both tools and analyzes a change with Pydantic 2.14.1 and PyYAML
+  6.0.3, and entry-point and directory discovery pass.
+
 ## A weekly check for new Hermes releases (2026-11-06)
 
 Until 2026-11-06, when v0.23.0 was current, CI tested 0.19.0 as the current release, because the
