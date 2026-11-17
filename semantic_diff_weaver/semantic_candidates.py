@@ -500,12 +500,18 @@ def _classify_call(
         # A call to its own method, its module's own function, a pure builtin, or what an import
         # of its own package binds has no failure or unexpected response of a dependency to test
         # for: 8 of the 15 dependency findings on the real pull requests of 2026-10-31 changed
-        # such calls.
+        # such calls. Only a call to the project's own code is said to be one: `round()` is not.
+        builtin = delta.metadata.get("internal_builtins") == "all"
         return (
             BehaviorCategory.UNKNOWN,
-            "A call to the project's own code changed without enough local contract context.",
-            "The symbol now relies on different logic of its own project; the observable effect "
-            "needs review.",
+            "A call to a Python builtin changed without enough local contract context."
+            if builtin
+            else "A call to the project's own code changed without enough local contract context.",
+            "The symbol now computes with different Python builtins; the observable effect needs "
+            "review."
+            if builtin
+            else "The symbol now relies on different logic of its own project; the observable "
+            "effect needs review.",
             0.55,
             # The unknown condition's own assumption: a finding is penalized for each distinct
             # one, and this call usually joins its symbol's unknown condition or comparison.

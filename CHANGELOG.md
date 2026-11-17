@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **Obligations:** a changed call to a builtin of Python's is no longer called the project's own
+  code. A call change that stays in the process asks what the symbol makes of the call, and its
+  obligation said each such call was "its own project's code", `round(delta.days / 365)` and
+  `float('inf')` included, which the fifth blind review of the obligations noted as a
+  misattribution on two cards it otherwise judged useful. The obligation now says ", built into
+  Python" when every changed call is a pure builtin the module neither defines nor imports from
+  its own package, and ", its own project's code or built into Python" when only some are. The
+  finding's summary names a call to builtins alone the same way. No category changes: such a call
+  is still no dependency interaction.
 - **Evaluation:** the README's limitation on categories quotes the sixth held-out split, measured
   once with 0.25.0: every one of the 44 behavior changes gets a finding, 32 in an expected category,
   41 of the 74 scored findings are in one and 5 name none, and 4 of the 32 unchanged symbols get a

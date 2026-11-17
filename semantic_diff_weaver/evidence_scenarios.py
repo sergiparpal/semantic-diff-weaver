@@ -235,8 +235,10 @@ class Change:
     annotations_only: bool = False
     # Whether a changed comparison or condition compares a boundary.
     boundary: bool = False
-    # Whether every call that changed reaches the project's own code.
+    # Whether every call that changed reaches the project's own code, a builtin of Python's
+    # included, and whether all of those calls are such builtins, `all`, or only some, `some`.
     internal: bool = False
+    builtins: str | None = None
     # Whether an added or removed symbol had a near-equal match it could not choose between.
     ambiguous: bool = False
     # The variables a changed assignment writes to.
@@ -257,6 +259,15 @@ class Change:
     @property
     def removed_only(self) -> bool:
         return bool(self.removed) and not self.added
+
+
+# What the obligation of an internal call change says the changed calls are, by whether none, some,
+# or all of them are builtins of Python's: `round(delta.days / 365)` is not the project's code.
+_BUILTINS: dict[str | None, str] = {
+    None: ", its own project's code",
+    "some": ", its own project's code or built into Python",
+    "all": ", built into Python",
+}
 
 
 def _strings(value: object) -> tuple[str, ...]:
@@ -313,6 +324,7 @@ def describe_change(delta: StructuralDelta) -> Change | None:
         boundary=delta.kind in {"comparison_change", "condition_change"}
         and has_boundary_comparison(delta),
         internal=bool(metadata.get("internal_calls")),
+        builtins=builtins if (builtins := metadata.get("internal_builtins")) in _BUILTINS else None,
         ambiguous=bool(metadata.get("ambiguous_match")),
         assigned_names=_strings(metadata.get("assigned_names")),
         symbol_kind=delta.symbol_kind,
@@ -854,7 +866,7 @@ def _call_scenario(found: _Finding) -> Scenario:
             "The arguments it passes, and what it does with the result, match the intended change",
         )
     # No changed call leaves the process: what the symbol makes of the call is what to check.
-    own = ", its own project's code" if found.change.internal else ""
+    own = _BUILTINS[found.change.builtins] if found.change.internal else ""
     # A module's top-level code takes no input: it runs as the module is imported.
     module = (found.evidence.symbol or "<module>") == "<module>"
     return found.scenario(
