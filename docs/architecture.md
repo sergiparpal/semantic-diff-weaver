@@ -99,7 +99,9 @@ call that changed reaches the project's own code: a function or class the module
 one of its classes defines, called through `self`, `cls`, or the class, a builtin that computes
 in-process, such as `len` or `isinstance`, or what an import of its own package binds, relative or
 naming the top-level package its file sits in. Such a change is an unknown change, since the
-dependency category's obligations ask how the code handles a dependency's failures. What an
+dependency category's obligations ask how the code handles a dependency's failures, and its summary
+and obligation call a builtin the module neither defines nor imports built into Python, not the
+project's own code. What an
 attribute holds is not known statically, so `self.client.fetch()` and `self.callback()` stay
 dependency calls, as does a method inherited from another module's class. `warn` and `print` are
 side-effect terms, so a changed `warnings.warn()` or `print()` is a side effect: a warning or a
