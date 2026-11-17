@@ -3,7 +3,7 @@
 A call change that stays in the process, to the module's own code, its package's, or a pure
 builtin, asks what the symbol makes of the call, and its obligation said each such call was "its
 own project's code": `naturaldelta now also calls round(delta.days / 365), its own project's
-code`, and `float('inf')` the same, which the fifth blind review of the obligations read as a
+code`, and `float('inf')` the same, which the seventh blind review of obligations read as a
 misattribution. The finding's summary said the same of the call.
 """
 

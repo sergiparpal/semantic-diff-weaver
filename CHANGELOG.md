@@ -2,15 +2,33 @@
 
 ## Unreleased
 
+- **Obligations:** a return whose value did not change no longer asks for a return contract. Its
+  return change is dropped beside the symbol's other changes, which say what did change, in either
+  of two shapes:
+  - A local the old code assigns once, whole, from a call, and returns, while the new code returns a
+    call of the same callee directly. In authlib#1026, `return token` became `return await
+    client.fetch_token(url, **kwargs)`, and the call's arguments are the call's own change.
+  - A name returned right under `if not <it>`, which becomes a falsy literal. In pycasbin#398,
+    `if not rule_added: return rule_added` became `return False` as the method moved its write
+    after the adapter's.
+
+  A blind review judged noise every "Assert the consumer-visible contract of what X returns" asked
+  of such a return. On the 180 development cases, the correction reaches only those two pull
+  requests: 6 of the 458 obligations go and none appears, every finding keeps an obligation, and
+  every benchmark measure is unchanged. `docs/decisions.md` records the measurements.
+- **Evaluation:** `docs/evaluation.md` records a seventh blind review of obligations. It took 20
+  written by 0.25.0 and 20 by 0.19.4 on the fifth sample's 30 cases, shown without saying which,
+  and judged 8 and 10 useful: no difference, since 64 of 0.25.0's 81 obligations there are word for
+  word 0.19.4's.
 - **Obligations:** a changed call to a builtin of Python's is no longer called the project's own
   code. A call change that stays in the process asks what the symbol makes of the call, and its
   obligation said each such call was "its own project's code", `round(delta.days / 365)` and
-  `float('inf')` included, which the fifth blind review of the obligations noted as a
-  misattribution on two cards it otherwise judged useful. The obligation now says ", built into
-  Python" when every changed call is a pure builtin the module neither defines nor imports from
-  its own package, and ", its own project's code or built into Python" when only some are. The
-  finding's summary names a call to builtins alone the same way. No category changes: such a call
-  is still no dependency interaction.
+  `float('inf')` included. The seventh blind review of obligations noted this as a misattribution
+  on two cards it otherwise judged useful. The obligation now says ", built into Python" when every
+  changed call is a pure builtin the module neither defines nor imports from its own package, and
+  ", its own project's code or built into Python" when only some are. The finding's summary names a
+  call to builtins alone the same way. No category changes: such a call is still no dependency
+  interaction.
 - **Evaluation:** the README's limitation on categories quotes the sixth held-out split, measured
   once with 0.25.0: every one of the 44 behavior changes gets a finding, 32 in an expected category,
   41 of the 74 scored findings are in one and 5 name none, and 4 of the 32 unchanged symbols get a

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import builtins
+import re
 from collections import Counter
 from collections.abc import Callable, Hashable, Iterable, Sequence
 from pathlib import PurePosixPath
@@ -408,6 +409,93 @@ def _maybe_drop_return_when_call_explained(
     ]
     if return_values and all(
         "(" in value and not value.startswith(("{", "[", "(")) for value in return_values
+    ):
+        return [item for item in result if item.kind != "return_change"]
+    return result
+
+
+# The literals a falsy value can become and stay falsy: `return rule_added` under
+# `if not rule_added`, which can only hand back a falsy value, and `return False` agree.
+FALSY_LITERALS = frozenset({"False", "None", "0", "''", '""', "()", "[]", "{}"})
+# What a call calls, as written before its arguments: a name or an attribute chain, awaited or not.
+_CALLEE = re.compile(r"(?:await )?[A-Za-z_][\w.]*")
+
+
+def _callee(value: str) -> str | None:
+    """The callee a returned value calls, `await client.fetch_token` for `await
+    client.fetch_token(url, **kwargs)`, or None for a value that is not a single call."""
+    head, parenthesis, _ = value.strip().partition("(")
+    return head if parenthesis and _CALLEE.fullmatch(head) else None
+
+
+def _whole_value(name: str, snapshot: SymbolSnapshot) -> str | None:
+    """What a local variable an exit returns holds, when the callable's own code assigns it once,
+    whole, and never changes it in place: `client.fetch_token(url, **params)` for `token`."""
+    for local, assignments, count, _, changes in snapshot.definitions:
+        if local == name:
+            if count == 1 and len(assignments) == 1 and not changes:
+                how, value, _ = assignments[0]
+                return value if how == "value" else None
+            return None
+    return None
+
+
+def _returns_call_directly(old: SymbolSnapshot, removed: list[str], added: list[str]) -> bool:
+    """Whether each removed return value is a local that held a call's result, and an added one
+    now returns a call of the same callee directly: `token = await client.fetch_token(url,
+    **params)` and `return token` became `return await client.fetch_token(url, **kwargs)`. What
+    the call is passed is the call's own change."""
+    remaining = list(added)
+    for name in removed:
+        value = _whole_value(name, old) if name.isidentifier() else None
+        callee = _callee(value) if value is not None else None
+        if callee is None:
+            return False
+        match = next((item for item in remaining if _callee(item) == callee), None)
+        if match is None:
+            return False
+        remaining.remove(match)
+    return True
+
+
+def _returns_falsy_as_literal(old: SymbolSnapshot, removed: list[str], added: list[str]) -> bool:
+    """Whether each removed return value is a name returned right under `if not <it>`, a falsy
+    value, and each added one a falsy literal: `if not rule_added: return rule_added` and
+    `return False`."""
+    guarded = {
+        value
+        for kind, value, conditions in old.exits
+        if kind == "return"
+        and value.isidentifier()
+        and conditions
+        and conditions[-1] == ("if", f"not {value}")
+    }
+    return all(item in guarded for item in removed) and all(
+        item in FALSY_LITERALS for item in added
+    )
+
+
+def _maybe_drop_return_when_value_kept(
+    result: list[StructuralDelta], old: SymbolSnapshot, new: SymbolSnapshot
+) -> list[StructuralDelta]:
+    """Drop a return change whose returned values did not change, beside the symbol's other
+    changes, which say what did.
+
+    pycasbin#398 checks for a duplicate rule before it writes, where `rule_added =
+    self.model.add_policy(...)` and `if not rule_added: return rule_added` became `if
+    self.model.has_policy(...): return False`; authlib#1026 passes the configured parameters when
+    it builds the client, where `return token` became `return await client.fetch_token(url,
+    **kwargs)`. A blind review judged noise each return contract their return changes asked for:
+    what changed is the order of the writes and the call's arguments, and the other deltas carry
+    them. A return change that is its symbol's only change stays.
+    """
+    if len(result) < 2 or not any(item.kind == "return_change" for item in result):
+        return result
+    removed, added = _changed_sides(feature_texts(old, "returns"), feature_texts(new, "returns"))
+    if not removed or len(removed) != len(added):
+        return result
+    if _returns_call_directly(old, removed, added) or _returns_falsy_as_literal(
+        old, removed, added
     ):
         return [item for item in result if item.kind != "return_change"]
     return result
@@ -936,6 +1024,7 @@ def compare_symbol(
     result = suppress_redundant_deltas(result)
     result = _maybe_drop_return_when_comparison_explained(result, old, new)
     result = _maybe_drop_return_when_call_explained(result, old, new)
+    result = _maybe_drop_return_when_value_kept(result, old, new)
     if is_reordering(old.statement_order, new.statement_order) and not any(
         item.kind in ORDER_SENSITIVE_KINDS for item in result
     ):
