@@ -985,6 +985,50 @@ given, it rises from 51.6% to 64.9% with gpt-6.1-terra's and from 38.7% to 48.6%
 5.5's. The held-out findings by category and by case, and their disagreements, stay unread; the
 split has measured this correction, so the next one waits for a new held-out sample.
 
+## Output-affecting corrections (2026-11-17, a return whose value did not change)
+
+A blind review of 40 obligations on the fifth sample's 30 cases, 20 written by 0.25.0 and 20 by
+0.19.4, shown without saying which, judged 8 and 10 useful. That is no difference: the two-sided
+Fisher exact test gives p = 0.75, and 64 of 0.25.0's 81 obligations on those cases are word for
+word 0.19.4's. Among the noise, two reasons recurred in three or more of 0.25.0's cards. One was an
+obligation that names no input telling the new behavior from the old, which no rule supplies. The
+other was a return contract asked of a return whose value did not change. Every "Assert the
+consumer-visible contract of what X returns" card of that kind was judged noise, five across the two
+versions, in two shapes:
+
+- **A call returned directly.** authlib#1026's `fetch_access_token` passes the configured
+  parameters when it builds the client, and `token = await client.fetch_token(url, **params)` with
+  `return token` became `return await client.fetch_token(url, **kwargs)`. The call's arguments
+  changed, which its call change says, and the return hands back that call's result as before.
+- **A falsy local turned into `False`.** pycasbin#398's `_add_policy` and `_add_policies` check
+  for a duplicate before they write, and `rule_added = self.model.add_policy(...)` with
+  `if not rule_added: return rule_added` became `if self.model.has_policy(...): return False`.
+  The value returned under `if not rule_added` was falsy, as `False` is. What changed is the order
+  of the adapter's and the model's writes.
+
+**The correction.** A return change is dropped beside its symbol's other changes in either shape:
+
+- each removed return value is a local the old code assigns once, whole, from a call it never
+  changes in place, and an added value calls the same callee, awaited as the old one was or not;
+- or each removed value is a name returned right under `if not <it>`, and each added value is a
+  falsy literal: `False`, `None`, `0`, an empty string, tuple, list, or dict.
+
+A return change that is its symbol's only change stays.
+
+**Measured on the 180 development cases, its reach is the two pull requests it came from.** 45
+symbols there keep a return change, and the two shapes hold for 6 of them: authlib#1026's two
+`fetch_access_token` and pycasbin#398's four `_add_policy` and `_add_policies`. A looser first
+shape, any call once returned locals are replaced by what they hold, also held for tenacity#645's
+two `__call__`, whose output contract change the labels expect, so it was not used. Every benchmark
+measure stays as it was, since each of the six symbols keeps its output contract change through the
+condition and assignment changes beside the return. The obligations go from 458 to 452: the six
+return contracts go, five of them the cards the review judged noise, and none appears. Every
+finding keeps an obligation, each dependency finding joining its symbol's condition obligation. The
+six findings' confidence falls from 0.80 to 0.76 and their risk scores by 1 or 2. The two cases'
+overall risk scores fall by 2, and their overall confidence slightly. It was implemented although
+no other case shows either shape and no held-out split was left to measure it, to keep that noise
+out of the obligations.
+
 ## Output-affecting corrections (2026-11-13, a nested function's obligations)
 
 `SDW-RULE-NESTED` gives a function whose own code reads the same, and whose body changed only as the

@@ -354,7 +354,10 @@ compared each of the 34 obligations that listing an added callable's outcomes ch
 before it, and judged the new ones useful 25 times and the old ones 3, never the old one alone. A
 sixth compared the 16 of them that defining the local variables their outcomes read changed with
 their 0.23.0 versions: 3 of the 5 judged noise became useful, and none of the 11 judged useful
-stopped being so.
+stopped being so. A seventh drew 20 obligations of 0.25.0 and 20 of 0.19.4 from the fifth held-out
+sample's 30 cases, by then development cases, and showed them without saying which was which. It
+judged 8 and 10 useful, no difference (two-sided Fisher exact p = 0.75): 64 of 0.25.0's 81
+obligations on those cases are word for word 0.19.4's.
 
 `docs/real-pr-validation.md` records what the analyzer says on other real merged pull requests,
 produced by the opt-in `scripts/validate_real_prs.py` harness. Those are **observations on
