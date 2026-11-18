@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.25.1 - 2026-11-18
+
+Two corrections to the test obligations, from a seventh blind review of them. That review judged 40
+obligations on the fifth sample's 30 cases, half written by 0.25.0 and half by 0.19.4, and found the
+two versions about as useful, 8 and 10 of 20, since most of their obligations are word for word the
+same. A changed call to one of Python's builtins is no longer called the project's own code, and a
+return whose value did not change no longer asks for a return contract. On the 180 development
+cases, 15 of the 458 obligations are worded anew and 6 go, none appears, every finding keeps an
+obligation, and every benchmark measure is unchanged. CI tests Hermes v0.23.2, released on
+2026-11-16. Schema 1.5 and every golden are unchanged.
 
 - **Obligations:** a return whose value did not change no longer asks for a return contract. Its
   return change is dropped beside the symbol's other changes, which say what did change, in either
@@ -34,6 +43,12 @@
   41 of the 74 scored findings are in one and 5 name none, and 4 of the 32 unchanged symbols get a
   finding. It quoted the fifth split, measured with 0.22.0, whose labels and libraries differ:
   37 of 44, 45 of 86 with 17 naming none, and 2 of 43. Documentation only.
+- **Tests:** CI tests Hermes v0.23.2, the current release, which came out on 2026-11-16. The
+  `hermes-current` job builds it from its tag, pinned to commit `ae2a81cc`, with uv 0.13.5, which
+  its installer still pins. Its install-time scanner moves from `plugin-guard-v12` to
+  `plugin-guard-v15`. Rehearsed locally first, the plugin installs with the same `caution` verdict,
+  its one high finding in `tests/`, loads with both tools, and passes discovery; the signatures the
+  plugin calls are unchanged. `docs/decisions.md` records the compatibility snapshot.
 
 ## 0.25.0 - 2026-11-16
 
