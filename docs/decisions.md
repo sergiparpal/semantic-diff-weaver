@@ -1044,6 +1044,44 @@ overall risk scores fall by 2, and their overall confidence slightly. It was imp
 no other case shows either shape and no held-out split was left to measure it, to keep that noise
 out of the obligations.
 
+## Output-affecting corrections (2026-11-19, a bare raise and two files' alike quotes)
+
+The Action's field test on meal-manager's pull requests #52, #54, and #55 and four claim-ledger pushes
+was replayed with 0.25.1. Two of its obligations said something false, or left out what a test needs
+to know:
+
+- **A bare `raise`.** Two of meal-manager's handlers gained one:
+  - #54's `list_cooking_history` re-raises a read error that does not mean the history is damaged.
+  - #55's `delete_history_entry` re-raises the original error after it rolls back.
+
+  `FeatureVisitor.visit_Raise` recorded each raise's exception, and a bare `raise` has none, so it
+  recorded `unparse_redacted(None)`, which is `None`. Each obligation then said the handler "now also
+  raises `None`". The visitor now records `raise`, among the symbol's raises and in its statement
+  order. `_what_changed` says "raises again what it caught", the words an added callable's outcomes
+  already used for one, and so does the obligation that names what a symbol still raises.
+- **Two files' alike quotes.** Each handler module of meal-manager defines its own `HANDLER`, and
+  #54 gave two of them, `delete_history_entry` and `get_meal_suggestions`, the same test of
+  `history_repo.damaged()`. Equivalent obligations merge on their normalized texts and coverage
+  status (the merged-obligation entry below). A scenario that quotes its evidence names its symbol
+  but not its file, so the two findings shared one "Exercise both outcomes of the changed condition
+  in `HANDLER`". It said nowhere which handler a test should call. A quoting scenario's merge key
+  now also holds the files of its finding's evidence. A category's scenarios quote nothing and still
+  merge across files, as do a finding's model-suggested scenarios and its review question.
+
+**Measured on the 180 development cases.**
+- Every benchmark measure, and every scored finding, stays as it was. One evidence text changes:
+  anyio's `MemoryObjectSendStream.send`, whose raises now read `raise` for `None`. Its obligation
+  says it "now raises `ClosedResourceError` where it raised again what it caught".
+- Three obligations that two files shared become one for each file, so the obligations go from 452
+  to 455. Each pair is a module and its twin:
+  - anyio's `UNIXSocketStream.send_fds`, in the asyncio and the trio backend;
+  - limits' `RedisClusterStorage.__init__`, in the synchronous and the asynchronous storage;
+  - redis-py's `record_streaming_lag_from_response`, in the synchronous and the asynchronous
+    recorder.
+
+**In the seven field analyses**, only meal-manager#54 and #55 change: their two bare raises, and
+#54's shared obligation, which becomes two.
+
 ## Output-affecting corrections (2026-11-13, a nested function's obligations)
 
 `SDW-RULE-NESTED` gives a function whose own code reads the same, and whose body changed only as the

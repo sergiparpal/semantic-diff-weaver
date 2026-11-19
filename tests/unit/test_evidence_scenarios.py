@@ -970,6 +970,56 @@ def test_a_weak_finding_joins_the_obligation_of_a_stronger_one_on_its_symbol() -
     }
 
 
+def test_alike_quotes_in_two_files_stay_two_obligations() -> None:
+    # Each handler module of a plugin defines its own `HANDLER`. Two that gained the same test
+    # read alike, and their findings shared one obligation that said nowhere which to call.
+    old = "def HANDLER(args):\n    return args\n"
+    new = "def HANDLER(args):\n    if args.damaged():\n        return None\n    return args\n"
+    pairs = [
+        SourceRevisionPair(
+            path=path,
+            old_path=path,
+            new_path=path,
+            hunks=(WIDE_HUNK,),
+            old_text=old,
+            new_text=new,
+        )
+        for path in ("handlers/a.py", "handlers/b.py")
+    ]
+    deltas = analyze_ast(pairs).deltas
+    behaviors = [
+        _behavior(item, index) for index, item in enumerate(build_candidates(deltas), start=1)
+    ]
+    obligations, _ = generate_obligations(
+        behaviors, {}, False, WeaverConfig().rules, changes=changes_by_evidence(deltas)
+    )
+    files = {item.id: {evidence.path for evidence in item.evidence} for item in behaviors}
+    linked = [
+        set().union(*(files[behavior_id] for behavior_id in item.behavior_change_ids))
+        for item in obligations
+    ]
+    assert linked.count({"handlers/a.py"}) == linked.count({"handlers/b.py"}) > 0
+    assert all(len(paths) == 1 for paths in linked)
+    # The same scenarios, once for each file.
+    texts = [(item.title, item.given) for item in obligations]
+    assert all(texts.count(text) == 2 for text in texts)
+
+
+def test_category_scenarios_still_merge_across_files() -> None:
+    # A category's scenarios quote nothing, so findings of one category share them wherever they
+    # lie, as long as their coverage agrees.
+    first = _manual(BehaviorCategory.BOUNDARY, "comparison_change")
+    second = first.model_copy(
+        update={
+            "id": "bc-002",
+            "evidence": [Evidence(id="ev-002", path="n.py", symbol="g", kind="comparison_change")],
+        }
+    )
+    obligations, _ = generate_obligations([first, second], {}, False, WeaverConfig().rules)
+    assert obligations
+    assert all(item.behavior_change_ids == ["bc-001", "bc-002"] for item in obligations)
+
+
 def test_a_weak_finding_keeps_its_own_obligation_when_coverage_differs() -> None:
     strong = _evidence_behavior(1, BehaviorCategory.UNKNOWN, "condition_change")
     weak = _evidence_behavior(2, BehaviorCategory.DEPENDENCY_INTERACTION, "call_change")
@@ -1121,6 +1171,51 @@ def test_a_removed_raise_beside_another_names_the_one_left() -> None:
     assert scenario.then == (
         "Which exception reaches the caller there, and what it carries, is asserted"
     )
+
+
+_RAISING = "def f(g, x):\n    if x:\n        {first}\n    try:\n        return g()\n    except KeyError:\n        {handler}\n"
+
+
+@pytest.mark.parametrize(
+    ("before", "after", "given"),
+    [
+        (
+            ("return 1", "return None"),
+            ("return 1", "raise"),
+            "`f` now also raises again what it caught",
+        ),
+        (
+            ("return 1", "return None"),
+            ("raise ValueError('x')", "raise"),
+            "`f` now also raises `ValueError('x')`, and again what it caught",
+        ),
+        (
+            ("return 1", "raise"),
+            ("return 1", "return None"),
+            "`f` no longer raises again what it caught",
+        ),
+        (
+            ("return 1", "raise"),
+            ("return 1", "raise LookupError('gone')"),
+            "`f` now raises `LookupError('gone')` where it raised again what it caught",
+        ),
+        (
+            ("raise ValueError('x')", "raise"),
+            ("return 1", "raise"),
+            "`f` no longer raises `ValueError('x')`; it still raises again what it caught",
+        ),
+    ],
+)
+def test_a_bare_raise_raises_again_what_it_caught(
+    before: tuple[str, str], after: tuple[str, str], given: str
+) -> None:
+    # Two field notes read "raises `None`" as an artifact of the analysis: a bare `raise` has no
+    # exception of its own, and raises again what its handler caught.
+    old = _RAISING.format(first=before[0], handler=before[1])
+    new = _RAISING.format(first=after[0], handler=after[1])
+    (scenario,) = _scenarios(old, new, BehaviorCategory.ERROR_HANDLING)
+    assert scenario.given == given
+    assert "`None`" not in scenario.given
 
 
 def test_a_new_private_helper_is_exercised_through_its_callers() -> None:

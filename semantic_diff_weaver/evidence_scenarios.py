@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING
 
 from .ast_diff import StructuralDelta
 from .ast_diff.types import (
+    BARE_RAISE,
     ENCLOSING_CONDITIONS,
     ExitPath,
     FunctionExit,
@@ -55,6 +56,8 @@ MAX_QUOTED_VALUES = 2
 # How many of the things an added callable returns or raises its scenario names.
 MAX_OUTCOMES = 3
 SHARED_CONTEXT_CHARS = 30
+# What a bare `raise` raises: no exception of its own.
+RAISED_AGAIN = "again what it caught"
 # A second scenario of one finding, the former default passed explicitly or either side of a
 # boundary, follows the first. Relevance weighs a fifth of a priority, so a drop of 10 lowers it by
 # 2: a drop of 5 lowered it by exactly 1, which rounding half to even could undo, and the title
@@ -512,6 +515,18 @@ def _quotes(values: Sequence[str], total: int) -> str:
     return _series(shown)
 
 
+def _raise_values(values: Sequence[str], total: int) -> str:
+    """What a raise change names, as `_quotes` names it, but a bare `raise` as what it does:
+    it raises again what its handler caught."""
+    named = [value for value in values if value != BARE_RAISE]
+    if len(named) == len(values):
+        return _quotes(values, total)
+    rest = total - (len(values) - len(named))
+    if rest <= 0:
+        return RAISED_AGAIN
+    return f"{_quotes(named, rest)}, and {RAISED_AGAIN}"
+
+
 def _callers_within(callers: Sequence[str], room: int) -> str:
     """The callers as `_quotes` names them, or the first and how many more where that takes more
     than `room` characters: a title holds less than a `given` does."""
@@ -577,11 +592,17 @@ _VERBS = {
 def _what_changed(subject: str, evidence: Evidence, change: Change) -> str:
     """`subject` now does what the change added, where it did what the change removed."""
     verb = _VERBS[change.kind]
-    if (change.removed_total, change.added_total) == (1, 1) and change.removed and change.added:
+    named = _raise_values if change.kind == "raise_change" else _quotes
+    if (
+        (change.removed_total, change.added_total) == (1, 1)
+        and change.removed
+        and change.added
+        and BARE_RAISE not in (change.removed[0], change.added[0])
+    ):
         removed, added = _quote_pair(change.removed[0], change.added[0])
     else:
-        added = _quotes(change.added, change.added_total)
-        removed = _quotes(change.removed, change.removed_total)
+        added = named(change.added, change.added_total)
+        removed = named(change.removed, change.removed_total)
     if change.kind == "decorator_change":
         if change.added and change.removed:
             return f"{subject} is now decorated with {added} where it was decorated with {removed}"
@@ -1051,7 +1072,7 @@ def _outcome_text(
     outcome: _Outcome, *, alone: bool, last: bool, branches: int, summary: bool
 ) -> str:
     if outcome.kind == "raise":
-        what = f"raises {_quote(outcome.value)}" if outcome.value else "raises again what it caught"
+        what = f"raises {_quote(outcome.value) if outcome.value else RAISED_AGAIN}"
     else:
         what = f"returns {_quote(outcome.value)}"
     if not outcome.paths:
@@ -1264,7 +1285,7 @@ def _error_scenario(found: _Finding) -> Scenario:
         return found.scenario(
             ObligationType.ERROR,
             f"Exercise the changed failure trigger in {found.subject}",
-            f"{found.changed}; it still raises {_quote(found.evidence.new)}",
+            f"{found.changed}; it still raises {_raise_values([found.evidence.new], 1)}",
             "An input reaches the path the removed raise was on",
             "Which exception reaches the caller there, and what it carries, is asserted",
         )

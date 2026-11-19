@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from semantic_diff_weaver.ast_diff import extract_symbols, module_references
+from semantic_diff_weaver.ast_diff.types import BARE_RAISE
 
 
 def test_extracts_nested_async_decorated_symbols() -> None:
@@ -23,6 +24,20 @@ class Service:
     assert symbols["Service.fetch"].decorators == ("classmethod",)
     assert symbols["Service.fetch"].features["comparisons"]
     assert symbols["Service.fetch"].features["raises"]
+
+
+def test_a_bare_raise_is_recorded_as_raising_again_not_as_none() -> None:
+    source = (
+        "def load(read):\n"
+        "    try:\n"
+        "        return read()\n"
+        "    except OSError:\n"
+        "        raise\n"
+        "    raise ValueError(None)\n"
+    )
+    (load,) = [item for item in extract_symbols(source) if item.qualified_name == "load"]
+    assert load.features["raises"] == ((BARE_RAISE, 5), ("ValueError(None)", 6))
+    assert load.statement_order[2:4] == (BARE_RAISE, "raise:ValueError(None)")
 
 
 def test_decorator_arguments_are_never_retained_as_context() -> None:
