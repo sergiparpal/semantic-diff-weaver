@@ -40,7 +40,8 @@ now emits no prediction outside its reviewed expected labels. The 2026-10-31 re-
 one for 0.19.0, the 2026-11-08 ones for 0.19.1, 0.19.2, and 0.19.3, the 2026-11-09 one for 0.19.4,
 the 2026-11-10 one for 0.20.0, the 2026-11-11 one for 0.20.1, the 2026-11-12 one for 0.21.0, the
 2026-11-13 ones for 0.22.0 and 0.22.1, the 2026-11-14 one for 0.23.0, the 2026-11-15 one for
-0.24.0, the 2026-11-16 one for 0.25.0, and the 2026-11-17 one for 0.25.1, found the same figures.
+0.24.0, the 2026-11-16 one for 0.25.0, the 2026-11-17 one for 0.25.1, and the 2026-11-19 one for
+0.26.0, found the same figures.
 Of 0.4.1's
 corrections only the output-contract one reaches the corpus: the `return annotation signature` case
 is now worded as a change to typing alone, at 0.80 confidence instead of 0.879, and keeps its
@@ -104,7 +105,9 @@ variables an added callable's outcomes read, since no case adds such a callable.
 0.25.0, which joins an unknown finding to a named one of its symbol, since no case has both. Nor
 does 0.25.1, which words a changed call to Python's builtins as built into Python and drops a return
 change whose value did not change, since no case's obligations quote such a call or ask for such a
-return.
+return. Nor does 0.26.0. No case raises again what it caught or has alike quotes in two files. No
+case changes a module's top-level names in a way that judging each on its own tells apart. And no
+case declares a method in a `Protocol` or as abstract.
 
 The previous measurement on this same corpus was 88.24% precision (15 of 17). The two surplus
 predictions were both `ordering_change` findings produced by comparing `statement_order` tuples for
@@ -127,8 +130,22 @@ a chain of calls on instances across a call graph at its module limit, a variabl
 read across a graph at its module limit, and a test selection following 999 test files through a
 chain of 999 modules at its file limit, with five-, two-, five-, and five-second ceilings for the
 first four, a one-second ceiling on grouping the fifth, and a five-second ceiling on the last. They
-completed in approximately 0.04, 0.45, 0.65, 0.81, 0.48, and 0.76 seconds in the 0.25.1 timing run,
-across six runs in which the third took 0.62 to 0.69 and the fourth 0.78 to 0.86. 0.25.0's code,
+completed in approximately 0.08, 0.73, 1.06, 1.29, 0.80, and 1.18 seconds in the 0.26.0 timing run,
+across six runs in which the second took 0.68 to 0.78 and the third 0.90 to 1.12. 0.25.1's code,
+timed beside it, took 0.07, 0.68, 1.06, 1.28, 0.80, and 1.24, the second 0.60 to 0.76 and the third
+0.92 to 1.15. The machine ran about one and a half times slower than for 0.25.1's run, both trees
+alike. The mass-rename fixture was slower than 0.25.1's code in all six runs, by 0.01 to 0.09
+seconds. The only work 0.26.0 adds to it is one walk of each version's tree to find each method's
+class, about 2 milliseconds a version, and a cProfile count of its calls rises 1.65%, all of them
+that walk.
+Re-timed with a collection before each test, as for 0.24.0:
+- The mass-rename fixture took 0.65 seconds against 0.63, and was slower in three runs of six.
+- The test-selection fixture, whose code 0.26.0 does not touch, was slower in five.
+
+So the slowdown came from where a full collection lands, not from the code. The other medians
+differed by at most 0.06 seconds in either run, with the signs mixed. 0.25.1's own run timed 0.04,
+0.45, 0.65, 0.81, 0.48, and 0.76 seconds, across six runs in which the third took 0.62 to 0.69 and
+the fourth 0.78 to 0.86. 0.25.0's code,
 timed beside it, took 0.04, 0.44, 0.64, 0.82, 0.49, and 0.76, the third 0.62 to 0.67 and the fourth
 0.80 to 1.03. The machine ran at 0.24.0's pace again, both trees alike: every median is within 0.01
 of the other tree's, and no fixture was slower than 0.25.0's code in more than four of the six runs.
@@ -261,20 +278,21 @@ closest, at half of its two-second ceiling, and no other reaches two fifths of i
 intervals leave out what each test builds before its clock starts, which the call-phase figures
 above include; on the Pi those were 0.05, 0.99, 0.97, 2.02, 1.11, and 1.91.
 
-The complete automated suite reports 98.44% overall branch-aware coverage across 2,510 passing tests
+The complete automated suite reports 98.48% overall branch-aware coverage across 2,560 passing tests
 and one skip, the real-Hermes discovery test, with at least 90% branch coverage in every critical
 module — the lowest is `path_policy.py` at 92.42%, followed by `git_diff/` at 93.16%,
 `semantic_interpreter.py`, which 0.19.2, 0.19.4, and 0.20.1 extend, at 94.23%, and `config.py` at
 94.74%. `cli.py`, `coverage_map.py`, and `baseline.py`, added to the critical set on 2026-10-31, are
 at 100%, as are `skeletons.py`, added with test skeletons, `change_groups.py`, added with connected
 changes, and `selection.py`, added with test selection. `schema_diff/`, added with API schemas and
-reading configuration files too, is at 98.91%, `mcp_server.py`, added on 2026-10-05, at 98.21%, and
-`ast_diff/`, whose comparison 0.16.0, 0.17.0, 0.19.0, 0.20.0, 0.21.0, and 0.25.1 extend, and whose
-extraction 0.23.0 and 0.24.0 do, at 97.64%, up from 97.60%, since tests take every branch of
-0.25.1's checks of a builtin call and of a return whose value did not change. `obligations.py`,
-which 0.19.0 writes from evidence, is at 98.61%, `evidence_scenarios.py`, new in it and outside the
-critical set, at 100%, and `service.py`, where 0.25.0 joins an unknown finding to a named one, at
-100%.
+reading configuration files too, is at 98.91%, and `mcp_server.py`, added on 2026-10-05, at 98.21%.
+`ast_diff/` is at 97.76%, up from 97.64%. Its comparison is extended by 0.16.0, 0.17.0, 0.19.0,
+0.20.0, 0.21.0, 0.25.1, and 0.26.0, and its extraction by 0.23.0, 0.24.0, and 0.26.0. It rose
+because tests take every branch of 0.26.0's records: what each assignment's schemas describe, what a
+module's `__all__` lists, and which methods only declare. `obligations.py`, which 0.19.0 writes from
+evidence and 0.26.0 keys by file, is at 98.61%. `evidence_scenarios.py`, new in 0.19.0 and outside
+the critical set, is at 100%. So is `service.py`, where 0.25.0 joins an unknown finding to a named
+one and 0.26.0 a declaration to its implementation.
 The suite ran with no `ANTHROPIC_API_KEY` in the environment: no live LLM call or credential was
 used, and none is required.
 

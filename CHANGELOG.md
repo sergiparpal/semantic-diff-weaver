@@ -1,15 +1,25 @@
 # Changelog
 
-## Unreleased
+## 0.26.0 - 2026-11-19
+
+Four corrections to the findings and their test obligations, from the Action's field test on
+meal-manager's pull requests 52, 54, and 55 and four claim-ledger pushes, replayed with 0.25.1.
+A bare `raise` reads as raising again what its handler caught. Findings in two files no longer
+share an obligation because their quotes read alike. A module's changed top-level names are judged
+each on its own, so a tool's schema whose descriptions alone changed asks for the agent's dialog.
+A `Protocol` member or abstract method with no code of its own joins the finding on its
+implementation. On the 180 development cases, every finding and benchmark measure is unchanged.
+Three obligations that two files shared become one for each file, from 452 obligations to 455,
+and 8 are worded anew. Schema 1.5 and every golden are unchanged.
 
 - **Findings:** a method that only declares what the implementations of its class define joins the
   finding on an implementation the same change touches. Such a method is a member of a `Protocol`,
   or an abstract method, whose body holds nothing but a docstring, `...`, `pass`, or a raise of
   `NotImplementedError`. No code of its own runs, so its finding's obligation could only ask to
   characterize a declaration.
-  - **The field case.** In meal-manager#54 and #55, five such findings on a repository
-    `Protocol`'s new or changed members each stood beside the finding on the JSON implementation's
-    method of the same name, which said what to test.
+  - **The field case.** In meal-manager's pull requests 54 and 55, five such findings on a
+    repository `Protocol`'s new or changed members each stood beside the finding on the JSON
+    implementation's method of the same name, which said what to test.
   - **The join.** The declaration's evidence is now appended to the implementation's finding, and
     its obligation goes with it. An implementation is a method of the same name on a class that
     names the declaring class among its bases, or whose name holds the declaring class's name.
@@ -24,10 +34,11 @@
     in the seven analyses changes.
 - **Obligations:** a module's changed top-level names are judged each on its own. A module-level
   finding's obligation bundled every name its changed assignments write with every reader of any
-  of them. In meal-manager#52 and #54, four tools' `SCHEMA`s changed only their descriptions,
-  telling the agent what to say, beside a new `DAMAGED_WARNING` constant. So no module read as
-  redescribed, and each obligation asked what `HANDLER` does with both: the agent's dialog, the test
-  to write, went unasked, and `HANDLER`'s own findings already said what it does with the warning.
+  of them. In meal-manager's pull requests 52 and 54, four tools' `SCHEMA`s changed only their
+  descriptions, telling the agent what to say, beside a new `DAMAGED_WARNING` constant. So no module
+  read as redescribed, and each obligation asked what `HANDLER` does with both: the agent's dialog,
+  the test to write, went unasked, and `HANDLER`'s own findings already said what it does with the
+  warning.
   Now:
   - a name whose value changed only in its schemas' `description` texts takes the dialog
     obligation, even beside other changes, and the obligation quotes the text that changed. An
@@ -46,8 +57,8 @@
     - five changed `__all__`s, in httpx, packaging, and attrs, now name the export each gained;
     - two long assignments, in stamina and rq, no longer quote the same text on both sides.
   - No development case changes only a schema's descriptions.
-  - In the field replay, only the eight module-level findings of meal-manager#52, #54, and #55
-    change, through 7 obligations:
+  - In the field replay, only the eight module-level findings of meal-manager's pull requests 52,
+    54, and 55 change, through 7 obligations:
     - five ask for the agent's dialog, quoting the text their descriptions gained;
     - one asks what a star import of `src/__init__.py` binds;
     - one names only the `SCHEMA` and its reader.
@@ -60,11 +71,12 @@
   `ClosedResourceError` where it raised again what it caught".
 - **Obligations:** findings in two files no longer share an obligation because their quotes read
   alike. Equivalent obligations merge on their texts and coverage, and a scenario that quotes its
-  evidence names its symbol but not its file. In meal-manager#54, two handler modules, each with
-  its own `HANDLER`, gained the same `history_repo.damaged()` test. Their findings shared one
-  "Exercise both outcomes of the changed condition in `HANDLER`", which said nowhere which handler a
-  test should call. A quoting scenario now merges only with one in the same files. A category's
-  scenarios, which quote nothing, still merge across files. On the 180 development cases, three
+  evidence names its symbol but not its file. In meal-manager's pull request 54, two handler
+  modules, each with its own `HANDLER`, gained the same `history_repo.damaged()` test. Their
+  findings shared one "Exercise both outcomes of the changed condition in `HANDLER`", which said
+  nowhere which handler a test should call. A quoting scenario now merges only with one in the same
+  files. A category's scenarios, which quote nothing, still merge across files. On the 180
+  development cases, three
   obligations that two files shared become one for each file, from 452 obligations to 455. Each
   pair is a module and its twin: anyio's asyncio and trio backends, limits' synchronous and
   asynchronous storage, and redis-py's synchronous and asynchronous recorders. No finding, category,
