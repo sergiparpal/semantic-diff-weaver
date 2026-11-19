@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.26.3 - 2026-11-19
+
+One correction to a finding's wording, from the Action's field test on meal-manager. A callable
+that gained a parameter its callers may omit no longer reads as a changed default: the finding says
+it gained an optional parameter, and its obligation asks that a call omitting it give what it gave
+before, where it asked what the "new default" gives. The category stays `default_behavior_change`.
+On the 180 development cases every measure is unchanged, and four findings are worded anew. A patch
+release; schema 1.5 and every golden are unchanged.
 
 - **Findings:** a callable that gained a parameter its callers may omit no longer reads as a changed
   default. A parameter added with a default made the signature's defaults differ, so the finding
