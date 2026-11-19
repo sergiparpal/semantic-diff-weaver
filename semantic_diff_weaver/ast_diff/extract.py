@@ -2284,6 +2284,48 @@ def _symbol_nodes(
         yield "<module>", "module", ast.Module(body=module_body, type_ignores=[])
 
 
+def _declares(statement: ast.stmt) -> bool:
+    """Whether a statement of a method's body only declares it: `...`, `pass`, or a raise of
+    `NotImplementedError`."""
+    if isinstance(statement, ast.Pass):
+        return True
+    if isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Constant):
+        return statement.value.value is Ellipsis
+    if isinstance(statement, ast.Raise) and statement.exc is not None:
+        raised = statement.exc.func if isinstance(statement.exc, ast.Call) else statement.exc
+        return isinstance(raised, ast.Name) and raised.id == "NotImplementedError"
+    return False
+
+
+def declares_only(method: ast.FunctionDef | ast.AsyncFunctionDef, owner: ast.ClassDef) -> bool:
+    """Whether a method only declares what the implementations of its class define: a member of a
+    `Protocol`, or an abstract method, whose body holds nothing but a docstring, `...`, `pass`, or
+    a raise of `NotImplementedError`.
+
+    No code of its own runs: a call through it reaches an implementation's. A plain class's method
+    that does nothing by default is a hook, whose default is its behavior, and is not one.
+    """
+    protocol = any(base.rpartition(".")[2] == "Protocol" for base in _bases(owner))
+    abstract = any(
+        decorator_name(item).rpartition(".")[2] == "abstractmethod"
+        for item in method.decorator_list
+    )
+    if not (protocol or abstract):
+        return False
+    return all(_declares(statement) for statement in body_without_docstring(method.body))
+
+
+def _method_owners(tree: ast.AST) -> dict[int, ast.ClassDef]:
+    """Each method's class, by the identity of the method's node."""
+    return {
+        id(item): node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ClassDef)
+        for item in node.body
+        if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+
+
 def extract_symbols(source: str, budget: AstBudget | None = None) -> list[SymbolSnapshot]:
     effective_budget = budget or AstBudget.default()
     tree = parse_module(source)
@@ -2292,10 +2334,15 @@ def extract_symbols(source: str, budget: AstBudget | None = None) -> list[Symbol
     # A file that never writes `TYPE_CHECKING` spells it no way, and is spared the walk.
     type_checking = type_checking_spellings(tree) if "TYPE_CHECKING" in source else frozenset()
     typing = typing_context(tree, type_checking)
+    owners = _method_owners(tree)
     for name, kind, node in _symbol_nodes(tree.body):
         if len(symbols) >= effective_budget.max_symbols_per_file:
             raise AstResourceLimit("symbol budget exceeded")
         snapshot = snapshot_symbol(node, name, kind, type_checking=type_checking, typing=typing)
+        owner = owners.get(id(node))
+        if owner is not None and isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            snapshot.owner_bases = _bases(owner)
+            snapshot.declared_only = declares_only(node, owner)
         if kind == "module":
             snapshot.start = 1
             snapshot.end = max(1, len(source.splitlines()))

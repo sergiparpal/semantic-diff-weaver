@@ -7,7 +7,8 @@ request/config -> repository + resolved refs -> changed paths -> test selection
 -> changed committed blobs -> AST deltas and API schema deltas -> deterministic evidence/candidates
 -> static candidate-test index -> optional structured LLM -> reconciliation
 -> optional ingested coverage report -> risk/confidence -> obligations
--> unknown findings joined to named ones -> change groups
+-> unknown findings joined to named ones -> declarations joined to their implementations
+-> change groups
 -> canonical JSON -> optional Markdown
 ```
 
@@ -290,7 +291,14 @@ category, on the same symbol, joins it unless it is a review question: its evide
 the named finding's, its obligations point to that finding, and findings and obligations are
 numbered again, so a scenario its evidence wrote stays word for word. The named finding keeps its
 summary, confidence, risk, and assumptions, and the summary, the change groups, and the baseline
-comparison read the joined findings.
+comparison read the joined findings. Then a finding on a method that only declares what its class's
+implementations define joins the finding on an implementation the same change touches. Such a
+method is a member of a `Protocol`, or an abstract method, whose body holds nothing but a
+docstring, `...`, `pass`, or a raise of `NotImplementedError`. The implementation is a method of the
+same name on a class that names the declaring class among its bases, or whose name holds the
+declaring class's name. The declaration's evidence is appended to the implementation's finding, and
+its obligations go with it. One with no such implementation stays, and its obligation asks to test
+it through each class that implements it.
 
 **Candidate tests.** A run measured with per-test contexts also says which test executed each line:
 the coverage.py data file, `.coverage`, that `coverage_map.load_coverage_data` reads beside the

@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- **Findings:** a method that only declares what the implementations of its class define joins the
+  finding on an implementation the same change touches. Such a method is a member of a `Protocol`,
+  or an abstract method, whose body holds nothing but a docstring, `...`, `pass`, or a raise of
+  `NotImplementedError`. No code of its own runs, so its finding's obligation could only ask to
+  characterize a declaration.
+  - **The field case.** In meal-manager#54 and #55, five such findings on a repository
+    `Protocol`'s new or changed members each stood beside the finding on the JSON implementation's
+    method of the same name, which said what to test.
+  - **The join.** The declaration's evidence is now appended to the implementation's finding, and
+    its obligation goes with it. An implementation is a method of the same name on a class that
+    names the declaring class among its bases, or whose name holds the declaring class's name.
+  - **With no implementation in the change,** the declaration keeps its finding. Its obligation
+    asks to test it through each class that implements it.
+  - **Not a declaration:** a plain class's method that does nothing by default is a hook, whose
+    default is its behavior.
+  - **Measured.** On the 180 development cases nothing changes, since no finding there falls on
+    such a declaration. In the field replay, the five meal-manager findings join
+    `JsonHistoryRepository.damaged`, `.append_event`, and `.reinstate_event`, and
+    `JsonFridgeRepository.consumable` and `.restore`. Their five obligations go, and nothing else
+    in the seven analyses changes.
 - **Obligations:** a module's changed top-level names are judged each on its own. A module-level
   finding's obligation bundled every name its changed assignments write with every reader of any
   of them. In meal-manager#52 and #54, four tools' `SCHEMA`s changed only their descriptions,
