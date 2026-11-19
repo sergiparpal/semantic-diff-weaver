@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.26.2 - 2026-11-19
+
+One correction to what a model's claims support. With a model, a model's claim that a change is a
+refactor, with no behavior change, no longer supports an unknown change on the same evidence: made
+an unknown change itself, it gave that finding the model's origin and a higher confidence, as if the
+model had confirmed the change it denied. One of the 390 refactor claims in the six recorded model
+runs did so; replayed with 0.26.1, none does, and no analysis changes. Analyses without a model are
+unchanged. A patch release; schema 1.5 and every golden are unchanged.
 
 - **Fix:** with a model, a model's claim that a change is a refactor no longer supports an unknown
   change on the same evidence. A model cannot change a finding's category, so the analysis made
