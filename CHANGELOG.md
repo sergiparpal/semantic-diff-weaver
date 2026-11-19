@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.26.1 - 2026-11-19
+
+One correction to the brief, from the Action's field test on meal-manager and claim-ledger.
+Findings of one symbol that share their test obligations are one card, which names every
+category, so a reader no longer meets one test twice under two names. The analysis keeps each finding: the JSON,
+every category, and every benchmark measure are unchanged. On the 180 development cases, the brief
+lists 385 cards where it listed 467 findings. Schema 1.5 and every golden are unchanged.
 
 - **Brief:** findings of one symbol that share their test obligations are one card. Two categories
   of one change can write the same scenario. The Action's field test listed a changed `except` as a
