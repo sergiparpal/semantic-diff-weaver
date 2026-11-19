@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+- **Brief:** findings of one symbol that share their test obligations are one card. Two categories
+  of one change can write the same scenario. The Action's field test listed a changed `except` as a
+  dependency interaction and again as an error handling change, with the same obligation, so a
+  reader met one test twice under two names.
+  - **The card.** The brief now names such findings once, with every category, the risk and
+    confidence of the riskiest, and the evidence of each. A finding whose obligations the other
+    holds joins the card too. A review question keeps its own.
+  - **What stays.** The analysis keeps each finding, so the JSON, the categories, and every
+    benchmark measure are unchanged.
+  - **Development cases.** On the 180 development cases, 81 cards hold 163 findings, in 57 cases,
+    and the brief lists 385 cards where it listed 467 findings.
+  - **Field replay.** Seven pairs become one card each: one in each of meal-manager's pull requests
+    52, 54, and 55, and four in three claim-ledger pushes.
+
+  `docs/decisions.md` records why no category was dropped: on the development cases, joining
+  either one cost the benchmark more than it gained.
+
 ## 0.26.0 - 2026-11-19
 
 Four corrections to the findings and their test obligations, from the Action's field test on

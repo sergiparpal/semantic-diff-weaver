@@ -324,6 +324,101 @@ def _coverage_lines(result: AnalysisResult) -> list[str]:
     ]
 
 
+def _duplicate_groups(result: AnalysisResult) -> list[list[BehaviorChange]]:
+    """The findings as the brief lists them: each alone, or beside the others on its symbol whose
+    obligations hold all of its own, or all of whose obligations it holds, in one group.
+
+    Two categories of one change can write the same scenario, and each finding then repeated the
+    other's test obligations under another name: the Action's field test listed a changed
+    `except` as a dependency interaction and again as an error handling change. One card says
+    them once and names both categories. The analysis keeps each finding, and the obligations
+    list each one they cover. A review question stays apart: it asks what the analysis could not
+    tell.
+    """
+    covered: dict[str, set[str]] = {}
+    for obligation in result.test_obligations:
+        for behavior_id in obligation.behavior_change_ids:
+            covered.setdefault(behavior_id, set()).add(obligation.id)
+    lead = {behavior.id: behavior.id for behavior in result.behavior_changes}
+
+    def root(behavior_id: str) -> str:
+        while lead[behavior_id] != behavior_id:
+            behavior_id = lead[behavior_id]
+        return behavior_id
+
+    by_symbol: dict[tuple[str, str | None], list[BehaviorChange]] = {}
+    for behavior in result.behavior_changes:
+        if behavior.presentation is not Presentation.REVIEW_QUESTION:
+            first = behavior.evidence[0]
+            by_symbol.setdefault((first.path, first.symbol), []).append(behavior)
+    for members in by_symbol.values():
+        for index, behavior in enumerate(members):
+            mine = covered.get(behavior.id, set())
+            for other in members[index + 1 :]:
+                theirs = covered.get(other.id, set())
+                if mine and theirs and (mine <= theirs or theirs <= mine):
+                    lead[root(other.id)] = root(behavior.id)
+    groups: dict[str, list[BehaviorChange]] = {}
+    for behavior in result.behavior_changes:
+        groups.setdefault(root(behavior.id), []).append(behavior)
+    return list(groups.values())
+
+
+def _finding_lines(
+    group: list[BehaviorChange], marks: Mapping[str, str], excerpt_chars: int | None
+) -> list[str]:
+    """One card: a finding, or the findings of one symbol that share their test obligations,
+    named once each with every category, the risk and confidence of the riskiest, and the
+    evidence of all of them."""
+    first = group[0]
+    if len(group) == 1:
+        prefix = (
+            "Review question" if first.presentation is Presentation.REVIEW_QUESTION else "Finding"
+        )
+        lines = [
+            f"- **{prefix} `{first.id}`{marks.get(first.id, '')} · "
+            f"{_escape(first.category.value)} · "
+            f"{first.risk.value} risk · {first.confidence:.0%} confidence:** "
+            f"{_escape(first.summary)}",
+            f"  - Observable impact: {_escape(first.observable_impact)}",
+        ]
+    else:
+        riskiest = max(group, key=lambda item: (item.risk_score, item.confidence))
+        ids = ", ".join(f"`{item.id}`{marks.get(item.id, '')}" for item in group)
+        categories = ", ".join(dict.fromkeys(_escape(item.category.value) for item in group))
+        summaries = " ".join(dict.fromkeys(_escape(item.summary) for item in group))
+        impacts = " ".join(dict.fromkeys(_escape(item.observable_impact) for item in group))
+        lines = [
+            f"- **Findings {ids} · {categories} · {riskiest.risk.value} risk · "
+            f"{riskiest.confidence:.0%} confidence:** {summaries}",
+            f"  - Observable impact: {impacts}",
+            "  - One change of one symbol, read as each category: the same test obligations "
+            "cover them.",
+        ]
+    shown: set[str] = set()
+    for behavior in group:
+        for evidence in behavior.evidence:
+            if evidence.id in shown:
+                continue
+            shown.add(evidence.id)
+            location = _escape(evidence.path)
+            if evidence.symbol:
+                location += f" — {_code(evidence.symbol)}"
+            ranges = []
+            if evidence.old_lines:
+                ranges.append(f"old {evidence.old_lines.start}-{evidence.old_lines.end}")
+            if evidence.new_lines:
+                ranges.append(f"new {evidence.new_lines.start}-{evidence.new_lines.end}")
+            suffix = f" ({', '.join(ranges)})" if ranges else ""
+            lines.append(f"  - Evidence `{evidence.id}`: {location}{suffix}")
+            if (evidence.old or evidence.new) and excerpt_chars != 0:
+                old = _excerpt(evidence.old or "∅", excerpt_chars)
+                new = _excerpt(evidence.new or "∅", excerpt_chars)
+                lines.extend(["    ````text", *_fenced_summary("old", old)])
+                lines.extend([*_fenced_summary("new", new), "    ````"])
+    return lines
+
+
 def render_markdown(result: AnalysisResult, *, excerpt_chars: int | None = None) -> str:
     """The brief. `excerpt_chars` cuts each evidence code excerpt, and 0 drops them.
 
@@ -358,37 +453,8 @@ def render_markdown(result: AnalysisResult, *, excerpt_chars: int | None = None)
     if not result.behavior_changes:
         lines.append("No reportable behavior change was inferred from the bounded static evidence.")
     marks = _baseline_marks(result)
-    for behavior in result.behavior_changes:
-        prefix = (
-            "Review question"
-            if behavior.presentation is Presentation.REVIEW_QUESTION
-            else "Finding"
-        )
-        lines.extend(
-            [
-                f"- **{prefix} `{behavior.id}`{marks.get(behavior.id, '')} · "
-                f"{_escape(behavior.category.value)} · "
-                f"{behavior.risk.value} risk · {behavior.confidence:.0%} confidence:** "
-                f"{_escape(behavior.summary)}",
-                f"  - Observable impact: {_escape(behavior.observable_impact)}",
-            ]
-        )
-        for evidence in behavior.evidence:
-            location = _escape(evidence.path)
-            if evidence.symbol:
-                location += f" — {_code(evidence.symbol)}"
-            ranges = []
-            if evidence.old_lines:
-                ranges.append(f"old {evidence.old_lines.start}-{evidence.old_lines.end}")
-            if evidence.new_lines:
-                ranges.append(f"new {evidence.new_lines.start}-{evidence.new_lines.end}")
-            suffix = f" ({', '.join(ranges)})" if ranges else ""
-            lines.append(f"  - Evidence `{evidence.id}`: {location}{suffix}")
-            if (evidence.old or evidence.new) and excerpt_chars != 0:
-                old = _excerpt(evidence.old or "∅", excerpt_chars)
-                new = _excerpt(evidence.new or "∅", excerpt_chars)
-                lines.extend(["    ````text", *_fenced_summary("old", old)])
-                lines.extend([*_fenced_summary("new", new), "    ````"])
+    for group in _duplicate_groups(result):
+        lines.extend(_finding_lines(group, marks, excerpt_chars))
     lines.extend(_connected_lines(result))
     lines.extend(["", "### Prioritized test obligations", ""])
     if not result.test_obligations:

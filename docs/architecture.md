@@ -204,6 +204,11 @@ compared a commit with itself never passes.
 `baseline.py` compares the findings with those of an earlier analysis, read as untrusted JSON, by
 category, path, and symbol, and reports each as new, updated, unchanged, or resolved.
 
+`renderer.py` writes the brief, the Markdown of an analysis, with a card for each finding.
+Findings of one symbol where the test obligations of one are all also another's are one card. It
+names every category, the risk and confidence of the riskiest, and the evidence of each. The
+analysis keeps each finding, and a review question keeps its own card.
+
 `skeletons.py` serves the CLI's `skeletons` subcommand, beside the pipeline rather than in it. It
 reads an earlier analysis as untrusted JSON, validated like a baseline, and the test files of its
 head commit through `git_diff/`, and returns a patch adding a failing test for each obligation the
