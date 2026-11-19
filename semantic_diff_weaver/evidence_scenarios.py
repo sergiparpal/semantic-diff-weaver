@@ -1576,8 +1576,6 @@ def _module_scenarios(found: _Finding) -> tuple[Scenario, ...]:
     for names in (read, unread):
         if names:
             scenarios.append(_assignment_scenario(_narrowed(found, names)))
-    if not scenarios:
-        scenarios.append(_assignment_scenario(found))
     return tuple(scenarios)
 
 

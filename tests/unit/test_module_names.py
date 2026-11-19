@@ -25,6 +25,7 @@ from semantic_diff_weaver.evidence_scenarios import (
     Context,
     changes_by_evidence,
     contexts_of,
+    evidence_scenarios,
     module_parts,
     weakly_anchored,
 )
@@ -412,3 +413,90 @@ def test_covered_names_beside_one_no_code_reads_keep_the_scenario_naming_their_r
     behaviors, obligations = _analysis({path: old}, {path: new})
     titles = [item.title for item in _of_module(behaviors, obligations, path)]
     assert titles == ["Clarify and characterize what `g` does with the changed `HOOK` and `UNUSED`"]
+
+
+@pytest.mark.parametrize(
+    ("texts", "total", "said"),
+    [
+        (
+            (("", "Ask before you clear it."),),
+            1,
+            "In the top-level code of `m.py`, `SCHEMA` gained the description `Ask before you "
+            "clear it.`",
+        ),
+        (
+            (("Clears everything.", ""),),
+            1,
+            "In the top-level code of `m.py`, `SCHEMA` lost the description `Clears everything.`",
+        ),
+        (
+            (("Old.", "New."),),
+            2,
+            "In the top-level code of `m.py`, a description in `SCHEMA` now reads `New.` where it "
+            "read `Old.`, and 1 more description changed",
+        ),
+        (
+            (("Old.", "New."), ("Was.", "Is.")),
+            4,
+            "In the top-level code of `m.py`, a description in `SCHEMA` now reads `New.` where it "
+            "read `Old.`, and 3 more descriptions changed",
+        ),
+    ],
+)
+def test_a_redescribed_schema_quotes_what_its_descriptions_say_now(
+    texts: tuple[tuple[str, str], ...], total: int, said: str
+) -> None:
+    change = Change(
+        kind="assignment_change",
+        added=("SCHEMA = {...}",),
+        removed=("SCHEMA = {...}",),
+        added_total=1,
+        removed_total=1,
+        assigned_names=("SCHEMA",),
+        described_only=True,
+        described_names=("SCHEMA",),
+        described_texts=texts,
+        described_total=total,
+    )
+    (scenario,) = evidence_scenarios(_module_behavior(), {"ev-001": change})
+    assert scenario.given.startswith(f"{said}: only schema descriptions changed")
+
+
+def test_a_redescribed_schema_with_no_recorded_text_quotes_its_assignment() -> None:
+    change = Change(
+        kind="assignment_change",
+        added=("SCHEMA = {'description': 'New.'}",),
+        removed=("SCHEMA = {'description': 'Old.'}",),
+        added_total=1,
+        removed_total=1,
+        assigned_names=("SCHEMA",),
+        described_only=True,
+    )
+    (scenario,) = evidence_scenarios(_module_behavior(), {"ev-001": change})
+    assert scenario.given.startswith(
+        "The top-level code of `m.py` now assigns `SCHEMA = {'description': 'New.'}` where it "
+        "assigned `SCHEMA = {'description': 'Old.'}`: only schema descriptions changed"
+    )
+
+
+@pytest.mark.parametrize(
+    ("added", "removed", "listed"),
+    [
+        (("b",), ("a",), "`__all__` now lists `b` where it listed `a`"),
+        ((), ("a",), "`__all__` no longer lists `a`"),
+    ],
+)
+def test_a_changed_all_names_what_it_gained_and_lost(
+    added: tuple[str, ...], removed: tuple[str, ...], listed: str
+) -> None:
+    change = Change(
+        kind="assignment_change",
+        assigned_names=("__all__",),
+        exports_added=added,
+        exports_removed=removed,
+        exports_added_total=len(added),
+        exports_removed_total=len(removed),
+    )
+    (scenario,) = evidence_scenarios(_module_behavior(), {"ev-001": change})
+    assert scenario.title == "Assert the names a star import of `m.py` binds"
+    assert scenario.given == f"In the top-level code of `m.py`, {listed}"
