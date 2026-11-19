@@ -584,16 +584,22 @@ def _accept_behavior(
     behavior_counts[symbol_key] += 1
     category = behavior.category
     if category not in supported_categories:
-        if BehaviorCategory.UNKNOWN not in supported_categories:
-            # Every finding on this evidence is the structural rules', in a category a model
-            # cannot change (docs/decisions.md, 2026-11-06), and none is an unknown change.
-            # Made an unknown change, the claim was reported beside them as a second finding of
-            # the same change, in a category no label expects: 6 times on the 90 development
-            # cases, with three models (docs/decisions.md, 2026-11-09, a model's claim in
-            # another category). It adds no finding, and its obligations go to the findings
-            # whose evidence holds all of its own, as any of a model's obligations do. Prose that
-            # copies what the call showed still discards it with them, as it did the finding it
-            # made (docs/decisions.md, 2026-11-08, a model's prose that copies what it was shown).
+        if (
+            category is BehaviorCategory.REFACTOR
+            or BehaviorCategory.UNKNOWN not in supported_categories
+        ):
+            # No finding on this evidence has the claim's category, and a model cannot change a
+            # finding's category (docs/decisions.md, 2026-11-06). Made an unknown change where
+            # none of those findings is one, the claim was reported beside them as a second
+            # finding of the same change, in a category no label expects: 6 times on the 90
+            # development cases, with three models (docs/decisions.md, 2026-11-09, a model's
+            # claim in another category). A refactor claims no behavior change at all, so made an
+            # unknown change it supported the unknown change on its evidence, the opposite of
+            # what the model said (docs/decisions.md, 2026-11-19, a model's refactor on a
+            # change). Neither adds a finding, and its obligations go to the findings whose
+            # evidence holds all of its own, as any of a model's obligations do. Prose that copies
+            # what the call showed still discards it with them, as it did the finding it made
+            # (docs/decisions.md, 2026-11-08, a model's prose that copies what it was shown).
             if _prose_copies(behavior, shown):
                 warnings.append(f"Discarded an LLM finding that {COPY_WARNING}")
                 return None
