@@ -41,7 +41,7 @@ one for 0.19.0, the 2026-11-08 ones for 0.19.1, 0.19.2, and 0.19.3, the 2026-11-
 the 2026-11-10 one for 0.20.0, the 2026-11-11 one for 0.20.1, the 2026-11-12 one for 0.21.0, the
 2026-11-13 ones for 0.22.0 and 0.22.1, the 2026-11-14 one for 0.23.0, the 2026-11-15 one for
 0.24.0, the 2026-11-16 one for 0.25.0, the 2026-11-17 one for 0.25.1, and the 2026-11-19 ones for
-0.26.0 and 0.26.1, found the same figures.
+0.26.0, 0.26.1, and 0.26.2, found the same figures.
 Of 0.4.1's
 corrections only the output-contract one reaches the corpus: the `return annotation signature` case
 is now worded as a change to typing alone, at 0.80 confidence instead of 0.879, and keeps its
@@ -108,7 +108,8 @@ change whose value did not change, since no case's obligations quote such a call
 return. Nor does 0.26.0. No case raises again what it caught or has alike quotes in two files. No
 case changes a module's top-level names in a way that judging each on its own tells apart. And no
 case declares a method in a `Protocol` or as abstract. Nor does 0.26.1, which changes the brief
-alone, and no golden holds a brief.
+alone, and no golden holds a brief. Nor does 0.26.2, which changes what a model's claim of a
+refactor supports, since no case runs with a model.
 
 The previous measurement on this same corpus was 88.24% precision (15 of 17). The two surplus
 predictions were both `ordering_change` findings produced by comparing `statement_order` tuples for
@@ -130,14 +131,19 @@ matching fixture, a warmed full-service fixture with 40 files, 3,000 changed lin
 a chain of calls on instances across a call graph at its module limit, a variable 4,990 functions
 read across a graph at its module limit, and a test selection following 999 test files through a
 chain of 999 modules at its file limit, with five-, two-, five-, and five-second ceilings for the
-first four, a one-second ceiling on grouping the fifth, and a five-second ceiling on the last.
-0.26.1 changes only the brief's Markdown, which no fixture renders, since the full-service fixture
-asks for JSON. Its timing run could not be taken: other builds held the machine's 16 cores at a load
-average of about 21. Twice, the new tree's first run of the mass-rename fixture passed its two-second
-ceiling, at 2.01 and 2.81 seconds, in code 0.26.1 does not change. The 0.26.0 figures that follow
-stand for the code the fixtures run. They
-completed in approximately 0.08, 0.73, 1.06, 1.29, 0.80, and 1.18 seconds in the 0.26.0 timing run,
-across six runs in which the second took 0.68 to 0.78 and the third 0.90 to 1.12. 0.25.1's code,
+first four, a one-second ceiling on grouping the fifth, and a five-second ceiling on the last. They
+completed in approximately 0.04, 0.46, 0.70, 0.86, 0.52, and 0.79 seconds in the 0.26.2 timing run,
+across six runs in which the third took 0.68 to 0.71 and the fourth 0.80 to 0.88. 0.26.1's code,
+timed beside it, took 0.04, 0.47, 0.73, 0.83, 0.53, and 0.78, the third 0.70 to 0.80 and the fourth
+0.80 to 1.11. 0.26.2 changes only what a model's claim supports, and no fixture runs a model: every
+median is within 0.03 seconds of the other tree's, with the signs mixed, and no fixture was slower
+than 0.26.1's code in more than four of the six runs. The machine ran close to its pace for
+0.25.1's run. 0.26.1 changes only the brief's Markdown, which no fixture renders, since the
+full-service fixture asks for JSON. Its own timing run could not be taken: other builds held the
+machine's 16 cores at a load average of about 21. Twice, the new tree's first run of the
+mass-rename fixture passed its two-second ceiling, at 2.01 and 2.81 seconds, in code 0.26.1 does not
+change. 0.26.0's own run timed 0.08, 0.73, 1.06, 1.29, 0.80, and 1.18 seconds, across six runs in
+which the second took 0.68 to 0.78 and the third 0.90 to 1.12. 0.25.1's code,
 timed beside it, took 0.07, 0.68, 1.06, 1.28, 0.80, and 1.24, the second 0.60 to 0.76 and the third
 0.92 to 1.15. The machine ran about one and a half times slower than for 0.25.1's run, both trees
 alike. The mass-rename fixture was slower than 0.25.1's code in all six runs, by 0.01 to 0.09
@@ -284,14 +290,15 @@ closest, at half of its two-second ceiling, and no other reaches two fifths of i
 intervals leave out what each test builds before its clock starts, which the call-phase figures
 above include; on the Pi those were 0.05, 0.99, 0.97, 2.02, 1.11, and 1.91.
 
-The complete automated suite reports 98.49% overall branch-aware coverage across 2,567 passing tests
+The complete automated suite reports 98.49% overall branch-aware coverage across 2,570 passing tests
 and one skip, the real-Hermes discovery test, with at least 90% branch coverage in every critical
 module — the lowest is `path_policy.py` at 92.42%, followed by `git_diff/` at 93.16%,
-`semantic_interpreter.py`, which 0.19.2, 0.19.4, and 0.20.1 extend, at 94.23%, and `config.py` at
-94.74%. `cli.py`, `coverage_map.py`, and `baseline.py`, added to the critical set on 2026-10-31, are
-at 100%, as are `skeletons.py`, added with test skeletons, `change_groups.py`, added with connected
-changes, and `selection.py`, added with test selection. `schema_diff/`, added with API schemas and
-reading configuration files too, is at 98.91%, and `mcp_server.py`, added on 2026-10-05, at 98.21%.
+`semantic_interpreter.py`, which 0.19.2, 0.19.4, 0.20.1, and 0.26.2 extend, at 94.23%, and
+`config.py` at 94.74%. `cli.py`, `coverage_map.py`, and `baseline.py`, added to the critical set on
+2026-10-31, are at 100%, as are `skeletons.py`, added with test skeletons, `change_groups.py`, added
+with connected changes, and `selection.py`, added with test selection. `schema_diff/`, added with
+API schemas and reading configuration files too, is at 98.91%, and `mcp_server.py`, added on
+2026-10-05, at 98.21%.
 `ast_diff/` is at 97.76%, up from 97.64%. Its comparison is extended by 0.16.0, 0.17.0, 0.19.0,
 0.20.0, 0.21.0, 0.25.1, and 0.26.0, and its extraction by 0.23.0, 0.24.0, and 0.26.0. It rose
 because tests take every branch of 0.26.0's records: what each assignment's schemas describe, what a
@@ -299,9 +306,7 @@ module's `__all__` lists, and which methods only declare. `obligations.py`, whic
 evidence and 0.26.0 keys by file, is at 98.61%. `evidence_scenarios.py`, new in 0.19.0 and outside
 the critical set, is at 100%. So is `service.py`, where 0.25.0 joins an unknown finding to a named
 one and 0.26.0 a declaration to its implementation. `renderer.py`, where 0.26.1 shows the findings
-of one symbol that share their obligations as one card, is at 97.32%, up from 96.51%. For 0.26.1
-the six performance tests, which add no coverage, ran in CI alone, since other builds loaded the
-machine.
+of one symbol that share their obligations as one card, is at 97.32%, up from 96.51%.
 The suite ran with no `ANTHROPIC_API_KEY` in the environment: no live LLM call or credential was
 used, and none is required.
 
