@@ -1204,6 +1204,54 @@ five findings on members of a repository `typing.Protocol`: `HistoryRepository.d
   - #55 goes from 20 findings to 16, and from 22 obligations to 18;
   - nothing else changes.
 
+## Output-affecting corrections (2026-11-19, one card for findings that share their obligations)
+
+In the Action's field test, five findings repeated a sibling on the same symbol: the same test
+obligations under another category. The pairs were:
+- `dependency_interaction_change` beside `output_contract_change`, in claim-ledger's
+  `_stale_because` and `main`;
+- `dependency_interaction_change` beside `error_handling_change`, in its `transcripts` and
+  `last_session`;
+- `default_behavior_change` beside `output_contract_change`, in meal-manager's
+  `JsonHistoryRepository.append_event`.
+
+A reader met each test twice under two names.
+
+**Measured before choosing.** On the 180 development cases, 83 pairs of findings on one symbol had
+the obligations of one all among the other's. Among them, the labels expect only the second
+category in 42, only the first in 12, both in 16, and neither in 13. So which category is right
+depends on the case. Joining either finding changes the scored categories:
+
+| Rule | Joined | Precision | Changes given one in an expected category |
+| --- | --- | --- | --- |
+| None (both kept) | 0 | 238 of 411 (57.9%) | 191 of 243 (78.6%) |
+| Drop `dependency_interaction_change` beside another | 72 | 214 of 339 (63.1%) | 182 of 243 (74.9%) |
+| Keep the most obligations, then not `dependency_interaction_change` | 82 | 207 of 329 (62.9%) | 178 of 243 (73.3%) |
+| Keep the first, in ID order | 82 | 181 of 329 (55.0%) | 153 of 243 (63.0%) |
+
+Each join that raises precision costs changes their only right category: pycasbin#398's four
+`_add_policy` and `_add_policies`, and authlib#1026's three `fetch_access_token` and
+`fetch_token`, expect the dependency interaction. Which category is right is a classification
+question for a correction round, measured on a held-out split, and none is left unspent.
+
+**The correction, in the brief alone.** `renderer._duplicate_groups` groups the findings of one
+symbol, by its first evidence, where the obligations of one are all also another's, through any
+chain of such pairs. `_finding_lines` writes each group as one card. The card names every finding's
+ID with its baseline mark, every category, and the risk and confidence of the riskiest. It joins the
+distinct summaries and observable impacts, and shows each evidence once. A review question keeps its
+own card. The analysis keeps each finding, so the JSON, its categories, the obligations' links, the
+baseline comparison, and every benchmark measure stay as they were.
+
+**Measured.**
+- **Development cases.** On the 180 development cases, 81 cards hold 163 findings, in 57 cases:
+  80 pairs and pluggy#799's three findings on `_render_value`. The brief lists 385 cards where it
+  listed 467 findings.
+- **Field replay.** With 0.26.0, seven pairs become one card each:
+  - claim-ledger push 726e2e1's `_stale_because`;
+  - push fa23454's `last_session`;
+  - push 07624f4's `main` and `transcripts`;
+  - meal-manager's `src/__init__.py`, `_keep_unreadable`, and `JsonHistoryRepository.append_event`.
+
 ## Output-affecting corrections (2026-11-13, a nested function's obligations)
 
 `SDW-RULE-NESTED` gives a function whose own code reads the same, and whose body changed only as the
