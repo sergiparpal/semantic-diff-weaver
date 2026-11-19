@@ -257,7 +257,7 @@ def generate_obligations(
     little is linked to a stronger one's obligation instead (see `_folded`).
     """
     generated: list[TestObligation] = []
-    by_semantics: dict[tuple[str, str, str, CoverageStatus], TestObligation] = {}
+    by_semantics: dict[tuple[str, str, str, CoverageStatus, tuple[str, ...]], TestObligation] = {}
     coverage_by_behavior: dict[str, CoverageStatus] = {}
     for behavior in behaviors:
         grounded = (coverage_states or {}).get(behavior.id)
@@ -288,6 +288,8 @@ def generate_obligations(
             if behavior.id in folded
             else quoting[behavior.id] or CATEGORY_PROFILES[behavior.category].scenarios
         )
+        # The files a quoting scenario's symbol lies in, which its text does not name.
+        files = tuple(sorted({item.path for item in behavior.evidence}))
         behavior_evidence_ids = {item.id for item in behavior.evidence}
         supported_suggestions = [
             Scenario(
@@ -320,12 +322,16 @@ def generate_obligations(
             # every behavior of a category shared one obligation, and a behavior with no test
             # showed another's candidates under `candidate_exists_unverified`. Merging only
             # behaviors whose status agrees keeps an obligation's status and candidates true of
-            # each one. A scenario that quotes its evidence merges only with the same quotes.
+            # each one. A scenario that quotes its evidence merges only with the same quotes in
+            # the same files: it names a symbol but not its file, and two files' symbols can read
+            # alike. Two handlers of one plugin, each its module's `HANDLER`, shared an obligation
+            # that said nowhere which of them a test should call.
             key = (
                 canonical_phrase(scenario.given),
                 canonical_phrase(scenario.when),
                 canonical_phrase(scenario.then),
                 coverage,
+                files if scenario in quoting[behavior.id] else (),
             )
             priority = obligation_priority(
                 behavior.risk_score, scenario.relevance, gap, behavior.confidence
