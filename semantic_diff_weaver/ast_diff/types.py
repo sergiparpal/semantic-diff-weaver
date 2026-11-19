@@ -31,6 +31,10 @@ LocalDefinition = tuple[str, tuple[LocalAssignment, ...], int, tuple[LocalChange
 # `match` (`other`).
 BRANCH_CONDITIONS = frozenset({"if", "else", "except", "case", "deep"})
 ENCLOSING_CONDITIONS = frozenset({"for", "while", "try", "other"})
+# What a bare `raise` records among a symbol's raises: no exception, but what its handler caught,
+# raised again. Recorded as its missing exception, it read `None`, and an obligation said the code
+# raised `None`.
+BARE_RAISE = "raise"
 
 
 def reparameterize(signature: str) -> str:

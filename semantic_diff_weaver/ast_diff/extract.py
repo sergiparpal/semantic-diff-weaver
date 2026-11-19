@@ -16,6 +16,7 @@ from ..path_policy import redact_text
 from . import limits
 from .limits import AstBudget
 from .types import (
+    BARE_RAISE,
     CategoryProbe,
     ExitCondition,
     ExitPath,
@@ -1938,11 +1939,13 @@ class FeatureVisitor(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_Raise(self, node: ast.Raise) -> None:
-        text = unparse_redacted(node.exc)
+        text = BARE_RAISE if node.exc is None else unparse_redacted(node.exc)
         if node.exc is not None:
             self.texts[id(node.exc)] = text
         self.raises.append((text, node.lineno))
-        self.statement_order.append(f"raise:{unparse_redacted(node.exc, 120)}")
+        self.statement_order.append(
+            BARE_RAISE if node.exc is None else f"raise:{unparse_redacted(node.exc, 120)}"
+        )
         self.generic_visit(node)
 
     def visit_ExceptHandler(self, node: ast.ExceptHandler) -> None:

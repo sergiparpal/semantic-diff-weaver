@@ -408,11 +408,7 @@ def test_covered_names_beside_one_no_code_reads_keep_the_scenario_naming_their_r
     # Only the unread name left to ask about, the finding was linked to its top-level call.
     path = "app/hooks.py"
     old = "def f():\n    return 1\n"
-    new = (
-        "def f():\n    return 1\n\n\n"
-        "HOOK = [f]\nUNUSED = [f]\n\n\n"
-        "def g():\n    return HOOK\n"
-    )
+    new = "def f():\n    return 1\n\n\nHOOK = [f]\nUNUSED = [f]\n\n\ndef g():\n    return HOOK\n"
     behaviors, obligations = _analysis({path: old}, {path: new})
     titles = [item.title for item in _of_module(behaviors, obligations, path)]
     assert titles == ["Clarify and characterize what `g` does with the changed `HOOK` and `UNUSED`"]

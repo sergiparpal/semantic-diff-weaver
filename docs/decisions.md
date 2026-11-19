@@ -1044,6 +1044,44 @@ overall risk scores fall by 2, and their overall confidence slightly. It was imp
 no other case shows either shape and no held-out split was left to measure it, to keep that noise
 out of the obligations.
 
+## Output-affecting corrections (2026-11-19, a bare raise and two files' alike quotes)
+
+The Action's field test on meal-manager's pull requests #52, #54, and #55 and four claim-ledger pushes
+was replayed with 0.25.1. Two of its obligations said something false, or left out what a test needs
+to know:
+
+- **A bare `raise`.** Two of meal-manager's handlers gained one:
+  - #54's `list_cooking_history` re-raises a read error that does not mean the history is damaged.
+  - #55's `delete_history_entry` re-raises the original error after it rolls back.
+
+  `FeatureVisitor.visit_Raise` recorded each raise's exception, and a bare `raise` has none, so it
+  recorded `unparse_redacted(None)`, which is `None`. Each obligation then said the handler "now also
+  raises `None`". The visitor now records `raise`, among the symbol's raises and in its statement
+  order. `_what_changed` says "raises again what it caught", the words an added callable's outcomes
+  already used for one, and so does the obligation that names what a symbol still raises.
+- **Two files' alike quotes.** Each handler module of meal-manager defines its own `HANDLER`, and
+  #54 gave two of them, `delete_history_entry` and `get_meal_suggestions`, the same test of
+  `history_repo.damaged()`. Equivalent obligations merge on their normalized texts and coverage
+  status (the merged-obligation entry below). A scenario that quotes its evidence names its symbol
+  but not its file, so the two findings shared one "Exercise both outcomes of the changed condition
+  in `HANDLER`". It said nowhere which handler a test should call. A quoting scenario's merge key
+  now also holds the files of its finding's evidence. A category's scenarios quote nothing and still
+  merge across files, as do a finding's model-suggested scenarios and its review question.
+
+**Measured on the 180 development cases.**
+- Every benchmark measure, and every scored finding, stays as it was. One evidence text changes:
+  anyio's `MemoryObjectSendStream.send`, whose raises now read `raise` for `None`. Its obligation
+  says it "now raises `ClosedResourceError` where it raised again what it caught".
+- Three obligations that two files shared become one for each file, so the obligations go from 452
+  to 455. Each pair is a module and its twin:
+  - anyio's `UNIXSocketStream.send_fds`, in the asyncio and the trio backend;
+  - limits' `RedisClusterStorage.__init__`, in the synchronous and the asynchronous storage;
+  - redis-py's `record_streaming_lag_from_response`, in the synchronous and the asynchronous
+    recorder.
+
+**In the seven field analyses**, only meal-manager#54 and #55 change: their two bare raises, and
+#54's shared obligation, which becomes two.
+
 ## Output-affecting corrections (2026-11-19, a module's names on their own)
 
 The Action's field test on meal-manager's pull requests #52, #54, and #55 was replayed with 0.25.1.
@@ -1088,7 +1126,36 @@ An assignment whose values read alike as far as they are recorded, which happens
 changed past its first 200 characters, is now said to "differ from what it assigned only past the
 part shown", where both sides were quoted the same.
 
-MEASURED_STEP2_DETAIL
+**Measured on the 180 development cases**, against `main` with the previous entry's corrections:
+- Every benchmark measure, scored finding, and evidence text stays as it was. 7 of the 455
+  obligations, in 6 cases, are worded anew, and none appears or goes.
+- **Five `__all__`s now name what they gained:**
+  - httpx's `__init__.py` and `_auth.py` gained `FunctionAuth`;
+  - packaging's `ranges.py` gained `RangeRelation`, and its `_ranges.py` gained
+    `ranges_are_disjoint`;
+  - attrs' `validators.py` gained `ne`.
+
+  Two of them, httpx's `__init__.py` and packaging's `_ranges.py`, had quoted the same cut text on
+  both sides. packaging's `ranges.py` no longer names its reader, `__dir__`, which returns
+  `__all__`. What a star import binds is the concrete test of the same list.
+- **Two assignments now say they differ past the part shown.** stamina's
+  `_RetryContextIterator.from_params` and rq's `BaseWorker._start_scheduler` hold values that differ
+  past their first 200 characters, and each had quoted the same cut text twice.
+- No development case changes only a schema's descriptions, or adds names beside a redescribed or
+  exported one. The dialog obligation and the covered names act in the field alone.
+- **An earlier version made two cases worse.** It linked a module whose names were all covered, or
+  left only unread, to the obligation of its top-level call, which runs only as the module is
+  imported. rich's `style.py` and marshmallow's `types.py` lost the obligation that names their
+  readers that way. Such a module keeps that obligation now.
+
+**In the seven field analyses**, only the eight module-level findings of meal-manager#52, #54, and
+#55 change, through 7 obligations:
+- Four tool modules' obligations ask for the agent's dialog, quoting the instruction their
+  descriptions gained. A fifth, whose module had read as redescribed already, now quotes what
+  changed rather than the same cut text twice.
+- `src/__init__.py`'s two findings share one asking what a star import binds, now that `__all__`
+  also lists `unreadable_json`.
+- #55's `delete_history_entry` names only its `SCHEMA` and `HANDLER`, which reads it.
 
 ## Output-affecting corrections (2026-11-13, a nested function's obligations)
 

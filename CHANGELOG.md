@@ -18,7 +18,37 @@
   - the other names name only their own readers, and names no code reads are asked about apart.
 
   An assignment whose two values read alike as far as they are recorded is said to differ past the
-  part shown, where both sides were quoted the same. MEASURED_STEP2
+  part shown, where both sides were quoted the same.
+
+  **Measured.**
+  - On the 180 development cases, no finding, category, evidence text, or benchmark measure
+    changes. 7 of the 455 obligations, in 6 cases, are worded anew:
+    - five changed `__all__`s, in httpx, packaging, and attrs, now name the export each gained;
+    - two long assignments, in stamina and rq, no longer quote the same text on both sides.
+  - No development case changes only a schema's descriptions.
+  - In the field replay, only the eight module-level findings of meal-manager#52, #54, and #55
+    change, through 7 obligations:
+    - five ask for the agent's dialog, quoting the text their descriptions gained;
+    - one asks what a star import of `src/__init__.py` binds;
+    - one names only the `SCHEMA` and its reader.
+- **Obligations:** a bare `raise` no longer reads as raising `None`. It raises again what its
+  handler caught, but the analysis recorded its missing exception as `None`, so an obligation said
+  that a tool's handler "now also raises `None`". The raise is now recorded as `raise`, among a
+  symbol's raises and in its statement order, and an obligation says the symbol "now also raises
+  again what it caught", as an added callable's outcomes already did. On the 180 development cases
+  it rewords one obligation, anyio's `MemoryObjectSendStream.send`, which "now raises
+  `ClosedResourceError` where it raised again what it caught".
+- **Obligations:** findings in two files no longer share an obligation because their quotes read
+  alike. Equivalent obligations merge on their texts and coverage, and a scenario that quotes its
+  evidence names its symbol but not its file. In meal-manager#54, two handler modules, each with
+  its own `HANDLER`, gained the same `history_repo.damaged()` test. Their findings shared one
+  "Exercise both outcomes of the changed condition in `HANDLER`", which said nowhere which handler a
+  test should call. A quoting scenario now merges only with one in the same files. A category's
+  scenarios, which quote nothing, still merge across files. On the 180 development cases, three
+  obligations that two files shared become one for each file, from 452 obligations to 455. Each
+  pair is a module and its twin: anyio's asyncio and trio backends, limits' synchronous and
+  asynchronous storage, and redis-py's synchronous and asynchronous recorders. No finding, category,
+  or benchmark measure changes. `docs/decisions.md` records the measurements.
 
 ## 0.25.1 - 2026-11-18
 
