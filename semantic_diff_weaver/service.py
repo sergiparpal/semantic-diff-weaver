@@ -24,7 +24,7 @@ from .coverage_map import (
     summarize,
 )
 from .errors import ErrorCode, WeaverError
-from .evidence_scenarios import changes_by_evidence, contexts_of
+from .evidence_scenarios import Change, changes_by_evidence, contexts_of
 from .git_diff import (
     ChangedFile,
     DiffCollection,
@@ -652,6 +652,22 @@ def _join_unknown_to_named(
             and behavior.presentation is not Presentation.REVIEW_QUESTION
         ):
             joined[behavior.id] = target.id
+    return _join_findings(behaviors, obligations, reportable, joined, relink=True)
+
+
+def _join_findings(
+    behaviors: list[BehaviorChange],
+    obligations: list[TestObligation],
+    reportable: list[_ScoredCandidate],
+    joined: Mapping[str, str],
+    *,
+    relink: bool,
+) -> tuple[list[BehaviorChange], list[TestObligation], list[_ScoredCandidate]]:
+    """Each finding `joined` maps to another joins it: its evidence is appended to the other's.
+    Its obligations, written before the join, point to that one where `relink` says so, and
+    otherwise go with it, kept only for the other findings they cover. Findings and obligations are
+    numbered again in their order.
+    """
     if not joined:
         return behaviors, obligations, reportable
     by_id = {
@@ -659,9 +675,9 @@ def _join_unknown_to_named(
     }
     added_evidence: dict[str, list[Evidence]] = defaultdict(list)
     added_names: dict[str, set[str]] = defaultdict(set)
-    for unknown_id, target_id in joined.items():
-        unknown, item = by_id[unknown_id]
-        added_evidence[target_id].extend(unknown.evidence)
+    for joining_id, target_id in joined.items():
+        joining, item = by_id[joining_id]
+        added_evidence[target_id].extend(joining.evidence)
         added_names[target_id].update(item.candidate.assigned_names)
     numbered: dict[str, str] = {}
     kept: list[BehaviorChange] = []
@@ -691,22 +707,97 @@ def _join_unknown_to_named(
             if names
             else item
         )
-    for unknown_id, target_id in joined.items():
-        numbered[unknown_id] = numbered[target_id]
+    if relink:
+        for joining_id, target_id in joined.items():
+            numbered[joining_id] = numbered[target_id]
     relinked = [
         obligation.model_copy(
             update={
                 "behavior_change_ids": sorted(
-                    {numbered[item] for item in obligation.behavior_change_ids}
+                    {numbered[item] for item in obligation.behavior_change_ids if item in numbered}
                 )
             }
         )
         for obligation in obligations
+        if any(item in numbered for item in obligation.behavior_change_ids)
     ]
     relinked.sort(key=lambda item: (-item.priority, item.behavior_change_ids[0], item.title))
     for index, obligation in enumerate(relinked, start=1):
         obligation.id = f"to-{index:03d}"
     return kept, relinked, kept_items
+
+
+# The kinds of symbol a method is, the only kind that implements what a class declares.
+METHOD_KINDS = frozenset({"method", "async_method"})
+
+
+def _implements(owner: str, owner_bases: tuple[str, ...], declaring: str) -> bool:
+    """Whether a class implements the one that declares a method: it names that class among its
+    bases, or its name holds that class's name, `JsonFridgeRepository` for `FridgeRepository`.
+    The declaring class's own method of that name is the declaration, never among the others."""
+    name = owner.rpartition(".")[2]
+    return declaring in name or any(base.rpartition(".")[2] == declaring for base in owner_bases)
+
+
+def _join_declared_to_implementation(
+    behaviors: list[BehaviorChange],
+    obligations: list[TestObligation],
+    reportable: list[_ScoredCandidate],
+    changes: Mapping[str, Change],
+) -> tuple[list[BehaviorChange], list[TestObligation], list[_ScoredCandidate]]:
+    """A finding on a method that only declares what the implementations of its class define
+    joins the finding on an implementation of it that the same change touches.
+
+    A member of a `Protocol`, or an abstract method, whose body is only `...` has no code of its
+    own: a call through it reaches an implementation, where a test asserts its contract. The
+    Action's field test on meal-manager had five findings on a repository `Protocol`'s new or
+    changed members. Each stood beside the finding on its JSON implementation's method of the same
+    name, which said what to test. The declared finding's evidence is appended to the
+    implementation's. Its own obligation, to test it through each class that implements it, goes
+    with it. An implementation is a method of the same name on another class that names the
+    declaring class among its bases, or whose name holds the declaring class's name. Of several,
+    the finding in the declared one's category comes first, then the one of the highest confidence.
+    A declared finding with no such implementation stays, with that obligation, as does a review
+    question, and a declaration removed.
+    """
+    declared: list[BehaviorChange] = []
+    implementations: list[tuple[BehaviorChange, Change]] = []
+    for behavior in behaviors:
+        change = changes.get(behavior.evidence[0].id)
+        if change is None or "." not in (behavior.evidence[0].symbol or ""):
+            continue
+        if change.declared_only:
+            if (
+                behavior.presentation is not Presentation.REVIEW_QUESTION
+                and change.kind != "symbol_removed"
+            ):
+                declared.append(behavior)
+        elif change.symbol_kind in METHOD_KINDS:
+            implementations.append((behavior, change))
+    joined: dict[str, str] = {}
+    for behavior in declared:
+        owner, _, method = (behavior.evidence[0].symbol or "").rpartition(".")
+        declaring = owner.rpartition(".")[2]
+        candidates = [
+            other
+            for other, change in implementations
+            if (other.evidence[0].symbol or "").rpartition(".")[2] == method
+            and _implements(
+                (other.evidence[0].symbol or "").rpartition(".")[0], change.owner_bases, declaring
+            )
+        ]
+        if candidates:
+            target = min(
+                candidates,
+                key=lambda other: (
+                    other.category is not behavior.category,
+                    -other.confidence,
+                    other.evidence[0].path,
+                    other.evidence[0].symbol or "",
+                ),
+            )
+            joined[behavior.id] = target.id
+    return _join_findings(behaviors, obligations, reportable, joined, relink=False)
 
 
 def _summary_metrics(
@@ -1028,6 +1119,9 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
     )
     coverage_summary = _coverage_summary(coverage, reportable, state, changed_lines)
     behaviors, obligations, reportable = _join_unknown_to_named(behaviors, obligations, reportable)
+    behaviors, obligations, reportable = _join_declared_to_implementation(
+        behaviors, obligations, reportable, changes
+    )
     if omitted_obligations:
         state.record_omitted("global_obligation_limit", omitted_obligations, scope=True)
         state.warnings.append(

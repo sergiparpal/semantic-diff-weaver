@@ -163,6 +163,13 @@ def make_structural_delta(
         symbol_name = old.qualified_name
     else:
         symbol_name = "<unknown>"
+    # What the symbol is now, or was if it is gone: a method that only declares what its class's
+    # implementations define, and the bases of a method's class, by which one implements another.
+    current = new if new is not None else old
+    if current is not None and current.declared_only:
+        metadata["declared_only"] = True
+    if current is not None and current.owner_bases:
+        metadata["owner_bases"] = list(current.owner_bases)
     return StructuralDelta(
         path=path,
         symbol=symbol_name,

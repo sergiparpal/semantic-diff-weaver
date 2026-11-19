@@ -1157,6 +1157,53 @@ part shown", where both sides were quoted the same.
   also lists `unreadable_json`.
 - #55's `delete_history_entry` names only its `SCHEMA` and `HANDLER`, which reads it.
 
+## Output-affecting corrections (2026-11-19, a declaration joins its implementation)
+
+The Action's field test on meal-manager's pull requests #54 and #55, replayed with 0.25.1, had
+five findings on members of a repository `typing.Protocol`: `HistoryRepository.damaged`,
+`.append_event`, and `.reinstate_event`, and `FridgeRepository.consumable` and `.restore`.
+
+- **No code of their own.** Each member's body is `...`. A call through one reaches an
+  implementation's code, so there was nothing of its own to test. Yet each obligation asked to
+  characterize the declaration "with a representative input", or to call it with an argument
+  omitted.
+- **An implementation beside each.** Each stood beside the finding on the method of the same name
+  of its JSON implementation, `JsonHistoryRepository` or `JsonFridgeRepository`, whose obligation
+  listed what to assert.
+
+**The correction.**
+- **What `extract.declares_only` marks.** A member of a `Protocol`, or a method decorated
+  `abstractmethod`, whose body holds nothing but a docstring, `...`, `pass`, or a raise of
+  `NotImplementedError`. A snapshot records it as `declared_only`, beside the bases of the method's
+  class.
+  - Not marked: a `Protocol`'s default, or an abstract method with code a subclass reaches through
+    `super()`, since that code runs.
+  - Not marked either: a plain class's method that does nothing by default. It is a hook, and its
+    default is its behavior, like authlib#1041's `revoke_authorization_code_tokens`.
+- **Where the join runs.** After the obligations are written and an unknown finding has joined a
+  named one, `service._join_declared_to_implementation` joins a declared finding to the finding on
+  an implementation that the same change touches.
+- **What counts as an implementation.** A method of the same name on a class that names the
+  declaring class among its bases, or whose name holds the declaring class's name. Of several, the
+  finding in the declared one's category comes first, then the one of the highest confidence.
+- **What the join does.** The declaration's evidence is appended to the implementation's finding.
+  Its obligation goes with it rather than pointing to the implementation, whose own obligations say
+  what to assert.
+- **What stays.** A declared finding with no such implementation, a review question, or a
+  declaration removed. Its obligation asks to exercise the method through each class that
+  implements it, since that is where its contract holds or fails.
+
+**Measured.**
+- **On the 180 development cases, nothing changes:** every benchmark measure, finding, evidence
+  text, and obligation stays as it was. An AST survey of their findings found none on a member of a
+  `Protocol` or on an abstract method. The other `...` bodies it found belong to `@overload`
+  signatures, plus authlib#1041's hook, which is labeled an added symbol with no category. So only
+  the field can measure this correction.
+- **In the seven field analyses, the five findings join their implementations' findings:**
+  - meal-manager#54 goes from 17 findings to 16, and from 22 obligations to 21;
+  - #55 goes from 20 findings to 16, and from 22 obligations to 18;
+  - nothing else changes.
+
 ## Output-affecting corrections (2026-11-13, a nested function's obligations)
 
 `SDW-RULE-NESTED` gives a function whose own code reads the same, and whose body changed only as the

@@ -261,6 +261,10 @@ class Change:
     described_total: int = 0
     # The variables a changed assignment writes that no assignment of the old side wrote.
     added_names: tuple[str, ...] = ()
+    # Whether its symbol is a method that only declares what the implementations of its class
+    # define (see `extract.declares_only`), and the bases of a method's class.
+    declared_only: bool = False
+    owner_bases: tuple[str, ...] = ()
     # The names a module's `__all__` gained and lost, at most `MAX_CHANGED_VALUES` of each, and
     # how many.
     exports_added: tuple[str, ...] = ()
@@ -357,6 +361,8 @@ def describe_change(delta: StructuralDelta) -> Change | None:
         exports_removed=(lost := _strings(metadata.get("exports_removed"))),
         exports_added_total=_count(metadata.get("exports_added_total"), len(gained)),
         exports_removed_total=_count(metadata.get("exports_removed_total"), len(lost)),
+        declared_only=bool(metadata.get("declared_only")),
+        owner_bases=_strings(metadata.get("owner_bases")),
         exits=(exits := _exits(metadata.get("exits"))),
         exits_total=_count(metadata.get("exits_total"), len(exits)),
         definitions=_definitions(metadata.get("definitions")),
@@ -1579,8 +1585,37 @@ def _module_scenarios(found: _Finding) -> tuple[Scenario, ...]:
     return tuple(scenarios)
 
 
+def _declared_scenario(found: _Finding) -> Scenario:
+    """A method that only declares what the implementations of its class define: a member of a
+    `Protocol`, or an abstract method, whose body is only `...`. No code of its own runs, so a test
+    reaches each implementation through it, which is where its contract holds or fails.
+
+    A finding on one beside the finding on an implementation the same change touches joins that
+    one, with its evidence (see `service._join_declared_to_implementation`): this is the
+    obligation of one that stays.
+    """
+    owner = (found.evidence.symbol or "").rpartition(".")[0]
+    kind = found.change.kind
+    if kind == "symbol_added":
+        declared = f"{found.subject} is new: {_quote(found.evidence.new)}"
+    elif kind == "signature_change":
+        before, after = _quote_pair(found.evidence.old or "", found.evidence.new or "")
+        declared = f"{found.subject} now declares {after} where it declared {before}"
+    else:
+        declared = f"{found.subject} changed"
+    return found.scenario(
+        ObligationType.REGRESSION,
+        f"Exercise {found.subject} through each class that implements it",
+        f"{declared}, which {_quote(owner)} only declares, with no code of its own to run",
+        f"Each class that implements {_quote(owner)} is called through {found.subject}",
+        "What each returns, raises, or leaves is what the declaration promises",
+    )
+
+
 def _scenarios_of(found: _Finding) -> tuple[Scenario, ...]:
     kind, change = found.change.kind, found.change
+    if change.declared_only and kind != "symbol_removed":
+        return (_declared_scenario(found),)
     if change.described_only:
         return (_described_scenario(found),)
     if (
