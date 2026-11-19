@@ -24,7 +24,10 @@ def test_fabricated_evidence_is_discarded() -> None:
     assert any("fabricated evidence" in item for item in result.warnings)
 
 
-@pytest.mark.parametrize("category", ["authorization_change", "unknown_semantic_change"])
+@pytest.mark.parametrize(
+    "category",
+    ["authorization_change", "unknown_semantic_change", "refactor_likely_no_behavior_change"],
+)
 def test_a_claim_in_a_category_no_finding_on_its_evidence_has_adds_no_finding(
     category: str,
 ) -> None:
@@ -65,6 +68,32 @@ def test_an_unsupported_category_on_an_unknown_change_s_evidence_supports_it() -
         (BehaviorCategory.UNKNOWN, Origin.LLM_SUPPORTED)
     ]
     assert any("Downgraded" in item for item in result.warnings)
+
+
+@pytest.mark.parametrize("beside", [False, True], ids=["alone", "beside a named change"])
+def test_a_refactor_on_an_unknown_change_s_evidence_supports_and_adds_nothing(
+    beside: bool,
+) -> None:
+    """A refactor claims no change, so made an unknown change it supported the opposite."""
+    unknown = replace(candidate(), category=BehaviorCategory.UNKNOWN)
+    findings = [unknown, candidate_variant(id="ev-002", symbol="limit")] if beside else [unknown]
+    cited = ["ev-001", "ev-002"] if beside else ["ev-001"]
+    payload = valid_payload()
+    payload["behaviors"][0].update(
+        category="refactor_likely_no_behavior_change",
+        evidence_ids=cited,
+        assumptions=["Only the wording changed."],
+    )
+    result = interpret_candidates(findings, FakeLlm([Result("json", payload)]), WeaverConfig())
+    # The structural rules' findings stand as they made them: none takes the model's origin,
+    # confidence, or assumptions, and the claim adds none of its own.
+    assert result.candidates == findings
+    # Its obligation still rests on the evidence it cites, as any of a model's obligations do.
+    assert [(item.evidence_ids, item.title) for item in result.suggestions] == [
+        (tuple(cited), "Exercise five")
+    ]
+    assert any("Added no finding" in item for item in result.warnings)
+    assert not any("Downgraded" in item for item in result.warnings)
 
 
 def _refactor() -> SemanticCandidate:

@@ -517,6 +517,8 @@ def test_a_reply_is_judged_by_the_analysis_s_rules_in_their_order() -> None:
         },
         # On an unknown change's evidence, another category is made unknown and supports it.
         {"behaviors": [_behavior("side_effect_change", ["ev-004"])]},
+        # A refactor claims no change, so there it is not made one, and adds no finding.
+        {"behaviors": [_behavior("refactor_likely_no_behavior_change", ["ev-004"])]},
     ]
 
     class Answering:
@@ -534,9 +536,10 @@ def test_a_reply_is_judged_by_the_analysis_s_rules_in_their_order() -> None:
     recorder.complete_structured(
         input=framed({"category_hint": "refactor_likely_no_behavior_change", "evidence": [third]})
     )
-    recorder.complete_structured(
-        input=framed({"category_hint": "unknown_semantic_change", "evidence": [fourth]})
-    )
+    for _ in range(2):
+        recorder.complete_structured(
+            input=framed({"category_hint": "unknown_semantic_change", "evidence": [fourth]})
+        )
     assert recorder.shown == {
         "ev-001": {"path": "a.py", "symbol": "f", "kind": "comparison_change"},
         "ev-002": {"path": "b.py", "symbol": "g", "kind": "call_added"},
@@ -547,15 +550,15 @@ def test_a_reply_is_judged_by_the_analysis_s_rules_in_their_order() -> None:
     # adds a finding.
     assert recorder.replies() == Replies(
         invalid_replies=1,
-        behaviors=9,
+        behaviors=10,
         obligations=1,
         repeated_reference=1,
         fabricated_reference=1,
         other_batch_reference=1,
         contradicted_refactor=1,
-        kept=5,
+        kept=6,
         unsupported_category=1,
-        unmatched_category=2,
+        unmatched_category=3,
         fabricated_ids=1,
     )
 

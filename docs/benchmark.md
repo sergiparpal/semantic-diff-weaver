@@ -1101,6 +1101,9 @@ changes.
 one of three models measured on the same findings, and corrected for three, p = 0.07. DeepSeek and
 Llama show no difference these cases can tell. Both raise every outcome's mean confidence by about
 0.03, wrong findings' as much as right ones', and gpt-oss-120b leaves the means where they were.
+One of DeepSeek's 116 was no support at all: its claim that a loop of django-rest-framework#10021
+was a refactor supported the unknown change on it. A correction since keeps such a claim from
+supporting any finding (`docs/decisions.md`, 2026-11-19, a model's refactor on a change).
 
 **No model cited evidence it was not shown, and no evidence the analysis did not extract reached
 the output.** The refactor rule (`docs/decisions.md`, 2026-11-07, a model's claims on refactors)

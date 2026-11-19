@@ -483,11 +483,12 @@ class Replies:
     kept: int = 0
     # Kept behaviors naming a change whose refactor evidence the analysis set aside.
     set_aside_refactor: int = 0
-    # Kept behaviors whose category no deterministic finding on their evidence has, so the analysis
-    # makes each an unknown change, since one of those findings is unknown.
+    # Kept behaviors naming a change in a category no deterministic finding on their evidence has,
+    # so the analysis makes each an unknown change, since one of those findings is unknown.
     unsupported_category: int = 0
-    # Kept behaviors whose category no finding on their evidence has, none of them unknown, so the
-    # analysis adds no finding for them and keeps only their obligations.
+    # Kept behaviors whose category no finding on their evidence has, where none of those findings
+    # is unknown or the behavior is a refactor, so the analysis adds no finding for them and keeps
+    # only their obligations.
     unmatched_category: int = 0
     # Evidence IDs cited that the model was never shown during the analysis.
     fabricated_ids: int = 0
@@ -630,7 +631,8 @@ class RecordingClient:
         replies.set_aside_refactor += set_aside
         categories = {hints[item] for item in references}
         if category not in categories:
-            if UNKNOWN in categories:
+            # A refactor claims no change, so the analysis never makes it an unknown one.
+            if UNKNOWN in categories and category != REFACTOR:
                 replies.unsupported_category += 1
             else:
                 replies.unmatched_category += 1

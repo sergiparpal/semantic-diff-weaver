@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- **Fix:** with a model, a model's claim that a change is a refactor no longer supports an unknown
+  change on the same evidence. A model cannot change a finding's category, so the analysis made
+  such a claim an unknown change, and the unknown change already on that evidence took the model's
+  origin, a confidence raised toward the model's, and its assumptions, as if the model had confirmed
+  the change it denied. In deepseek-v4-flash's recorded run on the benchmark's 90 development cases
+  with 0.19.2, it raised the confidence of the unknown change on a loop in DRF's pull request 10021
+  from 0.68 to 0.81. Such a claim now adds no finding and supports none, as a claim in a category no
+  finding on its evidence has does since 0.19.4, and the analysis warns that it added none. Its
+  obligations still go to the findings whose evidence holds all of its own. A model may still
+  support a refactor. Of the 390 refactor claims in the six recorded runs, that was the only one on
+  an unknown change alone; replayed with 0.26.1, none is, and no analysis changes.
+  `run_benchmark.py llm` counts such a claim among those that add no finding. Analyses without a
+  model are unchanged, and so are schema 1.5 and every golden. See `docs/decisions.md`, 2026-11-19,
+  a model's refactor on a change.
+
 ## 0.26.1 - 2026-11-19
 
 One correction to the brief, from the Action's field test on meal-manager and claim-ledger.

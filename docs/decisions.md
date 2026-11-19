@@ -620,6 +620,39 @@ measure a batch's retry (2026-11-09, below), confirms it: the model added no fin
 with 0.19.2 had added 3, and findings in an expected category were 48 of 260 with the model and
 without it.
 
+## Output-affecting corrections (2026-11-19, a model's refactor on a change)
+
+With a model, a claim keeps its category only where a finding of the structural rules on the same
+evidence has it. Where none does, the claim adds no finding (2026-11-09, above), unless one of the
+findings on its evidence is an unknown change: then the claim is made one, and supports or joins
+that finding. That suits a claim of a change the rules could not name. A refactor claims no behavior
+change at all, so made an unknown change it supported a change the model denied: the finding took
+the model's origin, its confidence rose toward the model's, and the model's assumptions joined it.
+In deepseek-v4-flash's run on the 90 development cases with 0.19.2 (`docs/benchmark.md`, "Four
+models, with 0.19.2"), the model said that a loop of django-rest-framework#10021's
+`ModelSerializer.get_uniqueness_extra_kwargs` now unpacks an element it never uses, a refactor. The
+unknown change on that loop became one the model supported, and its confidence rose from 0.68 to
+0.81.
+
+A refactor is now never made an unknown change. Where no finding on its evidence is a refactor, it
+adds no finding and supports none, as a claim in another category does, and the analysis warns that
+it added none. Its obligations go where any of a model's obligations go, to each finding whose
+evidence holds all of the claim's, and one whose summary or impact copies what the call showed is
+still discarded with them. A claim of a refactor that also cites a refactor's evidence keeps its
+category, as before, and a model may still support a refactor (2026-11-07, a model's claims on
+refactors). `run_benchmark.py llm` counts such a claim among the behaviors that add no finding.
+Deterministic output, schema, and goldens are unchanged.
+
+The six recorded runs hold 390 claims of a refactor. Against the analysis each run recorded without
+the model, 386 cite only evidence that no reported finding carries, and 1 cites click#3781's output
+contract change alone, which adds no finding since 2026-11-09. Two, in marshmallow#2799 and
+marshmallow#2937, cite an unknown change together with such evidence, and left every reported
+finding as it was. The last is django-rest-framework#10021's. Replayed with 0.26.1, 238 of the 390
+reach a call whose request is unchanged: 237 rest on a refactor's evidence alone and support it, and
+1 is click#3781's. The loop of django-rest-framework#10021 is an output contract change by now, and
+its call asks something else. So no claim rests on an unknown change, and replayed through the
+correction, the six runs change in no analysis.
+
 ## Output-affecting corrections (2026-11-11, a model's review obligations)
 
 With a model, each of its obligations that rests on evidence a finding holds goes beside the
