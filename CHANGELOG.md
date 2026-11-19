@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+- **Obligations:** a module's changed top-level names are judged each on its own. A module-level
+  finding's obligation bundled every name its changed assignments write with every reader of any
+  of them. In meal-manager#52 and #54, four tools' `SCHEMA`s changed only their descriptions,
+  telling the agent what to say, beside a new `DAMAGED_WARNING` constant. So no module read as
+  redescribed, and each obligation asked what `HANDLER` does with both: the agent's dialog, the test
+  to write, went unasked, and `HANDLER`'s own findings already said what it does with the warning.
+  Now:
+  - a name whose value changed only in its schemas' `description` texts takes the dialog
+    obligation, even beside other changes, and the obligation quotes the text that changed. An
+    f-string description's prose counts as such text, while what it interpolates is code.
+  - a changed `__all__` asks what a star import binds, naming the names it gained or lost.
+  - a name the module adds, read only by code with findings of its own, takes no obligation of its
+    own, unless nothing else in the module has one.
+  - the other names name only their own readers, and names no code reads are asked about apart.
+
+  An assignment whose two values read alike as far as they are recorded is said to differ past the
+  part shown, where both sides were quoted the same. MEASURED_STEP2
+
 ## 0.25.1 - 2026-11-18
 
 Two corrections to the test obligations, from a seventh blind review of them. That review judged 40

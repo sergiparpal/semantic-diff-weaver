@@ -1044,6 +1044,52 @@ overall risk scores fall by 2, and their overall confidence slightly. It was imp
 no other case shows either shape and no held-out split was left to measure it, to keep that noise
 out of the obligations.
 
+## Output-affecting corrections (2026-11-19, a module's names on their own)
+
+The Action's field test on meal-manager's pull requests #52, #54, and #55 was replayed with 0.25.1.
+Every one of its eight module-level findings had an obligation that bundled every name its changed
+assignments write with every reader of any of them:
+
+- **A redescribed schema beside a new constant.** In four of meal-manager's tool modules,
+  `list_dishes`, `list_fridge`, `get_meal_suggestions`, and `list_cooking_history`, the `SCHEMA`
+  changed only its description. The new text tells the agent what to do: "tell the user, and don't
+  say they have no recipes". A `DAMAGED_WARNING` constant was added beside it.
+  - `is_redescribed` judges a symbol's whole body, so no module read as redescribed.
+  - Each obligation asked what `HANDLER` does with the changed `DAMAGED_WARNING` and `SCHEMA`.
+  - `HANDLER` changed to return the warning, and its own findings said so. The test the
+    description asks for, of what the agent then tells the user, went unasked.
+- **Readers of any name read as readers of all.** `src/__init__.py` gained `unreadable_json` in
+  `__all__`, a logger, and a constant that only the new `_keep_unreadable` reads. Its obligation
+  asked what `_keep_unreadable` does with all three, `__all__` included. In #55,
+  `delete_history_entry`'s module added a logger beside a `SCHEMA` that gained a property, and
+  one obligation asked about both.
+
+**The correction.** `_module_scenarios` judges a module's changed top-level names each on its own,
+from what `ast_diff` now records of each assignment:
+- **The schemas' descriptions in its value.** `extract.described_value` records a digest of the
+  value with those texts blanked, and the texts. A name whose one changed assignment on each side
+  keeps the digest changed only those texts. It takes the dialog obligation, beside whatever else
+  changed, which quotes the first text that changed around where it changed, up to 400
+  characters.
+- **An f-string's prose.** An f-string description's literal parts are such text, and what it
+  interpolates is code. A body's `fingerprint_without_descriptions` blanks that prose too, so a
+  tool whose f-string description alone changed reads as redescribed.
+- **The module's exports.** A changed `__all__` asks what a star import binds, naming the names it
+  gained or lost.
+- **Names the old side never wrote.** Such a name, read only by symbols that have findings of their
+  own, takes no obligation of its own: its readers changed to read it, and their findings say what
+  they do with it. When every name is such, the module keeps the one obligation that names their
+  readers. Linked away, it would join its top-level code's call, which runs only as the module is
+  imported.
+- **The rest.** The other names name only their own readers, and those no code reads are asked
+  about apart.
+
+An assignment whose values read alike as far as they are recorded, which happens when a long value
+changed past its first 200 characters, is now said to "differ from what it assigned only past the
+part shown", where both sides were quoted the same.
+
+MEASURED_STEP2_DETAIL
+
 ## Output-affecting corrections (2026-11-13, a nested function's obligations)
 
 `SDW-RULE-NESTED` gives a function whose own code reads the same, and whose body changed only as the

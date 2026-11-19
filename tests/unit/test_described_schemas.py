@@ -207,8 +207,13 @@ def test_a_redescribed_schema_asks_what_the_agent_does_with_the_new_text() -> No
     ((kind, title, given, when, then),) = _obligations(TOOL, WARNED)
     assert kind is ObligationType.INTERACTION
     assert title == "Check that an agent follows the changed description in `SCHEMA`"
-    assert given.startswith("The top-level code of `m.py` now assigns ")
-    assert "pantry staples included: ask first." in given
+    # The description that changed, quoted whole on each side, rather than the assignment, whose
+    # long value a quote cuts before the text that changed.
+    assert given.startswith(
+        "In the top-level code of `m.py`, a description in `SCHEMA` now reads `Empty the fridge "
+        "completely, pantry staples included: ask first.` where it read `Empty the fridge "
+        "completely.`"
+    )
     assert given.endswith(
         ": only schema descriptions changed, which an agent given the tool reads before it calls "
         "it, and no code computes with"

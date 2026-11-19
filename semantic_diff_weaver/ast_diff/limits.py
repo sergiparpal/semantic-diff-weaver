@@ -64,6 +64,13 @@ MAX_EXIT_CONDITIONS = 4
 MAX_DEFINED_LOCALS = 4
 MAX_LOCAL_ASSIGNMENTS = 3
 MAX_LOCAL_CHANGES = 2
+# How many of the `description` texts of the schemas an assigned value holds its snapshot records,
+# and how much of each. An obligation quotes a changed one around where it changed (see
+# `extract.described_value`).
+MAX_ASSIGNED_DESCRIPTIONS = 16
+MAX_DESCRIPTION_CHARS = 2_000
+# How many names a module's `__all__` lists its snapshot records.
+MAX_EXPORTED_NAMES = 500
 # How much of an added or removed class or module its display text names.
 MAX_DISPLAY_CLASS_FIELDS = 20
 MAX_DISPLAY_MODULE_STATEMENTS = 5
