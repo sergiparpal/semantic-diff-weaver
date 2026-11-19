@@ -41,7 +41,7 @@ one for 0.19.0, the 2026-11-08 ones for 0.19.1, 0.19.2, and 0.19.3, the 2026-11-
 the 2026-11-10 one for 0.20.0, the 2026-11-11 one for 0.20.1, the 2026-11-12 one for 0.21.0, the
 2026-11-13 ones for 0.22.0 and 0.22.1, the 2026-11-14 one for 0.23.0, the 2026-11-15 one for
 0.24.0, the 2026-11-16 one for 0.25.0, the 2026-11-17 one for 0.25.1, and the 2026-11-19 ones for
-0.26.0, 0.26.1, and 0.26.2, found the same figures.
+0.26.0, 0.26.1, 0.26.2, and 0.26.3, found the same figures.
 Of 0.4.1's
 corrections only the output-contract one reaches the corpus: the `return annotation signature` case
 is now worded as a change to typing alone, at 0.80 confidence instead of 0.879, and keeps its
@@ -109,7 +109,9 @@ return. Nor does 0.26.0. No case raises again what it caught or has alike quotes
 case changes a module's top-level names in a way that judging each on its own tells apart. And no
 case declares a method in a `Protocol` or as abstract. Nor does 0.26.1, which changes the brief
 alone, and no golden holds a brief. Nor does 0.26.2, which changes what a model's claim of a
-refactor supports, since no case runs with a model.
+refactor supports, since no case runs with a model. Nor does 0.26.3, which words anew a callable
+that gained optional parameters, since no case adds or removes a parameter: the `default argument`
+case changes the default of one it keeps.
 
 The previous measurement on this same corpus was 88.24% precision (15 of 17). The two surplus
 predictions were both `ordering_change` findings produced by comparing `statement_order` tuples for
@@ -132,8 +134,14 @@ a chain of calls on instances across a call graph at its module limit, a variabl
 read across a graph at its module limit, and a test selection following 999 test files through a
 chain of 999 modules at its file limit, with five-, two-, five-, and five-second ceilings for the
 first four, a one-second ceiling on grouping the fifth, and a five-second ceiling on the last. They
-completed in approximately 0.04, 0.46, 0.70, 0.86, 0.52, and 0.79 seconds in the 0.26.2 timing run,
-across six runs in which the third took 0.68 to 0.71 and the fourth 0.80 to 0.88. 0.26.1's code,
+completed in approximately 0.04, 0.48, 0.72, 0.83, 0.52, and 0.80 seconds in the 0.26.3 timing run,
+across six runs in which the second took 0.46 to 0.50 and the third 0.70 to 0.74. 0.26.2's code,
+timed beside it, took 0.04, 0.47, 0.74, 0.85, 0.56, and 0.83, the second 0.45 to 0.61 and the third
+0.70 to 0.80. 0.26.3 records each callable's parameters as it extracts it, which the mass-rename
+fixture does for 500 symbols a side, and that fixture was 0.01 seconds slower, in four runs of six.
+Every other median is equal or lower, and no fixture was slower than 0.26.2's code in more than four
+of the six runs. 0.26.2's own run timed 0.04, 0.46, 0.70, 0.86, 0.52, and 0.79 seconds, across six
+runs in which the third took 0.68 to 0.71 and the fourth 0.80 to 0.88. 0.26.1's code,
 timed beside it, took 0.04, 0.47, 0.73, 0.83, 0.53, and 0.78, the third 0.70 to 0.80 and the fourth
 0.80 to 1.11. 0.26.2 changes only what a model's claim supports, and no fixture runs a model: every
 median is within 0.03 seconds of the other tree's, with the signs mixed, and no fixture was slower
@@ -290,7 +298,7 @@ closest, at half of its two-second ceiling, and no other reaches two fifths of i
 intervals leave out what each test builds before its clock starts, which the call-phase figures
 above include; on the Pi those were 0.05, 0.99, 0.97, 2.02, 1.11, and 1.91.
 
-The complete automated suite reports 98.49% overall branch-aware coverage across 2,570 passing tests
+The complete automated suite reports 98.49% overall branch-aware coverage across 2,588 passing tests
 and one skip, the real-Hermes discovery test, with at least 90% branch coverage in every critical
 module — the lowest is `path_policy.py` at 92.42%, followed by `git_diff/` at 93.16%,
 `semantic_interpreter.py`, which 0.19.2, 0.19.4, 0.20.1, and 0.26.2 extend, at 94.23%, and
@@ -299,14 +307,15 @@ module — the lowest is `path_policy.py` at 92.42%, followed by `git_diff/` at 
 with connected changes, and `selection.py`, added with test selection. `schema_diff/`, added with
 API schemas and reading configuration files too, is at 98.91%, and `mcp_server.py`, added on
 2026-10-05, at 98.21%.
-`ast_diff/` is at 97.76%, up from 97.64%. Its comparison is extended by 0.16.0, 0.17.0, 0.19.0,
-0.20.0, 0.21.0, 0.25.1, and 0.26.0, and its extraction by 0.23.0, 0.24.0, and 0.26.0. It rose
-because tests take every branch of 0.26.0's records: what each assignment's schemas describe, what a
-module's `__all__` lists, and which methods only declare. `obligations.py`, which 0.19.0 writes from
-evidence and 0.26.0 keys by file, is at 98.61%. `evidence_scenarios.py`, new in 0.19.0 and outside
-the critical set, is at 100%. So is `service.py`, where 0.25.0 joins an unknown finding to a named
-one and 0.26.0 a declaration to its implementation. `renderer.py`, where 0.26.1 shows the findings
-of one symbol that share their obligations as one card, is at 97.32%, up from 96.51%.
+`ast_diff/` is at 97.77%, up from 97.76%. Its comparison is extended by 0.16.0, 0.17.0, 0.19.0,
+0.20.0, 0.21.0, 0.25.1, 0.26.0, and 0.26.3, and its extraction by 0.23.0, 0.24.0, 0.26.0, and
+0.26.3. It rose because tests take every branch of 0.26.3's reading of a signature that gained
+optional parameters, as they did of 0.26.0's records: what each assignment's schemas describe, what
+a module's `__all__` lists, and which methods only declare. `obligations.py`, which 0.19.0 writes
+from evidence and 0.26.0 keys by file, is at 98.61%. `evidence_scenarios.py`, new in 0.19.0 and
+outside the critical set, is at 100%. So is `service.py`, where 0.25.0 joins an unknown finding to
+a named one and 0.26.0 a declaration to its implementation. `renderer.py`, where 0.26.1 shows the
+findings of one symbol that share their obligations as one card, is at 97.32%, up from 96.51%.
 The suite ran with no `ANTHROPIC_API_KEY` in the environment: no live LLM call or credential was
 used, and none is required.
 
