@@ -277,6 +277,41 @@ def test_a_signature_change_of_typing_alone_says_so() -> None:
     assert candidate.assumptions
 
 
+@pytest.mark.parametrize(
+    ("added", "summary", "impact"),
+    [
+        (
+            ["consumed"],
+            "A callable gained an optional parameter.",
+            "Callers that omit it should get what they got before; passing it may take a new path.",
+        ),
+        (
+            ["job_class", "queue_class"],
+            "A callable gained optional parameters.",
+            "Callers that omit them should get what they got before; passing one may take a new "
+            "path.",
+        ),
+    ],
+)
+def test_an_added_optional_parameter_is_no_changed_default(
+    added: list[str], summary: str, impact: str
+) -> None:
+    """meal-manager's pull requests 54 and 55: each read as a changed default where none changed."""
+    change = StructuralDelta(
+        **{
+            **delta("signature_change", "(self, name)", "(self, name, consumed=None)").__dict__,
+            "metadata": {"default_changed": True, "optional_added": added},
+        }
+    )
+    [candidate] = build_candidates([change])
+    # What callers get by omitting it is still the default behavior to test, as the benchmark's
+    # labels have it, but the finding says what happened.
+    assert candidate.category is BehaviorCategory.DEFAULT_BEHAVIOR
+    assert candidate.summary == summary
+    assert candidate.observable_impact == impact
+    assert candidate.rule_ids == ("SDW-RULE-DEFAULT-ADDED",)
+
+
 def _typing_only_signature() -> StructuralDelta:
     return StructuralDelta(
         **{

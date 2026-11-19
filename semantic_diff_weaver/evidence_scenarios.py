@@ -238,6 +238,8 @@ class Change:
     added_total: int = 0
     # Each parameter whose default changed: its name, and its default before and after, if any.
     defaults: tuple[tuple[str, str | None, str | None], ...] = ()
+    # The parameters the signature gained, when a caller may omit each and no old default changed.
+    optional_added: tuple[str, ...] = ()
     # Whether only the signature's annotations changed, so callers pass what they passed.
     annotations_only: bool = False
     # Whether a changed comparison or condition compares a boundary.
@@ -344,6 +346,7 @@ def describe_change(delta: StructuralDelta) -> Change | None:
         removed_total=_count(metadata.get("removed_total"), len(removed)),
         added_total=_count(metadata.get("added_total"), len(added)),
         defaults=_defaults(delta) if defaults_changed else (),
+        optional_added=_strings(metadata.get("optional_added")) if defaults_changed else (),
         annotations_only=bool(metadata.get("annotations_only")),
         boundary=delta.kind in {"comparison_change", "condition_change"}
         and has_boundary_comparison(delta),
@@ -736,7 +739,13 @@ def _default_scenarios(found: _Finding) -> tuple[Scenario, ...]:
     parameter, subject = _quote(name), found.subject
     others = len(found.change.defaults) - 1
     also = f"; {others} more parameter default(s) changed too" if others else ""
-    if before is not None and after is not None:
+    if name in found.change.optional_added:
+        # A parameter the callable gained, not a default it changed: the calls made before it
+        # existed omit it, and should get what they got then.
+        also = f"; {others} more optional parameter(s) added too" if others else ""
+        given = f"{parameter} is omitted, as every call written before it was added does"
+        then = f"The result is the one {subject} gave before {parameter} was added"
+    elif before is not None and after is not None:
         old, new = _quote_pair(before, after)
         given = f"{parameter} is omitted, so its new default {new} applies where {old} did"
         then = f"The result is the one the default {new} gives, not {old}"

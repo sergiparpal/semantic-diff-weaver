@@ -2057,6 +2057,19 @@ class FeatureVisitor(ast.NodeVisitor):
         self.generic_visit(node)
 
 
+def parameter_kinds(node: ast.FunctionDef | ast.AsyncFunctionDef) -> tuple[tuple[str, str], ...]:
+    """Each parameter in order, with how a caller passes it."""
+    arguments = node.args
+    kinds = [(item.arg, "positional_only") for item in arguments.posonlyargs]
+    kinds += [(item.arg, "positional") for item in arguments.args]
+    if arguments.vararg:
+        kinds.append((arguments.vararg.arg, "var_positional"))
+    kinds += [(item.arg, "keyword_only") for item in arguments.kwonlyargs]
+    if arguments.kwarg:
+        kinds.append((arguments.kwarg.arg, "var_keyword"))
+    return tuple(kinds)
+
+
 def default_map(node: ast.FunctionDef | ast.AsyncFunctionDef) -> dict[str, str]:
     positional = [*node.args.posonlyargs, *node.args.args]
     result: dict[str, str] = {}
@@ -2138,9 +2151,11 @@ def snapshot_symbol(
     exits_total = 0
     definitions: tuple[LocalDefinition, ...] = ()
     exports: tuple[str, ...] = ()
+    kinds: tuple[tuple[str, str], ...] | None = None
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
         signature = function_signature(node)
         parameters = function_parameters(node)
+        kinds = parameter_kinds(node)
         defaults = default_map(node)
         decorators = tuple(decorator_name(item) for item in node.decorator_list)
         display = signature
@@ -2205,6 +2220,7 @@ def snapshot_symbol(
         docstring_only=not body_without_docstring(body),
         display=display,
         parameters=parameters,
+        parameter_kinds=kinds,
         # Only a body that raises can have a message to blank.
         fingerprint_without_messages=(
             fingerprint_without_messages(body, fingerprint)

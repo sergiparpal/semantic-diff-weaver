@@ -850,6 +850,41 @@ def only_constants_changed(old: SymbolSnapshot, new: SymbolSnapshot) -> bool:
     )
 
 
+_POSITIONAL_KINDS = frozenset({"positional_only", "positional"})
+_VARIADIC_KINDS = frozenset({"var_positional", "var_keyword"})
+
+
+def optional_additions(old: SymbolSnapshot, new: SymbolSnapshot) -> tuple[str, ...]:
+    """The parameters a signature gained, when a caller may omit every one and calls made before
+    still bind as they did; empty otherwise.
+
+    Each added parameter has a default or gathers extra arguments. No parameter is removed or
+    changes kind, positional ones are only appended, and none while the old signature gathered
+    extra positional arguments, which the new one would now take. No old parameter's default
+    changes, appears, or goes: that is a changed default. A side that does not record its
+    parameters gains none.
+    """
+    if old.parameter_kinds is None or new.parameter_kinds is None:
+        return ()
+    before, after = dict(old.parameter_kinds), dict(new.parameter_kinds)
+    added = [(name, kind) for name, kind in new.parameter_kinds if name not in before]
+    old_positional = [name for name, kind in old.parameter_kinds if kind in _POSITIONAL_KINDS]
+    new_positional = [name for name, kind in new.parameter_kinds if kind in _POSITIONAL_KINDS]
+    keeps_binding = (
+        all(after.get(name) == kind for name, kind in old.parameter_kinds)
+        and new_positional[: len(old_positional)] == old_positional
+        and not (
+            "var_positional" in before.values()
+            and any(kind in _POSITIONAL_KINDS for _, kind in added)
+        )
+    )
+    omittable = all(kind in _VARIADIC_KINDS or name in new.default_map for name, kind in added)
+    same_defaults = all(old.default_map.get(name) == new.default_map.get(name) for name in before)
+    if not (added and keeps_binding and omittable and same_defaults):
+        return ()
+    return tuple(name for name, _ in added)
+
+
 def _refactor_without_behavior(
     path: str, old: SymbolSnapshot, new: SymbolSnapshot, hunk_id: str | None
 ) -> StructuralDelta | None:
@@ -1080,6 +1115,9 @@ def compare_symbol(
                 default_changed=old.default_map != new.default_map,
                 old_defaults=old.default_map,
                 new_defaults=new.default_map,
+                # A parameter a caller may omit, added beside the old ones, changes no default
+                # the old calls relied on: what they got is what omitting it should still give.
+                optional_added=list(optional_additions(old, new)),
                 # Only annotations, the return annotation, or type parameters differ: callers
                 # pass what they passed before.
                 annotations_only=old.parameters is not None and old.parameters == new.parameters,

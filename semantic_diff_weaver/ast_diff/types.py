@@ -118,6 +118,10 @@ class SymbolSnapshot:
     # A callable's signature without its typing: what a caller passes. None for a class, a module,
     # or a snapshot built without it, whose signature changes are never read as typing alone.
     parameters: str | None = None
+    # A callable's parameters in order, each name and how a caller passes it: `positional_only`,
+    # `positional`, `var_positional`, `keyword_only`, or `var_keyword`. None for a class, a module,
+    # or a snapshot built without them, whose signature never reads as gaining optional parameters.
+    parameter_kinds: tuple[tuple[str, str], ...] | None = None
     # The fingerprint with the prose of the exceptions its body raises blanked: equal to another's
     # while the fingerprints differ, the two differ only in how a message is worded. None for a
     # snapshot built without it, which is never read as reworded.

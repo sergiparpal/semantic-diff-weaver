@@ -1285,6 +1285,49 @@ baseline comparison, and every benchmark measure stay as they were.
   - push 07624f4's `main` and `transcripts`;
   - meal-manager's `src/__init__.py`, `_keep_unreadable`, and `JsonHistoryRepository.append_event`.
 
+## Output-affecting corrections (2026-11-19, an added optional parameter)
+
+A signature whose defaults differ was read as a changed default, `SDW-RULE-DEFAULT`, whatever made
+them differ, and a parameter added with a default makes them differ too. The finding then said that
+"a callable default argument appears to have changed", and that callers omitting the argument "may
+now observe a different result or path". Its obligation said the parameter "is omitted, which its
+new default allows", and asked for the result that default gives. In the Action's field test, the
+reviewer judged three such findings in meal-manager's pull requests 54 and 55 useful, on
+`atomic_write_json`, `JsonHistoryRepository._save`, and `JsonHistoryRepository.append_event`. Each
+note called the label imprecise: an optional parameter was added, and no existing default changed.
+The test the notes asked for was the old behavior: a call that omits `target_damaged`, `damaged`,
+or `consumed` does what it did.
+
+**The correction.** Extraction now records each callable's parameters in order, with how a caller
+passes each. Comparison names the parameters a signature gained when a caller may omit every one
+and the calls made before still bind as they did:
+- each added parameter has a default or gathers extra arguments;
+- no parameter is removed or changes kind;
+- positional parameters are only appended, and never while the old signature gathered extra
+  positional arguments, which the new one would now take;
+- no old parameter's default changes, appears, or goes.
+
+Such a finding, `SDW-RULE-DEFAULT-ADDED`, says that "a callable gained an optional parameter", and
+that callers omitting it should get what they got before. Its obligation asks for the result the
+callable gave before the parameter was added. A default that changed, a parameter that existed and
+gained a default, and an added parameter every caller must pass keep their wording.
+
+**Why the category stays.** It stays `default_behavior_change`. On the development cases, four
+findings are of signatures that only gained optional parameters. The labels expect
+`default_behavior_change` on two of those symbols, rq#2566's `RQScheduler.__init__` and
+authlib#1026's `OAuth2Client.__init__`, and `output_contract_change` on one,
+django-oauth-toolkit#1931's `_login_required_response`. They expect neither on marshmallow#2799's
+`Field.__init__`. Reading the four as output contract changes, as other signature changes are read,
+would trade two right categories for one.
+
+**Measured.**
+- **Development cases.** On the 180 development cases, every measure is unchanged, and so are the
+  467 findings and 455 obligations in number. Exactly the four findings above change, in their
+  summary, impact, and obligation.
+- **Field replay.** In meal-manager's pull requests 54 and 55, exactly the three judged findings
+  change, in their summary, impact, and obligation. Their category, confidence, and risk are
+  unchanged, and so is everything else in both analyses.
+
 ## Output-affecting corrections (2026-11-13, a nested function's obligations)
 
 `SDW-RULE-NESTED` gives a function whose own code reads the same, and whose body changed only as the

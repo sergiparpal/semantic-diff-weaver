@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+- **Findings:** a callable that gained a parameter its callers may omit no longer reads as a changed
+  default. A parameter added with a default made the signature's defaults differ, so the finding
+  said a default argument had changed, and its obligation asked what the parameter's "new default"
+  gives. In the Action's field test, the reviewer judged three such findings in meal-manager's pull
+  requests 54 and 55 useful, and called each one's label imprecise: no existing default changed,
+  and the test to write was that omitting the parameter keeps the old behavior.
+  - **The wording.** The finding now says the callable gained an optional parameter, and that
+    callers omitting it should get what they got before. Its obligation asks for the result the
+    callable gave before the parameter was added.
+  - **When.** Every added parameter has a default or gathers extra arguments, and the calls made
+    before still bind as they did. A changed default, a parameter that gained one, and an added
+    parameter every caller must pass keep their wording.
+  - **The category** stays `default_behavior_change`, which the benchmark's labels expect on two
+    of the four development cases' symbols that gain optional parameters.
+  - **Measured.** On the 180 development cases, every measure is unchanged, and so are the number
+    of findings and of obligations; those four findings are worded anew. Schema 1.5 and every
+    golden are unchanged.
+
+  See `docs/decisions.md`, 2026-11-19, an added optional parameter.
+
 ## 0.26.2 - 2026-11-19
 
 One correction to what a model's claims support. With a model, a model's claim that a change is a
