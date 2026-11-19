@@ -13,7 +13,11 @@ import pytest
 
 from semantic_diff_weaver.ast_diff import limits
 from semantic_diff_weaver.ast_diff.analyze import _drop_redundant_module_deltas, analyze_ast
-from semantic_diff_weaver.ast_diff.compare import compare_symbol, make_structural_delta
+from semantic_diff_weaver.ast_diff.compare import (
+    compare_symbol,
+    make_structural_delta,
+    optional_additions,
+)
 from semantic_diff_weaver.ast_diff.extract import (
     AstResourceLimit,
     body_without_docstring,
@@ -454,3 +458,54 @@ def test_changed_lines_read_only_a_revision_that_exists(
     )
     # Lines past the end of the text are ignored, as a hunk of a shorter revision would be.
     assert _changed_lines(text, [(2, 5)], symbol, [symbol]) == expected
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "added"),
+    [
+        # meal-manager's pull request 55: a keyword-only parameter with a default.
+        (
+            "def f(name, *, backfilled=False): pass",
+            "def f(name, *, backfilled=False, consumed=None): pass",
+            ["consumed"],
+        ),
+        # Appended after the old positional parameters, and after extra positional arguments.
+        ("def f(a, b=1): pass", "def f(a, b=1, c=2): pass", ["c"]),
+        ("def f(a, *args): pass", "def f(a, *args, flag=False): pass", ["flag"]),
+        # Extra arguments, which a caller may omit too.
+        ("def f(a): pass", "def f(a, c=None, **options): pass", ["c", "options"]),
+        # A default of an old parameter changed, appeared, or went: a changed default.
+        ("def f(a, b=1): pass", "def f(a, b=2, c=3): pass", []),
+        ("def f(a): pass", "def f(a=1): pass", []),
+        ("def f(a, b=1): pass", "def f(a, b, c=1): pass", []),
+        # A parameter every caller must now pass.
+        ("def f(a): pass", "def f(a, b, c=1): pass", []),
+        # Old calls would bind differently: inserted before an old positional parameter, taking
+        # what extra positional arguments took, or an old parameter gone or of another kind.
+        ("def f(a, b=2): pass", "def f(a, x=0, b=2): pass", []),
+        ("def f(a, *args): pass", "def f(a, b=1, *args): pass", []),
+        ("def f(a, b=2): pass", "def f(a, c=3): pass", []),
+        ("def f(a, b=2): pass", "def f(a, *, b=2, c=3): pass", []),
+    ],
+)
+def test_a_signature_gains_optional_parameters_only_when_old_calls_bind_as_they_did(
+    old: str, new: str, added: list[str]
+) -> None:
+    (delta,) = [
+        item
+        for item in _deltas(
+            old.replace(": pass", ":\n    pass\n"), new.replace(": pass", ":\n    pass\n")
+        ).values()
+        if item.kind == "signature_change"
+    ]
+    assert delta.metadata["optional_added"] == added
+
+
+def test_a_snapshot_without_its_parameters_gains_none() -> None:
+    old, new = (
+        {item.qualified_name: item for item in extract_symbols(source)}["f"]
+        for source in ("def f(a):\n    pass\n", "def f(a, b=1):\n    pass\n")
+    )
+    assert optional_additions(old, new) == ("b",)
+    assert optional_additions(replace(old, parameter_kinds=None), new) == ()
+    assert optional_additions(old, replace(new, parameter_kinds=None)) == ()

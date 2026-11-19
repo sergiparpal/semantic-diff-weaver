@@ -225,6 +225,26 @@ def _classify_signature(
 ) -> Classification | None:
     if delta.kind != "signature_change":
         return None
+    if delta.metadata.get("default_changed") and delta.metadata.get("optional_added"):
+        # No default the old calls relied on changed: the callable gained parameters a caller may
+        # omit, and omitting them should give what it gave before. Read as a changed default, the
+        # finding said a default had changed, and its obligation asked what the "new default"
+        # gives (docs/decisions.md, 2026-11-19, an added optional parameter).
+        several = len(delta.metadata["optional_added"]) > 1
+        return (
+            BehaviorCategory.DEFAULT_BEHAVIOR,
+            "A callable gained optional parameters."
+            if several
+            else "A callable gained an optional parameter.",
+            "Callers that omit them should get what they got before; passing one may take a new "
+            "path."
+            if several
+            else "Callers that omit it should get what they got before; passing it may take a new "
+            "path.",
+            0.94,
+            [],
+            "SDW-RULE-DEFAULT-ADDED",
+        )
     if delta.metadata.get("default_changed"):
         return (
             BehaviorCategory.DEFAULT_BEHAVIOR,

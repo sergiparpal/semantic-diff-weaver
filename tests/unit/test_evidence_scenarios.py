@@ -118,6 +118,42 @@ def test_a_default_that_did_not_exist_has_no_former_value_to_pass() -> None:
     assert omitted.given == "`limit` is omitted, which its new default `3` allows"
 
 
+def test_an_added_optional_parameter_asks_for_what_the_call_gave_before() -> None:
+    """meal-manager's pull request 54: `atomic_write_json` gained `target_damaged=False`, and the
+    obligation asked what its "new default" gives, where the reviewer wanted the old behavior."""
+    (omitted,) = _scenarios(
+        "def run(path, *, keep=True):\n    return path\n",
+        "def run(path, *, keep=True, damaged=False):\n    return path\n",
+        BehaviorCategory.DEFAULT_BEHAVIOR,
+    )
+    assert omitted.title == "Verify omitted-input behavior of `run` without `damaged`"
+    assert omitted.given == "`damaged` is omitted, as every call written before it was added does"
+    assert omitted.then == "The result is the one `run` gave before `damaged` was added"
+    assert omitted.type is ObligationType.REGRESSION
+
+
+def test_several_added_optional_parameters_name_the_first_and_count_the_rest() -> None:
+    (omitted,) = _scenarios(
+        "def run(a, *args):\n    return a\n",
+        "def run(a, *args, flag=False, mode=None):\n    return a\n",
+        BehaviorCategory.DEFAULT_BEHAVIOR,
+    )
+    assert omitted.given == (
+        "`flag` is omitted, as every call written before it was added does; 1 more optional "
+        "parameter(s) added too"
+    )
+
+
+def test_a_parameter_inserted_before_an_old_one_still_reads_as_a_new_default() -> None:
+    """A positional call that reached `b` now reaches `x`, so the old calls do not bind as they did."""
+    (omitted,) = _scenarios(
+        "def run(a, b=2):\n    return a\n",
+        "def run(a, x=0, b=2):\n    return a\n",
+        BehaviorCategory.DEFAULT_BEHAVIOR,
+    )
+    assert omitted.given == "`x` is omitted, which its new default `0` allows"
+
+
 def test_a_removed_default_now_makes_the_omitted_argument_fail() -> None:
     omitted, explicit = _scenarios(
         "def run(limit=3):\n    return limit\n",
