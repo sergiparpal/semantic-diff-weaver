@@ -541,15 +541,91 @@ def _changed_assignment_targets(old: SymbolSnapshot, new: SymbolSnapshot) -> lis
     return _changed_names(old, new, lambda snapshot: snapshot.assigned)
 
 
+def _changed_assignments(
+    snapshot: SymbolSnapshot, other: SymbolSnapshot
+) -> list[tuple[frozenset[str], tuple[str, tuple[str, ...]]]]:
+    """The assignments of `snapshot` that `other` does not hold as many times: the variables each
+    writes, and what the schemas in its value describe (see `extract.described_value`). None for a
+    snapshot built without those records."""
+    values = snapshot.features["assignments"]
+    if not len(values) == len(snapshot.assigned) == len(snapshot.descriptions):
+        return []
+    if len(other.features["assignments"]) != len(other.assigned):
+        return []
+    remaining = Counter(
+        zip((text for text, _ in other.features["assignments"]), other.assigned, strict=True)
+    )
+    changed = []
+    for (text, _), written, described in zip(
+        values, snapshot.assigned, snapshot.descriptions, strict=True
+    ):
+        if remaining[(text, written)]:
+            remaining[(text, written)] -= 1
+        else:
+            changed.append((written, described))
+    return changed
+
+
+def _redescribed_names(
+    old: SymbolSnapshot, new: SymbolSnapshot
+) -> tuple[list[str], list[list[str]]]:
+    """The variables whose one changed assignment on each side differs only in the `description`
+    texts of the schemas its value holds, and those texts that changed, each as `[before, after]`,
+    one side empty for a description added or removed.
+
+    A module that adds a constant beside a tool's redescribed schema is no redescribed body (see
+    `is_redescribed`), while the schema's assignment still differs only in what it describes.
+    """
+    removed, added = _changed_assignments(old, new), _changed_assignments(new, old)
+    names: list[str] = []
+    texts: list[list[str]] = []
+    for name in sorted({name for written, _ in removed for name in written}):
+        before = [described for written, described in removed if name in written]
+        after = [described for written, described in added if name in written]
+        if len(before) != 1 or len(after) != 1 or not before[0][0]:
+            continue
+        if before[0][0] != after[0][0]:
+            continue
+        names.append(name)
+        gone = list((Counter(before[0][1]) - Counter(after[0][1])).elements())
+        came = list((Counter(after[0][1]) - Counter(before[0][1])).elements())
+        for index in range(max(len(gone), len(came))):
+            texts.append(
+                [
+                    gone[index] if index < len(gone) else "",
+                    came[index] if index < len(came) else "",
+                ]
+            )
+    return names, texts
+
+
 def _assignment_metadata(old: SymbolSnapshot, new: SymbolSnapshot) -> dict[str, Any]:
     """What the changed assignments write, for the category rules: the variables, the last name
-    each target writes, and whether any sets an attribute or an item of `self` or `cls`."""
+    each target writes, and whether any sets an attribute or an item of `self` or `cls`. And, for
+    the obligations of a module's: the variables whose values were only redescribed, those no
+    assignment of the old side wrote, and the names `__all__` gained or lost."""
     metadata: dict[str, Any] = {
         "assigned_names": _changed_assignment_targets(old, new),
         "stored_names": _changed_names(old, new, lambda snapshot: snapshot.stored),
     }
     if any(_changed_writes(old, new, lambda snapshot: snapshot.on_instance)):
         metadata["writes_instance"] = True
+    described, texts = _redescribed_names(old, new)
+    if described:
+        metadata["described_names"] = described
+        metadata["described_texts"] = texts[:MAX_CHANGED_VALUES]
+        metadata["described_total"] = len(texts)
+    written_before = {name for names in old.assigned for name in names}
+    added_names = [name for name in metadata["assigned_names"] if name not in written_before]
+    if added_names:
+        metadata["added_names"] = added_names
+    if old.exports != new.exports:
+        for side, names in (
+            ("added", sorted(set(new.exports) - set(old.exports))),
+            ("removed", sorted(set(old.exports) - set(new.exports))),
+        ):
+            metadata[f"exports_{side}"] = names[:MAX_CHANGED_VALUES]
+            metadata[f"exports_{side}_total"] = len(names)
     return metadata
 
 

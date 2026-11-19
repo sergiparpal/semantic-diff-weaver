@@ -425,21 +425,54 @@ def is_schema(node: ast.Dict) -> bool:
     return False
 
 
-def description_literals(statement: ast.AST) -> list[ast.Constant]:
-    """The `description` texts of the schemas a statement holds, each a string literal.
+def description_values(statement: ast.AST) -> list[ast.Constant | ast.JoinedStr]:
+    """The `description` values of the schemas a statement holds: each a string literal, or an
+    f-string, whose literal parts are prose and whose interpolated values are code.
 
     A tool's schema, `{"description": "Empty the fridge…", "type": "object", ...}`, tells an agent
     what the tool does and when to call it, and the descriptions of its properties what to pass.
     A validator reads none of them.
     """
-    literals: list[ast.Constant] = []
+    values: list[ast.Constant | ast.JoinedStr] = []
     for node in ast.walk(statement):
         if not isinstance(node, ast.Dict) or not is_schema(node):
             continue
         for key, value in zip(node.keys, node.values, strict=True):
-            if _text(key) == "description" and isinstance(value, ast.Constant) and _text(value):
-                literals.append(value)
+            if _text(key) != "description":
+                continue
+            if (isinstance(value, ast.Constant) and _text(value)) or isinstance(
+                value, ast.JoinedStr
+            ):
+                values.append(value)
+    return values
+
+
+def description_literals(statement: ast.AST) -> list[ast.Constant]:
+    """The prose of the `description` values of the schemas a statement holds: each string
+    literal, and each literal part of an f-string (see `description_values`)."""
+    literals: list[ast.Constant] = []
+    for value in description_values(statement):
+        if isinstance(value, ast.Constant):
+            literals.append(value)
+            continue
+        literals.extend(
+            part
+            for part in value.values
+            if isinstance(part, ast.Constant) and isinstance(part.value, str) and part.value
+        )
     return literals
+
+
+def description_text(value: ast.Constant | ast.JoinedStr) -> str:
+    """A `description` value as an agent reads it: an f-string's interpolated values in braces."""
+    if isinstance(value, ast.Constant):
+        return str(value.value)
+    return "".join(
+        str(part.value)
+        if isinstance(part, ast.Constant)
+        else f"{{{unparse_redacted(getattr(part, 'value', None), 100)}}}"
+        for part in value.values
+    )
 
 
 def fingerprint_without_descriptions(body: list[ast.stmt], fingerprint: str) -> str:
@@ -465,6 +498,35 @@ def fingerprint_without_descriptions(body: list[ast.stmt], fingerprint: str) -> 
     finally:
         for literal, text in zip(literals, wording, strict=True):
             literal.value = text
+
+
+def described_value(value: ast.expr | None) -> tuple[str, tuple[str, ...]]:
+    """What the schemas an assigned value holds describe: a digest of the value with their
+    `description` texts blanked, and those texts, redacted and bounded. Empty for a value that
+    holds no description.
+
+    Two assignments of one name with the same digest differ at most in how their schemas describe
+    a tool or its properties, as two bodies do with the same `fingerprint_without_descriptions`. A
+    module that adds a constant beside a tool's redescribed schema is no redescribed body, while
+    its schema's assignment is still a redescribed value.
+    """
+    literals = description_literals(value) if value is not None else []
+    if value is None or not literals:
+        return "", ()
+    texts = tuple(
+        redact_text(description_text(item), max_chars=limits.MAX_DESCRIPTION_CHARS)
+        for item in description_values(value)[: limits.MAX_ASSIGNED_DESCRIPTIONS]
+    )
+    # Blanked in place for one dump and restored, as `fingerprint_without_descriptions` does.
+    wording = [literal.value for literal in literals]
+    try:
+        for literal in literals:
+            literal.value = ""
+        dump = ast.dump(value, include_attributes=False)
+    finally:
+        for literal, text in zip(literals, wording, strict=True):
+            literal.value = text
+    return hashlib.sha256(dump.encode("utf-8")).hexdigest(), texts
 
 
 TYPING_MODULES = frozenset({"typing", "typing_extensions"})
@@ -1715,6 +1777,18 @@ def _listed_in_all(node: ast.Assign | ast.AugAssign | ast.AnnAssign | ast.Call) 
     ]
 
 
+def module_exports(body: list[ast.stmt]) -> tuple[str, ...]:
+    """The names a module's top-level code lists in `__all__`, sorted and bounded: what
+    `import *` binds."""
+    listed: set[str] = set()
+    for statement in body:
+        if isinstance(statement, (ast.Assign, ast.AugAssign, ast.AnnAssign)):
+            listed.update(_listed_in_all(statement))
+        elif isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Call):
+            listed.update(_listed_in_all(statement.value))
+    return tuple(sorted(listed)[: limits.MAX_EXPORTED_NAMES])
+
+
 def file_names(
     tree: ast.AST,
 ) -> tuple[frozenset[str], frozenset[str], dict[str, frozenset[str]]]:
@@ -1817,6 +1891,7 @@ class FeatureVisitor(ast.NodeVisitor):
         self.assigned: list[frozenset[str]] = []
         self.stored: list[frozenset[str]] = []
         self.on_instance: list[bool] = []
+        self.descriptions: list[tuple[str, tuple[str, ...]]] = []
         # The text of each test, returned value, raised exception, and caught type it recorded,
         # by the node's identity, for `function_exits` to reuse rather than unparse again.
         self.texts: dict[int, str] = {}
@@ -1900,7 +1975,9 @@ class FeatureVisitor(ast.NodeVisitor):
         self.statement_order.append(f"return:{unparse_redacted(node.value, 120)}")
         self.generic_visit(node)
 
-    def _record_assignment(self, text: str, lineno: int, *targets: ast.expr) -> None:
+    def _record_assignment(
+        self, text: str, lineno: int, value: ast.expr | None, *targets: ast.expr
+    ) -> None:
         # The probe reads the targets alone: what a value is written to tells state from
         # configuration or data, while a value such as `get_state()` or `RandomState(0)`
         # names state without moving any.
@@ -1909,11 +1986,12 @@ class FeatureVisitor(ast.NodeVisitor):
         self.assigned.append(_assigned_variables(*targets))
         self.stored.append(_stored_names(*targets))
         self.on_instance.append(_writes_on_instance(*targets))
+        self.descriptions.append(described_value(value))
 
     def visit_Assign(self, node: ast.Assign) -> None:
         targets = ", ".join(unparse_redacted(item, 100) for item in node.targets)
         value = unparse_whole(node.value, limits.MAX_ASSIGNED_VALUE_CHARS)
-        self._record_assignment(f"{targets} = {value}", node.lineno, *node.targets)
+        self._record_assignment(f"{targets} = {value}", node.lineno, node.value, *node.targets)
         self.statement_order.append(f"assign:{targets}")
         self.generic_visit(node)
 
@@ -1922,7 +2000,7 @@ class FeatureVisitor(ast.NodeVisitor):
             f"{unparse_redacted(node.target, 100)} = "
             f"{unparse_whole(node.value, limits.MAX_ASSIGNED_VALUE_CHARS)}"
         )
-        self._record_assignment(value, node.lineno, node.target)
+        self._record_assignment(value, node.lineno, node.value, node.target)
         self.statement_order.append(f"assign:{unparse_redacted(node.target, 100)}")
         self.generic_visit(node)
 
@@ -1931,7 +2009,8 @@ class FeatureVisitor(ast.NodeVisitor):
             f"{unparse_redacted(node.target, 100)} {type(node.op).__name__}= "
             f"{unparse_whole(node.value, limits.MAX_ASSIGNED_VALUE_CHARS)}"
         )
-        self._record_assignment(value, node.lineno, node.target)
+        # An update in place is never read as a value redescribed: it adds to what was there.
+        self._record_assignment(value, node.lineno, None, node.target)
         self.statement_order.append(f"assign:{unparse_redacted(node.target, 100)}")
         self.generic_visit(node)
 
@@ -2058,6 +2137,7 @@ def snapshot_symbol(
     exits: tuple[FunctionExit, ...] = ()
     exits_total = 0
     definitions: tuple[LocalDefinition, ...] = ()
+    exports: tuple[str, ...] = ()
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
         signature = function_signature(node)
         parameters = function_parameters(node)
@@ -2088,6 +2168,7 @@ def snapshot_symbol(
         defaults = {}
         decorators = ()
         display = module_display(body)
+        exports = module_exports(body)
         imports, others = top_level_imports(body)
         without_imports = body_fingerprint(others)
         if typing is not None:
@@ -2116,6 +2197,8 @@ def snapshot_symbol(
         assigned=tuple(visitor.assigned),
         stored=tuple(visitor.stored),
         on_instance=tuple(visitor.on_instance),
+        descriptions=tuple(visitor.descriptions),
+        exports=exports,
         exits=exits,
         exits_total=exits_total,
         definitions=definitions,

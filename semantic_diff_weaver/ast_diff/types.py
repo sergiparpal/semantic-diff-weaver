@@ -96,6 +96,13 @@ class SymbolSnapshot:
     # Per assignment, in the same order, whether it sets an attribute or an item of `self` or
     # `cls`: what a method keeps on its instance or class for later calls to read.
     on_instance: tuple[bool, ...] = ()
+    # Per assignment, in the same order, what the schemas its value holds describe: a digest of
+    # the value with their `description` texts blanked, and those texts (see
+    # `extract.described_value`). Empty for a value that holds no description.
+    descriptions: tuple[tuple[str, tuple[str, ...]], ...] = ()
+    # A module's names its `__all__` lists, sorted: what `import *` binds. Empty for any other
+    # symbol, or a module whose top-level code lists none.
+    exports: tuple[str, ...] = ()
     # Whether its body holds nothing but a docstring, or nothing at all. A module's body is its
     # top-level code without its definitions, which are symbols of their own.
     docstring_only: bool = False

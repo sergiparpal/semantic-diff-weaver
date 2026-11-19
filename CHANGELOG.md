@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+- **Obligations:** a module's changed top-level names are judged each on its own. A module-level
+  finding's obligation bundled every name its changed assignments write with every reader of any
+  of them. In meal-manager#52 and #54, four tools' `SCHEMA`s changed only their descriptions,
+  telling the agent what to say, beside a new `DAMAGED_WARNING` constant. So no module read as
+  redescribed, and each obligation asked what `HANDLER` does with both: the agent's dialog, the test
+  to write, went unasked, and `HANDLER`'s own findings already said what it does with the warning.
+  Now:
+  - a name whose value changed only in its schemas' `description` texts takes the dialog
+    obligation, even beside other changes, and the obligation quotes the text that changed. An
+    f-string description's prose counts as such text, while what it interpolates is code.
+  - a changed `__all__` asks what a star import binds, naming the names it gained or lost.
+  - a name the module adds, read only by code with findings of its own, takes no obligation of its
+    own, unless nothing else in the module has one.
+  - the other names name only their own readers, and names no code reads are asked about apart.
+
+  An assignment whose two values read alike as far as they are recorded is said to differ past the
+  part shown, where both sides were quoted the same.
+
+  **Measured.**
+  - On the 180 development cases, no finding, category, evidence text, or benchmark measure
+    changes. 7 of the 455 obligations, in 6 cases, are worded anew:
+    - five changed `__all__`s, in httpx, packaging, and attrs, now name the export each gained;
+    - two long assignments, in stamina and rq, no longer quote the same text on both sides.
+  - No development case changes only a schema's descriptions.
+  - In the field replay, only the eight module-level findings of meal-manager#52, #54, and #55
+    change, through 7 obligations:
+    - five ask for the agent's dialog, quoting the text their descriptions gained;
+    - one asks what a star import of `src/__init__.py` binds;
+    - one names only the `SCHEMA` and its reader.
 - **Obligations:** a bare `raise` no longer reads as raising `None`. It raises again what its
   handler caught, but the analysis recorded its missing exception as `None`, so an obligation said
   that a tool's handler "now also raises `None`". The raise is now recorded as `raise`, among a

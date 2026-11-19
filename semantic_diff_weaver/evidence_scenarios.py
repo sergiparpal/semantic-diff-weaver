@@ -20,6 +20,7 @@ span. The renderer keeps it one, so a repository's text never becomes Markdown o
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
@@ -53,6 +54,9 @@ if TYPE_CHECKING:
 # much of what two long versions of one value share it keeps around where they differ.
 MAX_QUOTE_CHARS = 120
 MAX_QUOTED_VALUES = 2
+# How much of a changed `description` text a scenario quotes around where it changed: the words an
+# agent given the tool is now told, which its test checks it follows.
+MAX_DESCRIPTION_QUOTE_CHARS = 400
 # How many of the things an added callable returns or raises its scenario names.
 MAX_OUTCOMES = 3
 SHARED_CONTEXT_CHARS = 30
@@ -250,6 +254,19 @@ class Change:
     symbol_kind: str | None = None
     # Whether its symbol changed nothing but the `description` texts of the schemas it holds.
     described_only: bool = False
+    # The variables whose changed assignment differs only in those texts, the texts that changed,
+    # each before and after, one side empty for one added or removed, and how many changed.
+    described_names: tuple[str, ...] = ()
+    described_texts: tuple[tuple[str, str], ...] = ()
+    described_total: int = 0
+    # The variables a changed assignment writes that no assignment of the old side wrote.
+    added_names: tuple[str, ...] = ()
+    # The names a module's `__all__` gained and lost, at most `MAX_CHANGED_VALUES` of each, and
+    # how many.
+    exports_added: tuple[str, ...] = ()
+    exports_removed: tuple[str, ...] = ()
+    exports_added_total: int = 0
+    exports_removed_total: int = 0
     # An added callable's exits, as `ast_diff` records them: each a kind, `return` or `raise`, the
     # value, and the conditions on the path leading there, each a word and a test; and how many
     # it has.
@@ -332,9 +349,31 @@ def describe_change(delta: StructuralDelta) -> Change | None:
         assigned_names=_strings(metadata.get("assigned_names")),
         symbol_kind=delta.symbol_kind,
         described_only=bool(metadata.get("described_only")),
+        described_names=_strings(metadata.get("described_names")),
+        described_texts=(texts := _text_pairs(metadata.get("described_texts"))),
+        described_total=_count(metadata.get("described_total"), len(texts)),
+        added_names=_strings(metadata.get("added_names")),
+        exports_added=(gained := _strings(metadata.get("exports_added"))),
+        exports_removed=(lost := _strings(metadata.get("exports_removed"))),
+        exports_added_total=_count(metadata.get("exports_added_total"), len(gained)),
+        exports_removed_total=_count(metadata.get("exports_removed_total"), len(lost)),
         exits=(exits := _exits(metadata.get("exits"))),
         exits_total=_count(metadata.get("exits_total"), len(exits)),
         definitions=_definitions(metadata.get("definitions")),
+    )
+
+
+def _text_pairs(value: object) -> tuple[tuple[str, str], ...]:
+    """The pairs of texts a delta's metadata records, each a before and an after, at least one of
+    them not empty. A pair of anything else is dropped."""
+    if not isinstance(value, (list, tuple)):
+        return ()
+    return tuple(
+        (before, after)
+        for item in value
+        if isinstance(item, (list, tuple)) and len(item) == 2
+        for before, after in [item]
+        if isinstance(before, str) and isinstance(after, str) and (before or after)
     )
 
 
@@ -466,22 +505,22 @@ def _flat(text: str | None) -> str:
     return " ".join((text or "").split())
 
 
-def _quote(text: str | None) -> str:
+def _quote(text: str | None, limit: int = MAX_QUOTE_CHARS) -> str:
     """A fragment of evidence as a code span, its whitespace collapsed and its length bounded."""
     shown = _flat(text)
-    if len(shown) > MAX_QUOTE_CHARS:
-        shown = shown[: MAX_QUOTE_CHARS - 1].rstrip() + "…"
+    if len(shown) > limit:
+        shown = shown[: limit - 1].rstrip() + "…"
     return code_span(shown or "∅")
 
 
-def _quote_pair(before: str, after: str) -> tuple[str, str]:
+def _quote_pair(before: str, after: str, limit: int = MAX_QUOTE_CHARS) -> tuple[str, str]:
     """Two versions of one value, each cut around where they differ when either is too long.
 
     Cut at the end alone, a long `__all__` that gained a name read the same on both sides.
     """
     old, new = _flat(before), _flat(after)
-    if max(len(old), len(new)) <= MAX_QUOTE_CHARS:
-        return _quote(old), _quote(new)
+    if max(len(old), len(new)) <= limit:
+        return _quote(old, limit), _quote(new, limit)
     shortest = min(len(old), len(new))
     prefix = 0
     while prefix < shortest and old[prefix] == new[prefix]:
@@ -496,7 +535,7 @@ def _quote_pair(before: str, after: str) -> tuple[str, str]:
         end = len(text) - kept_suffix
         return f"{'…' if start else ''}{text[start:end]}{'…' if kept_suffix else ''}"
 
-    return _quote(around(old)), _quote(around(new))
+    return _quote(around(old), limit), _quote(around(new), limit)
 
 
 def _series(items: Sequence[str]) -> str:
@@ -599,6 +638,13 @@ def _what_changed(subject: str, evidence: Evidence, change: Change) -> str:
         and change.added
         and BARE_RAISE not in (change.removed[0], change.added[0])
     ):
+        if _flat(change.removed[0]) == _flat(change.added[0]):
+            # Each side is recorded only so far, and the two differ past it: quoted around where
+            # they differ, both read the same.
+            return (
+                f"{subject} now {verb.now} {_quote(change.added[0])} (it differs from what it "
+                f"{verb.before} only past the part shown)"
+            )
         removed, added = _quote_pair(change.removed[0], change.added[0])
     else:
         added = named(change.added, change.added_total)
@@ -652,6 +698,10 @@ class _Finding:
     readers: tuple[str, ...] = ()
     # The symbols whose code calls an added symbol.
     callers: tuple[str, ...] = ()
+    # Each module-level variable a changed assignment writes, with the symbols whose code reads
+    # it; and those of them the module adds whose readers' findings say how they read them.
+    read_by: tuple[tuple[str, tuple[str, ...]], ...] = ()
+    covered: tuple[str, ...] = ()
 
     @property
     def runs(self) -> str:
@@ -1390,30 +1440,156 @@ def _unnamed_scenario(found: _Finding) -> Scenario:
     )
 
 
-def _described_scenario(found: _Finding) -> Scenario:
+def _described_scenario(found: _Finding, names: Sequence[str] = ()) -> Scenario:
     """What an agent does with a tool whose schema changed only how it describes the tool.
 
     No code computes with a description, so asserting what the tool's handler returns tests what
     it returned before: the schema's agent reads the new text before it calls the tool, and what
-    it then tells the user, waits for, and calls is what changed.
+    it then tells the user, waits for, and calls is what changed. The scenario quotes the text
+    that changed, around where it changed, which is what the test checks the agent follows.
     """
-    names = found.change.assigned_names
+    names = tuple(names) or found.change.assigned_names
     described = _quotes(names, len(names)) if names else found.subject
     return found.scenario(
         ObligationType.INTERACTION,
         f"Check that an agent follows the changed description in {described}",
-        f"{found.changed}: only schema descriptions changed, which an agent given the tool reads "
-        "before it calls it, and no code computes with",
+        f"{_redescribed(found, described)}: only schema descriptions changed, which an agent "
+        "given the tool reads before it calls it, and no code computes with",
         "An agent is given the tool under the new description, with a request the changed text "
         "speaks to",
         "What the agent tells the user, asks before it acts, and calls follows the new text",
     )
 
 
+def _redescribed(found: _Finding, described: str) -> str:
+    """What changed in the descriptions, quoted around where the first changed text changed, or,
+    for a delta that recorded none, the assignments as `_what_changed` says them."""
+    change = found.change
+    if not change.described_texts:
+        return found.changed
+    before, after = change.described_texts[0]
+    if before and after:
+        old, new = _quote_pair(before, after, MAX_DESCRIPTION_QUOTE_CHARS)
+        said = f"a description in {described} now reads {new} where it read {old}"
+    elif after:
+        said = f"{described} gained the description {_quote(after, MAX_DESCRIPTION_QUOTE_CHARS)}"
+    else:
+        said = f"{described} lost the description {_quote(before, MAX_DESCRIPTION_QUOTE_CHARS)}"
+    more = max(change.described_total, len(change.described_texts)) - 1
+    if more:
+        said += f", and {more} more {'description' if more == 1 else 'descriptions'} changed"
+    return f"In {found.subject}, {said}"
+
+
+def _exports_scenario(found: _Finding) -> Scenario:
+    """What a star import of a module binds, now that its `__all__` lists other names."""
+    change = found.change
+    gained = _quotes(change.exports_added, change.exports_added_total)
+    lost = _quotes(change.exports_removed, change.exports_removed_total)
+    if change.exports_added and change.exports_removed:
+        listed = f"`__all__` now lists {gained} where it listed {lost}"
+    elif change.exports_added:
+        listed = f"`__all__` now also lists {gained}"
+    else:
+        listed = f"`__all__` no longer lists {lost}"
+    return found.scenario(
+        ObligationType.REGRESSION,
+        f"Assert the names a star import of {_quote(found.evidence.path)} binds",
+        f"In {found.subject}, {listed}",
+        "Code imports `*` from the module",
+        "It binds each name `__all__` lists, and none it no longer lists",
+    )
+
+
+def _writes_any(value: str, names: Sequence[str]) -> bool:
+    """Whether an assignment, as extraction records it, `a, b = f()` or `x Add= 1`, writes one of
+    `names`: a name its targets, the text before its operator, mention."""
+    target = re.split(r" \w*= ", value, maxsplit=1)[0]
+    return any(word in names for word in re.findall(r"[A-Za-z_]\w*", target))
+
+
+def _narrowed(found: _Finding, names: Sequence[str]) -> _Finding:
+    """The finding as its scenario says it for some of the variables its assignments write: the
+    assignments writing them, and the symbols reading them. Unchanged for all of them."""
+    if tuple(names) == found.change.assigned_names:
+        return found
+    change = found.change
+    added = tuple(value for value in change.added if _writes_any(value, names))
+    removed = tuple(value for value in change.removed if _writes_any(value, names))
+    narrowed = replace(
+        change,
+        added=added,
+        removed=removed,
+        # What the delta did not show stays counted: it may write one of `names`.
+        added_total=len(added) + max(0, change.added_total - len(change.added)),
+        removed_total=len(removed) + max(0, change.removed_total - len(change.removed)),
+        assigned_names=tuple(names),
+    )
+    by_name = dict(found.read_by)
+    readers = (
+        tuple(dict.fromkeys(reader for name in names for reader in by_name.get(name, ())))
+        if found.read_by
+        else found.readers
+    )
+    return replace(
+        found,
+        change=narrowed,
+        changed=_what_changed(found.subject, found.evidence, narrowed),
+        readers=readers,
+    )
+
+
+def _read_apart(
+    names: Sequence[str],
+    read_by: Sequence[tuple[str, tuple[str, ...]]],
+    readers: Sequence[str],
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """The names some code reads, and those none does, by `read_by`, or, without it, all of them
+    in the first when any code reads the module's names at all."""
+    if not read_by:
+        return (tuple(names), ()) if readers else ((), tuple(names))
+    by_name = dict(read_by)
+    return (
+        tuple(name for name in names if by_name.get(name)),
+        tuple(name for name in names if not by_name.get(name)),
+    )
+
+
+def _module_scenarios(found: _Finding) -> tuple[Scenario, ...]:
+    """A module's changed top-level names, each judged on its own (see `module_parts`): a schema
+    only redescribed asks for the agent's dialog, a changed `__all__` for what a star import
+    binds, and the other names, but for those their readers' findings cover, for what their
+    readers do with them. Names no code reads are asked about apart: named beside the others,
+    each read as read by all of their readers."""
+    described, exported, rest = module_parts(found.change, found.covered)
+    read, unread = _read_apart(rest, found.read_by, found.readers)
+    if not (described or exported or read):
+        # Nothing on its own says what to assert: the one scenario for them all, which names
+        # every reader, rather than a link to a call of the top-level code, which runs only as
+        # the module is imported.
+        return (_assignment_scenario(found),)
+    scenarios: list[Scenario] = []
+    if described:
+        scenarios.append(_described_scenario(found, described))
+    if exported:
+        scenarios.append(_exports_scenario(found))
+    for names in (read, unread):
+        if names:
+            scenarios.append(_assignment_scenario(_narrowed(found, names)))
+    return tuple(scenarios)
+
+
 def _scenarios_of(found: _Finding) -> tuple[Scenario, ...]:
     kind, change = found.change.kind, found.change
     if change.described_only:
         return (_described_scenario(found),)
+    if (
+        kind == "assignment_change"
+        and found.category is not BehaviorCategory.STATE_TRANSITION
+        and (found.evidence.symbol or "<module>") == "<module>"
+        and change.assigned_names
+    ):
+        return _module_scenarios(found)
     if kind == "signature_change":
         return _default_scenarios(found) if change.defaults else (_signature_scenario(found),)
     if kind in {"comparison_change", "condition_change"}:
@@ -1504,6 +1680,11 @@ class Context:
     # findings are in its category, in its module: they say what changed, and a test reaches
     # them only through it.
     nested: tuple[str, ...] = ()
+    # Each module-level variable the finding assigns, with the symbols whose code reads it.
+    read_by: tuple[tuple[str, tuple[str, ...]], ...] = ()
+    # The variables the module adds that only symbols with findings of their own read: what those
+    # findings say covers the variable, which their code changed to read.
+    covered: tuple[str, ...] = ()
 
 
 NO_CONTEXT = Context()
@@ -1560,6 +1741,8 @@ def _found(
         relevance=relevance,
         readers=context.readers,
         callers=context.callers,
+        read_by=context.read_by,
+        covered=context.covered,
     )
 
 
@@ -1642,10 +1825,20 @@ def weakly_anchored(
         )
     if change.kind == "assignment_change":
         module = (evidence.symbol or "<module>") == "<module>"
-        readers = (context or NO_CONTEXT).readers
-        return behavior.category is not BehaviorCategory.STATE_TRANSITION and not (
-            module and change.assigned_names and readers
-        )
+        context = context or NO_CONTEXT
+        if behavior.category is BehaviorCategory.STATE_TRANSITION:
+            return False
+        if not (module and change.assigned_names):
+            return True
+        # Each name on its own: a redescribed schema or a changed `__all__` says what to assert,
+        # and a name the module adds says nothing its readers' findings do not.
+        described, exported, rest = module_parts(change, context.covered)
+        read, _ = _read_apart(rest, context.read_by, context.readers)
+        if described or exported or read:
+            return False
+        # Nothing on its own says what to assert, so the one scenario for all its names stands,
+        # and says enough when some code reads them.
+        return not context.readers
     # A private callable added with something to assert keeps its own obligation, which lists
     # it: the code calling it says nothing of what it returns, as the field test's `_blend` did.
     return (
@@ -1684,6 +1877,53 @@ def _readers_of(
     here = {path for path, _ in variables}
     ordered = sorted(nodes, key=lambda node: (node[0] not in here, node[0], node[1]))
     return tuple(dict.fromkeys(qualified for _, qualified in ordered))
+
+
+def _module_assignment(
+    behavior: BehaviorChange, changes: Mapping[str, Change]
+) -> tuple[Evidence, Change] | None:
+    """The finding's first changed assignment of a module's top-level code, if it has one."""
+    for item in behavior.evidence:
+        change = changes.get(item.id)
+        if change is not None and change.kind == "assignment_change":
+            if (item.symbol or "<module>") == "<module>" and change.assigned_names:
+                return item, change
+    return None
+
+
+def _read_by(
+    evidence: Evidence, change: Change, graph: CallGraph
+) -> dict[str, list[tuple[str, str]]]:
+    """Each variable a module's changed assignment writes, with the symbols whose code reads it,
+    as (path, qualified name): those of its own module first, as `_readers_of` orders them."""
+    return {
+        name: sorted(
+            graph.readers(evidence.path, name),
+            key=lambda node: (node[0] != evidence.path, node[0], node[1]),
+        )
+        for name in change.assigned_names
+    }
+
+
+def module_parts(
+    change: Change, covered: Sequence[str]
+) -> tuple[tuple[str, ...], bool, tuple[str, ...]]:
+    """A module's changed top-level names, each judged on its own: those whose values only their
+    schemas' descriptions changed, whether `__all__` changed what it lists, and the rest, but for
+    those added that the findings of their readers cover.
+
+    One scenario for them all named every reader of any of them as reading all of them, and its
+    redescribed schema, which an agent reads, beside a new constant, which a handler returns.
+    """
+    names = change.assigned_names
+    described = tuple(name for name in names if name in change.described_names)
+    exported = "__all__" in names and bool(change.exports_added or change.exports_removed)
+    rest = tuple(
+        name
+        for name in names
+        if name not in described and not (exported and name == "__all__") and name not in covered
+    )
+    return described, exported, rest
 
 
 def contexts_of(
@@ -1733,8 +1973,28 @@ def contexts_of(
                     )
                 )
         nested = _nested_in(behavior, kind, behaviors, nodes)
-        if readers or callers or related or nested:
-            found[behavior.id] = Context(readers, callers, tuple(dict.fromkeys(related)), nested)
+        read_by: tuple[tuple[str, tuple[str, ...]], ...] = ()
+        covered: tuple[str, ...] = ()
+        assignment = _module_assignment(behavior, changes)
+        if assignment is not None and graph is not None:
+            evidence, change = assignment
+            by_name = _read_by(evidence, change, graph)
+            read_by = tuple(
+                (name, tuple(dict.fromkeys(qualified for _, qualified in readers_of_name)))
+                for name, readers_of_name in by_name.items()
+            )
+            # A variable the module adds is read only by code that changed to read it. Where each
+            # such reader has a finding of its own, that finding says what it does with it.
+            others = {node for other, node in nodes.items() if other != behavior.id}
+            covered = tuple(
+                name
+                for name in change.added_names
+                if by_name.get(name) and all(node in others for node in by_name[name])
+            )
+        if readers or callers or related or nested or read_by:
+            found[behavior.id] = Context(
+                readers, callers, tuple(dict.fromkeys(related)), nested, read_by, covered
+            )
     return found
 
 

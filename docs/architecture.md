@@ -85,7 +85,12 @@ cut at 250 characters, and one cut there ends with a digest of all of it, so two
 past the cut still differ. A schema whose `description` texts alone changed, a dict literal with
 JSON Schema's `type` or `properties` or a tool's `parameters`, `input_schema`, or `inputSchema`,
 keeps its category, and its obligation asks what an agent given the tool tells the user and calls
-under the new text: no code computes with a description. Reordered comparisons, assignments, or
+under the new text: no code computes with a description. A module's changed top-level names are
+judged each on its own. A name whose value changed only in those texts, an f-string's prose
+included, takes that obligation even beside other changes, quoting the text that changed. A changed
+`__all__` asks what a star import binds. A name the module adds, read only by code with findings of
+its own, takes none, since those findings say what the code does with it. The rest name only their
+own readers, and names no code reads are asked about apart. Reordered comparisons, assignments, or
 loops change no value and are read
 by their symbol's name; reordered conditions and calls are ordering changes. A changed loop is
 a retry only when its own words, or its symbol's name, say so — `attempt`, `retry`, `timeout`,
