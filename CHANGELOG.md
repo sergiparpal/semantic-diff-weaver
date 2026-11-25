@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- **Tests:** CI tests Hermes v0.23.4, the current release, which came out on 2026-11-24. The
+  `hermes-current` job builds it from its tag, pinned to commit `8fc03744`, with uv 0.13.5, which
+  its installer still pins. It skips v0.23.3, which came out four days earlier. That release moved
+  the install-time scanner, still `plugin-guard-v15`, to `hermes_cli/plugins_install_scan.py`, and
+  its old module forwards to the new one, so `scripts/verify_hermes_install.py` reads it as before.
+  Rehearsed locally first, the plugin installs with the same `caution` verdict, its one high finding
+  in `tests/`, loads with both tools, and passes discovery; the signatures the plugin calls are
+  unchanged. `docs/decisions.md` records the compatibility snapshot.
+
 ## 0.26.3 - 2026-11-19
 
 One correction to a finding's wording, from the Action's field test on meal-manager. A callable

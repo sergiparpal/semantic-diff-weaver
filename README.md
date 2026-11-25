@@ -279,10 +279,10 @@ a separate `hermes plugins enable semantic-diff-weaver`. [`after-install.md`](af
 walks through the first run.
 
 **Expect a `caution` verdict from the install-time scan.** Current Hermes releases (0.22.7, 0.23.0,
-0.23.1, and 0.23.2 are verified) scan every file of the clone before installing it, the test tree
-included, and lower each finding in a test tree by one severity, since test fixtures hold hostile
-strings on purpose. This plugin's security tests do: they prove that a hostile change cannot pass
-for one that changes no behavior, and one of their fixtures, in
+0.23.1, 0.23.2, and 0.23.4 are verified) scan every file of the clone before installing it, the test
+tree included, and lower each finding in a test tree by one severity, since test fixtures hold
+hostile strings on purpose. This plugin's security tests do: they prove that a hostile change cannot
+pass for one that changes no behavior, and one of their fixtures, in
 `tests/security/test_hidden_changes.py`, stays a high finding. A single high finding makes the
 verdict `caution`, which a plugin outside the Hermes catalog needs you to accept. In a terminal
 Hermes lists the findings and asks `Install anyway?`; answer `y` once you have read them. An install
