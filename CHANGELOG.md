@@ -10,6 +10,15 @@
   Rehearsed locally first, the plugin installs with the same `caution` verdict, its one high finding
   in `tests/`, loads with both tools, and passes discovery; the signatures the plugin calls are
   unchanged. `docs/decisions.md` records the compatibility snapshot.
+- **Tests:** two of the Claude Code skill's eval graders failed right answers in the 0.26.3 run, and
+  now pass them.
+  - `uncommitted-edits`: the pattern of `says-it-is-left-out` missed "Not analyzed", and now
+    matches it.
+  - `triggers-in-spanish`: `suggests-testing-five` looked for the call `allowed(5)` and missed a
+    test that names the comparison at the limit, `count == MAX_ITEMS`, which it now matches too.
+
+  On the 20 answers recorded for the two cases, each pattern passes every answer that makes its
+  claim and fails the rest. `docs/evaluation.md` records the run, which cost 2.02 USD.
 
 ## 0.26.3 - 2026-11-19
 

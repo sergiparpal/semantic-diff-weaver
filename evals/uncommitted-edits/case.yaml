@@ -38,7 +38,7 @@ graders:
   - name: says-it-is-left-out
     type: regex
     flags: i
-    pattern: 'not (?:included|in the analysis|part of)|(?:isn|wasn).t (?:included|in the analysis|part of (?:it|the analysis)|analy[sz]ed)|left (?:it )?out|only (?:covers|reads|analy[sz]es|looks at|sees) commit|(?:tool|analysis) (?:doesn.t|does not|didn.t|can.t|cannot) (?:see|cover|include|look at|read)'
+    pattern: 'not (?:included|in the analysis|part of|analy[sz]ed)|(?:isn|wasn).t (?:included|in the analysis|part of (?:it|the analysis)|analy[sz]ed)|left (?:it )?out|only (?:covers|reads|analy[sz]es|looks at|sees) commit|(?:tool|analysis) (?:doesn.t|does not|didn.t|can.t|cannot) (?:see|cover|include|look at|read)'
   - name: no-unapproved-skeletons
     type: tool_used
     tool: mcp__plugin_semantic-diff-weaver_semantic-diff-weaver__generate_test_skeletons

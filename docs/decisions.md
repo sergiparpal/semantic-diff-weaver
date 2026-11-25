@@ -338,6 +338,15 @@ exactly that case. The judge failed it in two of three votes, so each claim is a
 run found the pattern of `says-unverified` too narrow: it missed "doesn't run any tests" and "a
 static guess", which that case's judge passed. The pattern now matches those words too.
 
+On 2026-11-25 two more patterns proved too narrow for right answers. `says-it-is-left-out` missed
+"**Not analyzed:** your uncommitted edit", and `suggests-testing-five`, which looked for the call
+`allowed(5)`, missed a first test that named the comparison at the limit instead: "Con
+`count == MAX_ITEMS`, `allowed` debe devolver que se permite". Five recorded answers to other cases
+word their first test that way too. Each pattern now matches those words, the second only at the
+limit itself. "Covers only your commit", which both of that day's answers to `uncommitted-edits`
+said, is not taken: each said it right after naming the base, of the range compared rather than of
+the edit.
+
 ## Repository-clone plugin install (2026-07-30)
 
 `hermes plugins install sergiparpal/semantic-diff-weaver --enable` is the documented install path,

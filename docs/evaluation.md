@@ -541,3 +541,28 @@ The pattern now also matches "static", "doesn't run", and "without being run". T
 that judge, one for each claim: five items now allowed, and a test of `allowed(5)`. On the 16
 answers recorded so far, eight a case with and without the plugin, they agree with the judges'
 verdicts on every answer but the one the judge failed.
+
+On 2026-11-25, with release 0.26.3, the suite ran again once a case with the plugin, for 2.02 USD.
+Seven cases passed every grader, and the other two again each failed one while the answer did what
+it asked:
+- `uncommitted-edits` said "**Not analyzed:** your uncommitted edit to `pkg/report.py`", which the
+  pattern of `says-it-is-left-out` did not match.
+- In `triggers-in-spanish`, the first test the answer proposed was "Con `count == MAX_ITEMS`,
+  `allowed` debe devolver que se permite", where `suggests-testing-five` looked only for the call,
+  `allowed(5)` or `allowed(MAX_ITEMS)`.
+
+The first pattern now also matches "not analyzed". The second also matches the call with its
+argument named, and the comparison at the limit, `count == MAX_ITEMS` or `count == 5`, but not one
+beside it such as `count == MAX_ITEMS - 1`. On the 20 answers recorded for the two cases, each
+pattern passes every answer that makes its claim, 9 for `suggests-testing-five` and 6 for
+`says-it-is-left-out`, which still fails the other 5. Eight invented negatives stay unmatched. Each
+case cost 0.15 to 0.17 USD, except `large-diff-by-include`, whose four calls cost 0.75, against 0.38
+on 2026-11-11.
+
+Two runs earlier that day are not counted. They ran inside a sandbox whose temporary directory had
+a long path, and every session's Bash failed to start, because its own sandbox makes sockets there
+and a Unix socket path holds at most 108 bytes. The agents read `.git` with the file tools instead,
+and the graders passed every case but one run of `stale-local-main`, which compared with the stale
+local `main`. A trace kept with `--keep-temp` shows the shell's error; check one before trusting a
+score. The first of those runs also passed its 2 USD ceiling by 0.05, since `--max-cost-usd` is
+checked between cases.
