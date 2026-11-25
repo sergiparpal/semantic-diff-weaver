@@ -49,4 +49,4 @@ graders:
     flags: i
   - name: suggests-testing-five
     type: regex
-    pattern: 'allowed\(\s*(?:5|MAX_ITEMS)\s*\)'
+    pattern: 'allowed\(\s*(?:count\s*=\s*)?(?:5|MAX_ITEMS)\s*\)|count\s*==\s*(?:5|MAX_ITEMS)(?!\w|\s*[-+])'
