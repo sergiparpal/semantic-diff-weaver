@@ -129,6 +129,28 @@ validate registration without requiring Hermes or a live model.
   dependency environment with both tools and analyzes a change with Pydantic 2.14.1 and PyYAML
   6.0.3, and entry-point and directory discovery pass.
 
+## Compatibility snapshot (2026-11-25)
+
+- Hermes v0.23.3 came out on 2026-11-20, and the weekly `hermes-release` check opened an issue for
+  it on 2026-11-23. v0.23.4 followed on 2026-11-24, 2,818 commits after v0.23.2 by GitHub's
+  comparison, before CI had moved, so `hermes-current` moves straight to it: tag `v0.23.4`, commit
+  `8fc0374447313e276f6b9a2764bfc750190c966a`, and uv 0.13.5, which its installer still pins.
+  v0.23.3 is not tested.
+- `PluginContext.register_tool` and `PluginLlm.complete_structured` have the signatures they had,
+  and `agent/plugin_llm.py` is unchanged. `PluginContext` gains `turn_client` and
+  `session_viewers`, the plugin manager gains an `owner_home`, and the hooks `on_session_prompt`
+  and `on_session_prompt_settled` are new; the plugin uses none of them.
+- The install-time scanner moved in v0.23.3 from `tools/plugin_guard.py` to
+  `hermes_cli/plugins_install_scan.py`. It is still `plugin-guard-v15`, and only one import and its
+  comments changed. `tools.plugin_guard` stays as a module that forwards to the new one, and
+  Hermes's compatibility layer never drops a moved module's old name. So
+  `scripts/verify_hermes_install.py` still imports `scan_plugin` from there, the one name that
+  works on every release it verifies.
+- Rehearsed locally the way the job runs, the install's verdict is still `caution`: 0 critical
+  findings, 1 high in `tests/security/test_hidden_changes.py`, 140 medium, and 10 low. The plugin
+  loads in Hermes's dependency environment with both tools and analyzes a change with Pydantic
+  2.14.1 and PyYAML 6.0.3, and entry-point and directory discovery pass.
+
 ## A weekly check for new Hermes releases (2026-11-06)
 
 Until 2026-11-06, when v0.23.0 was current, CI tested 0.19.0 as the current release, because the
