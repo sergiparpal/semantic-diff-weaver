@@ -1924,9 +1924,16 @@ def _only_reports(handler: ast.ExceptHandler) -> bool:
 
 
 def _undoing_calls(statements: Sequence[ast.stmt], reported: bool) -> Iterator[tuple[str, bool]]:
-    """The calls some statements of a handler make for what they do, a report aside, each with
-    whether a failure of it is caught and only reported: by a `try` around it, every handler of
-    which only reports, or by one around the statements themselves, `reported`."""
+    """The calls some statements of a handler make for what they do whenever they run, a report
+    aside, each with whether a failure of it is caught and only reported: by a `try` around it,
+    every handler of which only reports, or by one around the statements themselves, `reported`.
+
+    Those are the calls of the statements themselves, of a `with` block, and of the code a `try`
+    guards and of its `finally`. A call under an `if`, a loop, or a `match`, or in a handler or
+    the `else` of a `try`, runs only sometimes. pyjwt's `fetch_data` closed what it caught only
+    `if isinstance(e, HTTPError)`, and its obligation said the close ran for every error it
+    caught.
+    """
     for statement in statements:
         call = _statement_call(statement)
         if call is not None:
@@ -1937,14 +1944,9 @@ def _undoing_calls(statements: Sequence[ast.stmt], reported: bool) -> Iterator[t
         elif isinstance(statement, (ast.Try, ast.TryStar)):
             caught = bool(statement.handlers) and all(map(_only_reports, statement.handlers))
             yield from _undoing_calls(statement.body, reported or caught)
-            for handler in statement.handlers:
-                yield from _undoing_calls(handler.body, reported)
-            yield from _undoing_calls([*statement.orelse, *statement.finalbody], reported)
-        elif not isinstance(statement, _DEFINITIONS):
-            for name in ("body", "orelse", "finalbody"):
-                yield from _undoing_calls(getattr(statement, name, []), reported)
-            for case in getattr(statement, "cases", []):
-                yield from _undoing_calls(case.body, reported)
+            yield from _undoing_calls(statement.finalbody, reported)
+        elif isinstance(statement, (ast.With, ast.AsyncWith)):
+            yield from _undoing_calls(statement.body, reported)
 
 
 def _raised_at_end(handler: ast.ExceptHandler) -> str | None:
@@ -2014,23 +2016,22 @@ def _guarded_calls(statements: Sequence[ast.stmt]) -> tuple[str, ...]:
 def handled_failures(node: ast.FunctionDef | ast.AsyncFunctionDef) -> tuple[HandledFailure, ...]:
     """The handlers of a callable's own code that undo or close something and then raise.
 
-    A handler counts when its last statement raises and something before that is called for what
-    it does, a logger's report aside. The field test's `HANDLER` put a retracted event back with
-    `reinstate_event` when restoring the fridge failed, logged a failure of that, and raised again
-    what it caught. Its obligation said only "Exercise the changed failure trigger". A handler that
-    asks something, `if repo.damaged():`, and returns or raises on the answer undoes nothing.
+    A handler counts when its last statement raises and something it runs whenever it runs, before
+    that, is called for what it does, a logger's report aside. The field test's `HANDLER` put a
+    retracted event back with `reinstate_event` when restoring the fridge failed, logged a failure
+    of that, and raised again what it caught. Its obligation said only "Exercise the changed
+    failure trigger". A handler that asks something, `if repo.damaged():`, and returns or raises
+    on the answer undoes nothing.
     """
     found: list[HandledFailure] = []
     for statement in _own_nodes(node.body):
         if not isinstance(statement, (ast.Try, ast.TryStar)):
             continue
-        guarded = ast.dump(ast.Module(body=statement.body, type_ignores=[]))
         for handler in statement.handlers:
             raised = _raised_at_end(handler)
             calls = list(_undoing_calls(handler.body[:-1], False)) if raised else []
             if raised is None or not calls:
                 continue
-            digest = hashlib.sha256(f"{guarded}{ast.dump(handler)}".encode()).hexdigest()
             found.append(
                 (
                     unparse_redacted(handler.type, 200) if handler.type is not None else "",
@@ -2038,7 +2039,6 @@ def handled_failures(node: ast.FunctionDef | ast.AsyncFunctionDef) -> tuple[Hand
                     tuple(dict.fromkeys(name for name, _ in calls))[: limits.MAX_HANDLER_CALLS],
                     all(reported for _, reported in calls),
                     raised,
-                    digest[:VALUE_DIGEST_CHARS],
                 )
             )
             if len(found) == limits.MAX_HANDLED_FAILURES:

@@ -6,13 +6,15 @@
   causes it. Only obligations change: findings, categories, and every benchmark measure stay as
   they were.
   - **A handler that undoes a step.** The change adds a handler whose last statement raises,
-    after calls it makes for what they do, a logger's report aside. Its obligation asks for the
-    guarded step to fail, the undoing to run, and the caller to get the error. Where a failure
-    of the undoing is caught and only reported, it asks for that too. It replaces the old
-    obligation where the handler explains every raise or handler the change added, and comes
-    second otherwise. meal-manager's pull request 55 added one to `HANDLER`, and the field
-    judgment missed the test: its one error obligation, "Exercise the changed failure trigger",
-    was about a validation the same change added.
+    after calls it makes for what they do, a logger's report aside. Only the calls it makes
+    whenever it runs count: one under an `if`, a loop, or a `match` does not. A handler that
+    undoes as one of the old side did asks nothing new. Its obligation asks for the guarded step
+    to fail, the undoing to run, and the caller to get the error. Where a failure of the undoing
+    is caught and only reported, it asks for that too. It replaces the old obligation where the
+    handler explains every raise or handler the change added, and comes second otherwise.
+    meal-manager's pull request 55 added one to `HANDLER`, and the field judgment missed the
+    test: its one error obligation, "Exercise the changed failure trigger", was about a
+    validation the same change added.
   - **A sequence of file steps.** A call that adds, removes, or moves a file step asks for each
     step to fail in turn, listed in the order the steps run, when one of them puts a file in
     place of another or copies it. The steps are followed into the analyzed files' functions,
@@ -23,9 +25,13 @@
     noise, and the test of a failure midway was missed.
   - **Where it changes obligations.** Replaying the seven judged field analyses, exactly those
     three obligations change. In 55, the obligation of the validation that `HANDLER` also added
-    stays first, and the undoing is asked second. On the 180 development cases one obligation
-    changes, pyjwt#1201's `fetch_data`. Its new handler closes the error's response before it
-    raises `PyJWKClientConnectionError`.
+    stays first, and the undoing is asked second. On the 180 development cases none changes.
+  - **A blind review** of the four obligations a first version changed judged the new one useful
+    in 3 and the old one in 2. The fourth was pyjwt#1201's `fetch_data`, which came to catch
+    `http.client.HTTPException` too. Its new obligation said that the handler now closed the
+    error for every type it caught, when that close came before the change and runs for an
+    `HTTPError` alone. It replaced the obligation about the widened catch, which was judged
+    useful, and the two rules above give that one back.
   - **Contract.** `ast_diff` snapshots record a callable's undoing handlers, its own file steps,
     and the steps it reaches through the analyzed files' functions. Delta metadata carries those
     a change touched, and the analysis schema is unchanged.

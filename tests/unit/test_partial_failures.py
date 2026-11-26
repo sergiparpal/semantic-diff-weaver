@@ -165,15 +165,9 @@ STEPS_NEW = (
 
 
 def test_a_handler_that_puts_a_step_back_and_raises_again_is_recorded() -> None:
-    ((caught, guarded, work, reported, raised, digest),) = handled_failures(_function(UNDO_NEW))
-    assert (caught, guarded, work, reported, raised) == (
-        "Exception",
-        ("fridge.restore",),
-        ("history.reinstate",),
-        True,
-        CAUGHT_AGAIN,
+    assert handled_failures(_function(UNDO_NEW)) == (
+        ("Exception", ("fridge.restore",), ("history.reinstate",), True, CAUGHT_AGAIN),
     )
-    assert len(digest) == 12
 
 
 @pytest.mark.parametrize(
@@ -270,8 +264,8 @@ def test_a_handler_that_puts_a_step_back_and_raises_again_is_recorded() -> None:
 def test_what_a_handler_raises_and_undoes_is_read_from_its_code(
     source: str, expected: tuple[object, ...]
 ) -> None:
-    ((*recorded, _),) = handled_failures(_function(source))
-    assert tuple(recorded) == expected
+    (recorded,) = handled_failures(_function(source))
+    assert recorded == expected
 
 
 @pytest.mark.parametrize(
@@ -307,13 +301,22 @@ def test_what_a_handler_raises_and_undoes_is_read_from_its_code(
         "        def later():\n"
         "            repo.discard()\n"
         "        raise\n",
+        # What it closes for some of the errors it catches alone, it does not undo whenever it
+        # runs: pyjwt's `fetch_data` closed an `HTTPError` and nothing else it caught.
+        "def fetch(url):\n"
+        "    try:\n"
+        "        return urlopen(url).read()\n"
+        "    except (URLError, HTTPException) as error:\n"
+        "        if isinstance(error, HTTPError):\n"
+        "            error.close()\n"
+        "        raise ClientError(str(error)) from error\n",
     ],
 )
 def test_a_handler_that_undoes_nothing_before_raising_is_not_recorded(source: str) -> None:
     assert handled_failures(_function(source)) == ()
 
 
-def test_every_block_of_a_handler_is_read_for_what_it_undoes() -> None:
+def test_what_a_handler_undoes_is_what_it_runs_whenever_it_runs() -> None:
     source = (
         "def handle(repo, kind):\n"
         "    try:\n"
@@ -328,11 +331,13 @@ def test_every_block_of_a_handler_is_read_for_what_it_undoes() -> None:
         "            repo.undo_else()\n"
         "        for item in repo.items:\n"
         "            item.release()\n"
-        "        with repo.lock:\n"
-        "            repo.unlock()\n"
+        "        while repo.pending:\n"
+        "            repo.drain()\n"
         "        match kind:\n"
         "            case 'a':\n"
         "                repo.undo_case()\n"
+        "        with repo.lock:\n"
+        "            repo.unlock()\n"
         "        try:\n"
         "            repo.try_undo()\n"
         "        except KeyError:\n"
@@ -341,13 +346,16 @@ def test_every_block_of_a_handler_is_read_for_what_it_undoes() -> None:
         "            repo.after()\n"
         "        finally:\n"
         "            repo.close()\n"
+        "        repo.forget()\n"
         "        raise\n"
     )
-    ((_, guarded, work, reported, _, _),) = handled_failures(_function(source))
+    ((_, guarded, work, reported, _),) = handled_failures(_function(source))
     # The guarded calls come once each, a report and a call through a value aside.
     assert guarded == ("repo.save",)
-    # At most `MAX_HANDLER_CALLS` of what it undoes are named, in order.
-    assert work == ("repo.undo_if", "repo.undo_else", "item.release")
+    # A `with` block, the code a nested `try` guards, and its `finally` run whenever the handler
+    # does. A branch, a loop, a case, a nested handler, and an `else` run only sometimes. At most
+    # `MAX_HANDLER_CALLS` of what it undoes are named, in order.
+    assert work == ("repo.unlock", "repo.try_undo", "repo.close")
     assert len(work) == limits.MAX_HANDLER_CALLS
     # A `try` whose handler undoes something does not merely report a failure of what it guards.
     assert reported is False
@@ -539,6 +547,47 @@ def test_a_handler_that_did_not_change_is_not_noted_again() -> None:
     deltas = _deltas(old, new)
     assert "raise_change" in {item.kind for item in deltas}
     assert _kinds_with(deltas, "handled_failures") == []
+
+
+def test_a_handler_that_catches_more_but_undoes_as_before_is_not_noted() -> None:
+    # pyjwt's `fetch_data` came to catch `http.client.HTTPException` too, and its obligation said
+    # that the close it had made before was new.
+    def fetch(caught: str) -> str:
+        return (
+            "def fetch(url):\n"
+            "    try:\n"
+            "        return urlopen(url).read()\n"
+            f"    except {caught} as error:\n"
+            "        error.close()\n"
+            "        raise ClientError(str(error)) from error\n"
+        )
+
+    deltas = _deltas(fetch("(URLError, OSError)"), fetch("(URLError, OSError, HTTPException)"))
+    assert "exception_handler_change" in {item.kind for item in deltas}
+    assert _kinds_with(deltas, "handled_failures") == []
+
+
+def test_a_handler_whose_undoing_comes_to_be_reported_when_it_fails_is_noted() -> None:
+    old = (
+        "def handle(event, fridge, history):\n"
+        "    try:\n"
+        "        fridge.restore(event)\n"
+        "    except Exception:\n"
+        "        history.reinstate(event)\n"
+        "        raise\n"
+    )
+    new = old.replace(
+        "        history.reinstate(event)\n",
+        "        try:\n"
+        "            history.reinstate(event)\n"
+        "        except Exception:\n"
+        "            logger.exception('could not reinstate %s', event)\n",
+    )
+    (handler,) = [item for item in _deltas(old, new) if "handled_failures" in item.metadata]
+    assert handler.kind == "exception_handler_change"
+    assert handler.metadata["handled_failures"] == [
+        ["Exception", ["fridge.restore"], ["history.reinstate"], True, CAUGHT_AGAIN]
+    ]
 
 
 def test_a_call_that_brings_a_step_is_noted_with_the_steps_in_order() -> None:

@@ -1019,14 +1019,16 @@ def note_partial_failures(
     cause, so their obligations can name the steps.
 
     - A handler that undoes something and then raises goes on its symbol's raise and handler
-      deltas, unless the old side has the same handler guarding the same code.
+      deltas, unless a handler of the old side made the same calls, a failure of them reported
+      alike. pyjwt's `fetch_data` came to catch `http.client.HTTPException` too, and its
+      obligation said that the `e.close()` it had made before was new.
     - A sequence of file steps goes on its symbol's call deltas when its own code changed where
       the steps come from, and a failure partway can leave a file replaced or a copy lost. A step
       gained, lost, or moved counts, and so does a call to a function that takes some. A call
       whose arguments alone changed does not: the field test's `persist` passed a new flag to an
       atomic write, and listing that write's steps there said nothing its change did.
     """
-    before = {record[-1] for record in old.handled_failures}
+    before = {(work, reported) for _, _, work, reported, _ in old.handled_failures}
     touched = [
         [
             _named(caught),
@@ -1035,8 +1037,8 @@ def note_partial_failures(
             reported,
             _named(raised),
         ]
-        for caught, guarded, work, reported, raised, digest in new.handled_failures
-        if digest not in before
+        for caught, guarded, work, reported, raised in new.handled_failures
+        if (work, reported) not in before
     ]
     noted = at_risk_midway(new.reached_steps) and new.step_calls != old.step_calls
     for item in result:

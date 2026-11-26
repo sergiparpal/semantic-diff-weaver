@@ -36,6 +36,7 @@ from .ast_diff.types import (
     FILE_STEP_KINDS,
     ExitPath,
     FunctionExit,
+    HandledFailure,
     LocalAssignment,
     LocalChange,
     LocalDefinition,
@@ -231,11 +232,6 @@ if set(_GENERAL) != PYTHON_KINDS:  # pragma: no cover - guards an edit, not a ru
     raise RuntimeError(f"Kinds out of step: {sorted(set(_GENERAL) ^ PYTHON_KINDS)}")
 
 
-# A handler as a delta's metadata records it: what it catches, the calls it guards, the calls it
-# makes before raising, whether a failure of those is only reported, and what it raises.
-HandledFailure = tuple[str, tuple[str, ...], tuple[str, ...], bool, str]
-
-
 @dataclass(frozen=True)
 class Change:
     """What one Python delta changed, as the scenarios of its evidence quote it."""
@@ -292,8 +288,8 @@ class Change:
     # records them.
     definitions: tuple[LocalDefinition, ...] = ()
     # The handlers its symbol gained that undo or close something and then raise, as
-    # `extract.handled_failures` records them, but for the digest: what each catches, the calls
-    # its `try` guards, the calls it makes before raising, whether a failure of those is only
+    # `extract.handled_failures` records them: what each catches, the calls its `try` guards, the
+    # calls it makes whenever it runs, before raising, whether a failure of those is only
     # reported, and what it raises, `CAUGHT_AGAIN` for what it caught.
     handled_failures: tuple[HandledFailure, ...] = ()
     # The file steps its symbol now takes in order, when a failure partway can leave a file

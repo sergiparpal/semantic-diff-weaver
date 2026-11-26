@@ -39,12 +39,10 @@ BARE_RAISE = "raise"
 # `extract.handled_failures` records it:
 # - what it catches, as code, and empty for a bare `except`;
 # - the calls of the code its `try` guards, which are the steps that may fail;
-# - the calls it makes as statements before it raises;
+# - the calls it makes as statements whenever it runs, before it raises;
 # - whether a failure of each of those is caught and only reported;
-# - what it raises, `CAUGHT_AGAIN` for what it caught;
-# - a digest of the guarded code and the handler, which tells a changed handler from one the
-#   other side has too.
-HandledFailure = tuple[str, tuple[str, ...], tuple[str, ...], bool, str, str]
+# - what it raises, `CAUGHT_AGAIN` for what it caught.
+HandledFailure = tuple[str, tuple[str, ...], tuple[str, ...], bool, str]
 CAUGHT_AGAIN = "again"
 # A file operation of a callable's own code, as `extract.file_steps` records it: its kind, the call
 # as its name, and its line. The kind is one of `move`, `copy`, `delete`, `temp`, or `write`.
