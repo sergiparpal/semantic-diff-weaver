@@ -1886,6 +1886,8 @@ _REPORTING_NAMES = frozenset(
 _REPORTING_CALLS = frozenset({"print", "traceback.print_exc", "traceback.print_exception"})
 # The bodies of these run when what they define is called, not as the code around them does.
 _DEFINITIONS = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)
+# The statements that have handlers, as `node_inventory` names them.
+_TRY_NAMES = frozenset({ast.Try.__name__, ast.TryStar.__name__})
 
 
 def _reports(name: str) -> bool:
@@ -2068,13 +2070,14 @@ _FILE_CALLS: tuple[tuple[str, frozenset[str]], ...] = (
 _FILE_OPENERS = frozenset({"open", "io.open", "os.fdopen", "codecs.open"})
 
 
-def file_operation(call: ast.Call) -> str | None:
+def file_operation(call: ast.Call, name: str | None = None) -> str | None:
     """What a call does to a file, by its name and arguments: a kind of `FILE_STEP_KINDS`, or None.
 
     A method names a path's operation only when no other common type has it with those arguments.
-    `Path.rename` and `Path.replace` take one target, where `str.replace` takes two.
+    `Path.rename` and `Path.replace` take one target, where `str.replace` takes two. `name` is
+    the call's `call_name`, for a caller that has it already.
     """
-    name = call_name(call.func)
+    name = call_name(call.func) if name is None else name
     for kind, names in _FILE_CALLS:
         if name in names:
             return kind
@@ -2131,6 +2134,9 @@ class FeatureVisitor(ast.NodeVisitor):
         # The text of each test, returned value, raised exception, and caught type it recorded,
         # by the node's identity, for `function_exits` to reuse rather than unparse again.
         self.texts: dict[int, str] = {}
+        # Whether a call it visited does something to a file. It visits every call of the code it
+        # reads, a lambda's too, so where none does, `file_steps` would find none.
+        self.touches_files = False
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         if node is self.root:
@@ -2193,6 +2199,8 @@ class FeatureVisitor(ast.NodeVisitor):
 
     def visit_Call(self, node: ast.Call) -> None:
         name = call_name(node.func)
+        if not self.touches_files and file_operation(node, name) is not None:
+            self.touches_files = True
         positional = [unparse_redacted(item, 100) for item in node.args[:5]]
         keywords = [
             f"{item.arg or '**'}={unparse_redacted(item.value, 100)}" for item in node.keywords[:5]
@@ -2391,7 +2399,13 @@ def snapshot_symbol(
     failures: tuple[HandledFailure, ...] = ()
     steps: tuple[FileStep, ...] = ()
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-        failures, steps = handled_failures(node), file_steps(node)
+        # The inventory counted every node of the body, and the visitor read every call: a body
+        # with no `try` handles no failure, and one no call of which does something to a file
+        # takes no file step, so neither needs a walk of its own.
+        if any(name in _TRY_NAMES for name, _ in inventory):
+            failures = handled_failures(node)
+        if visitor.touches_files:
+            steps = file_steps(node)
         signature = function_signature(node)
         parameters = function_parameters(node)
         kinds = parameter_kinds(node)

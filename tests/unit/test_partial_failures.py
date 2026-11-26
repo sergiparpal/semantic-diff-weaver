@@ -17,6 +17,7 @@ import ast
 import pytest
 
 from semantic_diff_weaver.ast_diff import analyze_ast, limits
+from semantic_diff_weaver.ast_diff import extract as extract_module
 from semantic_diff_weaver.ast_diff.analyze import attach_reached_steps
 from semantic_diff_weaver.ast_diff.extract import (
     extract_symbols,
@@ -417,6 +418,58 @@ def test_a_callable_s_own_file_steps_are_recorded_in_order() -> None:
     )
     many = "def many(a, b):\n" + "    os.replace(a, b)\n" * (limits.MAX_FILE_STEPS + 3)
     assert len(file_steps(_function(many))) == limits.MAX_FILE_STEPS
+
+
+def _snapshots(source: str) -> dict[str, SymbolSnapshot]:
+    return {snapshot.qualified_name: snapshot for snapshot in extract_symbols(source)}
+
+
+def test_a_body_with_no_try_and_no_call_on_a_file_is_not_walked_for_them(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The node inventory and the feature visitor have read every node of the body already.
+
+    Both walks cost the full-service performance fixture, whose functions have neither, about a
+    fifteenth of its time when 0.27.0 was prepared.
+    """
+
+    def refuse(node: ast.AST) -> tuple[()]:
+        raise AssertionError("walked a body that has nothing for it")
+
+    monkeypatch.setattr(extract_module, "handled_failures", refuse)
+    monkeypatch.setattr(extract_module, "file_steps", refuse)
+    source = (
+        "def load(path):\n"
+        "    data = read(path)\n"
+        "    if data is None:\n"
+        "        raise LookupError(path)\n"
+        "    return parse(data)\n"
+    )
+    snapshot = _snapshots(source)["load"]
+    assert (snapshot.handled_failures, snapshot.file_steps) == ((), ())
+
+
+def test_a_try_or_a_file_call_outside_the_callable_s_own_code_still_records_nothing() -> None:
+    """The inventory counts the nodes of a nested function, and the visitor reads a lambda's
+    calls, so each sends such a body on to its walk, which leaves them out as before."""
+    source = (
+        "def outer(path, other):\n"
+        "    def inner():\n"
+        "        try:\n"
+        "            os.replace(path, other)\n"
+        "        except OSError:\n"
+        "            os.unlink(other)\n"
+        "            raise\n"
+        "    later = lambda: shutil.move(path, other)\n"
+        "    return inner, later\n"
+    )
+    snapshots = _snapshots(source)
+    assert (snapshots["outer"].handled_failures, snapshots["outer"].file_steps) == ((), ())
+    assert snapshots["outer.inner"].file_steps == (
+        ("move", "os.replace", 4),
+        ("delete", "os.unlink", 6),
+    )
+    assert len(snapshots["outer.inner"].handled_failures) == 1
 
 
 def _reached(source: str) -> dict[str, SymbolSnapshot]:
