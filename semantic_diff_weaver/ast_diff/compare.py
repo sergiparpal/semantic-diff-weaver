@@ -20,7 +20,7 @@ from .limits import (
     MAX_PROBE_CHARS_PER_SIDE,
 )
 from .match import symbol_similarity
-from .types import CategoryProbe, StructuralDelta, SymbolSnapshot
+from .types import CategoryProbe, StructuralDelta, SymbolSnapshot, at_risk_midway
 
 # What a module-level name shadows when the module binds it.
 BUILTIN_NAMES = frozenset(dir(builtins))
@@ -1008,6 +1008,49 @@ def _delta_without_features(
     )
 
 
+def _named(text: str) -> str:
+    return redact_text(text, max_chars=MAX_CHANGED_VALUE_CHARS)
+
+
+def note_partial_failures(
+    result: Sequence[StructuralDelta], old: SymbolSnapshot, new: SymbolSnapshot
+) -> None:
+    """Note on a changed callable's deltas the failures partway through it that its tests should
+    cause, so their obligations can name the steps.
+
+    - A handler that undoes something and then raises goes on its symbol's raise and handler
+      deltas, unless a handler of the old side made the same calls, a failure of them reported
+      alike. pyjwt's `fetch_data` came to catch `http.client.HTTPException` too, and its
+      obligation said that the `e.close()` it had made before was new.
+    - A sequence of file steps goes on its symbol's call deltas when its own code changed where
+      the steps come from, and a failure partway can leave a file replaced or a copy lost. A step
+      gained, lost, or moved counts, and so does a call to a function that takes some. A call
+      whose arguments alone changed does not: the field test's `persist` passed a new flag to an
+      atomic write, and listing that write's steps there said nothing its change did.
+    """
+    before = {(work, reported) for _, _, work, reported, _ in old.handled_failures}
+    touched = [
+        [
+            _named(caught),
+            [_named(name) for name in guarded],
+            [_named(name) for name in work],
+            reported,
+            _named(raised),
+        ]
+        for caught, guarded, work, reported, raised in new.handled_failures
+        if (work, reported) not in before
+    ]
+    noted = at_risk_midway(new.reached_steps) and new.step_calls != old.step_calls
+    for item in result:
+        if touched and item.kind in {"raise_change", "exception_handler_change"}:
+            item.metadata["handled_failures"] = touched
+        if noted and item.kind == "call_change":
+            item.metadata["file_steps"] = [
+                [kind, _named(name), _named(through)] for kind, name, through in new.reached_steps
+            ]
+            item.metadata["file_steps_total"] = new.reached_steps_total
+
+
 def compare_symbol(
     path: str,
     old: SymbolSnapshot | None,
@@ -1162,6 +1205,7 @@ def compare_symbol(
         )
     if not result:
         result.append(_delta_without_features(path, old, new, hunk_id, reworded=reworded))
+    note_partial_failures(result, old, new)
     if is_redescribed(old, new):
         # What the descriptions say is for an agent given the tool, whose obligation is a test of
         # what it then tells the user and calls; no code computes with them.

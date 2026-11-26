@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+- **Obligations:** a change that leaves a failure partway to survive now asks for a test that
+  causes it. Only obligations change: findings, categories, and every benchmark measure stay as
+  they were.
+  - **A handler that undoes a step.** The change adds a handler whose last statement raises,
+    after calls it makes for what they do, a logger's report aside. Only the calls it makes
+    whenever it runs count: one under an `if`, a loop, or a `match` does not. A handler that
+    undoes as one of the old side did asks nothing new. Its obligation asks for the guarded step
+    to fail, the undoing to run, and the caller to get the error. Where a failure of the undoing
+    is caught and only reported, it asks for that too. It replaces the old obligation where the
+    handler explains every raise or handler the change added, and comes second otherwise.
+    meal-manager's pull request 55 added one to `HANDLER`, and the field judgment missed the
+    test: its one error obligation, "Exercise the changed failure trigger", was about a
+    validation the same change added.
+  - **A sequence of file steps.** A call that adds, removes, or moves a file step asks for each
+    step to fail in turn, listed in the order the steps run, when one of them puts a file in
+    place of another or copies it. The steps are followed into the analyzed files' functions,
+    two calls deep. The original, or the copy set aside, must survive, and the caller must learn
+    of the error. A call whose arguments alone changed asks nothing new. In meal-manager's pull
+    requests 52 and 54, `atomic_write_json` came to move an unreadable file aside through a new
+    helper. Its obligation, "Verify the side-effect occurrence of the changed call", was judged
+    noise, and the test of a failure midway was missed.
+  - **Where it changes obligations.** Replaying the seven judged field analyses, exactly those
+    three obligations change. In 55, the obligation of the validation that `HANDLER` also added
+    stays first, and the undoing is asked second. On the 180 development cases none changes.
+  - **A blind review** of the four obligations a first version changed judged the new one useful
+    in 3 and the old one in 2. The fourth was pyjwt#1201's `fetch_data`, which came to catch
+    `http.client.HTTPException` too. Its new obligation said that the handler now closed the
+    error for every type it caught, when that close came before the change and runs for an
+    `HTTPError` alone. It replaced the obligation about the widened catch, which was judged
+    useful, and the two rules above give that one back.
+  - **Contract.** `ast_diff` snapshots record a callable's undoing handlers, its own file steps,
+    and the steps it reaches through the analyzed files' functions. Delta metadata carries those
+    a change touched, and the analysis schema is unchanged.
 - **Tests:** CI tests Hermes v0.23.4, the current release, which came out on 2026-11-24. The
   `hermes-current` job builds it from its tag, pinned to commit `8fc03744`, with uv 0.13.5, which
   its installer still pins. It skips v0.23.3, which came out four days earlier. That release moved

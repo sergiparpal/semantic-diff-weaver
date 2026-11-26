@@ -3,14 +3,88 @@
 from __future__ import annotations
 
 import time
+from collections import defaultdict
+from collections.abc import Iterable
 
 from ..models import LineRange
 from ..source import SourceHunk, SourceRevisionPair
+from . import limits
 from .compare import changed_value_metadata, compare_symbol, first_party_names, own_call_names
 from .extract import AstResourceLimit, extract_symbols
 from .limits import AstBudget
 from .match import match_cross_file_symbols, match_symbols
-from .types import AstAnalysis, StructuralDelta, SymbolSnapshot
+from .types import AstAnalysis, ReachedStep, StructuralDelta, SymbolSnapshot
+
+CALLABLE_KINDS = frozenset({"function", "async_function", "method", "async_method"})
+
+
+def attach_reached_steps(revision: Iterable[SymbolSnapshot]) -> None:
+    """Set each callable's `reached_steps`: its own file operations and those of the functions it
+    calls, in the order it calls them, `REACHED_STEPS_DEPTH` calls deep, among one revision's
+    snapshots of the analyzed files.
+
+    The field test's `atomic_write_json` moved an unreadable file aside through a new helper
+    before it wrote a temporary file and put it in place of the original. A failure can come
+    between any two of those three steps, and one of them was the helper's.
+
+    A call is followed only to the one function it can name. A call on `self` or `cls` names its
+    class's method, and any other call names the only function of that name. A declaration with
+    nothing to run, such as a `Protocol`'s member, is no candidate. A cycle reaches nothing it has
+    not reached already.
+    """
+    functions = [
+        snapshot
+        for snapshot in revision
+        if snapshot.kind in CALLABLE_KINDS and not snapshot.declared_only
+    ]
+    by_name: dict[str, list[SymbolSnapshot]] = defaultdict(list)
+    by_qualified: dict[str, list[SymbolSnapshot]] = defaultdict(list)
+    for snapshot in functions:
+        by_name[snapshot.qualified_name.rpartition(".")[2]].append(snapshot)
+        by_qualified[snapshot.qualified_name].append(snapshot)
+
+    def resolve(name: str, caller: SymbolSnapshot) -> SymbolSnapshot | None:
+        receiver, _, called = name.rpartition(".")
+        if receiver in {"self", "cls"}:
+            owner = caller.qualified_name.rpartition(".")[0]
+            found = by_qualified.get(f"{owner}.{called}", []) if owner else []
+        else:
+            found = by_name.get(called, [])
+        return found[0] if len(found) == 1 else None
+
+    reached: dict[tuple[int, int], tuple[tuple[ReachedStep, ...], tuple[str, ...]]] = {}
+
+    def reach(
+        snapshot: SymbolSnapshot, depth: int
+    ) -> tuple[tuple[ReachedStep, ...], tuple[str, ...]]:
+        key = (id(snapshot), depth)
+        if key in reached:
+            return reached[key]
+        reached[key] = ((), ())
+        own = {(name, line): kind for kind, name, line in snapshot.file_steps}
+        steps: list[ReachedStep] = []
+        sources: list[str] = []
+        for text, line in snapshot.features.get("calls", ()):
+            name = text.split("(", 1)[0]
+            kind = own.get((name, line))
+            if kind is not None:
+                steps.append((kind, name, ""))
+                sources.append(name)
+                continue
+            target = resolve(name, snapshot) if depth else None
+            if target is not None and target is not snapshot:
+                inner, _ = reach(target, depth - 1)
+                steps.extend((step, called, target.qualified_name) for step, called, _ in inner)
+                if inner:
+                    sources.append(target.qualified_name)
+        reached[key] = (tuple(steps), tuple(sources))
+        return reached[key]
+
+    for snapshot in functions:
+        steps, sources = reach(snapshot, limits.REACHED_STEPS_DEPTH)
+        snapshot.reached_steps = steps[: limits.MAX_REACHED_STEPS]
+        snapshot.reached_steps_total = len(steps)
+        snapshot.step_calls = sources
 
 
 def _deadline_reached(deadline: float) -> bool:
@@ -257,6 +331,10 @@ def analyze_ast(files: list[SourceRevisionPair], budget: AstBudget | None = None
             )
             continue
         parsed.append((changed, old_symbols, new_symbols))
+
+    # What a callable reaches through the functions it calls, among each revision's files.
+    attach_reached_steps(snapshot for _, old_symbols, _ in parsed for snapshot in old_symbols)
+    attach_reached_steps(snapshot for _, _, new_symbols in parsed for snapshot in new_symbols)
 
     removed: list[tuple[SymbolSnapshot, SourceRevisionPair]] = []
     added: list[tuple[SymbolSnapshot, SourceRevisionPair]] = []

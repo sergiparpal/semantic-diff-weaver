@@ -35,6 +35,31 @@ ENCLOSING_CONDITIONS = frozenset({"for", "while", "try", "other"})
 # raised again. Recorded as its missing exception, it read `None`, and an obligation said the code
 # raised `None`.
 BARE_RAISE = "raise"
+# A handler of a callable's own code that undoes or closes something and then raises, as
+# `extract.handled_failures` records it:
+# - what it catches, as code, and empty for a bare `except`;
+# - the calls of the code its `try` guards, which are the steps that may fail;
+# - the calls it makes as statements whenever it runs, before it raises;
+# - whether a failure of each of those is caught and only reported;
+# - what it raises, `CAUGHT_AGAIN` for what it caught.
+HandledFailure = tuple[str, tuple[str, ...], tuple[str, ...], bool, str]
+CAUGHT_AGAIN = "again"
+# A file operation of a callable's own code, as `extract.file_steps` records it: its kind, the call
+# as its name, and its line. The kind is one of `move`, `copy`, `delete`, `temp`, or `write`.
+FileStep = tuple[str, str, int]
+# A file operation a callable takes, as `analyze.attach_reached_steps` follows it: the kind, the
+# call's name, and the function it is reached through, which is empty for the callable's own code.
+ReachedStep = tuple[str, str, str]
+FILE_STEP_KINDS = frozenset({"move", "copy", "delete", "temp", "write"})
+# The kinds that put a file in place of another or beside it: a sequence holding one of them and a
+# second step leaves the original or a copy behind when it fails partway.
+FILE_PLACING_KINDS = frozenset({"move", "copy"})
+
+
+def at_risk_midway(steps: tuple[ReachedStep, ...]) -> bool:
+    """Whether a failure partway through a callable's file steps can leave the original replaced
+    or its copy lost: two steps or more, one of them a move or a copy."""
+    return len(steps) >= 2 and any(kind in FILE_PLACING_KINDS for kind, _, _ in steps)
 
 
 def reparameterize(signature: str) -> str:
@@ -178,6 +203,19 @@ class SymbolSnapshot:
     # or a module built without its file's typing context, never read as constants alone.
     constants: dict[str, str] = field(default_factory=dict)
     fingerprint_without_constants: str | None = None
+    # A callable's handlers that undo or close something and then raise, at most
+    # `MAX_HANDLED_FAILURES` of them (see `extract.handled_failures`). Empty for any other symbol.
+    handled_failures: tuple[HandledFailure, ...] = ()
+    # A callable's own file operations in order, at most `MAX_FILE_STEPS` (see `extract.file_steps`).
+    file_steps: tuple[FileStep, ...] = ()
+    # The file operations it takes in order, its own and those of the analyzed files' functions it
+    # calls, at most `MAX_REACHED_STEPS`, and how many. `analyze.attach_reached_steps` sets them
+    # once every changed file of its revision is parsed. It also sets `step_calls`, the calls of
+    # its own code those steps come from, in order: each file operation's name, or the function
+    # that takes some. A call whose arguments alone changed leaves them as they were.
+    reached_steps: tuple[ReachedStep, ...] = ()
+    reached_steps_total: int = 0
+    step_calls: tuple[str, ...] = ()
 
     @property
     def signature_shape(self) -> str:

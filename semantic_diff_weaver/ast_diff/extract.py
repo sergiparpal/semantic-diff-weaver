@@ -9,7 +9,7 @@ import hashlib
 import sys
 import warnings
 from collections import Counter, defaultdict
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 
 from ..path_policy import redact_text
@@ -17,10 +17,13 @@ from . import limits
 from .limits import AstBudget
 from .types import (
     BARE_RAISE,
+    CAUGHT_AGAIN,
     CategoryProbe,
     ExitCondition,
     ExitPath,
+    FileStep,
     FunctionExit,
+    HandledFailure,
     LocalDefinition,
     ModuleReferences,
     SymbolReferences,
@@ -246,13 +249,17 @@ def _validate_ast_budget(tree: ast.AST, budget: AstBudget) -> None:
         pending.extend((child, depth + 1) for child in ast.iter_child_nodes(node))
 
 
+# What `call_name` names a callee that is neither a name nor an attribute chain of one.
+DYNAMIC = "<dynamic>"
+
+
 def call_name(node: ast.AST) -> str:
     if isinstance(node, ast.Name):
         return node.id
     if isinstance(node, ast.Attribute):
         prefix = call_name(node.value)
         return f"{prefix}.{node.attr}" if prefix else node.attr
-    return "<dynamic>"
+    return DYNAMIC
 
 
 def decorator_name(node: ast.AST) -> str:
@@ -1872,6 +1879,235 @@ def file_names(
     )
 
 
+# What a call is named for when it only reports a failure and undoes nothing: a logger, a warning.
+_REPORTING_NAMES = frozenset(
+    {"log", "logger", "logging", "warnings", "_log", "_logger", "LOG", "LOGGER"}
+)
+_REPORTING_CALLS = frozenset({"print", "traceback.print_exc", "traceback.print_exception"})
+# The bodies of these run when what they define is called, not as the code around them does.
+_DEFINITIONS = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)
+
+
+def _reports(name: str) -> bool:
+    """Whether a call, by its name, only reports: `logger.exception`, `warnings.warn`, `print`."""
+    return name in _REPORTING_CALLS or bool(_REPORTING_NAMES & set(name.split(".")))
+
+
+def _own_nodes(statements: Sequence[ast.AST]) -> Iterator[ast.AST]:
+    """Every node of some statements of a callable's own code, in the order of the code, without
+    the bodies of the functions, lambdas, and classes they define."""
+    pending = list(reversed(statements))
+    while pending:
+        node = pending.pop()
+        yield node
+        if not isinstance(node, _DEFINITIONS):
+            pending.extend(reversed(list(ast.iter_child_nodes(node))))
+
+
+def _statement_call(statement: ast.stmt) -> ast.Call | None:
+    """The call a statement makes for what it does, its result unused: `repo.reinstate(event)`,
+    `await stream.aclose()`. A call whose result a test or an assignment reads asks something."""
+    if not isinstance(statement, ast.Expr):
+        return None
+    value = statement.value.value if isinstance(statement.value, ast.Await) else statement.value
+    return value if isinstance(value, ast.Call) else None
+
+
+def _only_reports(handler: ast.ExceptHandler) -> bool:
+    """Whether a handler only reports what it caught, or passes: it raises nothing and calls
+    nothing but a logger, a warning, or a print."""
+    return not any(
+        isinstance(node, ast.Raise)
+        or (isinstance(node, ast.Call) and not _reports(call_name(node.func)))
+        for node in _own_nodes(handler.body)
+    )
+
+
+def _undoing_calls(statements: Sequence[ast.stmt], reported: bool) -> Iterator[tuple[str, bool]]:
+    """The calls some statements of a handler make for what they do whenever they run, a report
+    aside, each with whether a failure of it is caught and only reported: by a `try` around it,
+    every handler of which only reports, or by one around the statements themselves, `reported`.
+
+    Those are the calls of the statements themselves, of a `with` block, and of the code a `try`
+    guards and of its `finally`. A call under an `if`, a loop, or a `match`, or in a handler or
+    the `else` of a `try`, runs only sometimes. pyjwt's `fetch_data` closed what it caught only
+    `if isinstance(e, HTTPError)`, and its obligation said the close ran for every error it
+    caught.
+    """
+    for statement in statements:
+        call = _statement_call(statement)
+        if call is not None:
+            name = call_name(call.func)
+            if not _reports(name):
+                # `connection().rollback()` reads better as code than as `<dynamic>.rollback`.
+                yield (name if DYNAMIC not in name else unparse_redacted(call.func, 120)), reported
+        elif isinstance(statement, (ast.Try, ast.TryStar)):
+            caught = bool(statement.handlers) and all(map(_only_reports, statement.handlers))
+            yield from _undoing_calls(statement.body, reported or caught)
+            yield from _undoing_calls(statement.finalbody, reported)
+        elif isinstance(statement, (ast.With, ast.AsyncWith)):
+            yield from _undoing_calls(statement.body, reported)
+
+
+def _raised_at_end(handler: ast.ExceptHandler) -> str | None:
+    """What a handler's last statement raises, `CAUGHT_AGAIN` for what it caught, or None if that
+    statement raises nothing."""
+    last = handler.body[-1]
+    if not isinstance(last, ast.Raise):
+        return None
+    if last.exc is None or (isinstance(last.exc, ast.Name) and last.exc.id == handler.name):
+        return CAUGHT_AGAIN
+    named = call_name(last.exc.func if isinstance(last.exc, ast.Call) else last.exc)
+    return named if DYNAMIC not in named else unparse_redacted(last.exc, 120)
+
+
+# What a list, a mapping, a set, or a string does in memory: no step a handler guards against.
+_IN_MEMORY_METHODS = frozenset(
+    {
+        "add",
+        "append",
+        "clear",
+        "copy",
+        "discard",
+        "extend",
+        "format",
+        "get",
+        "insert",
+        "items",
+        "join",
+        "keys",
+        "pop",
+        "remove",
+        "setdefault",
+        "split",
+        "strip",
+        "update",
+        "values",
+    }
+)
+
+
+def _takes_a_step(name: str) -> bool:
+    """Whether a guarded call, by its name, may be the step that fails.
+
+    A class called by its name builds a value, `_Handler()` as much as `Request()`. A container's
+    or a string's method works in memory. Both were what pyjwt's `fetch_data` did before its
+    opener sent the request.
+    """
+    last = name.rpartition(".")[2]
+    if DYNAMIC in name or _reports(name) or last.lstrip("_")[:1].isupper():
+        return False
+    return not ("." in name and last in _IN_MEMORY_METHODS)
+
+
+def _guarded_calls(statements: Sequence[ast.stmt]) -> tuple[str, ...]:
+    """The calls of the code a `try` guards that may be the step that fails, in order, each once.
+
+    A call on what another call returns, `urlopen(url).read()`, is named by that other call alone.
+    The calls come in the order they run, where they end: the call an argument makes before the
+    call it is passed to.
+    """
+    calls = [node for node in _own_nodes(statements) if isinstance(node, ast.Call)]
+    calls.sort(key=lambda node: (node.end_lineno or 0, node.end_col_offset or 0))
+    names = (call_name(node.func) for node in calls)
+    return tuple(dict.fromkeys(filter(_takes_a_step, names)))[: limits.MAX_HANDLER_CALLS]
+
+
+def handled_failures(node: ast.FunctionDef | ast.AsyncFunctionDef) -> tuple[HandledFailure, ...]:
+    """The handlers of a callable's own code that undo or close something and then raise.
+
+    A handler counts when its last statement raises and something it runs whenever it runs, before
+    that, is called for what it does, a logger's report aside. The field test's `HANDLER` put a
+    retracted event back with `reinstate_event` when restoring the fridge failed, logged a failure
+    of that, and raised again what it caught. Its obligation said only "Exercise the changed
+    failure trigger". A handler that asks something, `if repo.damaged():`, and returns or raises
+    on the answer undoes nothing.
+    """
+    found: list[HandledFailure] = []
+    for statement in _own_nodes(node.body):
+        if not isinstance(statement, (ast.Try, ast.TryStar)):
+            continue
+        for handler in statement.handlers:
+            raised = _raised_at_end(handler)
+            calls = list(_undoing_calls(handler.body[:-1], False)) if raised else []
+            if raised is None or not calls:
+                continue
+            found.append(
+                (
+                    unparse_redacted(handler.type, 200) if handler.type is not None else "",
+                    _guarded_calls(statement.body),
+                    tuple(dict.fromkeys(name for name, _ in calls))[: limits.MAX_HANDLER_CALLS],
+                    all(reported for _, reported in calls),
+                    raised,
+                )
+            )
+            if len(found) == limits.MAX_HANDLED_FAILURES:
+                return tuple(found)
+    return tuple(found)
+
+
+# The calls that put, copy, or remove a file, write one, or make a temporary one, by their name.
+_FILE_CALLS: tuple[tuple[str, frozenset[str]], ...] = (
+    ("move", frozenset({"os.replace", "os.rename", "os.renames", "shutil.move"})),
+    ("copy", frozenset({"shutil.copy", "shutil.copy2", "shutil.copyfile", "shutil.copytree"})),
+    ("delete", frozenset({"os.remove", "os.unlink", "os.rmdir", "shutil.rmtree"})),
+    (
+        "temp",
+        frozenset(
+            {
+                "tempfile.mkstemp",
+                "tempfile.mkdtemp",
+                "tempfile.NamedTemporaryFile",
+                "tempfile.TemporaryDirectory",
+            }
+        ),
+    ),
+    ("write", frozenset({"json.dump", "pickle.dump", "marshal.dump", "os.write", "os.fsync"})),
+)
+# The functions that open a file, its mode their second argument, and `Path.open`'s first.
+_FILE_OPENERS = frozenset({"open", "io.open", "os.fdopen", "codecs.open"})
+
+
+def file_operation(call: ast.Call) -> str | None:
+    """What a call does to a file, by its name and arguments: a kind of `FILE_STEP_KINDS`, or None.
+
+    A method names a path's operation only when no other common type has it with those arguments.
+    `Path.rename` and `Path.replace` take one target, where `str.replace` takes two.
+    """
+    name = call_name(call.func)
+    for kind, names in _FILE_CALLS:
+        if name in names:
+            return kind
+    method = call.func.attr if isinstance(call.func, ast.Attribute) else None
+    if name in _FILE_OPENERS or method == "open":
+        position = 0 if name not in _FILE_OPENERS else 1
+        mode = call.args[position] if len(call.args) > position else None
+        for keyword in call.keywords:
+            if keyword.arg == "mode":
+                mode = keyword.value
+        text = mode.value if isinstance(mode, ast.Constant) and isinstance(mode.value, str) else ""
+        return "write" if set(text) & set("wax+") else None
+    if method in {"write_text", "write_bytes"}:
+        return "write"
+    if method in {"rename", "replace"} and len(call.args) == 1 and not call.keywords:
+        return "move"
+    if method in {"unlink", "rmdir"}:
+        return "delete"
+    return None
+
+
+def file_steps(node: ast.FunctionDef | ast.AsyncFunctionDef) -> tuple[FileStep, ...]:
+    """A callable's own file operations, in the order of its code: the temporary file an atomic
+    write writes, and the `os.replace` that puts it in place of the original."""
+    steps: list[FileStep] = []
+    for item in _own_nodes(node.body):
+        if isinstance(item, ast.Call) and (kind := file_operation(item)) is not None:
+            steps.append((kind, call_name(item.func), item.lineno))
+            if len(steps) == limits.MAX_FILE_STEPS:
+                break
+    return tuple(steps)
+
+
 class FeatureVisitor(ast.NodeVisitor):
     """Collect bounded behavior-bearing syntax while avoiding nested symbol bodies."""
 
@@ -2152,7 +2388,10 @@ def snapshot_symbol(
     definitions: tuple[LocalDefinition, ...] = ()
     exports: tuple[str, ...] = ()
     kinds: tuple[tuple[str, str], ...] | None = None
+    failures: tuple[HandledFailure, ...] = ()
+    steps: tuple[FileStep, ...] = ()
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        failures, steps = handled_failures(node), file_steps(node)
         signature = function_signature(node)
         parameters = function_parameters(node)
         kinds = parameter_kinds(node)
@@ -2245,6 +2484,8 @@ def snapshot_symbol(
         output_lines=outputs,
         constants=constants,
         fingerprint_without_constants=without_constants,
+        handled_failures=failures,
+        file_steps=steps,
     )
 
 
