@@ -1,6 +1,17 @@
 # Changelog
 
-## Unreleased
+## 0.27.0 - 2026-11-26
+
+A test of a failure partway through. In the Action's field test on meal-manager's pull requests 52,
+54, and 55, the judgment noted a missing test of a step that fails midway. A handler a change adds
+that undoes a step before it raises now asks for the guarded step to fail, the undoing to run, and
+the caller to get the error. A call that adds, removes, or moves a file step, in a sequence where
+one step puts a file in place of another or copies it, asks for each step to fail in turn: the
+original, or its copy, must survive, and the caller must learn of the error. Replaying the seven
+judged field analyses changes exactly those three obligations, and on the 180 development cases no
+obligation, finding, or benchmark measure changes. A blind review judged the new obligations useful
+in 3 of 4 pairs and the old ones in 2; the defect it found in the fourth is corrected. Schema 1.5
+and every golden are unchanged.
 
 - **Obligations:** a change that leaves a failure partway to survive now asks for a test that
   causes it. Only obligations change: findings, categories, and every benchmark measure stay as
