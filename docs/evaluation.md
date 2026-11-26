@@ -586,3 +586,10 @@ and the graders passed every case but one run of `stale-local-main`, which compa
 local `main`. A trace kept with `--keep-temp` shows the shell's error; check one before trusting a
 score. The first of those runs also passed its 2 USD ceiling by 0.05, since `--max-cost-usd` is
 checked between cases.
+
+On 2026-11-26, with release 0.27.0, the suite ran again once a case with the plugin, for 2.05 USD.
+Each case ran alone with its trace kept, and in every trace the session's shell ran `git`. All nine
+cases passed every grader. The two whose patterns 0.27.0 widens passed on what they matched before:
+`uncommitted-edits` said "**Not included:** your uncommitted edit to `pkg/report.py`", and
+`triggers-in-spanish` proposed checking `allowed(MAX_ITEMS)`. `large-diff-by-include` cost 0.78 USD
+for its five calls, and every other case 0.15 to 0.17.
