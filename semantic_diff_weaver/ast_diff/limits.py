@@ -71,6 +71,17 @@ MAX_ASSIGNED_DESCRIPTIONS = 16
 MAX_DESCRIPTION_CHARS = 2_000
 # How many names a module's `__all__` lists its snapshot records.
 MAX_EXPORTED_NAMES = 500
+# How many handlers that undo something and then raise a callable's snapshot records, and how many
+# of the guarded calls and of the undoing calls of each. A changed handler's test obligation names
+# them (see `extract.handled_failures`).
+MAX_HANDLED_FAILURES = 4
+MAX_HANDLER_CALLS = 3
+# How many file operations a callable's snapshot records of its own code, and how many it records
+# in order through the functions of the analyzed files it calls, and how many calls deep it follows
+# them (see `analyze.attach_reached_steps`).
+MAX_FILE_STEPS = 16
+MAX_REACHED_STEPS = 32
+REACHED_STEPS_DEPTH = 2
 # How much of an added or removed class or module its display text names.
 MAX_DISPLAY_CLASS_FIELDS = 20
 MAX_DISPLAY_MODULE_STATEMENTS = 5

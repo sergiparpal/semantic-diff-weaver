@@ -12,7 +12,10 @@ names them, whose findings say what changed. A callable added has no old code to
 scenario lists what its own code returns and raises, each with every condition on the path that
 leads there, and what the local variables those values read are assigned. A schema that changed
 only how it describes a tool changes nothing a test of the tool's code could tell apart, and its
-scenario asks what an agent given the tool does with the new text.
+scenario asks what an agent given the tool does with the new text. A handler the change adds that
+undoes a step before it raises asks for the step it guards to fail. A call that changes a sequence
+of file steps, one of which puts a file in place of another or copies it, asks for each step to
+fail in turn.
 
 Only what the evidence holds is quoted, already redacted and bounded, each fragment as a code
 span. The renderer keeps it one, so a repository's text never becomes Markdown of its own.
@@ -28,7 +31,9 @@ from typing import TYPE_CHECKING
 from .ast_diff import StructuralDelta
 from .ast_diff.types import (
     BARE_RAISE,
+    CAUGHT_AGAIN,
     ENCLOSING_CONDITIONS,
+    FILE_STEP_KINDS,
     ExitPath,
     FunctionExit,
     LocalAssignment,
@@ -226,6 +231,11 @@ if set(_GENERAL) != PYTHON_KINDS:  # pragma: no cover - guards an edit, not a ru
     raise RuntimeError(f"Kinds out of step: {sorted(set(_GENERAL) ^ PYTHON_KINDS)}")
 
 
+# A handler as a delta's metadata records it: what it catches, the calls it guards, the calls it
+# makes before raising, whether a failure of those is only reported, and what it raises.
+HandledFailure = tuple[str, tuple[str, ...], tuple[str, ...], bool, str]
+
+
 @dataclass(frozen=True)
 class Change:
     """What one Python delta changed, as the scenarios of its evidence quote it."""
@@ -281,6 +291,16 @@ class Change:
     # The local variables its exits' values read, each with its assignments, as `ast_diff`
     # records them.
     definitions: tuple[LocalDefinition, ...] = ()
+    # The handlers its symbol gained that undo or close something and then raise, as
+    # `extract.handled_failures` records them, but for the digest: what each catches, the calls
+    # its `try` guards, the calls it makes before raising, whether a failure of those is only
+    # reported, and what it raises, `CAUGHT_AGAIN` for what it caught.
+    handled_failures: tuple[HandledFailure, ...] = ()
+    # The file steps its symbol now takes in order, when a failure partway can leave a file
+    # replaced or a copy lost: each a kind, the call, and the function it is taken through, empty
+    # for its own code; and how many (see `analyze.attach_reached_steps`).
+    file_steps: tuple[tuple[str, str, str], ...] = ()
+    file_steps_total: int = 0
 
     @property
     def removed_only(self) -> bool:
@@ -369,7 +389,60 @@ def describe_change(delta: StructuralDelta) -> Change | None:
         exits=(exits := _exits(metadata.get("exits"))),
         exits_total=_count(metadata.get("exits_total"), len(exits)),
         definitions=_definitions(metadata.get("definitions")),
+        handled_failures=_handled(metadata.get("handled_failures")),
+        file_steps=(steps := _file_steps(metadata.get("file_steps"))),
+        file_steps_total=_count(metadata.get("file_steps_total"), len(steps)),
     )
+
+
+def _names(value: object) -> tuple[str, ...] | None:
+    """Names as metadata records them, each a string not empty, or None if any is not."""
+    if not isinstance(value, (list, tuple)):
+        return None
+    names = tuple(item for item in value if isinstance(item, str) and item)
+    return names if len(names) == len(value) else None
+
+
+def _handled(value: object) -> tuple[HandledFailure, ...]:
+    """The handlers a delta's metadata records, each what it catches, the calls it guards and the
+    calls it makes, whether their failure is only reported, and what it raises. A handler any part
+    of which is out of shape is dropped, and so is one that calls nothing."""
+    if not isinstance(value, (list, tuple)):
+        return ()
+    found: list[HandledFailure] = []
+    for item in value:
+        if not (isinstance(item, (list, tuple)) and len(item) == 5):
+            continue
+        caught, guarded, work, reported, raised = item
+        guarded, work = _names(guarded), _names(work)
+        if (
+            isinstance(caught, str)
+            and guarded is not None
+            and work
+            and isinstance(reported, bool)
+            and isinstance(raised, str)
+            and raised
+        ):
+            found.append((caught, guarded, work, reported, raised))
+    return tuple(found)
+
+
+def _file_steps(value: object) -> tuple[tuple[str, str, str], ...]:
+    """The file steps a delta's metadata records, each a kind, a call, and what it is taken
+    through. A sequence with a step out of shape is dropped whole: its order is what it says."""
+    if not isinstance(value, (list, tuple)):
+        return ()
+    steps = tuple(
+        (item[0], item[1], item[2])
+        for item in value
+        if isinstance(item, (list, tuple))
+        and len(item) == 3
+        and item[0] in FILE_STEP_KINDS
+        and isinstance(item[1], str)
+        and item[1]
+        and isinstance(item[2], str)
+    )
+    return steps if len(steps) == len(value) else ()
 
 
 def _text_pairs(value: object) -> tuple[tuple[str, str], ...]:
@@ -888,7 +961,50 @@ def _condition_scenario(found: _Finding) -> Scenario:
     )
 
 
+# The categories of a call change whose scenario its callable's file steps write when the change
+# touches them: what the call does to a file is a step, and a failure between steps is the test.
+STEP_CATEGORIES = frozenset(
+    {
+        BehaviorCategory.SIDE_EFFECT,
+        BehaviorCategory.DEPENDENCY_INTERACTION,
+        BehaviorCategory.UNKNOWN,
+    }
+)
+# How many of a callable's file steps its scenario lists, in order.
+MAX_LISTED_STEPS = 6
+
+
+def _file_steps_scenario(found: _Finding) -> Scenario:
+    """A callable whose file steps changed, one of them putting a file in place of another or
+    beside it, so a failure between two of them can leave the original replaced or its copy lost.
+
+    The field test's `atomic_write_json` came to move an unreadable file aside through a helper
+    before writing a temporary file and replacing the original with it. Its obligation asked for
+    "the side-effect occurrence of the changed call", which the user judged noise. What the user
+    missed was a test of each step failing: the original, or the copy set aside, survives, and
+    the error propagates.
+    """
+    steps = found.change.file_steps
+    shown = [
+        f"{_quote(name)} in {_quote(through)}" if through else _quote(name)
+        for _, name, through in steps[:MAX_LISTED_STEPS]
+    ]
+    more = found.change.file_steps_total - len(shown)
+    listed = ", ".join(shown) + (f", and {more} more" if more > 0 else "")
+    return found.scenario(
+        ObligationType.ERROR,
+        f"Make each file step of {found.subject} fail in turn",
+        f"{found.changed}; its file steps now run in this order: {listed}",
+        "Each step raises in turn, through a stub or a failing file system, after the steps "
+        "before it succeed",
+        "After each failure the original file, or the copy set aside, is still in place, no "
+        "partial file replaces it, and the caller learns of the error",
+    )
+
+
 def _call_scenario(found: _Finding) -> Scenario:
+    if found.change.file_steps and found.category in STEP_CATEGORIES:
+        return _file_steps_scenario(found)
     observed = f"{found.runs}, with the call observed through a stub or a spy"
     if found.category is BehaviorCategory.SIDE_EFFECT:
         return found.scenario(
@@ -1343,6 +1459,88 @@ def _lifecycle_scenario(found: _Finding) -> Scenario:
     )
 
 
+# What a handler catches when it names no failure in particular.
+BROAD_CATCHES = frozenset({"", "Exception", "BaseException"})
+
+
+def _undo_scenario(found: _Finding, *, second: bool = False) -> Scenario:
+    """A handler the change gave its symbol that undoes or closes something and then raises.
+
+    The field test's `HANDLER` came to put a retracted event back with `reinstate_event` when
+    restoring the fridge failed, to report a failure of that, and to raise again what it caught.
+    Its obligation said only "Exercise the changed failure trigger", which was about a validation
+    the same change added. The user missed what this one asks: the guarded step fails, the undoing
+    runs, and the caller gets the original error. When the undoing fails too, that is reported
+    without hiding the first.
+    """
+    caught, guarded, work, reported, raised = found.change.handled_failures[0]
+    # One guarded step is the one to make fail. Of several, the test picks which, so the title
+    # names none and the `when` lists them.
+    failing = _quote(guarded[0]) if len(guarded) == 1 else "its guarded code"
+    what = "an exception" if caught in BROAD_CATCHES else _quote(caught)
+    steps = failing if len(guarded) == 1 else "the code its handler guards"
+    raising = f"{steps} raises {what}"
+    if len(guarded) > 1:
+        names = [_quote(name) for name in guarded]
+        listed = f"{', '.join(names[:-1])}{',' if len(names) > 2 else ''} or {names[-1]}"
+        raising = f"A step of the code its handler guards, such as {listed}, raises {what}"
+    undoing = _quotes(work, len(work))
+    again = raised == CAUGHT_AGAIN
+    gets = "the exception it caught" if again else _quote(raised)
+    others = len(found.change.handled_failures) - 1
+    also = f"; {others} more such handler(s) changed too" if others else ""
+    then = f"{undoing} {'runs' if len(work) == 1 else 'run'}, and the caller gets {gets}"
+    if reported:
+        then += (
+            f"; if {_quote(work[0])} fails too, that is reported and the caller still gets {gets}"
+        )
+    # The handler is what changed that the test is about: the symbol's other changes have their
+    # own place, and a raise change beside it named a validation that it does not guard.
+    return found.scenario(
+        ObligationType.ERROR,
+        f"Verify what {found.subject} undoes when {failing} fails",
+        f"When {steps} raises {what}, {found.subject} now calls {undoing} and then raises "
+        f"{'it again' if again else gets}{also}",
+        f"{raising} while {found.subject} runs",
+        then,
+        second=second,
+    )
+
+
+def _explained_by_undoing(change: Change) -> bool:
+    """Whether the handlers that undo something and raise are all a raise or handler change added.
+
+    A raise change's values are each a handler's raise again, or a new exception it raises. A
+    handler change's values are each what such a handler catches. The field test's `HANDLER` also
+    raised a new `ValueError` for a flag that was not a boolean, and the user judged its
+    obligation useful for that. So it keeps it, and the undoing is asked second.
+    """
+    if change.added_total != len(change.added):
+        return False
+    if change.kind == "raise_change":
+        again = any(item[4] == CAUGHT_AGAIN for item in change.handled_failures)
+        # A new exception is named by its class, which a raised name cannot be confused with.
+        named = {item[4] for item in change.handled_failures if item[4] != CAUGHT_AGAIN}
+        return all(
+            again if value == BARE_RAISE else value.split("(", 1)[0] in named
+            for value in change.added
+        )
+    caught = {item[0] for item in change.handled_failures}
+    return all(value in caught for value in change.added)
+
+
+def _error_scenarios(found: _Finding) -> tuple[Scenario, ...]:
+    """A raise or handler change's scenarios. When the change's handlers that undo something
+    explain all it added, their scenario is the one. Otherwise what else it raises or catches
+    comes first, and the undoing second."""
+    if not found.change.handled_failures:
+        return (_error_scenario(found),)
+    if _explained_by_undoing(found.change):
+        return (_undo_scenario(found),)
+    rest = replace(found, change=replace(found.change, handled_failures=()))
+    return (_error_scenario(rest), _undo_scenario(found, second=True))
+
+
 def _error_scenario(found: _Finding) -> Scenario:
     if found.change.kind == "raise_change" and found.change.removed_only and found.evidence.new:
         # A symbol that still raises something else: "what it does instead of raising" misled a
@@ -1673,11 +1871,11 @@ def _scenarios_of(found: _Finding) -> tuple[Scenario, ...]:
                 "What it acquires is released both times, and the outcome is asserted",
             ),
         )
+    if kind in {"raise_change", "exception_handler_change"}:
+        return _error_scenarios(found)
     builders = {
         "call_change": _call_scenario,
         "assignment_change": _assignment_scenario,
-        "raise_change": _error_scenario,
-        "exception_handler_change": _error_scenario,
         "loop_change": _loop_scenario,
         "decorator_change": _decorator_scenario,
         "symbol_added": _lifecycle_scenario,
@@ -1863,6 +2061,9 @@ def weakly_anchored(
         return bool((context or NO_CONTEXT).nested)
     evidence, change = picked
     if change.kind == "call_change":
+        if change.file_steps and behavior.category in STEP_CATEGORIES:
+            # Its file steps say what to make fail, which no other finding's scenario does.
+            return False
         calls = (*change.added, *change.removed)
         return behavior.category in WEAK_CALL_CATEGORIES and not any(
             leaves_the_process(call) for call in calls
