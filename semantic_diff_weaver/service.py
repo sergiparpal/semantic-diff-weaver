@@ -12,6 +12,7 @@ from uuid import uuid4
 from pydantic import ValidationError
 
 from .ast_diff import AstAnalysis, StructuralDelta, analyze_ast
+from .ast_diff.limits import MAX_CHANGED_VALUE_CHARS
 from .baseline import Baseline, compare_with_baseline, load_baseline
 from .call_graph import build_call_graph
 from .change_groups import group_changes
@@ -24,7 +25,7 @@ from .coverage_map import (
     summarize,
 )
 from .errors import ErrorCode, WeaverError
-from .evidence_scenarios import Change, changes_by_evidence, contexts_of
+from .evidence_scenarios import Change, UnrunLine, changes_by_evidence, contexts_of
 from .git_diff import (
     ChangedFile,
     DiffCollection,
@@ -70,6 +71,7 @@ from .semantic_candidates import (
     NAMING_NOTHING,
     SemanticCandidate,
     build_candidates,
+    evidence_id,
     evidence_identity,
 )
 from .semantic_interpreter import InterpreterResult, interpret_candidates
@@ -561,6 +563,53 @@ def _candidate_coverage_state(
     if states == {"uncovered"}:
         return "uncovered"
     return "unknown"
+
+
+def _unrun_lines(
+    coverage: CoverageMap | None,
+    behaviors: list[BehaviorChange],
+    deltas: list[StructuralDelta],
+    collection: DiffCollection,
+) -> dict[str, tuple[UnrunLine, ...]]:
+    """Per behavior, the changed lines of its symbols' own code that the report says no test ran,
+    each with its file and its text, redacted as evidence is.
+
+    A behavior's evidence span is its whole symbol, and a function's holds the functions nested
+    in it, whose lines are theirs. So the lines are each delta's `own_lines`: inside the symbol,
+    outside what it holds, and never its docstring, or for `<module>` a definition. A file the
+    report does not cover names none. In the Action's field test, where a change's own tests ran
+    every other changed line of a callable it added, these were the error paths: an `except`
+    clause and what it raised, or a `raise` under a check.
+    """
+    if coverage is None:
+        return {}
+    own = {
+        evidence_id(position): delta.own_lines
+        for position, delta in enumerate(deltas, start=1)
+        if delta.own_lines
+    }
+    texts = {item.path: item.new_text for item in collection.files if item.new_text is not None}
+    found: dict[str, tuple[UnrunLine, ...]] = {}
+    for behavior in behaviors:
+        by_path: dict[str, set[int]] = defaultdict(set)
+        for item in behavior.evidence:
+            by_path[item.path].update(own.get(item.id, ()))
+        lines: list[UnrunLine] = []
+        for path in sorted(by_path):
+            rows = (texts.get(path) or "").splitlines()
+            # Own lines are read from this same text, so each is one of its rows.
+            unrun = [n for n in sorted(coverage.unexecuted(path, by_path[path])) if n <= len(rows)]
+            lines.extend(
+                UnrunLine(
+                    path,
+                    number,
+                    redact_text(rows[number - 1].strip(), max_chars=MAX_CHANGED_VALUE_CHARS),
+                )
+                for number in unrun
+            )
+        if lines:
+            found[behavior.id] = tuple(lines)
+    return found
 
 
 def _materialize_behaviors(
@@ -1192,6 +1241,7 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
         coverage_states,
         changes,
         contexts_of(behaviors, changes, call_graph),
+        unrun_lines=_unrun_lines(coverage, behaviors, deltas, collection),
     )
     coverage_summary = _coverage_summary(coverage, reportable, state, changed_lines)
     behaviors, obligations, reportable = _join_unknown_to_named(behaviors, obligations, reportable)

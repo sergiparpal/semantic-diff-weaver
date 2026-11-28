@@ -286,7 +286,20 @@ between behaviors with the same coverage status, so one obligation can stand for
 behaviors while its status and candidate tests hold for each of them. Their candidates are pooled
 and cut to the per-obligation cap, and among equal scores the test files take turns, so one file's
 tests cannot fill every place. The obligation that groups high-risk overflow past the global cap
-reports its least-tested behavior's status. An added callable's obligation lists what its own code
+reports its least-tested behavior's status. With a report, each finding's first obligation that
+asks for a test also names, in its Given, the changed lines of the finding's own code that no test
+ran (`service._unrun_lines`, `evidence_scenarios.with_unrun_lines`):
+- **Own lines.** Each delta carries the head-side lines of its symbol's own code that the diff
+  changed (`StructuralDelta.own_lines`, set in `analyze._record_own_lines`). They lie inside the
+  symbol and outside the symbols it holds, and leave out blank lines, comments, and the docstring;
+  for `<module>`, every definition is left out too. They are the same lines that a change no rule
+  names quotes.
+- **Not run.** `CoverageMap.unexecuted` keeps those the report lists as not executed.
+- **Named.** Up to three are quoted, each redacted as evidence is. A line is named once, in the
+  obligation that comes first, when several findings of one symbol each ask for a test of their
+  own.
+
+An added callable's obligation lists what its own code
 returns and raises, and every condition on the path to each, which extraction records for every
 callable, with what the local variables those values read are assigned and how the code then
 changes what they name. A private one with something to list keeps that obligation rather than

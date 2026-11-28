@@ -169,8 +169,9 @@ def _changed_lines(
     ranges: list[tuple[int, int]],
     symbol: SymbolSnapshot,
     symbols: list[SymbolSnapshot],
-) -> list[str]:
-    """The changed lines of a symbol's own code: inside it, outside the symbols it holds.
+) -> list[tuple[int, str]]:
+    """The changed lines of a symbol's own code, each its number and its text: inside it, outside
+    the symbols it holds.
 
     A module's own code is the whole file but its definitions, which are symbols of their own;
     its snapshot's line range counts statements, not lines. Blank and comment lines say nothing,
@@ -194,15 +195,42 @@ def _changed_lines(
     ]
     if symbol.docstring_lines is not None:
         skipped.append(symbol.docstring_lines)
-    found: list[str] = []
+    found: list[tuple[int, str]] = []
     for first, count in ranges:
         for number in range(max(first, start), min(first + count - 1, end) + 1):
             if any(low <= number <= high for low, high in skipped) or number > len(lines):
                 continue
             line = lines[number - 1].strip()
             if line and not line.startswith("#"):
-                found.append(line)
+                found.append((number, line))
     return found
+
+
+def _record_own_lines(
+    deltas: list[StructuralDelta],
+    changed: SourceRevisionPair,
+    new: SymbolSnapshot,
+    new_symbols: list[SymbolSnapshot],
+) -> None:
+    """Give each delta of a symbol the head-side lines of its own code that the diff changed.
+
+    A finding's evidence span is its whole symbol: a function's holds the functions nested in it,
+    whose lines are theirs, and a module's is the file. A coverage report says which of these
+    lines no test ran, and the finding's obligation names those (`service._unrun_lines`).
+    """
+    if not deltas:
+        return
+    own = tuple(
+        number
+        for number, _ in _changed_lines(
+            changed.new_text,
+            [(hunk.new_start, hunk.new_count) for hunk in changed.hunks],
+            new,
+            new_symbols,
+        )
+    )
+    for delta in deltas:
+        delta.own_lines = own
 
 
 def _quote_unnamed_change(
@@ -233,7 +261,9 @@ def _quote_unnamed_change(
             new,
             new_symbols,
         )
-        delta.metadata.update(changed_value_metadata(removed, added))
+        delta.metadata.update(
+            changed_value_metadata([line for _, line in removed], [line for _, line in added])
+        )
 
 
 def _drop_redundant_module_deltas(
@@ -344,6 +374,8 @@ def analyze_ast(files: list[SourceRevisionPair], budget: AstBudget | None = None
 
     removed: list[tuple[SymbolSnapshot, SourceRevisionPair]] = []
     added: list[tuple[SymbolSnapshot, SourceRevisionPair]] = []
+    # Each file's head-side symbols, which tell a symbol's own lines from those it holds.
+    new_symbols_by_path = {changed.path: new_symbols for changed, _, new_symbols in parsed}
     own_calls_by_path: dict[str, frozenset[str]] = {}
     first_party_by_path: dict[str, frozenset[str]] = {}
     for changed, old_symbols, new_symbols in parsed:
@@ -387,6 +419,7 @@ def analyze_ast(files: list[SourceRevisionPair], budget: AstBudget | None = None
             _quote_unnamed_change(
                 symbol_deltas, changed, pair.old, pair.new, old_symbols, new_symbols
             )
+            _record_own_lines(symbol_deltas, changed, pair.new, new_symbols)
             if symbol_deltas:
                 changed_symbol_keys.add((path, pair.new.qualified_name))
                 deltas.extend(symbol_deltas)
@@ -410,6 +443,7 @@ def analyze_ast(files: list[SourceRevisionPair], budget: AstBudget | None = None
             first_party=first_party_by_path.get(old_file.path, frozenset())
             | first_party_by_path.get(new_file.path, frozenset()),
         )
+        _record_own_lines(symbol_deltas, new_file, new, new_symbols_by_path.get(path, [new]))
         if symbol_deltas:
             changed_symbol_keys.add((path, new.qualified_name))
             deltas.extend(symbol_deltas)
@@ -436,6 +470,7 @@ def analyze_ast(files: list[SourceRevisionPair], budget: AstBudget | None = None
             old_path=changed.old_path or path,
             new_path=path,
         )
+        _record_own_lines(symbol_deltas, changed, new, new_symbols_by_path.get(changed.path, [new]))
         if symbol_deltas:
             changed_symbol_keys.add((path, new.qualified_name))
             deltas.extend(symbol_deltas)
