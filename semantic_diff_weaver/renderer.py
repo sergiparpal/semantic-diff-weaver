@@ -325,15 +325,20 @@ def _coverage_lines(result: AnalysisResult) -> list[str]:
 
 
 def _duplicate_groups(result: AnalysisResult) -> list[list[BehaviorChange]]:
-    """The findings as the brief lists them: each alone, or beside the others on its symbol whose
-    obligations hold all of its own, or all of whose obligations it holds, in one group.
+    """The findings as the brief lists them: each alone, or in one group with the others on its
+    symbol whose obligations hold all of its own, or all of whose obligations it holds, and with
+    the findings of a function nested in its own whose obligations hold all of its own, when its
+    function changed only as the code nested in it did.
 
     Two categories of one change can write the same scenario, and each finding then repeated the
     other's test obligations under another name: the Action's field test listed a changed
     `except` as a dependency interaction and again as an error handling change. One card says
-    them once and names both categories. The analysis keeps each finding, and the obligations
-    list each one they cover. A review question stays apart: it asks what the analysis could not
-    tell.
+    them once and names both categories. A function that changed only as a function nested in it
+    did shares that function's obligations (`SDW-RULE-NESTED`), and the field test listed a
+    decorator's changed `runner` and the factory around it as two cards with one test. One card
+    says the change once, with each function around it. The analysis keeps each finding, and the
+    obligations list each one they cover. A review question stays apart: it asks what the analysis
+    could not tell.
     """
     covered: dict[str, set[str]] = {}
     for obligation in result.test_obligations:
@@ -358,6 +363,22 @@ def _duplicate_groups(result: AnalysisResult) -> list[list[BehaviorChange]]:
                 theirs = covered.get(other.id, set())
                 if mine and theirs and (mine <= theirs or theirs <= mine):
                     lead[root(other.id)] = root(behavior.id)
+    for (path, symbol), members in by_symbol.items():
+        around = [
+            behavior
+            for behavior in members
+            if covered.get(behavior.id)
+            and all(item.kind == "unknown_structure" for item in behavior.evidence)
+        ]
+        if not around or not symbol:
+            continue
+        for (inner_path, inner_symbol), inner_members in by_symbol.items():
+            if inner_path != path or not (inner_symbol or "").startswith(f"{symbol}."):
+                continue
+            for behavior in around:
+                for inner in inner_members:
+                    if covered[behavior.id] <= covered.get(inner.id, set()):
+                        lead[root(inner.id)] = root(behavior.id)
     groups: dict[str, list[BehaviorChange]] = {}
     for behavior in result.behavior_changes:
         groups.setdefault(root(behavior.id), []).append(behavior)
@@ -367,9 +388,9 @@ def _duplicate_groups(result: AnalysisResult) -> list[list[BehaviorChange]]:
 def _finding_lines(
     group: list[BehaviorChange], marks: Mapping[str, str], excerpt_chars: int | None
 ) -> list[str]:
-    """One card: a finding, or the findings of one symbol that share their test obligations,
-    named once each with every category, the risk and confidence of the riskiest, and the
-    evidence of all of them."""
+    """One card: a finding, or the findings of one symbol, or of one change and the functions
+    around it, that share their test obligations, named once each with every category, the risk
+    and confidence of the riskiest, and the evidence of all of them."""
     first = group[0]
     if len(group) == 1:
         prefix = (
@@ -388,12 +409,16 @@ def _finding_lines(
         categories = ", ".join(dict.fromkeys(_escape(item.category.value) for item in group))
         summaries = " ".join(dict.fromkeys(_escape(item.summary) for item in group))
         impacts = " ".join(dict.fromkeys(_escape(item.observable_impact) for item in group))
+        symbols = {(item.evidence[0].path, item.evidence[0].symbol) for item in group}
         lines = [
             f"- **Findings {ids} · {categories} · {riskiest.risk.value} risk · "
             f"{riskiest.confidence:.0%} confidence:** {summaries}",
             f"  - Observable impact: {impacts}",
             "  - One change of one symbol, read as each category: the same test obligations "
-            "cover them.",
+            "cover them."
+            if len(symbols) == 1
+            else "  - One change, and each function around it that changed only through it: the "
+            "same test obligations cover them.",
         ]
     shown: set[str] = set()
     for behavior in group:

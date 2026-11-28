@@ -205,9 +205,11 @@ compared a commit with itself never passes.
 category, path, and symbol, and reports each as new, updated, unchanged, or resolved.
 
 `renderer.py` writes the brief, the Markdown of an analysis, with a card for each finding.
-Findings of one symbol where the test obligations of one are all also another's are one card. It
-names every category, the risk and confidence of the riskiest, and the evidence of each. The
-analysis keeps each finding, and a review question keeps its own card.
+Findings of one symbol where the test obligations of one are all also another's are one card. So
+are a function that changed only as the code nested in it did and the finding of a nested function
+whose obligations hold all of its own. A card names every category, the risk and confidence of the
+riskiest, and the evidence of each. The analysis keeps each finding, and a review question keeps
+its own card.
 
 `skeletons.py` serves the CLI's `skeletons` subcommand, beside the pipeline rather than in it. It
 reads an earlier analysis as untrusted JSON, validated like a baseline, and the test files of its

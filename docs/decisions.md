@@ -1359,6 +1359,52 @@ would trade two right categories for one.
   change, in their summary, impact, and obligation. Their category, confidence, and risk are
   unchanged, and so is everything else in both analyses.
 
+## Output-affecting corrections (2026-11-28, a docstring, and the functions around a change)
+
+In the Action's field test, meal-manager#62 changed the decorator factory `tool_handler`. The
+condition in its nested `runner` came to log a deliberate error as a warning, and the factory's
+docstring came to say so. The analysis reported the change in three functions: `runner`,
+`decorate` around it, and `tool_handler` around both.
+- **`decorate` repeated `runner`'s card.** It changed only as `runner` did. So `SDW-RULE-NESTED`
+  gave it `runner`'s category, and it shared `runner`'s obligation. But it had a card of its own
+  with the same test, because the cards of one change were per symbol.
+- **`tool_handler` quoted its docstring.** `ast_diff` quotes a change no rule names by the lines its
+  hunks span in the symbol's own code, without blank lines and comments. Here the docstring's
+  lines were the only ones. So the factory kept an obligation of its own, "Clarify and characterize
+  what the changed lines of `tool_handler` do", which quoted the docstring as code.
+
+**The corrections.**
+- **A docstring is no changed line.** `SymbolSnapshot.docstring_lines` records the lines a
+  symbol's docstring spans. `_changed_lines` leaves them out, as it leaves out the symbols the
+  symbol holds. A docstring runs nothing, and the fingerprints already set it aside.
+  - A function whose docstring changed beside a nested function now changed only as that function
+    did, and shares its obligation.
+  - A function whose code also changed quotes only that code.
+- **One card for a change and each function around it.** `renderer._duplicate_groups` also groups
+  some findings of different functions.
+  - **Which.** One finding's evidence is "body changed" alone, so its function changed only as the
+    code nested in it did. The other is on a function nested in the first, and its obligations hold
+    all of the first's.
+  - **The card.** It says "One change, and each function around it that changed only through
+    it".
+  - **What keeps its card.** A function with an obligation of its own, or with code of its own
+    that changed, keeps its card.
+
+  The analysis keeps each finding.
+
+**Measured.**
+- **Development cases.** On the 180 development cases, no finding, obligation, or benchmark
+  measure changes, since no obligation quoted a docstring. Four cards join a nested function's:
+  - tenacity#679's and #696's `retry` beside `retry.wrap`;
+  - werkzeug#3329's two `run_wsgi` findings beside `execute`'s two;
+  - pluggy#799's `PluginManager.enable_tracing` beside its `after`.
+
+  The brief lists 381 cards where it listed 385.
+- **Field replay.** Of the eleven judged field analyses, only meal-manager#62 changes.
+  `tool_handler`'s docstring obligation goes, so the eleven hold 106 obligations where they held
+  107. `runner`'s obligation covers all three findings, on one card. #62's brief lists two cards
+  where it listed four.
+
 ## Output-affecting corrections (2026-11-13, a nested function's obligations)
 
 `SDW-RULE-NESTED` gives a function whose own code reads the same, and whose body changed only as the
