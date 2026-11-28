@@ -800,6 +800,82 @@ def _join_declared_to_implementation(
     return _join_findings(behaviors, obligations, reportable, joined, relink=False)
 
 
+def _raised_name(text: str) -> str:
+    """The class a raised expression names: `LabelError` for `LabelError(f'...')`, and for
+    `errors.LabelError`."""
+    return text.partition("(")[0].strip().rpartition(".")[2]
+
+
+def _raises(change: Change, name: str) -> bool:
+    """Whether a delta shows its symbol raising the class `name`: a raise the change adds to it, or
+    an outcome of the callable the change adds."""
+    if change.kind == "raise_change" and any(_raised_name(text) == name for text in change.added):
+        return True
+    return any(kind == "raise" and _raised_name(value) == name for kind, value, _ in change.exits)
+
+
+def _join_exception_to_raiser(
+    behaviors: list[BehaviorChange],
+    obligations: list[TestObligation],
+    reportable: list[_ScoredCandidate],
+    changes: Mapping[str, Change],
+) -> tuple[list[BehaviorChange], list[TestObligation], list[_ScoredCandidate]]:
+    """A finding on an added exception class with nothing of its own joins the finding on code
+    that raises it.
+
+    Such a class names an exception among its bases, and its body holds nothing but a docstring,
+    `...`, or `pass`. A test that raises it tests what it inherits, and what it means is where
+    code raises it: what for, with what message, and what the caller then sees. In the Action's
+    field test on claim-ledger, `Refused(Exception)` and `LabelError(Exception)` each asked to be
+    "characterized", beside findings on the functions that raise them, which said what to test.
+    The class's evidence is appended to the finding of the first code that raises it, in the
+    class's own file first, then in line order. Its own obligation goes with it. Such code adds a
+    raise of the class, or is a callable the change adds that raises it. A class no finding raises
+    stays, as does a review question.
+    """
+    exceptions: list[tuple[BehaviorChange, str]] = []
+    for behavior in behaviors:
+        first = behavior.evidence[0]
+        change = changes.get(first.id)
+        if (
+            change is not None
+            and change.bare_exception
+            and change.kind == "symbol_added"
+            and behavior.presentation is not Presentation.REVIEW_QUESTION
+        ):
+            exceptions.append((behavior, (first.symbol or "").rpartition(".")[2]))
+    joined: dict[str, str] = {}
+    for behavior, name in exceptions:
+        path = behavior.evidence[0].path
+        raisers = [
+            other
+            for other in behaviors
+            if all(other is not item for item, _ in exceptions)
+            and any(
+                (change := changes.get(item.id)) is not None and _raises(change, name)
+                for item in other.evidence
+            )
+        ]
+        if raisers:
+            target = min(
+                raisers,
+                key=lambda other: (
+                    other.evidence[0].path != path,
+                    other.evidence[0].path,
+                    _first_line(other.evidence[0]),
+                    other.evidence[0].symbol or "",
+                ),
+            )
+            joined[behavior.id] = target.id
+    return _join_findings(behaviors, obligations, reportable, joined, relink=False)
+
+
+def _first_line(evidence: Evidence) -> int:
+    """The first line of what the evidence shows, on its new side if it has one."""
+    lines = evidence.new_lines or evidence.old_lines
+    return lines.start if lines is not None else 0
+
+
 def _summary_metrics(
     behaviors: list[BehaviorChange],
     obligations: list[TestObligation],
@@ -1120,6 +1196,9 @@ def analyze(arguments: dict[str, Any], *, llm: LlmClient | None = None) -> dict[
     coverage_summary = _coverage_summary(coverage, reportable, state, changed_lines)
     behaviors, obligations, reportable = _join_unknown_to_named(behaviors, obligations, reportable)
     behaviors, obligations, reportable = _join_declared_to_implementation(
+        behaviors, obligations, reportable, changes
+    )
+    behaviors, obligations, reportable = _join_exception_to_raiser(
         behaviors, obligations, reportable, changes
     )
     if omitted_obligations:

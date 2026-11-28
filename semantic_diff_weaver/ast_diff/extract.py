@@ -2620,6 +2620,8 @@ def extract_symbols(source: str, budget: AstBudget | None = None) -> list[Symbol
     type_checking = type_checking_spellings(tree) if "TYPE_CHECKING" in source else frozenset()
     typing = typing_context(tree, type_checking)
     owners = _method_owners(tree)
+    # The last names of each class's bases, by the class's name, as the file defines them so far.
+    bases_of: dict[str, tuple[str, ...]] = {}
     for name, kind, node in _symbol_nodes(tree.body):
         if len(symbols) >= effective_budget.max_symbols_per_file:
             raise AstResourceLimit("symbol budget exceeded")
@@ -2628,12 +2630,53 @@ def extract_symbols(source: str, budget: AstBudget | None = None) -> list[Symbol
         if owner is not None and isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             snapshot.owner_bases = _bases(owner)
             snapshot.declared_only = declares_only(node, owner)
+        if isinstance(node, ast.ClassDef):
+            bases = tuple(base.rpartition(".")[2] for base in _bases(node))
+            bases_of.setdefault(node.name, bases)
+            snapshot.bare_exception = (
+                not node.decorator_list
+                and all(_runs_nothing(statement) for statement in node.body)
+                and _names_exception(bases, bases_of)
+            )
         if kind == "module":
             snapshot.start = 1
             snapshot.end = max(1, len(source.splitlines()))
             snapshot.names, snapshot.reads, snapshot.imported = file_names(tree)
         symbols.append(snapshot)
+    # A class's shell leaves out its methods, which are symbols of their own, nested in it: one
+    # with a method does something of its own.
+    holders = {item.qualified_name.rpartition(".")[0] for item in symbols}
+    for item in symbols:
+        if item.bare_exception and item.qualified_name in holders:
+            item.bare_exception = False
     return symbols
+
+
+def _runs_nothing(statement: ast.stmt) -> bool:
+    """Whether a statement of a class's body defines nothing: a docstring, `...`, or `pass`."""
+    if isinstance(statement, ast.Pass):
+        return True
+    return (
+        isinstance(statement, ast.Expr)
+        and isinstance(statement.value, ast.Constant)
+        and (isinstance(statement.value.value, str) or statement.value.value is Ellipsis)
+    )
+
+
+def _names_exception(
+    bases: tuple[str, ...], bases_of: Mapping[str, tuple[str, ...]], depth: int = 0
+) -> bool:
+    """Whether a class's bases name an exception: a base whose name ends as every builtin
+    exception's and warning's does, or a class of its own file whose bases name one."""
+    return any(
+        base.endswith(EXCEPTION_NAME_ENDINGS)
+        or (
+            depth < limits.MAX_EXCEPTION_BASE_DEPTH
+            and base in bases_of
+            and _names_exception(bases_of[base], bases_of, depth + 1)
+        )
+        for base in bases
+    )
 
 
 def _dotted(node: ast.Attribute) -> str | None:

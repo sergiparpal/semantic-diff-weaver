@@ -170,6 +170,9 @@ def make_structural_delta(
         metadata["declared_only"] = True
     if current is not None and current.owner_bases:
         metadata["owner_bases"] = list(current.owner_bases)
+    # And an exception class with nothing of its own, whose meaning is where code raises it.
+    if current is not None and current.bare_exception:
+        metadata["bare_exception"] = True
     return StructuralDelta(
         path=path,
         symbol=symbol_name,

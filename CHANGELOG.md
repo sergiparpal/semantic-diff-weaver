@@ -23,6 +23,24 @@
     385. Of the eleven judged field analyses, only meal-manager's pull request 62 changes. One
     obligation goes, so they hold 106 obligations where they held 107. The brief lists 88 cards
     where it listed 90.
+- **Findings:** an added exception class with nothing of its own joins the finding on code that
+  raises it. In the Action's field test on claim-ledger, `Refused(Exception)` and
+  `LabelError(Exception)` each asked to "characterize the new" class with a representative input.
+  Raising one tests only what it inherits, and what it means is where code raises it. The findings
+  on the functions that raise them said what to test.
+  - **Which classes.** A class whose bases name an exception: a base whose name ends as every
+    builtin exception's does, such as `Error` or `Exception`, or a class of the same file whose
+    bases name one. Its body holds nothing but a docstring, `...`, or `pass`, with no method, no
+    other statement, and no decorator.
+  - **The join.** Its evidence is appended to the finding of the first code that raises it, in
+    its own file first, then in line order. That code adds a raise of the class, or is a callable
+    the change adds whose outcomes raise it. The class's own obligation goes with it. A class no
+    finding raises keeps its finding, as does a review question and a class the change removes.
+  - **Where it changes output.** On the 180 development cases, nothing changes, since none of
+    their findings is on an added exception class. Of the eleven judged field analyses, exactly
+    those two findings join. `LabelError` joins `_hand_labels`, in claim-ledger's push 22f0904.
+    `Refused` joins `prepare`, the first of its seven raisers, in push 6c00f52. The analyses hold
+    97 findings where they held 99, and 104 obligations where they held 106.
 
 ## 0.27.0 - 2026-11-26
 
