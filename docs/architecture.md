@@ -305,7 +305,12 @@ docstring, `...`, `pass`, or a raise of `NotImplementedError`. The implementatio
 same name on a class that names the declaring class among its bases, or whose name holds the
 declaring class's name. The declaration's evidence is appended to the implementation's finding, and
 its obligations go with it. One with no such implementation stays, and its obligation asks to test
-it through each class that implements it.
+it through each class that implements it. Last, a finding on an added exception class with nothing
+of its own joins the finding on code that raises it. Such a class names an exception among its
+bases, and its body holds nothing but a docstring, `...`, or `pass`, with no method and no
+decorator. Its evidence is appended to the finding of the first code that raises it, in its own
+file first, then in line order, and its obligation goes with it. That code adds a raise of the
+class, or is a callable the change adds whose outcomes raise it. One that no finding raises stays.
 
 **Candidate tests.** A run measured with per-test contexts also says which test executed each line:
 the coverage.py data file, `.coverage`, that `coverage_map.load_coverage_data` reads beside the

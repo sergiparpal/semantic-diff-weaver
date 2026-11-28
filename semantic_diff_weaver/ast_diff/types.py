@@ -140,6 +140,10 @@ class SymbolSnapshot:
     declared_only: bool = False
     # For a method, the bases its class names, as `extract._bases` reads them.
     owner_bases: tuple[str, ...] = ()
+    # Whether it is an exception class with nothing of its own: its bases name an exception, it has
+    # no decorator, and its body holds nothing but a docstring, `...`, or `pass`, with no method
+    # (see `extract.extract_symbols`). What it means is where code raises it.
+    bare_exception: bool = False
     # What an added or removed symbol's evidence shows. The signature alone said `bases()` for a
     # dataclass and `module` for a whole `__main__.py`; empty means "show the signature".
     display: str = ""

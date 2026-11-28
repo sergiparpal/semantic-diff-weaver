@@ -273,6 +273,9 @@ class Change:
     # define (see `extract.declares_only`), and the bases of a method's class.
     declared_only: bool = False
     owner_bases: tuple[str, ...] = ()
+    # Whether its symbol is an exception class with nothing of its own: no method, and a body of
+    # a docstring, `...`, or `pass` alone (see `extract.extract_symbols`).
+    bare_exception: bool = False
     # The names a module's `__all__` gained and lost, at most `MAX_CHANGED_VALUES` of each, and
     # how many.
     exports_added: tuple[str, ...] = ()
@@ -382,6 +385,7 @@ def describe_change(delta: StructuralDelta) -> Change | None:
         exports_removed_total=_count(metadata.get("exports_removed_total"), len(lost)),
         declared_only=bool(metadata.get("declared_only")),
         owner_bases=_strings(metadata.get("owner_bases")),
+        bare_exception=bool(metadata.get("bare_exception")),
         exits=(exits := _exits(metadata.get("exits"))),
         exits_total=_count(metadata.get("exits_total"), len(exits)),
         definitions=_definitions(metadata.get("definitions")),

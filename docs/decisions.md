@@ -1405,6 +1405,50 @@ docstring came to say so. The analysis reported the change in three functions: `
   107. `runner`'s obligation covers all three findings, on one card. #62's brief lists two cards
   where it listed four.
 
+## Output-affecting corrections (2026-11-28, an exception with nothing of its own)
+
+In the Action's field test on claim-ledger, two findings were on added exception classes whose
+bodies are empty:
+- `Refused(Exception)` in push 6c00f52's `tools/ship.py`, which seven functions the change adds
+  raise;
+- `LabelError(Exception)` in push 22f0904's `tools/daily_use.py`, which `_hand_labels` raises.
+
+Each was "A callable or structural symbol was added", and each obligation asked to "characterize
+the new" class: called with a representative input, its result asserted as its contract. Raising
+such a class tests only what it inherits. What it means is where code raises it: what for, with
+what message, and what the caller then sees. The findings on the functions that raise them said
+that, with the outcomes they list.
+
+**The correction.** It works like a declaration's join to its implementation, and is applied after
+it.
+- **Which classes.** Extraction marks a class as `bare_exception` when three things hold:
+  - Its bases name an exception: a base whose last name ends as every builtin exception's and
+    warning's does (`EXCEPTION_NAME_ENDINGS`), or a class of the same file whose bases name one,
+    followed through at most `MAX_EXCEPTION_BASE_DEPTH` classes.
+  - It has no decorator.
+  - Its body holds nothing but a docstring, `...`, or `pass`, and it has no method.
+- **The join.** A finding on such a class that the change adds joins the finding on code that
+  raises it (`service._join_exception_to_raiser`).
+  - That code adds a raise of the class (`raise_change`), or is a callable the change adds whose
+    outcomes raise it.
+  - Of several, the first in the class's own file, then in line order, takes it.
+  - The class's evidence is appended to that finding, and its own obligation goes with it.
+- **What stays.** A class that no finding raises keeps its finding and its obligation. So do a
+  review question and a class the change removes. A class with a method, a class attribute, or a
+  decorator does something of its own and keeps its finding.
+
+**Measured.**
+- **Development cases.** On the 180 development cases, nothing changes, as with the declarations.
+  None of their findings is on an added exception class: their labels name a single added class,
+  packaging#1473's `RangeRelation`, an `enum.Enum`. The benchmark cannot measure the correction,
+  and only the field can judge it.
+- **Field replay.** Of the eleven judged field analyses, exactly the two findings join:
+  - `LabelError` joins `_hand_labels`;
+  - `Refused` joins `prepare`, the first of its seven raisers in `tools/ship.py`.
+
+  The analyses hold 97 findings where they held 99, and 104 obligations where they held 106.
+  Nothing else changes.
+
 ## Output-affecting corrections (2026-11-13, a nested function's obligations)
 
 `SDW-RULE-NESTED` gives a function whose own code reads the same, and whose body changed only as the

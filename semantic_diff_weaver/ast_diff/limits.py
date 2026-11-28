@@ -59,6 +59,9 @@ MAX_CHANGED_VALUE_CHARS = 200
 MAX_FUNCTION_EXITS = 12
 MAX_EXIT_CHARS = 200
 MAX_EXIT_CONDITIONS = 4
+# How many classes of its own file a class's bases are followed through to find an exception
+# among them (see `extract.extract_symbols`).
+MAX_EXCEPTION_BASE_DEPTH = 8
 # How many of the local variables an exit's value reads a callable's snapshot defines, and how
 # many assignments of each and later changes to what each names, beside how many there are.
 MAX_DEFINED_LOCALS = 4
