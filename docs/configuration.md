@@ -276,6 +276,15 @@ mixed or unknown range keeps the existing `candidate_exists_unverified` / `no_ca
 semantics. `CandidateTest.verified` stays `false` in every case: coverage says a *line* was
 executed by the suite, not that a specific candidate test asserts the changed behavior.
 
+Whatever its status, a finding's first obligation that asks for a test also names, in its Given,
+the changed lines of the finding's own code that the report says no test ran, such as `no test ran
+the changed lines 234-237 of tools/ship.py`. It quotes up to three of them, redacted as evidence
+is, and counts the rest. A finding's own lines lie inside its symbol and outside the functions and
+classes nested in it, which are findings of their own. Its docstring is never one of them. For
+`<module>`, they are the top-level statements outside every definition. A file the report does not
+cover names no line. When several findings of one symbol each ask for a test of their own, its
+lines are named once, in the obligation that comes first.
+
 ### Which tests ran a change
 
 A run measured with per-test contexts also records which test executed each line, and a test that

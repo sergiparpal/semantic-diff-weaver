@@ -93,6 +93,10 @@ from the report is reported as **unknown, never uncovered**, so a path-prefix mi
 as a warning rather than as a fake coverage gap. See
 [configuration](docs/configuration.md#coverage-grounding).
 
+Each finding's obligation then also names the changed lines of the finding's own code that no
+test ran, such as an error path its tests never reach, so the test it asks for starts where the
+suite stops.
+
 Record the run with per-test contexts, `COVERAGE_CORE=ctrace pytest --cov --cov-context=test`, and
 pass the `.coverage` data file it leaves beside the report, and each test that ran a changed line is
 a candidate test for the change, whatever its name or imports say:

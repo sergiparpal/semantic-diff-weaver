@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from typing import TYPE_CHECKING
 
 from .evidence_scenarios import (
@@ -11,9 +11,11 @@ from .evidence_scenarios import (
     NO_CONTEXT,
     Change,
     Context,
+    UnrunLine,
     evidence_scenarios,
     primary_kind,
     weakly_anchored,
+    with_unrun_lines,
 )
 from .models import (
     BehaviorCategory,
@@ -239,6 +241,45 @@ def _folded(
     return resolved
 
 
+def _name_unrun_lines(
+    behaviors: list[BehaviorChange],
+    unrun_lines: Mapping[str, Sequence[UnrunLine]],
+    folded: Mapping[str, str],
+    first_test: Mapping[str, TestObligation],
+    first_obligation: Mapping[str, TestObligation],
+) -> None:
+    """Name in the Given of each behavior's first test obligation the changed lines of its own
+    code that a coverage report says no test ran.
+
+    Of what the obligation asks for, those are the paths the suite does not reach yet. A behavior
+    folded into another's obligation names them there. Each line is named once: the findings of
+    one symbol share its lines, and when each asks for a test of its own, the obligation that comes
+    first names them. In the Action's field test, a handler's contract and its failure trigger both
+    named the same rollback and messages. Without a report, nothing changes.
+    """
+    named: dict[int, tuple[TestObligation, list[UnrunLine]]] = {}
+    for behavior in behaviors:
+        lines = unrun_lines.get(behavior.id)
+        if not lines:
+            continue
+        anchor = folded.get(behavior.id, behavior.id)
+        target = first_test.get(anchor) or first_obligation.get(anchor)
+        if target is None:
+            continue
+        _, gathered = named.setdefault(id(target), (target, []))
+        gathered.extend(lines)
+    seen: set[UnrunLine] = set()
+    for target, gathered in sorted(
+        named.values(),
+        key=lambda pair: (-pair[0].priority, pair[0].behavior_change_ids[0], pair[0].title),
+    ):
+        fresh = [line for line in gathered if line not in seen]
+        given = with_unrun_lines(target.given, fresh) if fresh else target.given
+        if given != target.given:
+            seen.update(fresh)
+            target.given = given
+
+
 def generate_obligations(
     behaviors: list[BehaviorChange],
     candidate_tests: dict[str, list[CandidateTest]],
@@ -248,13 +289,16 @@ def generate_obligations(
     coverage_states: dict[str, str] | None = None,
     changes: Mapping[str, Change] | None = None,
     contexts: Mapping[str, Context] | None = None,
+    unrun_lines: Mapping[str, Sequence[UnrunLine]] | None = None,
 ) -> tuple[list[TestObligation], int]:
     """Each behavior's scenarios, deduplicated, prioritized, and capped.
 
     A behavior's scenarios quote what its evidence changed, by `changes`, when a Python delta
     describes it; any other takes its category's scenarios. `contexts` says, by behavior ID, what
     the call graph and the other findings say around it. A behavior whose scenario would say
-    little is linked to a stronger one's obligation instead (see `_folded`).
+    little is linked to a stronger one's obligation instead (see `_folded`). `unrun_lines` says,
+    by behavior ID, which changed lines of its own code a coverage report says no test ran, and
+    its first test obligation names them (see `_name_unrun_lines`).
     """
     generated: list[TestObligation] = []
     by_semantics: dict[tuple[str, str, str, CoverageStatus, tuple[str, ...]], TestObligation] = {}
@@ -277,8 +321,10 @@ def generate_obligations(
     }
     kinds = {behavior.id: primary_kind(behavior, changes or {}) for behavior in behaviors}
     folded = _folded(behaviors, quoting, weak, kinds, contexts, coverage_by_behavior)
-    # The obligation each behavior's first scenario became, for a folded behavior to join.
+    # The obligation each behavior's first scenario became, for a folded behavior to join, and the
+    # one its first scenario that asks for a test became, a review question's not being one.
     first_obligation: dict[str, TestObligation] = {}
+    first_test: dict[str, TestObligation] = {}
     for behavior in behaviors:
         candidates = candidate_tests.get(behavior.id, [])
         coverage = coverage_by_behavior[behavior.id]
@@ -356,6 +402,8 @@ def generate_obligations(
                 existing.confidence = max(existing.confidence, behavior.confidence)
                 if position == 0:
                     first_obligation.setdefault(behavior.id, existing)
+                if scenario.type is not ObligationType.REVIEW:
+                    first_test.setdefault(behavior.id, existing)
                 continue
             obligation = TestObligation(
                 id=f"to-{len(generated) + 1:03d}",
@@ -375,6 +423,8 @@ def generate_obligations(
             by_semantics[key] = obligation
             if position == 0:
                 first_obligation.setdefault(behavior.id, obligation)
+            if scenario.type is not ObligationType.REVIEW:
+                first_test.setdefault(behavior.id, obligation)
     by_id = {behavior.id: behavior for behavior in behaviors}
     for behavior_id, anchor in folded.items():
         target = first_obligation[anchor]
@@ -390,6 +440,7 @@ def generate_obligations(
         target.candidate_existing_tests = _merge_candidate_tests(
             target.candidate_existing_tests, candidates
         )[: rules.max_candidate_tests_per_obligation]
+    _name_unrun_lines(behaviors, unrun_lines or {}, folded, first_test, first_obligation)
     ordered = sorted(
         generated, key=lambda item: (-item.priority, item.behavior_change_ids[0], item.title)
     )

@@ -465,11 +465,11 @@ def test_a_module_s_unnamed_change_leaves_out_the_lines_of_its_definitions() -> 
     ("text", "kind", "expected"),
     [
         (None, "function", []),
-        ("def f():\n    pass\n", "function", ["pass"]),
+        ("def f():\n    pass\n", "function", [(2, "pass")]),
     ],
 )
 def test_changed_lines_read_only_a_revision_that_exists(
-    text: str | None, kind: str, expected: list[str]
+    text: str | None, kind: str, expected: list[tuple[int, str]]
 ) -> None:
     from semantic_diff_weaver.ast_diff.analyze import _changed_lines
 

@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- **Obligations:** with a coverage report, a finding's obligation names the changed lines of its
+  own code that no test ran. In the Action's field test, the obligation of a callable a change
+  added asked for each of its outcomes. The change's own tests had often run every changed line of
+  it but an error path: an `except` clause and what it raised, or a `raise` under a check. Those
+  lines are what is left to test, and the report already says which they are.
+  - **Which lines.** A finding's own lines lie inside its symbol and outside the functions and
+    classes nested in it, which have findings of their own. Its docstring, blank lines, and
+    comments are never among them. For `<module>`, no definition is. A file the report does not
+    cover names none.
+  - **Where.** They go in the Given of the finding's first obligation that asks for a test:
+    "no test ran the changed lines 234-237 of `tools/ship.py`: `except FileNotFoundError:`, …".
+    Up to three are quoted, redacted as evidence is, and the rest are counted. When several
+    findings of one symbol each ask for a test of their own, its lines are named once, in the
+    obligation that comes first.
+  - **Where it changes output.** Only with a coverage report. On the 180 development cases, which
+    have none, nothing changes. The eleven judged field analyses were replayed with each head's
+    own coverage. Their findings and their 104 obligations stay the same, but for the Given of 17
+    obligations, which now names lines:
+    - 11 in claim-ledger's push 6c00f52;
+    - 2 in push 22f0904;
+    - 1 each in pushes fa23454 and 32ab858;
+    - 2 in meal-manager's pull request 55.
 - **Obligations and brief:** a change seen in a function and in each function around it is said
   once. In the Action's field test on meal-manager's pull request 62, the condition in the nested
   `runner` of the decorator factory `tool_handler` changed, and so did the factory's docstring.

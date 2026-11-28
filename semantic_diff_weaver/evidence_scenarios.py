@@ -26,7 +26,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 from .ast_diff import StructuralDelta
 from .ast_diff.types import (
@@ -66,6 +66,10 @@ MAX_DESCRIPTION_QUOTE_CHARS = 400
 # How many of the things an added callable returns or raises its scenario names.
 MAX_OUTCOMES = 3
 SHARED_CONTEXT_CHARS = 30
+# How many of a finding's changed lines that no test ran, by a coverage report, its obligation
+# quotes, and how much of each; it counts the rest.
+MAX_UNRUN_QUOTED_LINES = 3
+MAX_UNRUN_LINE_CHARS = 80
 # What a bare `raise` raises: no exception of its own.
 RAISED_AGAIN = "again what it caught"
 # A second scenario of one finding, the former default passed explicitly or either side of a
@@ -634,6 +638,59 @@ def _quotes(values: Sequence[str], total: int) -> str:
     if more > 0:
         shown.append(f"{more} more")
     return _series(shown)
+
+
+class UnrunLine(NamedTuple):
+    """A changed line of a finding's own code that a coverage report says no test ran."""
+
+    path: str
+    number: int
+    # As the file has it, stripped and redacted.
+    text: str
+
+
+def with_unrun_lines(given: str, lines: Sequence[UnrunLine]) -> str:
+    """`given`, and the changed lines of the finding's own code that no test ran.
+
+    Its scenario asks for each outcome, or for both sides of a condition, and these lines are the
+    ones the suite does not reach yet: where the change's own tests ran every other changed line,
+    they were the error path or the branch left to test. Their numbers come by file, and the first
+    `MAX_UNRUN_QUOTED_LINES` are quoted. Where the text would be too long for the obligation, fewer
+    are quoted, and none are named where even their numbers would not fit.
+    """
+    ordered = sorted(set(lines))
+    for quoted in range(min(len(ordered), MAX_UNRUN_QUOTED_LINES), -1, -1):
+        text = f"{given}; {_unrun_clause(ordered, quoted)}"
+        if len(text) <= MAX_OBLIGATION_TEXT_CHARS:
+            return text
+    return given
+
+
+def _unrun_clause(lines: Sequence[UnrunLine], quoted: int) -> str:
+    by_path: dict[str, list[int]] = {}
+    for line in lines:
+        by_path.setdefault(line.path, []).append(line.number)
+    places = _series(
+        [f"{_line_numbers(numbers)} of {code_span(path)}" for path, numbers in by_path.items()]
+    )
+    clause = f"no test ran the changed {'line' if len(lines) == 1 else 'lines'} {places}"
+    if not quoted:
+        return clause
+    shown = [_quote(line.text, MAX_UNRUN_LINE_CHARS) for line in lines[:quoted]]
+    if len(lines) > quoted:
+        shown.append(f"{len(lines) - quoted} more")
+    return f"{clause}: {_series(shown)}"
+
+
+def _line_numbers(numbers: Sequence[int]) -> str:
+    """Line numbers in order, each run of consecutive ones as its first and last: `234-237, 240`."""
+    runs: list[list[int]] = []
+    for number in sorted(set(numbers)):
+        if runs and number == runs[-1][1] + 1:
+            runs[-1][1] = number
+        else:
+            runs.append([number, number])
+    return ", ".join(str(first) if first == last else f"{first}-{last}" for first, last in runs)
 
 
 def _raise_values(values: Sequence[str], total: int) -> str:

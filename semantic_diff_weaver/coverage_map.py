@@ -208,6 +208,17 @@ class CoverageMap:
             return "uncovered"
         return "unknown"
 
+    def unexecuted(self, path: str, lines: Iterable[int]) -> frozenset[int]:
+        """Which of `lines` the report says no test executed; none for a file it does not cover.
+
+        As for `status_for_lines`, a file absent from the report says nothing about its lines: a
+        misconfigured path prefix is a gap in the report, not in the tests.
+        """
+        entry = self.resolve(path)
+        if entry is None:
+            return frozenset()
+        return frozenset(line for line in lines if line in entry.uncovered)
+
     def counts_for(self, path: str, lines: LineRange) -> tuple[int, int]:
         """Return (covered, uncovered) known line counts inside a range."""
         return self.counts_for_lines(path, range(lines.start, lines.end + 1))

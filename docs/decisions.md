@@ -1449,6 +1449,61 @@ it.
   The analyses hold 97 findings where they held 99, and 104 obligations where they held 106.
   Nothing else changes.
 
+## Output-affecting corrections (2026-11-28, the changed lines no test ran)
+
+In the Action's field test, the obligation of a callable a change added asked for each of its
+outcomes, and listed them. The change's own tests had often run every changed line of it but a few,
+and a coverage report says which:
+- **Push 6c00f52.** In claim-ledger's new `tools/ship.py`, eleven callables had such lines. Each
+  time they were the error path: an `except` clause and what it raised or returned, or a
+  `raise Refused(...)` under a check.
+- **Push 22f0904.** The lines of `_hand_labels` were the handler of a line of malformed JSON.
+
+**The measurement.** It lies in the field-test repository, in `uncovered-lines/`, and its criterion
+was committed before anything was computed. It covers the seven analyses of the second judgment.
+Two readers saw the reviewer's note and the code of each finding, but neither the lines nor this
+rule. Each traced which lines a test of the case the note asks for would run.
+- **The hits.** 15 findings had such lines, and on 14 of them that case runs one.
+- **The miss.** It shared its symbol's lines with another finding, which the correction now names
+  instead.
+
+**The correction.**
+- **Own lines.** `ast_diff` gives each delta the head-side lines of its symbol's own code that the
+  diff changed (`StructuralDelta.own_lines`, `analyze._record_own_lines`).
+  - They are the lines a change no rule names already quotes: inside the symbol and outside the
+    symbols it holds, without blank lines, comments, or its docstring. For `<module>`, no
+    definition is among them either.
+  - A finding's evidence span is its whole symbol. Cut to the diff, as the coverage verdict cuts
+    it, it would have put the lines of a function's nested functions in the function's finding,
+    and those of every function in the `<module>` finding.
+- **Not run.** `service._unrun_lines` keeps the lines the report lists as not executed
+  (`CoverageMap.unexecuted`). A file the report does not cover names none, since the report says
+  nothing of its lines.
+- **Named.** `obligations._name_unrun_lines` names them in the Given of the finding's first
+  obligation that asks for a test, never in a review question's
+  (`evidence_scenarios.with_unrun_lines`).
+  - Up to three are quoted, redacted as evidence is, and the rest are counted. Fewer are quoted
+    where the Given would be too long.
+  - A finding folded into another's obligation names them there.
+  - When several findings of one symbol each ask for a test of their own, its lines are named
+    once, in the obligation that comes first.
+- **What stays.** The coverage status, the risk score, and every other text stay as they were.
+
+**Measured.**
+- **Development cases.** They have no coverage report, so nothing changes: every measure, the 467
+  findings, the 455 obligations, and the 381 cards.
+- **Field replay.** The eleven judged field analyses were replayed with each head's own coverage.
+  Their findings and their 104 obligations stay the same, but for the Given of 17 obligations,
+  which now names lines:
+  - 11 in claim-ledger's push 6c00f52;
+  - 2 in push 22f0904: `_hand_labels`'s handler, and a `continue` in `misplaced`;
+  - 1 each in pushes fa23454 (`transcripts`' `except OSError: continue`) and 32ab858
+    (`_by_configuration`'s `if untimed:`);
+  - 2 in meal-manager's pull request 55: the handler's rollback that fails too, and two of its
+    messages; and `_describe_restored`'s entry for an ingredient not in the fridge.
+- **Where it reaches.** Only an analysis given a coverage report. Neither field repository passes
+  one to the Action yet.
+
 ## Output-affecting corrections (2026-11-13, a nested function's obligations)
 
 `SDW-RULE-NESTED` gives a function whose own code reads the same, and whose body changed only as the

@@ -304,6 +304,11 @@ class StructuralDelta:
     # As extraction labels the symbol, `function`, `class`, `module`, and so on: what a test does
     # to reach it. None for a delta of no Python symbol.
     symbol_kind: str | None = None
+    # The head-side lines of its symbol's own code that the diff changed: inside the symbol and
+    # outside the symbols it holds, and neither blank, a comment, nor its docstring. A coverage
+    # report says which of them no test ran, and the finding's obligation names those. Empty for
+    # a delta with no head side, or of no Python symbol.
+    own_lines: tuple[int, ...] = ()
 
 
 @dataclass
