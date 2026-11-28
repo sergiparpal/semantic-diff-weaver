@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+- **Obligations and brief:** a change seen in a function and in each function around it is said
+  once. In the Action's field test on meal-manager's pull request 62, the condition in the nested
+  `runner` of the decorator factory `tool_handler` changed, and so did the factory's docstring.
+  The brief listed the change on three cards: two with the same test, and one that quoted the
+  docstring.
+  - **A docstring is no changed line.** The obligation of a change no rule names quotes the
+    function's own changed lines. These now leave out its docstring, as they leave out blank
+    lines and comments. `tool_handler`'s obligation quoted its docstring as code. Without it, the
+    factory changed only as `runner` did, and it shares `runner`'s obligation (`SDW-RULE-NESTED`),
+    as the function between them already did.
+  - **One card.** A function can change only as the code nested in it does. Its finding now joins
+    the card of the nested function's finding when that finding's obligations hold all of its
+    own. The brief then says the change once, with each function around it. A function with an
+    obligation of its own, or code of its own that changed, keeps its card.
+  - **Where it changes output.** On the 180 development cases, no finding, obligation, or
+    benchmark measure changes. Four cards join a nested function's: tenacity's pull requests 679
+    and 696 (`retry` beside `retry.wrap`), werkzeug's 3329 (`run_wsgi` beside `execute`), and
+    pluggy's 799 (`enable_tracing` beside its `after`). The brief lists 381 cards where it listed
+    385. Of the eleven judged field analyses, only meal-manager's pull request 62 changes. One
+    obligation goes, so they hold 106 obligations where they held 107. The brief lists 88 cards
+    where it listed 90.
+
 ## 0.27.0 - 2026-11-26
 
 A test of a failure partway through. In the Action's field test on meal-manager's pull requests 52,

@@ -247,6 +247,43 @@ def test_a_function_that_changed_as_its_nested_one_did_shares_its_obligation() -
     ]
 
 
+def test_a_function_whose_docstring_changed_with_its_nested_one_shares_its_obligation() -> None:
+    """In the Action's field test, a decorator factory's docstring changed beside its nested
+    `runner`, and the factory's own obligation quoted the docstring as the code that changed."""
+    old = (
+        'def outer(x):\n    """Old words,\n    on two lines."""\n    def inner(y):\n'
+        "        return y + 1\n    return inner(x)\n"
+    )
+    new = (
+        'def outer(x):\n    """New words,\n    still on two."""\n    def inner(y):\n'
+        "        return y + 2\n    return inner(x)\n"
+    )
+    behaviors, contexts, obligations = _analysis(old, new, [(2, 2), (5, 1)])
+    (outer,), (inner,) = _on(behaviors, "outer"), _on(behaviors, "outer.inner")
+    assert contexts[outer.id].nested == ("outer.inner",)
+    assert [(item.title, item.behavior_change_ids) for item in obligations] == [
+        (
+            "Assert the consumer-visible contract of what `outer.inner` returns",
+            [outer.id, inner.id],
+        )
+    ]
+
+
+def test_a_function_whose_docstring_and_code_changed_quotes_only_its_code() -> None:
+    old = (
+        'def outer(x):\n    """Old words."""\n    def inner(y):\n        return y + 1\n'
+        "    del x[0]\n    return inner\n"
+    )
+    new = (
+        'def outer(x):\n    """New words."""\n    def inner(y):\n        return y + 2\n'
+        "    del x[1]\n    return inner\n"
+    )
+    _, _, obligations = _analysis(old, new, [(2, 1), (4, 2)])
+    (own,) = [item for item in obligations if item.behavior_change_ids == ["bc-001"]]
+    assert own.title == "Clarify and characterize what the changed lines of `outer` do"
+    assert own.given.endswith("it now reads `del x[1]` where it read `del x[0]`")
+
+
 def test_each_category_of_the_function_shares_the_obligation_of_its_nested_finding() -> None:
     """werkzeug#3329's `run_wsgi` took its nested `execute`'s dependency and ordering changes."""
     old = (

@@ -316,15 +316,28 @@ def function_parameters(node: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
     return f"({unparse_redacted(bare, 900)})"
 
 
-def body_without_docstring(body: list[ast.stmt]) -> list[ast.stmt]:
+def _docstring_of(body: list[ast.stmt]) -> ast.Expr | None:
+    """A body's docstring: its first statement, when that is a string and nothing more."""
+    first = body[0] if body else None
     if (
-        body
-        and isinstance(body[0], ast.Expr)
-        and isinstance(body[0].value, ast.Constant)
-        and isinstance(body[0].value.value, str)
+        isinstance(first, ast.Expr)
+        and isinstance(first.value, ast.Constant)
+        and isinstance(first.value.value, str)
     ):
-        return body[1:]
-    return body
+        return first
+    return None
+
+
+def body_without_docstring(body: list[ast.stmt]) -> list[ast.stmt]:
+    return body[1:] if _docstring_of(body) is not None else body
+
+
+def docstring_span(body: list[ast.stmt]) -> tuple[int, int] | None:
+    """The first and last lines of a body's docstring, or None for a body without one."""
+    docstring = _docstring_of(body)
+    if docstring is None:
+        return None
+    return docstring.lineno, docstring.end_lineno or docstring.lineno
 
 
 def body_fingerprint(body: list[ast.stmt]) -> str:
@@ -2471,6 +2484,7 @@ def snapshot_symbol(
         exits_total=exits_total,
         definitions=definitions,
         docstring_only=not body_without_docstring(body),
+        docstring_lines=docstring_span(body),
         display=display,
         parameters=parameters,
         parameter_kinds=kinds,

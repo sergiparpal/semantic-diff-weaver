@@ -173,13 +173,17 @@ def _changed_lines(
     """The changed lines of a symbol's own code: inside it, outside the symbols it holds.
 
     A module's own code is the whole file but its definitions, which are symbols of their own;
-    its snapshot's line range counts statements, not lines. Blank and comment lines say nothing.
+    its snapshot's line range counts statements, not lines. Blank and comment lines say nothing,
+    and neither does its docstring, which runs nothing. In the Action's field test, a decorator
+    factory's docstring changed beside the function nested in it, and the factory's obligation
+    quoted the docstring as the code that changed: without it, the factory changed only as the
+    nested function did.
     """
     if text is None:
         return []
     lines = text.splitlines()
     start, end = (1, len(lines)) if symbol.kind == "module" else (symbol.start, symbol.end)
-    nested = [
+    skipped = [
         (item.start, item.end)
         for item in symbols
         if item is not symbol
@@ -188,10 +192,12 @@ def _changed_lines(
         and item.end <= end
         and (item.start, item.end) != (start, end)
     ]
+    if symbol.docstring_lines is not None:
+        skipped.append(symbol.docstring_lines)
     found: list[str] = []
     for first, count in ranges:
         for number in range(max(first, start), min(first + count - 1, end) + 1):
-            if any(low <= number <= high for low, high in nested) or number > len(lines):
+            if any(low <= number <= high for low, high in skipped) or number > len(lines):
                 continue
             line = lines[number - 1].strip()
             if line and not line.startswith("#"):

@@ -83,6 +83,27 @@ def test_body_without_docstring_drops_only_a_leading_string_expression() -> None
     assert len(body_without_docstring(without_doc)) == 1
 
 
+def test_a_snapshot_records_the_lines_its_docstring_spans() -> None:
+    source = (
+        '"""The module."""\n'
+        "X = 1\n"
+        "class C:\n"
+        '    """A class,\n'
+        '    on two lines."""\n'
+        "    def m(self):\n"
+        "        return 1\n"
+        "def f():\n"
+        '    f"{X} is no docstring"\n'
+        "    return X\n"
+        "def g():\n"
+        "    x = 'a string, not first'\n"
+        "    return x\n"
+    )
+    symbols = _symbols(source)
+    lines = {name: item.docstring_lines for name, item in symbols.items()}  # type: ignore[attr-defined]
+    assert lines == {"<module>": (1, 1), "C": (4, 5), "C.m": None, "f": None, "g": None}
+
+
 def test_node_budget_rejects_an_oversized_tree() -> None:
     with pytest.raises(AstResourceLimit):
         extract_symbols("x = 1\n" * 50, _budget(max_nodes_per_file=10))
